@@ -11,7 +11,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: Download
-      link: https://github.com/loumalouomega/KKSS/releases
+      link: /download
     - theme: alt
       text: View on GitHub
       link: https://github.com/loumalouomega/KKSS
@@ -39,7 +39,7 @@ features:
 
 ## Quick start
 
-1. Download the installer for your platform from the [releases page](https://github.com/loumalouomega/KKSS/releases) (AppImage/deb, NSIS installer, or dmg).
+1. Grab the installer for your platform and architecture from the [download page](/download) (AppImage/deb, NSIS installer, or dmg).
 2. Launch **KKSS**. The toolbar toggle switches between **🔷 Pre-Processing** (CAD) and **🔶 Post-Processing** (mesh/results).
 3. Press `Ctrl+O` (or click **Open…**) and pick a model: CAD files open in Pre-Processing mode, `.mdpa`/VTK files in Post-Processing mode.
 

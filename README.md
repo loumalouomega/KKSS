@@ -31,7 +31,9 @@ A toolbar toggle switches between the modes; both stay alive, keeping their
 loaded file, camera, and history.
 
 **Documentation:** <https://loumalouomega.github.io/KKSS/> ·
-**Downloads:** [GitHub Releases](https://github.com/loumalouomega/KKSS/releases)
+**Downloads:** [download page](https://loumalouomega.github.io/KKSS/download)
+([GitHub Releases](https://github.com/loumalouomega/KKSS/releases)) — Linux
+x86-64/ARM 64, Windows x86-64/ARM 64, macOS Apple Silicon
 
 ## How it works
 

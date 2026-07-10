@@ -100,8 +100,14 @@ tree/model/vtkGroup/vtkFrame). Before a release, verify interactively:
 
 1. Bump `version` in `package.json`, commit.
 2. `git tag v<version> && git push origin master --tags`.
-3. The release workflow builds Win/macOS/Linux installers and attaches them
-   to a GitHub Release (hyphenated tags become prereleases).
+3. The release workflow builds installers for **Linux x64 + arm64, Windows
+   x64 + arm64, and macOS arm64** (cross-arch is safe: no native npm modules,
+   only per-arch Electron binaries) and attaches them to a GitHub Release
+   (hyphenated tags become prereleases). Artifact names follow
+   `KKSS-<version>-<os>-<arch>.<ext>` — the docs download page
+   (`doc/download.md`) groups release assets by that pattern, so keep
+   `artifactName` in `electron-builder.yml` and the page's `targets` list in
+   sync.
 
 The docs site deploys automatically on pushes to `master` touching `doc/`
 (GitHub Pages source must be set to "GitHub Actions" once, in the repo

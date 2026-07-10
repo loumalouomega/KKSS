@@ -17,6 +17,7 @@ export default defineConfig({
 
   themeConfig: {
     nav: [
+      { text: 'Download', link: '/download' },
       { text: 'Getting Started', link: '/guide/getting-started' },
       {
         text: 'Guide',
@@ -35,6 +36,7 @@ export default defineConfig({
       {
         text: 'Guide',
         items: [
+          { text: 'Download', link: '/download' },
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },

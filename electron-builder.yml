@@ -11,6 +11,11 @@ productName: KKSS
 copyright: © Vicente Mataix Ferrándiz — GPL-3.0
 asar: false
 
+# Predictable per-target names, e.g. KKSS-0.1.0-linux-arm64.AppImage,
+# KKSS-0.1.0-win-x64.exe — the docs Download page (doc/download.md) groups
+# release assets by the "-<os>-<arch>." substring, so keep this pattern.
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+
 files:
   - out/**
   - "!out/**/*.map"

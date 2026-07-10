@@ -9,14 +9,14 @@ VS Code extensions — into one window with a mode toggle.
 
 ## Installation
 
-Grab the installer for your platform from the
-[releases page](https://github.com/loumalouomega/KKSS/releases):
+Grab the installer for your platform and architecture from the
+[download page](/download) (built for every release tag by CI):
 
-| Platform | Artifact |
-| --- | --- |
-| Linux | `.AppImage` (portable) or `.deb` |
-| Windows | NSIS `.exe` installer |
-| macOS | `.dmg` / `.zip` |
+| Platform | Architectures | Artifact |
+| --- | --- | --- |
+| Linux | x86-64, ARM 64 | `.AppImage` (portable) or `.deb` |
+| Windows | x86-64, ARM 64 | NSIS `.exe` installer |
+| macOS | Apple Silicon (ARM 64) | `.dmg` / `.zip` |
 
 ::: tip macOS Gatekeeper
 Release builds are currently unsigned. On macOS, right-click the app and choose
