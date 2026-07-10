@@ -1,0 +1,71 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+#picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  box-sizing: border-box;
+  height: 100vh;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+}
+
+#picker-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+#picker-input {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  padding: 5px 8px;
+  font-size: 13px;
+  outline: none;
+}
+
+#picker-input:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+#picker-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.picker-item {
+  padding: 5px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.picker-item .desc {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.picker-item:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.picker-item.selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+#picker-hint {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground);
+}

@@ -1,0 +1,129 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  user-select: none;
+}
+
+#shell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+#brand {
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--vscode-textLink-foreground);
+}
+
+#mode-toggle {
+  display: flex;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mode-btn {
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: none;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mode-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mode-btn.active {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+#open-btn {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 3px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#open-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+#file-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+#toasts {
+  display: flex;
+  gap: 6px;
+  max-width: 45%;
+  overflow: hidden;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  color: var(--vscode-foreground);
+}
+
+.toast.warning {
+  border-color: var(--vscode-inputValidation-warningBorder);
+  background: var(--vscode-inputValidation-warningBackground);
+}
+
+.toast.error {
+  border-color: var(--vscode-errorForeground);
+}
+
+.toast button {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 2px;
+  font-size: 11px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
+.toast .spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--vscode-progressBar-background);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src kkss:; script-src kkss:; img-src kkss: data:" />
+  <link href="../theme/vscode-vars.css" rel="stylesheet" />
+  <link href="./shell.css" rel="stylesheet" />
+  <title>KKSS Shell</title>
+</head>
+<body>
+  <div id="shell">
+    <span id="brand">KKSS</span>
+    <div id="mode-toggle" role="tablist" aria-label="Application mode">
+      <button id="mode-cad" class="mode-btn active" role="tab" title="Pre-processing: CAD geometry and model preparation">&#9671; Pre-Processing</button>
+      <button id="mode-mesh" class="mode-btn" role="tab" title="Post-processing: mesh inspection, modification and results">&#9670; Post-Processing</button>
+    </div>
+    <button id="open-btn" title="Open a file in the current mode (Ctrl+O)">Open&hellip;</button>
+    <span id="file-title"></span>
+    <div id="toasts"></div>
+  </div>
+  <script src="./shell.js"></script>
+</body>
+</html>

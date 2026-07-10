@@ -1,0 +1,77 @@
+/*
+ * VS Code theme variables for the KKSS webview pages.
+ *
+ * The submodule webview stylesheets (cad/media/viewer.css, mesh/webview/
+ * style.css) style themselves with --vscode-* variables that VS Code normally
+ * injects into every webview. Electron has no such injection, so this file
+ * defines every variable they use — values taken from VS Code's Dark+
+ * (Dark Modern) theme. tools/check-theme-vars.mjs fails the build if a
+ * submodule update starts using a variable missing here.
+ */
+:root {
+  --vscode-font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, Ubuntu, "Droid Sans", sans-serif;
+  --vscode-font-size: 13px;
+  --vscode-foreground: #cccccc;
+  --vscode-descriptionForeground: rgba(204, 204, 204, 0.7);
+  --vscode-errorForeground: #f48771;
+  --vscode-focusBorder: #007fd4;
+
+  --vscode-editor-background: #1e1e1e;
+  --vscode-editorWidget-background: #252526;
+  --vscode-editorWidget-border: #454545;
+  --vscode-editorCodeLens-foreground: #999999;
+  --vscode-editorGroupHeader-tabsBackground: #252526;
+  --vscode-editorWarning-foreground: #cca700;
+
+  --vscode-button-background: #0e639c;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: #1177bb;
+  --vscode-button-secondaryBackground: #3a3d41;
+  --vscode-button-secondaryForeground: #ffffff;
+  --vscode-button-secondaryHoverBackground: #45494e;
+
+  --vscode-dropdown-background: #3c3c3c;
+  --vscode-dropdown-border: #3c3c3c;
+  --vscode-dropdown-foreground: #f0f0f0;
+
+  --vscode-input-background: #3c3c3c;
+  --vscode-input-border: #3c3c3c;
+  --vscode-input-foreground: #cccccc;
+  --vscode-inputValidation-infoBackground: #063b49;
+  --vscode-inputValidation-warningBackground: #352a05;
+  --vscode-inputValidation-warningBorder: #b89500;
+  --vscode-inputValidation-warningForeground: #cccccc;
+
+  --vscode-list-activeSelectionBackground: #094771;
+  --vscode-list-activeSelectionForeground: #ffffff;
+  --vscode-list-hoverBackground: #2a2d2e;
+
+  --vscode-menu-background: #252526;
+  --vscode-menu-border: #454545;
+  --vscode-menu-foreground: #cccccc;
+  --vscode-menu-selectionBackground: #094771;
+  --vscode-menu-selectionForeground: #ffffff;
+  --vscode-menu-separatorBackground: #606060;
+  --vscode-menubar-selectionBackground: rgba(255, 255, 255, 0.1);
+
+  --vscode-panel-border: rgba(128, 128, 128, 0.35);
+  --vscode-progressBar-background: #0e70c0;
+  --vscode-progressBar-foreground: #0e70c0;
+  --vscode-sash-hoverBorder: #007fd4;
+  --vscode-scrollbarSlider-background: rgba(121, 121, 121, 0.4);
+
+  --vscode-sideBar-background: #252526;
+  --vscode-sideBar-border: rgba(128, 128, 128, 0.35);
+  --vscode-sideBarSectionHeader-foreground: #cccccc;
+
+  --vscode-textLink-foreground: #3794ff;
+  --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
+}
+
+/* The webview pages have no VS Code body classes; give them the editor look. */
+body {
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}

@@ -1,0 +1,44 @@
+# KKSS packaging. Everything the app needs at runtime lives in out/ (esbuild
+# bundles all JS; WASM + worker files are copied there by esbuild.mjs), so the
+# package carries no node_modules.
+#
+# asar is disabled: mesh's mmgWorkerClient spawns dist-relative worker threads
+# (__dirname/mmgWorker.js) and the OCCT/Gmsh services read WASM binaries with
+# fs — worker_threads and fs are not asar-aware, and patching paths would mean
+# modifying submodule behavior.
+appId: org.kratosmultiphysics.kkss
+productName: KKSS
+copyright: © Vicente Mataix Ferrándiz — GPL-3.0
+asar: false
+
+files:
+  - out/**
+  - "!out/**/*.map"
+  - "!out/tools/**"
+
+directories:
+  output: release
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Science
+  maintainer: tote1989@gmail.com
+  synopsis: Pre- and post-processing desktop app for Kratos Multiphysics
+
+win:
+  target:
+    - nsis
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.developer-tools
+
+npmRebuild: false

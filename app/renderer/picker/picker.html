@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src kkss:; script-src kkss:" />
+  <link href="../theme/vscode-vars.css" rel="stylesheet" />
+  <link href="./picker.css" rel="stylesheet" />
+  <title>KKSS Picker</title>
+</head>
+<body>
+  <div id="picker">
+    <div id="picker-title"></div>
+    <input id="picker-input" type="text" style="display:none" />
+    <div id="picker-list"></div>
+    <div id="picker-hint">Enter to confirm · Esc to cancel</div>
+  </div>
+  <script src="./picker.js"></script>
+</body>
+</html>

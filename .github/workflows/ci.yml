@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            cad/package-lock.json
+            mesh/package-lock.json
+
+      - run: npm ci
+
+      - name: Install submodule dependencies
+        run: npm run submodules:install
+
+      - name: Build (submodules + app)
+        run: npm run build
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      - name: Smoke test (headless Electron, both modes)
+        run: xvfb-run -a node tools/smoke.e2e.mjs

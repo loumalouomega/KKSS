@@ -1,0 +1,43 @@
+{
+  "name": "kkss",
+  "displayName": "KKSS — Keep Kratos Simple Stupid",
+  "description": "Cross-platform desktop application for pre- and post-processing Kratos Multiphysics simulations, built on the CAD-Preview and VSCode-MDPA-Preview extensions.",
+  "version": "0.1.0",
+  "license": "GPL-3.0-only",
+  "author": "Vicente Mataix Ferrándiz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/loumalouomega/KKSS.git"
+  },
+  "main": "out/main.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "submodules:install": "npm ci --prefix cad && npm ci --prefix mesh",
+    "submodules:build": "npm run build --prefix cad && npm run package --prefix mesh",
+    "build:app": "node esbuild.mjs && node tools/gen-webview-html.mjs && node tools/check-theme-vars.mjs",
+    "build": "npm run submodules:build && npm run build:app",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "node tools/smoke.e2e.mjs",
+    "start": "npm run build && electron .",
+    "start:fast": "npm run build:app && electron .",
+    "dist": "npm run build && electron-builder --publish never",
+    "docs:dev": "npm run docs:dev --prefix doc",
+    "docs:build": "npm run docs:build --prefix doc"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.125.0",
+    "chokidar": "^4.0.3",
+    "electron": "^37.0.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.20.2",
+    "playwright-core": "^1.49.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.4.0"
+  }
+}
