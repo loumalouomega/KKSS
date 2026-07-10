@@ -7,6 +7,8 @@ the highlights; see the
 [CAD-Preview documentation](https://loumalouomega.github.io/CAD-Preview/) for
 the complete feature guide.
 
+![CAD mode: bull.stp with the components tree, parts, edits and FE mesh panels](/screenshots/cad-viewer.png)
+
 ## What you can do
 
 - **View** STEP, IGES, and BREP models (tessellated by OpenCascade in a
@@ -26,6 +28,14 @@ the complete feature guide.
 - **Export**: STEP/IGES/BREP (via OCCT), STL/OBJ/PLY/glTF (via Three.js), and
   FE meshes to Kratos **MDPA**, Gmsh `.msh`, VTK, UNV, Abaqus, Nastran, SU2,
   and more.
+
+| Components tree | File menu | FE Mesh panel |
+| --- | --- | --- |
+| ![Components tree](/screenshots/cad-components-tree.png) | ![File menu](/screenshots/cad-file-menu.png) | ![FE Mesh panel](/screenshots/cad-fe-mesh-panel.png) |
+
+| Edits panel | Parts panel | View controls |
+| --- | --- | --- |
+| ![Edits panel](/screenshots/cad-edits-panel.png) | ![Parts panel](/screenshots/cad-parts-panel.png) | ![View controls](/screenshots/cad-view-controls.png) |
 
 ## Sidecar files
 

@@ -27,6 +27,8 @@ export function createMainWindow(outDir: string): MainWindow {
     minHeight: 480,
     title: "KKSS — Keep Kratos Simple Stupid",
     backgroundColor: "#1e1e1e",
+    // Window/taskbar icon (Linux; Windows/macOS use the packaged icon).
+    icon: path.join(outDir, "icon.png"),
   });
 
   const shell = new WebContentsView({

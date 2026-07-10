@@ -22,6 +22,7 @@ export const channels = {
 
 /** Messages posted by the shell toolbar renderer. */
 export type ShellToHost =
+  | { type: "shellReady" }
   | { type: "setMode"; mode: Mode }
   | { type: "openFile" }
   | { type: "toastButton"; id: number; button: string };

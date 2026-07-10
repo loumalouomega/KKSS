@@ -23,6 +23,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "node tools/smoke.e2e.mjs",
+    "build:icons": "cd icons && make",
+    "docs:screenshots": "npm run build:app && node tools/screenshots.mjs",
     "start": "npm run build && electron .",
     "start:fast": "npm run build:app && electron .",
     "dist": "npm run build && electron-builder --publish never",

@@ -91,6 +91,13 @@ app.whenReady().then(() => {
     const msg = raw as ShellToHost;
     if (!main) return;
     switch (msg.type) {
+      case "shellReady":
+        // The shell page may finish loading after a CLI file-open already ran
+        // (or after a reload) — replay the current mode + titles.
+        sendShell({ type: "mode", mode: main.mode() });
+        sendShell({ type: "title", mode: "cad", fileName: cadHost?.currentFile ? path.basename(cadHost.currentFile) : null });
+        sendShell({ type: "title", mode: "mesh", fileName: meshHost?.currentFile ? path.basename(meshHost.currentFile) : null });
+        break;
       case "setMode":
         main.setMode(msg.mode);
         sendShell({ type: "mode", mode: msg.mode });

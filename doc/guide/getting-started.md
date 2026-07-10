@@ -27,6 +27,8 @@ Release builds are currently unsigned. On macOS, right-click the app and choose
 
 The toolbar at the top of the window holds the mode toggle:
 
+![The shell toolbar: mode toggle, Open button, and the current file](/screenshots/shell-toolbar.png)
+
 - **🔷 Pre-Processing** — CAD geometry and model preparation
   ([details](/guide/cad-mode)). Opens STEP, IGES, BREP, STL, OBJ, PLY, and glTF.
 - **🔶 Post-Processing** — mesh inspection, modification, and result
@@ -35,6 +37,10 @@ The toolbar at the top of the window holds the mode toggle:
 
 Both mode views stay alive when you switch: the loaded file, the camera, and
 your undo history are all preserved.
+
+| 🔷 Pre-Processing | 🔶 Post-Processing |
+| --- | --- |
+| ![CAD mode](/screenshots/cad-viewer.png) | ![Mesh mode](/screenshots/mesh-viewer.png) |
 
 ## Opening files
 

@@ -1,5 +1,11 @@
 /** Shell toolbar: mode toggle, Open button, current-file title, toasts. */
 import type { Mode, ShellToWebview } from "../../main/ipc";
+import { TOOLBAR_ICONS, type ToolbarIconId } from "./shellIcons";
+
+/** Same wrapper the submodule providers use for their generated icons. */
+function icon(id: ToolbarIconId): string {
+  return `<span class="toolbar-icon">${TOOLBAR_ICONS[id]}</span>`;
+}
 
 declare global {
   interface Window {
@@ -18,6 +24,11 @@ const btnMesh = byId<HTMLButtonElement>("mode-mesh");
 const openBtn = byId<HTMLButtonElement>("open-btn");
 const fileTitle = byId<HTMLSpanElement>("file-title");
 const toasts = byId<HTMLDivElement>("toasts");
+
+// TikZ-generated, currentColor-based glyphs (icons/tikz-ui — see icons/README.md).
+btnCad.innerHTML = `${icon("preMode")} Pre-Processing`;
+btnMesh.innerHTML = `${icon("postMode")} Post-Processing`;
+openBtn.innerHTML = `${icon("open")} Open…`;
 
 const titles: Record<Mode, string | null> = { cad: null, mesh: null };
 let mode: Mode = "cad";
@@ -86,3 +97,4 @@ api.onMessage((raw) => {
 });
 
 renderMode();
+api.post({ type: "shellReady" });

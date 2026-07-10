@@ -69,6 +69,39 @@ npm test            # vitest glue tests (test/)
 npm run smoke       # headless end-to-end smoke test (needs xvfb on Linux)
 ```
 
+## Regenerating documentation screenshots
+
+Screenshots are **generated, not hand-captured** — the same philosophy as the
+cad submodule's `scripts/screenshots/` pipeline, but even more end-to-end:
+`tools/screenshots.mjs` launches the real Electron app (Playwright-Electron)
+on real example files from the submodules and captures the live windows at 2x
+pixel density.
+
+```bash
+npm run build                          # once, so out/ is complete
+env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots   # headless Linux
+```
+
+PNGs land in `doc/public/screenshots/` (committed, kebab-case) and the two
+README heroes are refreshed in `images/`. Any change to the shell toolbar,
+the generated webview pages, or visible viewer behavior means re-running this
+— don't hand-edit the PNGs.
+
+## Icons
+
+`icons/` holds TikZ-drawn icon sources, mirroring the submodules' pipeline
+(`pdflatex` + `pdftocairo` required — see `icons/README.md`):
+
+- `tikz-ui/*.tex` → `svg-ui/*.svg` → the generated (and committed)
+  `app/renderer/shell/shellIcons.ts` — monochrome `currentColor` shell
+  toolbar icons, tinted by the surrounding element's color.
+- `tikz-app/kkss.tex` → `icons/app/icon{,-256,-1024}.png` — the colored
+  "split cube" application icon consumed by `electron-builder.yml` and the
+  Linux window icon (`out/icon.png`).
+
+Regenerate everything with `npm run build:icons` and commit the sources
+together with the regenerated artifacts.
+
 ## Updating the submodules
 
 Upstream improvements are inherited by bumping the submodule pointer:

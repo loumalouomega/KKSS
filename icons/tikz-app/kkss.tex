@@ -1,0 +1,45 @@
+% KKSS application icon — the "split cube": one isometric cube whose top and
+% left faces are solid shaded blue (the Pre-Processing / CAD half) and whose
+% right face is an orange triangulated wireframe (the Post-Processing / mesh
+% half), on a dark rounded-square backdrop. Rendered to PNG by the Makefile's
+% `app` target (pdftocairo -png -transp) for electron-builder + the window
+% icon. Unlike tikz-ui/ this drawing is COLORED — it never goes through the
+% currentColor codegen.
+\documentclass[tikz,border=0mm]{standalone}
+\usetikzlibrary{arrows.meta,calc,shapes.geometric}
+\definecolor{kkssbg}{HTML}{14191F}
+\definecolor{kkssblue}{HTML}{1F6FEB}
+\definecolor{kkssblueLight}{HTML}{58A6FF}
+\definecolor{kkssblueDark}{HTML}{174F9E}
+\definecolor{kkssorange}{HTML}{F0883E}
+\begin{document}
+\begin{tikzpicture}[line width=1.6pt, line cap=round, line join=round, x=1mm,y=1mm]
+  % Backdrop: dark rounded square (transparent outside the corners).
+  \fill[kkssbg, rounded corners=5.5mm] (-14,-14) rectangle (14,14);
+
+  % Isometric cube: apex-up hexagon. Vertices:
+  %   top T(0,11), upper-left UL(-9.5,5.5), upper-right UR(9.5,5.5),
+  %   center C(0,0), lower-left LL(-9.5,-5.5), lower-right LR(9.5,-5.5),
+  %   bottom B(0,-11).
+  % Top face (T, UL, C, UR) — light blue.
+  \fill[kkssblueLight] (0,11) -- (-9.5,5.5) -- (0,0) -- (9.5,5.5) -- cycle;
+  % Left face (UL, C, B, LL) — mid blue.
+  \fill[kkssblue] (-9.5,5.5) -- (0,0) -- (0,-11) -- (-9.5,-5.5) -- cycle;
+  % Right face (C, UR, LR, B) — dark blue ground under the orange wireframe.
+  \fill[kkssblueDark!35!kkssbg] (0,0) -- (9.5,5.5) -- (9.5,-5.5) -- (0,-11) -- cycle;
+
+  % Right face triangulation — the mesh half, orange.
+  \begin{scope}[kkssorange, line width=1.4pt]
+    \draw (0,0) -- (9.5,-5.5);
+    \draw (9.5,5.5) -- (0,-11);
+    \draw (0,-5.5) -- (9.5,0);
+    \draw (4.75,2.75) -- (4.75,-8.25);
+    \draw (0,0) -- (9.5,5.5) -- (9.5,-5.5) -- (0,-11) -- cycle;
+  \end{scope}
+
+  % Cube outline over everything, in the backdrop color for crisp separation.
+  \draw[kkssbg, line width=1.9pt]
+    (0,11) -- (-9.5,5.5) -- (-9.5,-5.5) -- (0,-11) -- (9.5,-5.5) -- (9.5,5.5) -- cycle
+    (0,11) -- (9.5,5.5)  (0,0) -- (-9.5,5.5)  (0,0) -- (0,-11);
+\end{tikzpicture}
+\end{document}

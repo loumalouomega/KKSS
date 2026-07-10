@@ -7,6 +7,8 @@ extension exactly. This page summarizes the highlights; see the
 [extension documentation](https://loumalouomega.github.io/VSCode-MDPA-Preview/)
 for the complete guide.
 
+![Mesh mode: an MDPA model with the outline, edit history and mesh-modification sidebar](/screenshots/mesh-viewer.png)
+
 ## What you can do
 
 - **Inspect MDPA models**: a vtk.js 3D view with a navigable
@@ -28,9 +30,15 @@ for the complete guide.
   VTU, VTP, STL, OBJ, or PLY.
 - **Screenshots**: save the current view as a PNG.
 
+| Outline & edit sidebar | File menu |
+| --- | --- |
+| ![Sidebar](/screenshots/mesh-outline.png) | ![File menu](/screenshots/mesh-file-menu.png) |
+
 ## Timeline discovery
 
 Opening one file of a Kratos-style series (`<prefix>_<rank>_<step>.vtk`)
 discovers its siblings, builds the timeline, and merges rank/subpart files
 into the outline. The directory is watched, so a still-running simulation
 keeps extending the timeline as new steps land on disk.
+
+![A VTK time series with the playback timeline](/screenshots/mesh-vtk-timeline.png)

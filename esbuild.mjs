@@ -153,6 +153,7 @@ function copyArtifacts() {
     ["cad/dist/opencascade.wasm.wasm", out("cad-runtime/dist/opencascade.wasm.wasm")],
     ["cad/dist/gmsh-core.wasm", out("cad-runtime/dist/gmsh-core.wasm")],
     // Static app assets.
+    ["icons/app/icon-256.png", out("icon.png")], // Linux window/taskbar icon
     ["app/renderer/theme/vscode-vars.css", out("renderer/theme/vscode-vars.css")],
     ["app/renderer/shell/index.html", out("renderer/shell/index.html")],
     ["app/renderer/shell/shell.css", out("renderer/shell/shell.css")],

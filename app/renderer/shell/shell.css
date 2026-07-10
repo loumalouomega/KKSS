@@ -24,6 +24,14 @@ body {
   color: var(--vscode-textLink-foreground);
 }
 
+/* TikZ-generated inline SVG icons (shellIcons.ts) — sized by font, tinted by
+   the surrounding element's color, same convention as the submodules. */
+.toolbar-icon svg {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+}
+
 #mode-toggle {
   display: flex;
   border: 1px solid var(--vscode-panel-border);

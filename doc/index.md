@@ -31,6 +31,12 @@ features:
     details: Windows, macOS, and Linux installers built and published automatically on every release tag.
 ---
 
+## The two modes at a glance
+
+| 🔷 Pre-Processing | 🔶 Post-Processing |
+| --- | --- |
+| ![CAD mode — STEP model with parts, edits and FE meshing panels](/screenshots/cad-viewer.png) | ![Mesh mode — MDPA model with outline, edit history and mesh modification](/screenshots/mesh-viewer.png) |
+
 ## Quick start
 
 1. Download the installer for your platform from the [releases page](https://github.com/loumalouomega/KKSS/releases) (AppImage/deb, NSIS installer, or dmg).

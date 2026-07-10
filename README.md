@@ -1,5 +1,22 @@
 # KKSS — Keep Kratos Simple Stupid
 
+[![CI](https://github.com/loumalouomega/KKSS/actions/workflows/ci.yml/badge.svg)](https://github.com/loumalouomega/KKSS/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/loumalouomega/KKSS)](https://github.com/loumalouomega/KKSS/releases)
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://loumalouomega.github.io/KKSS/)
+[![Electron](https://img.shields.io/badge/Electron-37-9feaf9?logo=electron)](https://www.electronjs.org/)
+[![Three.js](https://img.shields.io/badge/Three.js-r160-black?logo=threedotjs)](https://threejs.org/)
+[![vtk.js](https://img.shields.io/badge/vtk.js-29.x-1f6feb)](https://kitware.github.io/vtk-js/)
+[![OpenCascade.js](https://img.shields.io/badge/OpenCascade.js-1.x-orange)](https://ocjs.org/)
+[![Gmsh](https://img.shields.io/badge/Gmsh-WASM-green)](https://gmsh.info/)
+[![MMG](https://img.shields.io/badge/MMG-5.8-yellow)](https://www.mmgtools.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+
+<div align="center">
+  <img src="images/pre_processing.png" alt="Pre-Processing (CAD) mode — STEP model with parts, edits and FE meshing panels" style="width: 49%;" />
+  <img src="images/post_processing.png" alt="Post-Processing (Mesh) mode — MDPA model with outline, edit history and mesh modification" style="width: 49%;" />
+</div>
+
 A cross-platform desktop application for **pre- and post-processing
 [Kratos Multiphysics](https://github.com/KratosMultiphysics/Kratos)
 simulations**, built with Electron on top of two proven VS Code extensions,

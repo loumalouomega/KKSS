@@ -27,6 +27,8 @@ npm run build               # submodule bundles → app bundles → HTML gen →
 | `npm test` | vitest glue tests in `test/` |
 | `npm run smoke` | Headless end-to-end smoke test (`xvfb-run -a npm run smoke` on Linux) |
 | `npm run dist` | Package installers into `release/` |
+| `npm run build:icons` | Regenerate the TikZ icons (`icons/` — needs `pdflatex` + `pdftocairo`) |
+| `npm run docs:screenshots` | Regenerate doc screenshots from the live app (headless: `env -u ELECTRON_RUN_AS_NODE xvfb-run -a …`) |
 
 esbuild owns all emitted code; `tsc` is type-check only — the same convention
 as both submodules.
@@ -37,11 +39,16 @@ as both submodules.
 app/main/        Electron main process (hosts, services, protocol, menu)
 app/preload/     contextBridge preloads (the acquireVsCodeApi bridge)
 app/renderer/    shell toolbar, picker, theme vars, view shim
-tools/           build-time generators + guards + smoke test
+icons/           TikZ icon sources → shellIcons.ts + the app icon (see icons/README.md)
+tools/           build-time generators + guards + smoke test + screenshot capture
 test/            vitest glue tests
 doc/             VitePress documentation site (own npm package)
 cad/, mesh/      git submodules — NEVER edited by app code
 ```
+
+Doc/UI changes: follow `CLAUDE.md`'s "Keep docs in sync" section — doc drift
+is part of the change, not a follow-up, and UI changes require re-running
+`npm run docs:screenshots`.
 
 Two invariants to preserve when changing the app:
 
