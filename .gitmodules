@@ -1,3 +1,6 @@
 [submodule "cad"]
 	path = cad
 	url = https://github.com/loumalouomega/CAD-Preview.git
+[submodule "mesh"]
+	path = mesh
+	url = https://github.com/loumalouomega/VSCode-MDPA-Preview.git
