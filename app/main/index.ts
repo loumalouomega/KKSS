@@ -12,7 +12,7 @@ import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
 import { TerminalService } from "./services/terminal";
 import { EditorService } from "./services/editor";
-import { configureNotifications, handleToastButton } from "./services/notifications";
+import { configureNotifications, handleToastButton, toast } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { __configureVscodeShim } from "./vscodeShim";
 import { openMesh } from "../../mesh/src/meshExport";
@@ -161,6 +161,12 @@ app.whenReady().then(() => {
       case "toggleTerminal":
         toggleTerminal();
         break;
+      case "editCurrentFile": {
+        const current = main.mode() === "cad" ? cadHost?.currentFile : meshHost?.currentFile;
+        if (current) void editor?.openPath(current);
+        else toast("warning", "No file open in the current mode — use Open… first.");
+        break;
+      }
       case "openFile":
         if (main.mode() === "cad") void cadHost?.openFileDialog();
         else void openMesh(); // mesh/src/meshExport openMesh → dialog → openWith hook

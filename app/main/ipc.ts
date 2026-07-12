@@ -105,6 +105,7 @@ export type ShellToHost =
   | { type: "setMode"; mode: Mode }
   | { type: "goHome" }
   | { type: "toggleTerminal" }
+  | { type: "editCurrentFile" }
   | { type: "openFile" }
   | { type: "toastButton"; id: number; button: string };
 

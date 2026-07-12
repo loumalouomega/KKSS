@@ -74,9 +74,13 @@ by both modes; its height is fixed in this version.
 
 ## Text editor
 
-**Text Editor** on the home screen (or **File ▸ Open in Text Editor…**)
-opens a lightweight editor for input files, scripts and configuration —
-`.json` and `.py` get syntax highlighting. `Ctrl+S` saves, `Ctrl+Shift+S`
+The **Edit** toolbar button opens the file currently loaded in the active
+mode (`.mdpa`, `.stp`, …) as plain text — handy for touching up an input deck
+without leaving the app. **Text Editor** on the home screen (or **File ▸
+Open in Text Editor…**) opens any file via a dialog instead. It's a
+lightweight editor for input files, scripts and configuration — `.json` and
+`.py` get syntax highlighting; binary or very large files are refused with a
+notice. `Ctrl+S` saves, `Ctrl+Shift+S`
 saves as, and the toolbar has Open/Save/Save As buttons. Unsaved changes show
 a ● next to the file name; switching screens never loses the buffer, and
 closing the window with unsaved changes prompts to save. Pair it with the

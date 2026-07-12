@@ -12,6 +12,15 @@ import { BaseWindow, dialog, ipcMain, WebContents } from "electron";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { EditorLanguage, EditorToHost, EditorToWebview } from "../ipc";
+import { toast } from "./notifications";
+
+/** Refuse to text-edit files bigger than this (CodeMirror stays responsive). */
+const MAX_EDIT_BYTES = 20 * 1024 * 1024;
+
+/** NUL byte in the head of the file → treat as binary, not editable text. */
+function looksBinary(buffer: Buffer): boolean {
+  return buffer.subarray(0, 8192).includes(0);
+}
 
 const FILE_FILTERS = [
   { name: "Text files", extensions: ["json", "py", "mdpa", "txt", "md", "dat", "csv", "yml", "yaml"] },
@@ -83,27 +92,49 @@ export class EditorService {
 
   /** Pick a file and load it into the editor (guards unsaved changes). */
   async open(): Promise<void> {
-    if (this.dirty) {
-      const { response } = await dialog.showMessageBox(this.deps.getWindow(), {
-        type: "warning",
-        message: `Discard unsaved changes to ${this.currentPath ? path.basename(this.currentPath) : "the current file"}?`,
-        buttons: ["Discard changes", "Cancel"],
-        defaultId: 1,
-        cancelId: 1,
-      });
-      if (response !== 0) return;
-    }
+    if (!(await this.confirmDiscard())) return;
     const result = await dialog.showOpenDialog(this.deps.getWindow(), {
       title: "Open in Text Editor",
       filters: FILE_FILTERS,
       properties: ["openFile"],
     });
     if (result.canceled || !result.filePaths[0]) return;
-    const fsPath = path.resolve(result.filePaths[0]);
-    const content = await fs.promises.readFile(fsPath, "utf8");
+    await this.load(path.resolve(result.filePaths[0]));
+  }
+
+  /** Load a known path directly (toolbar "Edit" on the current file). */
+  async openPath(fsPath: string): Promise<void> {
+    if (!(await this.confirmDiscard())) return;
+    await this.load(path.resolve(fsPath));
+  }
+
+  private async confirmDiscard(): Promise<boolean> {
+    if (!this.dirty) return true;
+    const { response } = await dialog.showMessageBox(this.deps.getWindow(), {
+      type: "warning",
+      message: `Discard unsaved changes to ${this.currentPath ? path.basename(this.currentPath) : "the current file"}?`,
+      buttons: ["Discard changes", "Cancel"],
+      defaultId: 1,
+      cancelId: 1,
+    });
+    return response === 0;
+  }
+
+  private async load(fsPath: string): Promise<void> {
+    const name = path.basename(fsPath);
+    const stat = await fs.promises.stat(fsPath);
+    if (stat.size > MAX_EDIT_BYTES) {
+      toast("warning", `${name} is too large to edit as text (${Math.round(stat.size / 1024 / 1024)} MB).`);
+      return;
+    }
+    const buffer = await fs.promises.readFile(fsPath);
+    if (looksBinary(buffer)) {
+      toast("warning", `${name} is a binary file — it can't be edited as text.`);
+      return;
+    }
     this.currentPath = fsPath;
     this.dirty = false;
-    this.lastDoc = { type: "doc", path: fsPath, content, language: languageFor(fsPath) };
+    this.lastDoc = { type: "doc", path: fsPath, content: buffer.toString("utf8"), language: languageFor(fsPath) };
     this.send(this.lastDoc);
     this.deps.showEditor();
     this.title();
