@@ -25,6 +25,11 @@ jobs:
             args: --linux --x64
           - os: ubuntu-24.04-arm
             args: --linux --arm64
+            # electron-builder's fpm (used for the .deb target) only ships a
+            # bundled linux-x86 binary — it fails with "Exec format error" on
+            # an arm64 host. Install a system fpm via gem and point
+            # electron-builder at it (see the Package installers step below).
+            system_fpm: true
           - os: windows-latest
             args: --win --x64
           - os: windows-11-arm
@@ -58,6 +63,13 @@ jobs:
         shell: bash
         run: rm -rf release
 
+      - name: Install system fpm
+        if: matrix.system_fpm
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+
       - name: Package installers
         # electron-builder/builder-util auto-enables hard-link copying on CI
         # (isCI check in builder-util/src/fs.ts); a duplicate internal write
@@ -65,8 +77,12 @@ jobs:
         # silently succeeds under plain copy, which is why this only
         # reproduces here and never locally. USE_HARD_LINKS=false is the
         # maintainer-endorsed toggle (electron-userland/electron-builder#7093).
+        # USE_SYSTEM_FPM makes getFpmPath() use the gem-installed fpm above
+        # instead of the bundled linux-x86 binary (removed in electron-builder
+        # v27+; fine here, we're pinned to ^25.1.8).
         env:
           USE_HARD_LINKS: 'false'
+          USE_SYSTEM_FPM: ${{ matrix.system_fpm && 'true' || 'false' }}
         run: npx electron-builder ${{ matrix.args }} --publish never
 
       # latest*.yml + *.blockmap are electron-updater's update feed — the
