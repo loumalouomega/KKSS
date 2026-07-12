@@ -101,6 +101,23 @@ boxes have the toolchain). Two consequences to keep in mind:
 `app/renderer/terminal/index.html` allows `'unsafe-inline'` styles — this
 page only; every other page keeps the strict `style-src kkss:`.
 
+## Text editor (CodeMirror 6)
+
+The `editor` screen (`Screen = "home" | "editor" | Mode`) is a
+`WebContentsView` with body bounds — the shell toolbar stays visible and the
+terminal panel shares space with it. `app/renderer/editor/` bundles
+CodeMirror 6 (`codemirror` basic setup + `@codemirror/lang-json`/`lang-python`
++ one-dark theme); all fs work lives in `app/main/services/editor.ts` behind
+`editor:toHost` / `editor:toWebview` (`app/preload/editorPreload.ts`) — the
+renderer never touches the filesystem. File ▸ Save / Save As route to the
+editor when it's the active screen (`main.screen()`), and the in-page
+CodeMirror keymap binds `Mod-s` for the focused case. Dirty handling: the
+buffer survives screen switches (views are only hidden), so prompts fire only
+on the destructive paths — window close (Save / Don't Save / Cancel) and
+opening another file over unsaved changes. Like the terminal page, the editor
+page allows `'unsafe-inline'` styles (CodeMirror injects `<style>` at
+runtime).
+
 ## Settings menu
 
 The **Settings** native menu (`app/main/menu.ts`) holds app-level

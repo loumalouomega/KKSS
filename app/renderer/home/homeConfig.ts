@@ -22,6 +22,11 @@ export const HOME_BUTTONS: HomeButton[] = [
     description: "Mesh inspection, modification and results",
   },
   {
+    action: "editor",
+    label: "Text Editor",
+    description: "Edit input files, scripts and configuration",
+  },
+  {
     action: "help",
     label: "Help",
     description: "About, documentation and updates",

@@ -71,6 +71,16 @@ macOS/Linux (changeable under **Settings ▸ Terminal Shell**), keeps running
 while hidden, and offers a restart when the shell exits. The panel is shared
 by both modes; its height is fixed in this version.
 
+## Text editor
+
+**Text Editor** on the home screen (or **File ▸ Open in Text Editor…**)
+opens a lightweight editor for input files, scripts and configuration —
+`.json` and `.py` get syntax highlighting. `Ctrl+S` saves, `Ctrl+Shift+S`
+saves as, and the toolbar has Open/Save/Save As buttons. Unsaved changes show
+a ● next to the file name; switching screens never loses the buffer, and
+closing the window with unsaved changes prompts to save. Pair it with the
+terminal panel (``Ctrl+` ``) to edit and launch a Kratos case side by side.
+
 ## Settings
 
 The **Settings** menu holds app-level preferences, persisted across runs:

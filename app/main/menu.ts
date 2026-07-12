@@ -13,6 +13,7 @@ import type { Screen } from "./ipc";
 import { showQuickPick } from "./services/quickPick";
 import { showAbout } from "./services/about";
 import { stateStore } from "./services/stateStore";
+import type { EditorService } from "./services/editor";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
 import { DOCS_URL } from "./urls";
 
@@ -20,6 +21,7 @@ export interface MenuDeps {
   main: MainWindow;
   cadHost: CadHost;
   meshHost: MeshHost;
+  editor: EditorService;
   setScreen(screen: Screen): void;
   toggleTerminal(): void;
 }
@@ -46,8 +48,9 @@ const SHELL_CHOICES: Array<{ value: string | undefined; label: string }> =
       ];
 
 export function installMenu(deps: MenuDeps): void {
-  const { main, cadHost, meshHost } = deps;
+  const { main, cadHost, meshHost, editor } = deps;
   const inCad = () => main.mode() === "cad";
+  const inEditor = () => main.screen() === "editor";
 
   /** kratos.mesh.export — quick-pick a format, then dispatch (extension.ts:109). */
   const meshExportPick = async (): Promise<void> => {
@@ -68,16 +71,24 @@ export function installMenu(deps: MenuDeps): void {
           click: () => (inCad() ? void cadHost.openFileDialog() : void openMesh()),
         },
         {
+          label: "Open in Text Editor…",
+          click: () => void editor.open(),
+        },
+        {
           label: "Save",
           accelerator: "CmdOrCtrl+S",
-          click: () =>
-            inCad() ? void cadHost.flushSidecars() : void meshHost.dispatchMenu({ type: "menuSave" }),
+          click: () => {
+            if (inEditor()) return editor.requestSave(false);
+            inCad() ? void cadHost.flushSidecars() : void meshHost.dispatchMenu({ type: "menuSave" });
+          },
         },
         {
           label: "Save As…",
           accelerator: "CmdOrCtrl+Shift+S",
-          click: () =>
-            inCad() ? cadHost.export() : void meshHost.dispatchMenu({ type: "menuSaveAs" }),
+          click: () => {
+            if (inEditor()) return editor.requestSave(true);
+            inCad() ? cadHost.export() : void meshHost.dispatchMenu({ type: "menuSaveAs" });
+          },
         },
         {
           label: "Export…",
@@ -117,7 +128,9 @@ export function installMenu(deps: MenuDeps): void {
         { label: "Toggle Node IDs", click: () => meshHost.postToActive({ type: "toggleNodeIds" }) },
         { type: "separator" },
         { label: "Toggle Developer Tools", accelerator: "CmdOrCtrl+Shift+I", click: () => {
-          const view = main.screen() === "home" ? main.home : main.views[main.mode()];
+          const screen = main.screen();
+          const view =
+            screen === "home" ? main.home : screen === "editor" ? main.editor : main.views[main.mode()];
           view.webContents.toggleDevTools();
         } },
       ],

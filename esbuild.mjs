@@ -112,6 +112,7 @@ const preloadConfig = {
     "app/preload/homePreload.ts",
     "app/preload/aboutPreload.ts",
     "app/preload/terminalPreload.ts",
+    "app/preload/editorPreload.ts",
   ],
   bundle: true,
   platform: "node",
@@ -131,6 +132,7 @@ const shellRendererConfig = {
     "app/renderer/home/home.ts",
     "app/renderer/about/about.ts",
     "app/renderer/terminal/terminal.ts",
+    "app/renderer/editor/editor.ts",
   ],
   bundle: true,
   platform: "browser",
@@ -183,6 +185,8 @@ function copyArtifacts() {
     ["app/renderer/terminal/index.html", out("renderer/terminal/index.html")],
     ["app/renderer/terminal/terminal.css", out("renderer/terminal/terminal.css")],
     ["node_modules/@xterm/xterm/css/xterm.css", out("renderer/terminal/xterm.css")],
+    ["app/renderer/editor/index.html", out("renderer/editor/index.html")],
+    ["app/renderer/editor/editor.css", out("renderer/editor/editor.css")],
   ];
   for (const [srcRel, dst] of copies) {
     const src = path.join(__dirname, srcRel);

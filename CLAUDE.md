@@ -110,13 +110,18 @@ difference, docs don't need to move — use judgment, but default to checking.
   it and `semver` are devDeps **bundled into out/main.js** — the package
   still ships no node_modules. In-app install only on win-NSIS/AppImage;
   everything else falls back to the releases page.
-- **Screens vs modes.** `Screen = "home" | Mode` (`app/main/ipc.ts`): the
-  home screen (`app/renderer/home/`, config-driven buttons in
-  `homeConfig.ts`) is a fourth full-window WebContentsView shown on launch;
-  `MainWindow.setScreen()` only toggles visibility, so mode views keep their
-  file/camera across trips home, and `mode()` keeps returning the last
-  active mode while home is shown (the router and File-menu actions rely on
-  that). Opening a file (CLI arg included) jumps straight to the owning mode.
+- **Screens vs modes.** `Screen = "home" | "editor" | Mode`
+  (`app/main/ipc.ts`): the home screen (`app/renderer/home/`, config-driven
+  buttons in `homeConfig.ts`; full-window) and the text editor
+  (`app/renderer/editor/`, CodeMirror 6; body bounds under the toolbar) are
+  extra WebContentsViews next to the mode views; `MainWindow.setScreen()`
+  only toggles visibility, so every view keeps its state across switches
+  (this is also why the editor needs no dirty-prompt on navigation — only on
+  window close and open-over-unsaved), and `mode()` keeps returning the last
+  active mode on non-mode screens (the router and File-menu actions rely on
+  that). Opening a file (CLI arg included) jumps straight to the owning
+  mode. The editor's fs work stays in `app/main/services/editor.ts` — its
+  renderer never touches the filesystem.
 
 ## Screenshots are generated, not hand-captured
 

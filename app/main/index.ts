@@ -11,6 +11,7 @@ import { modeForFile, modeForViewType } from "./router";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
 import { TerminalService } from "./services/terminal";
+import { EditorService } from "./services/editor";
 import { configureNotifications, handleToastButton } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { __configureVscodeShim } from "./vscodeShim";
@@ -24,6 +25,7 @@ let main: MainWindow | null = null;
 let cadHost: CadHost | null = null;
 let meshHost: MeshHost | null = null;
 let terminal: TerminalService | null = null;
+let editor: EditorService | null = null;
 
 /** A file path passed on the command line (also used by the e2e smoke test). */
 function cliFileArg(): string | undefined {
@@ -46,14 +48,13 @@ function openFile(fsPath: string, forcedMode?: Mode): void {
   }
   if (mode === "cad") cadHost.openPath(resolved);
   else meshHost.openPath(resolved);
-  main.setScreen(mode);
-  sendShell({ type: "mode", mode });
+  setScreen(mode);
 }
 
-/** Switches screens and keeps the shell's active-mode highlight in sync. */
+/** Switches screens and keeps the shell's active-screen highlight in sync. */
 function setScreen(screen: Screen): void {
   main?.setScreen(screen);
-  if (screen !== "home") sendShell({ type: "mode", mode: screen });
+  sendShell({ type: "screen", screen });
 }
 
 /** Shows/hides the shared terminal panel, attaching the pty session on first use. */
@@ -87,11 +88,26 @@ app.whenReady().then(() => {
 
   cadHost = new CadHost(main.views.cad, path.join(__dirname, "cad-runtime"), {
     onOpenRequest: (fsPath) => openFile(fsPath),
-    onTitle: (fileName) => sendShell({ type: "title", mode: "cad", fileName }),
+    onTitle: (fileName) => sendShell({ type: "title", view: "cad", fileName }),
   });
 
   meshHost = new MeshHost(main.views.mesh, __dirname, {
-    onTitle: (fileName) => sendShell({ type: "title", mode: "mesh", fileName }),
+    onTitle: (fileName) => sendShell({ type: "title", view: "mesh", fileName }),
+  });
+
+  editor = new EditorService({
+    webContents: () => main!.editor.webContents,
+    getWindow: () => main!.win,
+    showEditor: () => setScreen("editor"),
+    onTitle: (fileName, dirty) => sendShell({ type: "title", view: "editor", fileName, dirty }),
+  });
+
+  // Closing the window is the one destructive path for an unsaved buffer —
+  // screen switches only hide the editor view, so they need no guard.
+  main.win.on("close", (event) => {
+    if (!editor?.isDirty()) return;
+    event.preventDefault();
+    void editor.confirmClose();
   });
 
   terminal = new TerminalService(() => {
@@ -99,7 +115,7 @@ app.whenReady().then(() => {
     return current ? path.dirname(current) : undefined;
   });
 
-  installMenu({ main, cadHost, meshHost, setScreen, toggleTerminal });
+  installMenu({ main, cadHost, meshHost, editor, setScreen, toggleTerminal });
 
   ipcMain.on("home:toHost", (_event, raw) => {
     const msg = raw as HomeToHost;
@@ -110,6 +126,9 @@ app.whenReady().then(() => {
         break;
       case "postprocessing":
         setScreen("mesh");
+        break;
+      case "editor":
+        void editor?.open();
         break;
       case "help":
         showAbout();
@@ -123,10 +142,10 @@ app.whenReady().then(() => {
     switch (msg.type) {
       case "shellReady":
         // The shell page may finish loading after a CLI file-open already ran
-        // (or after a reload) — replay the current mode + titles.
-        sendShell({ type: "mode", mode: main.mode() });
-        sendShell({ type: "title", mode: "cad", fileName: cadHost?.currentFile ? path.basename(cadHost.currentFile) : null });
-        sendShell({ type: "title", mode: "mesh", fileName: meshHost?.currentFile ? path.basename(meshHost.currentFile) : null });
+        // (or after a reload) — replay the current screen + titles.
+        sendShell({ type: "screen", screen: main.screen() });
+        sendShell({ type: "title", view: "cad", fileName: cadHost?.currentFile ? path.basename(cadHost.currentFile) : null });
+        sendShell({ type: "title", view: "mesh", fileName: meshHost?.currentFile ? path.basename(meshHost.currentFile) : null });
         break;
       case "setMode":
         setScreen(msg.mode);

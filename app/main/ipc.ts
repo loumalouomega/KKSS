@@ -6,8 +6,8 @@
  */
 export type Mode = "cad" | "mesh";
 
-/** Top-level screens: the launch home menu plus the two mode views. */
-export type Screen = "home" | Mode;
+/** Top-level screens: the launch home menu, the two mode views, the editor. */
+export type Screen = "home" | "editor" | Mode;
 
 export const channels = {
   /** Webview bundle → host (payload: extension WebviewToHost message). */
@@ -28,7 +28,24 @@ export const channels = {
   aboutToWebview: "about:toWebview",
   termToHost: "term:toHost",
   termToWebview: "term:toWebview",
+  editorToHost: "editor:toHost",
+  editorToWebview: "editor:toWebview",
 } as const;
+
+export type EditorLanguage = "json" | "python" | "plain";
+
+/** Messages posted by the text-editor renderer. */
+export type EditorToHost =
+  | { type: "editorReady" }
+  | { type: "openFile" }
+  | { type: "saveContent"; content: string; saveAs: boolean }
+  | { type: "dirty"; dirty: boolean };
+
+/** Messages sent to the text-editor renderer. */
+export type EditorToWebview =
+  | { type: "doc"; path: string; content: string; language: EditorLanguage }
+  | { type: "saved"; path: string }
+  | { type: "requestSave"; saveAs: boolean };
 
 /** Messages posted by the terminal-panel renderer. */
 export type TermToHost =
@@ -74,7 +91,7 @@ export type AboutToWebview = {
 };
 
 /** Actions of the home-screen menu buttons (see app/renderer/home/homeConfig.ts). */
-export type HomeAction = "preprocessing" | "postprocessing" | "help";
+export type HomeAction = "preprocessing" | "postprocessing" | "editor" | "help";
 
 /** Messages posted by the home-screen renderer. */
 export type HomeToHost =
@@ -92,7 +109,7 @@ export type ShellToHost =
 
 /** Messages sent to the shell toolbar renderer. */
 export type ShellToWebview =
-  | { type: "mode"; mode: Mode }
-  | { type: "title"; mode: Mode; fileName: string | null }
+  | { type: "screen"; screen: Screen }
+  | { type: "title"; view: Mode | "editor"; fileName: string | null; dirty?: boolean }
   | { type: "toast"; id: number; kind: "info" | "warning" | "error" | "progress"; text: string; buttons?: string[] }
   | { type: "toastUpdate"; id: number; text?: string; done?: boolean };

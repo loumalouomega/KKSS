@@ -1,0 +1,59 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  display: flex;
+  flex-direction: column;
+}
+
+#editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  user-select: none;
+}
+
+#editor-bar button {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 3px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#editor-bar button:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+#editor-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+#editor-host {
+  flex: 1;
+  min-height: 0;
+}
+
+#editor-host .cm-editor {
+  height: 100%;
+  font-size: 13px;
+}
+
+#editor-host .cm-editor.cm-focused {
+  outline: none;
+}

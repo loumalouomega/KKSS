@@ -18,6 +18,7 @@ export interface MainWindow {
   win: BaseWindow;
   shell: WebContentsView;
   home: WebContentsView;
+  editor: WebContentsView;
   views: Record<Mode, WebContentsView>;
   /** Last active mode — stays valid while the home screen is shown. */
   mode: () => Mode;
@@ -72,9 +73,19 @@ export function createMainWindow(outDir: string): MainWindow {
     },
   });
 
+  const editor = new WebContentsView({
+    webPreferences: {
+      preload: path.join(outDir, "preload", "editorPreload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
   win.contentView.addChildView(shell);
   win.contentView.addChildView(views.cad);
   win.contentView.addChildView(views.mesh);
+  win.contentView.addChildView(editor);
   win.contentView.addChildView(home); // last = topmost: covers shell + modes
 
   let currentMode: Mode = "cad";
@@ -89,6 +100,7 @@ export function createMainWindow(outDir: string): MainWindow {
     const body = { x: 0, y: SHELL_HEIGHT, width, height: Math.max(0, height - SHELL_HEIGHT - panel) };
     views.cad.setBounds(body);
     views.mesh.setBounds(body);
+    editor.setBounds(body);
     terminal?.setBounds({ x: 0, y: Math.max(SHELL_HEIGHT, height - panel), width, height: panel });
     home.setBounds({ x: 0, y: 0, width, height });
   };
@@ -118,15 +130,18 @@ export function createMainWindow(outDir: string): MainWindow {
 
   const setScreen = (screen: Screen) => {
     currentScreen = screen;
-    if (screen !== "home") currentMode = screen;
+    if (screen === "cad" || screen === "mesh") currentMode = screen;
     home.setVisible(screen === "home");
+    editor.setVisible(screen === "editor");
     views.cad.setVisible(screen === "cad");
     views.mesh.setVisible(screen === "mesh");
+    if (screen === "editor") editor.webContents.focus();
   };
   setScreen("home");
 
   void shell.webContents.loadURL("kkss://app/renderer/shell/index.html");
   void home.webContents.loadURL("kkss://app/renderer/home/index.html");
+  void editor.webContents.loadURL("kkss://app/renderer/editor/index.html");
   void views.cad.webContents.loadURL("kkss://app/renderer/cad/index.html");
   void views.mesh.webContents.loadURL("kkss://app/renderer/mesh/index.html");
 
@@ -134,6 +149,7 @@ export function createMainWindow(outDir: string): MainWindow {
     win,
     shell,
     home,
+    editor,
     views,
     mode: () => currentMode,
     screen: () => currentScreen,
