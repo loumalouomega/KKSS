@@ -68,6 +68,49 @@ The feed plumbing electron-updater needs: the `publish:` block in
 Release next to the installers. Remove either half and in-app updates stop
 finding releases.
 
+## Embedded terminal (node-pty + xterm.js)
+
+The Terminal toolbar button / ``Ctrl+` `` toggles a bottom panel
+`WebContentsView` (lazily created in `app/main/windows.ts`; `layout()`
+shrinks the mode views by `TERMINAL_HEIGHT` while it's shown). The renderer
+(`app/renderer/terminal/`, `@xterm/xterm` + fit addon) talks to
+`app/main/services/terminal.ts` over `term:toHost` / `term:toWebview`
+(`app/preload/terminalPreload.ts`): one node-pty session shared by both
+modes, spawned on first show in the current file's directory — PowerShell on
+Windows, `$SHELL` elsewhere, overridable via **Settings ▸ Terminal Shell**
+(`stateStore` key `terminalShell`) — kept alive while hidden, killed on quit;
+the renderer offers an Enter-to-restart when the shell exits.
+
+**node-pty is the app's only native module**, and the only `node_modules`
+entry that ships in the package (see the `files` rules in
+`electron-builder.yml`; `asar: false` means the `.node` binaries load
+directly). It is N-API, so **no Electron-ABI rebuild step exists or is
+needed** — Windows/macOS use the prebuilt binaries shipped in the npm
+package, Linux compiles once during `npm ci` (GitHub runners and typical dev
+boxes have the toolchain). Two consequences to keep in mind:
+
+- `package.json`'s `allowScripts` must keep the `node-pty@…` entry — without
+  it the install scripts are skipped and the binaries never materialize.
+- The release workflow builds on **one runner per OS/arch**
+  (`ubuntu-24.04-arm`, `windows-11-arm` for the arm64 targets): Linux needs
+  a native compile and Windows assembles arch-specific ConPTY binaries at
+  install time, so cross-arch packaging from a single runner is no longer
+  possible.
+
+**CSP note:** xterm.js injects `<style>` elements at runtime, so
+`app/renderer/terminal/index.html` allows `'unsafe-inline'` styles — this
+page only; every other page keeps the strict `style-src kkss:`.
+
+## Settings menu
+
+The **Settings** native menu (`app/main/menu.ts`) holds app-level
+preferences persisted in `app/main/services/stateStore.ts`: **Color Theme**
+(`sceneTheme` — the same key the mesh viewer's own theme toggle persists;
+served to the mode views via their synchronous `initialState`, so it applies
+when a view next loads a file) and **Terminal Shell** (`terminalShell`).
+Viewer-level actions are deliberately absent from the menu bar — the
+submodules' own toolbars provide them.
+
 Key pieces (all under `app/`):
 
 - **`app/preload/viewPreload.ts` + `app/renderer/view/shim.ts`** — the entire

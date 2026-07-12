@@ -26,7 +26,21 @@ export const channels = {
   aboutInit: "about:init",
   aboutToHost: "about:toHost",
   aboutToWebview: "about:toWebview",
+  termToHost: "term:toHost",
+  termToWebview: "term:toWebview",
 } as const;
+
+/** Messages posted by the terminal-panel renderer. */
+export type TermToHost =
+  | { type: "termReady"; cols: number; rows: number }
+  | { type: "input"; data: string }
+  | { type: "resize"; cols: number; rows: number }
+  | { type: "restart" };
+
+/** Messages sent to the terminal-panel renderer. */
+export type TermToWebview =
+  | { type: "data"; data: string }
+  | { type: "exit"; code: number };
 
 /** Static facts sent to the About window once its page has loaded. */
 export interface AboutInit {
@@ -72,6 +86,7 @@ export type ShellToHost =
   | { type: "shellReady" }
   | { type: "setMode"; mode: Mode }
   | { type: "goHome" }
+  | { type: "toggleTerminal" }
   | { type: "openFile" }
   | { type: "toastButton"; id: number; button: string };
 

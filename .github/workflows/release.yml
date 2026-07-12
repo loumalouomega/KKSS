@@ -9,10 +9,12 @@ on:
       - 'v*.*.*'
   workflow_dispatch:
 
-# Targets: Linux x64 + arm64, Windows x64 + arm64, macOS arm64. The app has
-# no native npm modules (all JS is bundled; OCCT/Gmsh/MMG are WASM), so
-# cross-arch packaging only swaps the prebuilt Electron binary — safe to
-# build both arches from one runner per OS.
+# Targets: Linux x64 + arm64, Windows x64 + arm64, macOS arm64 — one runner
+# per OS/arch. node-pty (the embedded terminal's native module) is why the
+# matrix is per-arch: on Linux it compiles from source during npm ci (no
+# prebuilds), and on Windows its install step assembles the arch-specific
+# ConPTY binaries — both must run on hardware matching the target arch.
+# It is N-API, so no Electron-ABI rebuild step is needed.
 jobs:
   build:
     strategy:
@@ -20,9 +22,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            args: --linux --x64 --arm64
+            args: --linux --x64
+          - os: ubuntu-24.04-arm
+            args: --linux --arm64
           - os: windows-latest
-            args: --win --x64 --arm64
+            args: --win --x64
+          - os: windows-11-arm
+            args: --win --arm64
           - os: macos-latest
             args: --mac --arm64
     runs-on: ${{ matrix.os }}

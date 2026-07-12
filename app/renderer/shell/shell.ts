@@ -23,6 +23,7 @@ const homeBtn = byId<HTMLButtonElement>("home-btn");
 const btnCad = byId<HTMLButtonElement>("mode-cad");
 const btnMesh = byId<HTMLButtonElement>("mode-mesh");
 const openBtn = byId<HTMLButtonElement>("open-btn");
+const terminalBtn = byId<HTMLButtonElement>("terminal-btn");
 const fileTitle = byId<HTMLSpanElement>("file-title");
 const toasts = byId<HTMLDivElement>("toasts");
 
@@ -45,6 +46,7 @@ homeBtn.addEventListener("click", () => api.post({ type: "goHome" }));
 btnCad.addEventListener("click", () => api.post({ type: "setMode", mode: "cad" }));
 btnMesh.addEventListener("click", () => api.post({ type: "setMode", mode: "mesh" }));
 openBtn.addEventListener("click", () => api.post({ type: "openFile" }));
+terminalBtn.addEventListener("click", () => api.post({ type: "toggleTerminal" }));
 
 api.onMessage((raw) => {
   const msg = raw as ShellToWebview;

@@ -88,6 +88,20 @@ difference, docs don't need to move — use judgment, but default to checking.
   reloads its view, and replays the extension's own `ready` handshake order.
   `.stl/.obj/.ply` are viewable in both modes — the active mode wins
   (`app/main/router.ts`).
+- **node-pty is the ONLY native module and the ONLY shipped node_modules
+  entry** (embedded terminal, `app/main/services/terminal.ts`). It is N-API:
+  never add an electron-rebuild step — Windows/macOS use its npm-shipped
+  prebuilds, Linux compiles during `npm ci` (keep its `allowScripts` entry in
+  package.json or the binaries never materialize). It stays `external` in
+  esbuild's mainConfig and ships via the node-pty `files` rules in
+  electron-builder.yml. Release CI builds on one runner per OS/arch because
+  of it. Pages that need runtime-injected styles (terminal's xterm.js) may
+  relax CSP to `style-src kkss: 'unsafe-inline'` — that page only.
+- **Menu bar holds app-level items only.** Viewer actions (quality, fields,
+  find entity…) live in the submodules' own toolbars — don't duplicate them
+  in the native menu. App preferences go in the Settings menu, persisted via
+  `stateStore` (`sceneTheme` is shared with the mesh viewer's own theme
+  toggle; it reaches views through `initialState` on their next file load).
 - **Update feed is two-part — keep both halves.** The `publish:` block in
   `electron-builder.yml` makes electron-builder emit `latest*.yml` update
   metadata and embed `app-update.yml` in each package; the release workflow

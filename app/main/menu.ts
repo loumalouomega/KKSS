@@ -10,9 +10,9 @@ import type { MainWindow } from "./windows";
 import type { CadHost } from "./cadHost";
 import type { MeshHost } from "./mesh/meshHost";
 import type { Screen } from "./ipc";
-import { showQuickPick, showInputBox } from "./services/quickPick";
+import { showQuickPick } from "./services/quickPick";
 import { showAbout } from "./services/about";
-import { toast } from "./services/notifications";
+import { stateStore } from "./services/stateStore";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
 import { DOCS_URL } from "./urls";
 
@@ -21,7 +21,29 @@ export interface MenuDeps {
   cadHost: CadHost;
   meshHost: MeshHost;
   setScreen(screen: Screen): void;
+  toggleTerminal(): void;
 }
+
+/** Scene themes understood by the viewers (mesh provider's own value set). */
+const SCENE_THEMES: Array<{ value: string; label: string }> = [
+  { value: "auto", label: "Auto" },
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+  { value: "scientific", label: "Scientific" },
+];
+
+/** Shell choices for the embedded terminal, per platform. */
+const SHELL_CHOICES: Array<{ value: string | undefined; label: string }> =
+  process.platform === "win32"
+    ? [
+        { value: undefined, label: "PowerShell (default)" },
+        { value: "cmd.exe", label: "Command Prompt" },
+      ]
+    : [
+        { value: undefined, label: "System default ($SHELL)" },
+        { value: "/bin/bash", label: "bash" },
+        { value: "/bin/zsh", label: "zsh" },
+      ];
 
 export function installMenu(deps: MenuDeps): void {
   const { main, cadHost, meshHost } = deps;
@@ -34,26 +56,6 @@ export function installMenu(deps: MenuDeps): void {
       { placeHolder: "Export mesh as…" }
     );
     if (pick) meshHost.dispatchMenu({ type: "menuExport", format: pick.ext });
-  };
-
-  /** kratos.mdpa.findEntity (extension.ts:128-145). */
-  const findEntity = async (): Promise<void> => {
-    const entityType = await showQuickPick(
-      ["Node", "Element", "Condition", "Geometry"].map((label) => ({ label })),
-      { placeHolder: "Entity type" }
-    );
-    if (!entityType) return;
-    const raw = await showInputBox({ prompt: `Enter ${entityType.label} ID` });
-    if (raw === undefined) return;
-    if (!/^\d+$/.test(raw.trim())) {
-      toast("warning", "Entity ID must be a positive integer.");
-      return;
-    }
-    meshHost.postToActive({
-      type: "locateEntity",
-      entityType: entityType.label,
-      entityId: Number(raw.trim()),
-    });
   };
 
   const menu = Menu.buildFromTemplate([
@@ -105,6 +107,12 @@ export function installMenu(deps: MenuDeps): void {
           click: () => deps.setScreen("mesh"),
         },
         { type: "separator" },
+        {
+          label: "Toggle Terminal",
+          accelerator: "CmdOrCtrl+`",
+          click: () => deps.toggleTerminal(),
+        },
+        { type: "separator" },
         { label: "Reset Camera", click: () => meshHost.postToActive({ type: "resetCamera" }) },
         { label: "Toggle Node IDs", click: () => meshHost.postToActive({ type: "toggleNodeIds" }) },
         { type: "separator" },
@@ -114,12 +122,33 @@ export function installMenu(deps: MenuDeps): void {
         } },
       ],
     },
+    // App-level preferences only — viewer actions (quality, fields, find…)
+    // live in the submodules' own toolbars, so they are not duplicated here.
     {
-      label: "&Tools",
+      label: "&Settings",
       submenu: [
-        { label: "Mesh Quality", click: () => meshHost.postToActive({ type: "computeQuality" }) },
-        { label: "Field Visualization", click: () => meshHost.postToActive({ type: "field" }) },
-        { label: "Find Entity…", accelerator: "CmdOrCtrl+F", click: () => void findEntity() },
+        {
+          label: "Color Theme",
+          submenu: SCENE_THEMES.map((t) => ({
+            label: t.label,
+            type: "radio" as const,
+            checked: stateStore.get("sceneTheme", "auto") === t.value,
+            // Shared with the mesh viewer's own theme toggle (same stateStore
+            // key); viewers pick it up when they next load a file.
+            click: () => void stateStore.update("sceneTheme", t.value),
+          })),
+        },
+        {
+          label: "Terminal Shell",
+          submenu: SHELL_CHOICES.map((s) => ({
+            label: s.label,
+            type: "radio" as const,
+            checked: stateStore.get<string>("terminalShell") === s.value,
+            // Applies to the next terminal session (exit the current shell or
+            // restart the app to switch).
+            click: () => void stateStore.update("terminalShell", s.value),
+          })),
+        },
       ],
     },
     {

@@ -1,16 +1,18 @@
 /**
- * Main window: one BaseWindow hosting four WebContentsViews —
+ * Main window: one BaseWindow hosting stacked WebContentsViews —
  * a slim shell toolbar (mode toggle, Open, title, toasts), the two mode views
- * (cad = CAD-Preview webview, mesh = MDPA/VTK webview), and a full-window
- * home screen (main menu) shown on launch and via "Home". All views are
- * created at startup and toggled with setVisible() so each mode keeps its
- * loaded file, camera, and history across switches.
+ * (cad = CAD-Preview webview, mesh = MDPA/VTK webview), a full-window home
+ * screen (main menu) shown on launch and via "Home", and a lazily created
+ * bottom terminal panel shared by both modes. Views are toggled with
+ * setVisible() so each mode keeps its loaded file, camera, and history
+ * across switches.
  */
 import { BaseWindow, WebContentsView } from "electron";
 import * as path from "path";
 import type { Mode, Screen } from "./ipc";
 
 export const SHELL_HEIGHT = 40;
+export const TERMINAL_HEIGHT = 280;
 
 export interface MainWindow {
   win: BaseWindow;
@@ -21,6 +23,9 @@ export interface MainWindow {
   mode: () => Mode;
   screen: () => Screen;
   setScreen: (screen: Screen) => void;
+  terminalVisible: () => boolean;
+  /** Shows/hides the terminal panel, creating its view on first use. */
+  toggleTerminal: () => { view: WebContentsView; visible: boolean };
 }
 
 export function createMainWindow(outDir: string): MainWindow {
@@ -74,17 +79,42 @@ export function createMainWindow(outDir: string): MainWindow {
 
   let currentMode: Mode = "cad";
   let currentScreen: Screen = "home";
+  let terminal: WebContentsView | null = null;
+  let terminalShown = false;
 
   const layout = () => {
     const { width, height } = win.getContentBounds();
     shell.setBounds({ x: 0, y: 0, width, height: SHELL_HEIGHT });
-    const body = { x: 0, y: SHELL_HEIGHT, width, height: Math.max(0, height - SHELL_HEIGHT) };
+    const panel = terminalShown ? TERMINAL_HEIGHT : 0;
+    const body = { x: 0, y: SHELL_HEIGHT, width, height: Math.max(0, height - SHELL_HEIGHT - panel) };
     views.cad.setBounds(body);
     views.mesh.setBounds(body);
+    terminal?.setBounds({ x: 0, y: Math.max(SHELL_HEIGHT, height - panel), width, height: panel });
     home.setBounds({ x: 0, y: 0, width, height });
   };
   win.on("resize", layout);
   layout();
+
+  const toggleTerminal = () => {
+    if (!terminal) {
+      terminal = new WebContentsView({
+        webPreferences: {
+          preload: path.join(outDir, "preload", "terminalPreload.js"),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: false,
+        },
+      });
+      win.contentView.addChildView(terminal);
+      win.contentView.addChildView(home); // keep the home screen topmost
+      void terminal.webContents.loadURL("kkss://app/renderer/terminal/index.html");
+    }
+    terminalShown = !terminalShown;
+    terminal.setVisible(terminalShown);
+    layout();
+    if (terminalShown) terminal.webContents.focus();
+    return { view: terminal, visible: terminalShown };
+  };
 
   const setScreen = (screen: Screen) => {
     currentScreen = screen;
@@ -100,5 +130,15 @@ export function createMainWindow(outDir: string): MainWindow {
   void views.cad.webContents.loadURL("kkss://app/renderer/cad/index.html");
   void views.mesh.webContents.loadURL("kkss://app/renderer/mesh/index.html");
 
-  return { win, shell, home, views, mode: () => currentMode, screen: () => currentScreen, setScreen };
+  return {
+    win,
+    shell,
+    home,
+    views,
+    mode: () => currentMode,
+    screen: () => currentScreen,
+    setScreen,
+    terminalVisible: () => terminalShown,
+    toggleTerminal,
+  };
 }

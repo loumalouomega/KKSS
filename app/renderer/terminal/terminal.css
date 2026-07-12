@@ -1,0 +1,20 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--vscode-editor-background);
+}
+
+#terminal {
+  height: 100%;
+  box-sizing: border-box;
+  border-top: 1px solid var(--vscode-panel-border);
+  padding: 4px 6px 0;
+}
+
+/* Let the fit addon own the size; xterm.css sets its own inner layout. */
+#terminal .xterm {
+  height: 100%;
+}

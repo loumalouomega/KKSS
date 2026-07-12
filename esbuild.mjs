@@ -74,7 +74,9 @@ const mainConfig = {
   format: "cjs",
   target: "node20",
   outfile: "out/main.js",
-  external: ["electron"],
+  // node-pty is the app's only native module: kept external and shipped as
+  // node_modules/node-pty in the package (see electron-builder.yml files).
+  external: ["electron", "node-pty"],
   // `vscode` (imported by the reused mesh host modules) resolves to our shim.
   alias: { ...mmgAlias, vscode: path.join(__dirname, "app/main/vscodeShim.ts") },
   ...importMetaShim,
@@ -109,6 +111,7 @@ const preloadConfig = {
     "app/preload/pickerPreload.ts",
     "app/preload/homePreload.ts",
     "app/preload/aboutPreload.ts",
+    "app/preload/terminalPreload.ts",
   ],
   bundle: true,
   platform: "node",
@@ -127,6 +130,7 @@ const shellRendererConfig = {
     "app/renderer/picker/picker.ts",
     "app/renderer/home/home.ts",
     "app/renderer/about/about.ts",
+    "app/renderer/terminal/terminal.ts",
   ],
   bundle: true,
   platform: "browser",
@@ -176,6 +180,9 @@ function copyArtifacts() {
     ["app/renderer/home/home.css", out("renderer/home/home.css")],
     ["app/renderer/about/about.html", out("renderer/about/about.html")],
     ["app/renderer/about/about.css", out("renderer/about/about.css")],
+    ["app/renderer/terminal/index.html", out("renderer/terminal/index.html")],
+    ["app/renderer/terminal/terminal.css", out("renderer/terminal/terminal.css")],
+    ["node_modules/@xterm/xterm/css/xterm.css", out("renderer/terminal/xterm.css")],
   ];
   for (const [srcRel, dst] of copies) {
     const src = path.join(__dirname, srcRel);

@@ -58,7 +58,8 @@ body {
 }
 
 #home-btn,
-#open-btn {
+#open-btn,
+#terminal-btn {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
   border: none;
@@ -69,7 +70,8 @@ body {
 }
 
 #home-btn:hover,
-#open-btn:hover {
+#open-btn:hover,
+#terminal-btn:hover {
   background: var(--vscode-button-secondaryHoverBackground);
 }
 

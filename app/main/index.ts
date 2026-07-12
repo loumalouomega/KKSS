@@ -10,6 +10,7 @@ import { installMenu } from "./menu";
 import { modeForFile, modeForViewType } from "./router";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
+import { TerminalService } from "./services/terminal";
 import { configureNotifications, handleToastButton } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { __configureVscodeShim } from "./vscodeShim";
@@ -22,6 +23,7 @@ registerSchemes();
 let main: MainWindow | null = null;
 let cadHost: CadHost | null = null;
 let meshHost: MeshHost | null = null;
+let terminal: TerminalService | null = null;
 
 /** A file path passed on the command line (also used by the e2e smoke test). */
 function cliFileArg(): string | undefined {
@@ -52,6 +54,13 @@ function openFile(fsPath: string, forcedMode?: Mode): void {
 function setScreen(screen: Screen): void {
   main?.setScreen(screen);
   if (screen !== "home") sendShell({ type: "mode", mode: screen });
+}
+
+/** Shows/hides the shared terminal panel, attaching the pty session on first use. */
+function toggleTerminal(): void {
+  if (!main || !terminal) return;
+  const { view } = main.toggleTerminal();
+  terminal.attach(view.webContents);
 }
 
 app.whenReady().then(() => {
@@ -85,7 +94,12 @@ app.whenReady().then(() => {
     onTitle: (fileName) => sendShell({ type: "title", mode: "mesh", fileName }),
   });
 
-  installMenu({ main, cadHost, meshHost, setScreen });
+  terminal = new TerminalService(() => {
+    const current = main?.mode() === "cad" ? cadHost?.currentFile : meshHost?.currentFile;
+    return current ? path.dirname(current) : undefined;
+  });
+
+  installMenu({ main, cadHost, meshHost, setScreen, toggleTerminal });
 
   ipcMain.on("home:toHost", (_event, raw) => {
     const msg = raw as HomeToHost;
@@ -119,6 +133,9 @@ app.whenReady().then(() => {
         break;
       case "goHome":
         setScreen("home");
+        break;
+      case "toggleTerminal":
+        toggleTerminal();
         break;
       case "openFile":
         if (main.mode() === "cad") void cadHost?.openFileDialog();

@@ -1,6 +1,8 @@
 # KKSS packaging. Everything the app needs at runtime lives in out/ (esbuild
-# bundles all JS; WASM + worker files are copied there by esbuild.mjs), so the
-# package carries no node_modules.
+# bundles all JS; WASM + worker files are copied there by esbuild.mjs) — with
+# ONE node_modules exception: node-pty, the embedded terminal's native module
+# (N-API, so its binaries work under Electron without a rebuild; loaded from
+# build/Release or prebuilds/<platform>-<arch> at runtime).
 #
 # asar is disabled: mesh's mmgWorkerClient spawns dist-relative worker threads
 # (__dirname/mmgWorker.js) and the OCCT/Gmsh services read WASM binaries with
@@ -29,6 +31,12 @@ files:
   - out/**
   - "!out/**/*.map"
   - "!out/tools/**"
+  # node-pty runtime pieces only: lib/ + the platform binaries. Sources,
+  # build-time deps, and debug symbols stay out; foreign-platform prebuilds
+  # are pruned per target below.
+  - node_modules/node-pty/**
+  - "!node_modules/node-pty/{src,deps,scripts,third_party,typings,node_modules}/**"
+  - "!node_modules/node-pty/**/*.pdb"
 
 directories:
   output: release
@@ -43,11 +51,16 @@ linux:
   category: Science
   maintainer: tote1989@gmail.com
   synopsis: Pre- and post-processing desktop app for Kratos Multiphysics
+  files:
+    # Linux has no prebuilds — node-pty compiles into build/Release at npm ci.
+    - "!node_modules/node-pty/prebuilds/**"
 
 win:
   icon: icons/app/icon.png
   target:
     - nsis
+  files:
+    - "!node_modules/node-pty/prebuilds/darwin-*/**"
 
 nsis:
   oneClick: false
@@ -59,5 +72,7 @@ mac:
     - dmg
     - zip
   category: public.app-category.developer-tools
+  files:
+    - "!node_modules/node-pty/prebuilds/win32-*/**"
 
 npmRebuild: false

@@ -61,6 +61,29 @@ button to the releases page (those package types can't self-update; macOS
 builds are unsigned). No network? The dialog still shows your version and
 offers a Retry.
 
+## Embedded terminal
+
+The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**)
+opens a shell panel below the viewer — handy for launching Kratos runs
+(`python MainKratos.py`) while watching the model. The session starts in the
+current file's directory, runs PowerShell on Windows and your `$SHELL` on
+macOS/Linux (changeable under **Settings ▸ Terminal Shell**), keeps running
+while hidden, and offers a restart when the shell exits. The panel is shared
+by both modes; its height is fixed in this version.
+
+## Settings
+
+The **Settings** menu holds app-level preferences, persisted across runs:
+
+- **Color Theme** — Auto / Dark / Light / Scientific. The same scene theme
+  the mesh viewer's own toolbar toggle controls; viewers apply it when they
+  next load a file.
+- **Terminal Shell** — the shell the embedded terminal launches (takes
+  effect for the next terminal session).
+
+Viewer actions (mesh quality, field visualization, find entity…) are *not*
+in the menu bar — they live in each viewer's own toolbar.
+
 ## Opening files
 
 - **Open… button** or `Ctrl+O` — opens a file in the current mode.
@@ -78,6 +101,6 @@ offers a Retry.
 | `Ctrl+E` | Export |
 | `Ctrl+0` | Back to the home screen (main menu) |
 | `Ctrl+1` / `Ctrl+2` | Switch to Pre-Processing / Post-Processing |
-| `Ctrl+F` | Find entity by ID (mesh mode) |
+| ``Ctrl+` `` | Toggle the embedded terminal |
 
 On macOS use `Cmd` instead of `Ctrl`.
