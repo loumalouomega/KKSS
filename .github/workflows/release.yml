@@ -59,6 +59,14 @@ jobs:
         run: rm -rf release
 
       - name: Package installers
+        # electron-builder/builder-util auto-enables hard-link copying on CI
+        # (isCI check in builder-util/src/fs.ts); a duplicate internal write
+        # to the same destination throws EEXIST under hard-link semantics but
+        # silently succeeds under plain copy, which is why this only
+        # reproduces here and never locally. USE_HARD_LINKS=false is the
+        # maintainer-endorsed toggle (electron-userland/electron-builder#7093).
+        env:
+          USE_HARD_LINKS: 'false'
         run: npx electron-builder ${{ matrix.args }} --publish never
 
       # latest*.yml + *.blockmap are electron-updater's update feed — the
