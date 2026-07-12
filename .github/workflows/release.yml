@@ -51,6 +51,10 @@ jobs:
       - name: Package installers
         run: npx electron-builder ${{ matrix.args }} --publish never
 
+      # latest*.yml + *.blockmap are electron-updater's update feed — the
+      # packaged app checks them on the GitHub Release (About ▸ Update now).
+      # Names never collide across platforms (latest.yml / latest-mac.yml /
+      # latest-linux*.yml), so merge-multiple below is safe.
       - uses: actions/upload-artifact@v4
         with:
           name: kkss-${{ matrix.os }}
@@ -60,6 +64,8 @@ jobs:
             release/*.exe
             release/*.dmg
             release/*.zip
+            release/latest*.yml
+            release/*.blockmap
           if-no-files-found: error
 
   publish:

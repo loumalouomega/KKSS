@@ -19,6 +19,7 @@ declare global {
 const api = window.shellApi;
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+const homeBtn = byId<HTMLButtonElement>("home-btn");
 const btnCad = byId<HTMLButtonElement>("mode-cad");
 const btnMesh = byId<HTMLButtonElement>("mode-mesh");
 const openBtn = byId<HTMLButtonElement>("open-btn");
@@ -40,6 +41,7 @@ function renderMode(): void {
   fileTitle.textContent = t ? t : "No file open — use Open… or File ▸ Open";
 }
 
+homeBtn.addEventListener("click", () => api.post({ type: "goHome" }));
 btnCad.addEventListener("click", () => api.post({ type: "setMode", mode: "cad" }));
 btnMesh.addEventListener("click", () => api.post({ type: "setMode", mode: "mesh" }));
 openBtn.addEventListener("click", () => api.post({ type: "openFile" }));

@@ -9,7 +9,7 @@ thin vscode-coupled glue layer. KKSS replaces only the glue:
 
 ```
 ┌────────────────────────── BaseWindow ──────────────────────────┐
-│ shell toolbar (mode toggle · Open · title · toasts)            │
+│ shell toolbar (Home · mode toggle · Open · title · toasts)     │
 ├────────────────────────────────────────────────────────────────┤
 │ cad view                        │ mesh view                    │
 │ cad/media/viewer.js (unmodified)│ mesh/media/webview.js (unmod)│
@@ -25,6 +25,48 @@ thin vscode-coupled glue layer. KKSS replaces only the glue:
 │    MMG → the submodule's own worker pair, unchanged            │
 └────────────────────────────────────────────────────────────────┘
 ```
+
+A fourth, full-window `WebContentsView` — the **home screen**
+(`app/renderer/home/`) — is stacked on top and shown on launch (and via the
+toolbar's Home button, `Ctrl+0`, or **View ▸ Home**). It covers the shell and
+both mode views; entering a mode hides it. Screens are tracked as
+`Screen = "home" | Mode` in `app/main/ipc.ts` and switched with
+`MainWindow.setScreen()` (`app/main/windows.ts`) — mode views are only ever
+`setVisible()`-toggled, so their state survives trips through the home
+screen. The home menu's buttons are config-driven: add an entry to
+`app/renderer/home/homeConfig.ts`, a `HomeAction` case in `app/main/ipc.ts`,
+and its handler in `app/main/index.ts` (`home:toHost`/`home:toWebview`
+channels via `app/preload/homePreload.ts`, same contextBridge pattern as the
+shell).
+
+### About dialog & updates
+
+**Help ▸ About KKSS…** (and the home screen's Help button) opens a frameless
+singleton window (`app/main/services/about.ts`, same pattern as the modal
+picker) backed by `app/renderer/about/` over `about:init` / `about:toHost` /
+`about:toWebview` (`app/preload/aboutPreload.ts`). It shows the version
+(`app.getVersion()`), the author (injected from `package.json` by an esbuild
+`define`), and an update check.
+
+Update flow (`app/main/services/updates.ts`):
+
+- **Availability** — the GitHub REST API (`releases/latest`) + a `semver`
+  compare; works in dev runs too. Offline / rate-limited / bad tags degrade
+  to a "Couldn't check for updates" line with Retry — never a crash.
+- **Delivery** — `electron-updater` (GitHub provider), only where the app can
+  self-replace: the Windows NSIS install and the Linux AppImage. `.deb`
+  installs and the (unsigned) macOS builds get an "Open releases page" button
+  instead, as does any runtime updater failure.
+- Both `semver` and `electron-updater` are devDependencies bundled into
+  `out/main.js` by esbuild — the package still ships no `node_modules`.
+
+The feed plumbing electron-updater needs: the `publish:` block in
+`electron-builder.yml` makes electron-builder emit `latest*.yml` into
+`release/` and embed `resources/app-update.yml` in each package (even with
+`--publish never`), and `.github/workflows/release.yml` uploads
+`release/latest*.yml` + `release/*.blockmap` so they land on the GitHub
+Release next to the installers. Remove either half and in-app updates stop
+finding releases.
 
 Key pieces (all under `app/`):
 

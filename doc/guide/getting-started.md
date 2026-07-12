@@ -23,6 +23,15 @@ Release builds are currently unsigned. On macOS, right-click the app and choose
 **Open** the first time to bypass Gatekeeper.
 :::
 
+## The home screen
+
+KKSS opens on a main menu with one button per task — **Pre-Processing**,
+**Post-Processing**, and **Help**. Pick a mode to enter it; the **Home**
+button in the toolbar (or `Ctrl+0` / **View ▸ Home**) brings the menu back at
+any time without losing what's loaded in either mode.
+
+![The home screen](/screenshots/home-screen.png)
+
 ## The two modes
 
 The toolbar at the top of the window holds the mode toggle:
@@ -42,6 +51,16 @@ your undo history are all preserved.
 | --- | --- |
 | ![CAD mode](/screenshots/cad-viewer.png) | ![Mesh mode](/screenshots/mesh-viewer.png) |
 
+## About & updates
+
+**Help** on the home screen (or **Help ▸ About KKSS…**) shows the app
+version and checks GitHub for a newer release. When an update exists,
+**Update now** downloads and installs it in place on Windows and on the Linux
+AppImage — restart when prompted. `.deb` and macOS installs instead get a
+button to the releases page (those package types can't self-update; macOS
+builds are unsigned). No network? The dialog still shows your version and
+offers a Retry.
+
 ## Opening files
 
 - **Open… button** or `Ctrl+O` — opens a file in the current mode.
@@ -57,6 +76,7 @@ your undo history are all preserved.
 | `Ctrl+S` | Save (CAD: flush sidecars · Mesh: overwrite the source file) |
 | `Ctrl+Shift+S` | Save As |
 | `Ctrl+E` | Export |
+| `Ctrl+0` | Back to the home screen (main menu) |
 | `Ctrl+1` / `Ctrl+2` | Switch to Pre-Processing / Post-Processing |
 | `Ctrl+F` | Find entity by ID (mesh mode) |
 

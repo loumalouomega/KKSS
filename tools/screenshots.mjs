@@ -8,6 +8,7 @@
  *   Session A  cad/examples/STP/bull.stp          → CAD viewer + panels + shell
  *   Session B  mesh/example/MDPA/double_arch.mdpa → mesh viewer + outline
  *   Session C  mesh/example/VTK/Main_0_6.vtk      → VTK timeline view
+ *   Session D  no file                            → home screen (main menu)
  *
  * PNGs land in doc/public/screenshots/ (committed, kebab-case — same
  * convention as cad) and the two README heroes are refreshed in images/.
@@ -126,9 +127,25 @@ async function sessionVtk() {
   }
 }
 
+// ---- Session D: home screen (no file argument) --------------------------------
+
+async function sessionHome() {
+  const { app } = await launchApp(undefined, { extraArgs: EXTRA_ARGS });
+  const deadline = Date.now() + 60_000;
+  try {
+    const page = await appWindow(app, "/renderer/home/", deadline);
+    await page.waitForSelector(".menu-btn", { timeout: 15_000 });
+    await sleep(800);
+    await shoot(page, "home-screen.png");
+  } finally {
+    await app.close().catch(() => {});
+  }
+}
+
 await sessionCad();
 await sessionMdpa();
 await sessionVtk();
+await sessionHome();
 
 // ---- README hero refresh (same pattern as cad's capture.mjs tail) -------------
 

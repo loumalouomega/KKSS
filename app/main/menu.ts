@@ -9,19 +9,19 @@ import { Menu, shell } from "electron";
 import type { MainWindow } from "./windows";
 import type { CadHost } from "./cadHost";
 import type { MeshHost } from "./mesh/meshHost";
-import type { Mode } from "./ipc";
+import type { Screen } from "./ipc";
 import { showQuickPick, showInputBox } from "./services/quickPick";
+import { showAbout } from "./services/about";
 import { toast } from "./services/notifications";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
+import { DOCS_URL } from "./urls";
 
 export interface MenuDeps {
   main: MainWindow;
   cadHost: CadHost;
   meshHost: MeshHost;
-  setMode(mode: Mode): void;
+  setScreen(screen: Screen): void;
 }
-
-const DOCS_URL = "https://loumalouomega.github.io/KKSS/";
 
 export function installMenu(deps: MenuDeps): void {
   const { main, cadHost, meshHost } = deps;
@@ -90,21 +90,26 @@ export function installMenu(deps: MenuDeps): void {
       label: "&View",
       submenu: [
         {
+          label: "Home",
+          accelerator: "CmdOrCtrl+0",
+          click: () => deps.setScreen("home"),
+        },
+        {
           label: "Pre-Processing (CAD)",
           accelerator: "CmdOrCtrl+1",
-          click: () => deps.setMode("cad"),
+          click: () => deps.setScreen("cad"),
         },
         {
           label: "Post-Processing (Mesh)",
           accelerator: "CmdOrCtrl+2",
-          click: () => deps.setMode("mesh"),
+          click: () => deps.setScreen("mesh"),
         },
         { type: "separator" },
         { label: "Reset Camera", click: () => meshHost.postToActive({ type: "resetCamera" }) },
         { label: "Toggle Node IDs", click: () => meshHost.postToActive({ type: "toggleNodeIds" }) },
         { type: "separator" },
         { label: "Toggle Developer Tools", accelerator: "CmdOrCtrl+Shift+I", click: () => {
-          const view = main.views[main.mode()];
+          const view = main.screen() === "home" ? main.home : main.views[main.mode()];
           view.webContents.toggleDevTools();
         } },
       ],
@@ -129,6 +134,8 @@ export function installMenu(deps: MenuDeps): void {
           label: "VSCode-MDPA-Preview (post-processing submodule)",
           click: () => void shell.openExternal("https://github.com/loumalouomega/VSCode-MDPA-Preview"),
         },
+        { type: "separator" },
+        { label: "About KKSS…", click: () => showAbout() },
       ],
     },
   ]);

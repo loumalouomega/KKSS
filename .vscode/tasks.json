@@ -1,10 +1,16 @@
 {
   "version": "2.0.0",
+  "options": {
+    "env": {
+      "Path": "C:\\Program Files\\nodejs;${env:Path}"
+    }
+  },
   "tasks": [
     {
       "label": "KKSS: Build Package",
-      "type": "npm",
-      "script": "dist",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dist"],
       "group": "build",
       "problemMatcher": [],
       "detail": "Builds submodules + app, then packages installers into release/ via electron-builder"

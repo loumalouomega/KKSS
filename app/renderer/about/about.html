@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src kkss:; script-src kkss:; img-src kkss: data:" />
+  <link href="../theme/vscode-vars.css" rel="stylesheet" />
+  <link href="./about.css" rel="stylesheet" />
+  <title>About KKSS</title>
+</head>
+<body>
+  <div id="about">
+    <img id="logo" src="../../icon.png" alt="" />
+    <h1 id="title">KKSS</h1>
+    <p id="subtitle">Keep Kratos Simple Stupid</p>
+    <dl id="facts">
+      <dt>Version</dt><dd id="version">…</dd>
+      <dt>Author</dt><dd id="author">…</dd>
+    </dl>
+    <div id="update">
+      <span id="update-spinner" class="spinner" hidden></span>
+      <span id="update-text">Checking for updates…</span>
+      <progress id="update-progress" max="100" value="0" hidden></progress>
+      <div id="update-actions"></div>
+    </div>
+    <div id="footer">
+      <button id="docs-btn">Documentation</button>
+      <button id="close-btn">Close</button>
+    </div>
+  </div>
+  <script src="./about.js"></script>
+</body>
+</html>

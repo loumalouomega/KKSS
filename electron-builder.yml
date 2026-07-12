@@ -11,6 +11,15 @@ productName: KKSS
 copyright: © Vicente Mataix Ferrándiz — GPL-3.0
 asar: false
 
+# electron-updater's update feed. Even with `--publish never`, this makes
+# electron-builder emit latest*.yml into release/ and embed app-update.yml in
+# each package; the release workflow attaches the feed files to the GitHub
+# Release, where the packaged app's About dialog looks for updates.
+publish:
+  provider: github
+  owner: loumalouomega
+  repo: KKSS
+
 # Predictable per-target names, e.g. KKSS-0.1.0-linux-arm64.AppImage,
 # KKSS-0.1.0-win-x64.exe — the docs Download page (doc/download.md) groups
 # release assets by the "-<os>-<arch>." substring, so keep this pattern.

@@ -1,0 +1,121 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+#about {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 16px 14px;
+  box-sizing: border-box;
+  height: 100vh;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+}
+
+#logo {
+  width: 56px;
+  height: 56px;
+}
+
+#title {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--vscode-textLink-foreground);
+}
+
+#subtitle {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+#facts {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 12px;
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+#facts dt {
+  color: var(--vscode-descriptionForeground);
+  text-align: right;
+}
+
+#facts dd {
+  margin: 0;
+}
+
+#update {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 74px;
+  font-size: 12px;
+}
+
+#update-text {
+  text-align: center;
+}
+
+#update-progress {
+  width: 260px;
+}
+
+#update-actions {
+  display: flex;
+  gap: 8px;
+}
+
+#update-actions button,
+#footer button {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 3px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#update-actions button:hover,
+#footer button:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+#update-actions button.primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+#footer {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--vscode-progressBar-background);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -6,6 +6,9 @@
  */
 export type Mode = "cad" | "mesh";
 
+/** Top-level screens: the launch home menu plus the two mode views. */
+export type Screen = "home" | Mode;
+
 export const channels = {
   /** Webview bundle → host (payload: extension WebviewToHost message). */
   toHost: (mode: Mode) => `${mode}:toHost` as const,
@@ -18,12 +21,57 @@ export const channels = {
   shellToWebview: "shell:toWebview",
   pickerToHost: "picker:toHost",
   pickerInit: "picker:init",
+  homeToHost: "home:toHost",
+  homeToWebview: "home:toWebview",
+  aboutInit: "about:init",
+  aboutToHost: "about:toHost",
+  aboutToWebview: "about:toWebview",
 } as const;
+
+/** Static facts sent to the About window once its page has loaded. */
+export interface AboutInit {
+  version: string;
+  author: string;
+  packaged: boolean;
+  platform: NodeJS.Platform;
+}
+
+/** Messages posted by the About dialog renderer. */
+export type AboutToHost =
+  | { type: "checkUpdates" }
+  | { type: "downloadUpdate" }
+  | { type: "installUpdate" }
+  | { type: "openReleases" }
+  | { type: "openDocs" }
+  | { type: "close" };
+
+/** Update-check status pushed to the About dialog renderer. */
+export type AboutToWebview = {
+  type: "status";
+  state: "checking" | "upToDate" | "available" | "downloading" | "downloaded" | "error";
+  /** Latest published version (state: available/downloading/downloaded). */
+  latestVersion?: string;
+  /** Download progress 0–100 (state: downloading). */
+  percent?: number;
+  /** Human-readable detail (state: error). */
+  message?: string;
+  /** Whether in-app download+install is possible on this install type. */
+  canAutoUpdate?: boolean;
+};
+
+/** Actions of the home-screen menu buttons (see app/renderer/home/homeConfig.ts). */
+export type HomeAction = "preprocessing" | "postprocessing" | "help";
+
+/** Messages posted by the home-screen renderer. */
+export type HomeToHost =
+  | { type: "homeReady" }
+  | { type: "action"; action: HomeAction };
 
 /** Messages posted by the shell toolbar renderer. */
 export type ShellToHost =
   | { type: "shellReady" }
   | { type: "setMode"; mode: Mode }
+  | { type: "goHome" }
   | { type: "openFile" }
   | { type: "toastButton"; id: number; button: string };
 

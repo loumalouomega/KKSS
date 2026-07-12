@@ -88,6 +88,21 @@ difference, docs don't need to move — use judgment, but default to checking.
   reloads its view, and replays the extension's own `ready` handshake order.
   `.stl/.obj/.ply` are viewable in both modes — the active mode wins
   (`app/main/router.ts`).
+- **Update feed is two-part — keep both halves.** The `publish:` block in
+  `electron-builder.yml` makes electron-builder emit `latest*.yml` update
+  metadata and embed `app-update.yml` in each package; the release workflow
+  uploads `release/latest*.yml` + `release/*.blockmap` to the GitHub Release.
+  electron-updater (About dialog, `app/main/services/updates.ts`) needs both;
+  it and `semver` are devDeps **bundled into out/main.js** — the package
+  still ships no node_modules. In-app install only on win-NSIS/AppImage;
+  everything else falls back to the releases page.
+- **Screens vs modes.** `Screen = "home" | Mode` (`app/main/ipc.ts`): the
+  home screen (`app/renderer/home/`, config-driven buttons in
+  `homeConfig.ts`) is a fourth full-window WebContentsView shown on launch;
+  `MainWindow.setScreen()` only toggles visibility, so mode views keep their
+  file/camera across trips home, and `mode()` keeps returning the last
+  active mode while home is shown (the router and File-menu actions rely on
+  that). Opening a file (CLI arg included) jumps straight to the owning mode.
 
 ## Screenshots are generated, not hand-captured
 

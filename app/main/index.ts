@@ -9,11 +9,12 @@ import { MeshHost } from "./mesh/meshHost";
 import { installMenu } from "./menu";
 import { modeForFile, modeForViewType } from "./router";
 import { configurePicker } from "./services/quickPick";
+import { configureAbout, showAbout } from "./services/about";
 import { configureNotifications, handleToastButton } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { __configureVscodeShim } from "./vscodeShim";
 import { openMesh } from "../../mesh/src/meshExport";
-import type { Mode, ShellToHost } from "./ipc";
+import type { HomeToHost, Mode, Screen, ShellToHost } from "./ipc";
 
 // Must happen before app is ready.
 registerSchemes();
@@ -43,13 +44,20 @@ function openFile(fsPath: string, forcedMode?: Mode): void {
   }
   if (mode === "cad") cadHost.openPath(resolved);
   else meshHost.openPath(resolved);
-  main.setMode(mode);
+  main.setScreen(mode);
   sendShell({ type: "mode", mode });
+}
+
+/** Switches screens and keeps the shell's active-mode highlight in sync. */
+function setScreen(screen: Screen): void {
+  main?.setScreen(screen);
+  if (screen !== "home") sendShell({ type: "mode", mode: screen });
 }
 
 app.whenReady().then(() => {
   installProtocolHandlers(__dirname);
   configurePicker(__dirname);
+  configureAbout(__dirname);
   main = createMainWindow(__dirname);
   configureNotifications(sendShell);
   __configureVscodeShim({
@@ -77,14 +85,22 @@ app.whenReady().then(() => {
     onTitle: (fileName) => sendShell({ type: "title", mode: "mesh", fileName }),
   });
 
-  installMenu({
-    main,
-    cadHost,
-    meshHost,
-    setMode: (mode) => {
-      main?.setMode(mode);
-      sendShell({ type: "mode", mode });
-    },
+  installMenu({ main, cadHost, meshHost, setScreen });
+
+  ipcMain.on("home:toHost", (_event, raw) => {
+    const msg = raw as HomeToHost;
+    if (!main || msg.type !== "action") return;
+    switch (msg.action) {
+      case "preprocessing":
+        setScreen("cad");
+        break;
+      case "postprocessing":
+        setScreen("mesh");
+        break;
+      case "help":
+        showAbout();
+        break;
+    }
   });
 
   ipcMain.on("shell:toHost", (_event, raw) => {
@@ -99,8 +115,10 @@ app.whenReady().then(() => {
         sendShell({ type: "title", mode: "mesh", fileName: meshHost?.currentFile ? path.basename(meshHost.currentFile) : null });
         break;
       case "setMode":
-        main.setMode(msg.mode);
-        sendShell({ type: "mode", mode: msg.mode });
+        setScreen(msg.mode);
+        break;
+      case "goHome":
+        setScreen("home");
         break;
       case "openFile":
         if (main.mode() === "cad") void cadHost?.openFileDialog();

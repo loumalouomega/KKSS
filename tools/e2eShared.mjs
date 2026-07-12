@@ -15,14 +15,15 @@ export const electronPath = require("electron");
 export const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /**
- * Launches KKSS with `file` opened via the CLI hook. Returns the Playwright
- * ElectronApplication plus an `output()` accessor over combined stdout+stderr
- * (the KKSS_E2E=1 host↔webview message trace).
+ * Launches KKSS with `file` opened via the CLI hook (omit `file` to land on
+ * the home screen). Returns the Playwright ElectronApplication plus an
+ * `output()` accessor over combined stdout+stderr (the KKSS_E2E=1
+ * host↔webview message trace).
  */
 export async function launchApp(file, { extraArgs = [] } = {}) {
   const app = await _electron.launch({
     executablePath: electronPath,
-    args: [".", "--no-sandbox", "--enable-unsafe-swiftshader", "--disable-gpu-sandbox", ...extraArgs, file],
+    args: [".", "--no-sandbox", "--enable-unsafe-swiftshader", "--disable-gpu-sandbox", ...extraArgs, ...(file ? [file] : [])],
     cwd: root,
     env: { ...process.env, KKSS_E2E: "1", ELECTRON_RUN_AS_NODE: undefined },
     timeout: 60_000,

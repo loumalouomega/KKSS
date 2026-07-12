@@ -57,6 +57,7 @@ body {
   color: var(--vscode-button-foreground);
 }
 
+#home-btn,
 #open-btn {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
@@ -67,6 +68,7 @@ body {
   cursor: pointer;
 }
 
+#home-btn:hover,
 #open-btn:hover {
   background: var(--vscode-button-secondaryHoverBackground);
 }

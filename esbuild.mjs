@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const watch = process.argv.includes("--watch");
 const out = (...p) => path.join(__dirname, "out", ...p);
+const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8"));
 
 // ---- Preflight: the app consumes artifacts built inside the submodules ------
 const required = [
@@ -77,6 +78,11 @@ const mainConfig = {
   // `vscode` (imported by the reused mesh host modules) resolves to our shim.
   alias: { ...mmgAlias, vscode: path.join(__dirname, "app/main/vscodeShim.ts") },
   ...importMetaShim,
+  define: {
+    ...importMetaShim.define,
+    // The About dialog's author line, straight from package.json.
+    __KKSS_AUTHOR__: JSON.stringify(pkg.author),
+  },
   sourcemap: true,
   logLevel: "info",
 };
@@ -101,6 +107,8 @@ const preloadConfig = {
     "app/preload/viewPreload.ts",
     "app/preload/shellPreload.ts",
     "app/preload/pickerPreload.ts",
+    "app/preload/homePreload.ts",
+    "app/preload/aboutPreload.ts",
   ],
   bundle: true,
   platform: "node",
@@ -114,7 +122,12 @@ const preloadConfig = {
 
 /** @type {import('esbuild').BuildOptions} */
 const shellRendererConfig = {
-  entryPoints: ["app/renderer/shell/shell.ts", "app/renderer/picker/picker.ts"],
+  entryPoints: [
+    "app/renderer/shell/shell.ts",
+    "app/renderer/picker/picker.ts",
+    "app/renderer/home/home.ts",
+    "app/renderer/about/about.ts",
+  ],
   bundle: true,
   platform: "browser",
   format: "iife",
@@ -159,6 +172,10 @@ function copyArtifacts() {
     ["app/renderer/shell/shell.css", out("renderer/shell/shell.css")],
     ["app/renderer/picker/picker.html", out("renderer/picker/picker.html")],
     ["app/renderer/picker/picker.css", out("renderer/picker/picker.css")],
+    ["app/renderer/home/index.html", out("renderer/home/index.html")],
+    ["app/renderer/home/home.css", out("renderer/home/home.css")],
+    ["app/renderer/about/about.html", out("renderer/about/about.html")],
+    ["app/renderer/about/about.css", out("renderer/about/about.css")],
   ];
   for (const [srcRel, dst] of copies) {
     const src = path.join(__dirname, srcRel);
