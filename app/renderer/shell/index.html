@@ -11,11 +11,14 @@
 <body>
   <div id="shell">
     <span id="brand">KKSS</span>
+    <button id="home-btn" title="Back to the main menu (Ctrl+0)">Home</button>
     <div id="mode-toggle" role="tablist" aria-label="Application mode">
       <button id="mode-cad" class="mode-btn active" role="tab" title="Pre-processing: CAD geometry and model preparation">Pre-Processing</button>
       <button id="mode-mesh" class="mode-btn" role="tab" title="Post-processing: mesh inspection, modification and results">Post-Processing</button>
     </div>
     <button id="open-btn" title="Open a file in the current mode (Ctrl+O)">Open&hellip;</button>
+    <button id="edit-btn" title="Open the current file in the text editor">Edit</button>
+    <button id="terminal-btn" title="Toggle the embedded terminal (Ctrl+`)">Terminal</button>
     <span id="file-title"></span>
     <div id="toasts"></div>
   </div>

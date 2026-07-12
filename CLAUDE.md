@@ -88,6 +88,40 @@ difference, docs don't need to move — use judgment, but default to checking.
   reloads its view, and replays the extension's own `ready` handshake order.
   `.stl/.obj/.ply` are viewable in both modes — the active mode wins
   (`app/main/router.ts`).
+- **node-pty is the ONLY native module and the ONLY shipped node_modules
+  entry** (embedded terminal, `app/main/services/terminal.ts`). It is N-API:
+  never add an electron-rebuild step — Windows/macOS use its npm-shipped
+  prebuilds, Linux compiles during `npm ci` (keep its `allowScripts` entry in
+  package.json or the binaries never materialize). It stays `external` in
+  esbuild's mainConfig and ships via the node-pty `files` rules in
+  electron-builder.yml. Release CI builds on one runner per OS/arch because
+  of it. Pages that need runtime-injected styles (terminal's xterm.js) may
+  relax CSP to `style-src kkss: 'unsafe-inline'` — that page only.
+- **Menu bar holds app-level items only.** Viewer actions (quality, fields,
+  find entity…) live in the submodules' own toolbars — don't duplicate them
+  in the native menu. App preferences go in the Settings menu, persisted via
+  `stateStore` (`sceneTheme` is shared with the mesh viewer's own theme
+  toggle; it reaches views through `initialState` on their next file load).
+- **Update feed is two-part — keep both halves.** The `publish:` block in
+  `electron-builder.yml` makes electron-builder emit `latest*.yml` update
+  metadata and embed `app-update.yml` in each package; the release workflow
+  uploads `release/latest*.yml` + `release/*.blockmap` to the GitHub Release.
+  electron-updater (About dialog, `app/main/services/updates.ts`) needs both;
+  it and `semver` are devDeps **bundled into out/main.js** — the package
+  still ships no node_modules. In-app install only on win-NSIS/AppImage;
+  everything else falls back to the releases page.
+- **Screens vs modes.** `Screen = "home" | "editor" | Mode`
+  (`app/main/ipc.ts`): the home screen (`app/renderer/home/`, config-driven
+  buttons in `homeConfig.ts`; full-window) and the text editor
+  (`app/renderer/editor/`, CodeMirror 6; body bounds under the toolbar) are
+  extra WebContentsViews next to the mode views; `MainWindow.setScreen()`
+  only toggles visibility, so every view keeps its state across switches
+  (this is also why the editor needs no dirty-prompt on navigation — only on
+  window close and open-over-unsaved), and `mode()` keeps returning the last
+  active mode on non-mode screens (the router and File-menu actions rely on
+  that). Opening a file (CLI arg included) jumps straight to the owning
+  mode. The editor's fs work stays in `app/main/services/editor.ts` — its
+  renderer never touches the filesystem.
 
 ## Screenshots are generated, not hand-captured
 
@@ -108,7 +142,10 @@ launch helpers live in `tools/e2eShared.mjs` (used by the smoke test too).
 `tikz-ui/*.tex` → pdflatex + pdftocairo → `svg-ui/*.svg` →
 `build-toolbar-icons.mjs` (copied verbatim from mesh) → **generated, committed**
 `app/renderer/shell/shellIcons.ts` (currentColor, theme-adaptive; `open.tex`
-is copied verbatim from mesh so the family stays visually consistent). The
+and `edit.tex` are copied verbatim from mesh so the family stays visually
+consistent; the home-screen menu buttons consume the same generated icons).
+No pdflatex? tectonic + poppler via micromamba is a verified drop-in for the
+`.tex → .svg` steps (see icons/README.md). The
 **app icon** is `icons/tikz-app/kkss.tex` (the colored "split cube": blue CAD
 half, orange mesh half) → `icons/app/icon{,-256,-1024}.png`, consumed by
 `electron-builder.yml` and copied to `out/icon.png` for the Linux window icon.

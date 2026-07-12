@@ -1,5 +1,5 @@
 /** Shell toolbar: mode toggle, Open button, current-file title, toasts. */
-import type { Mode, ShellToWebview } from "../../main/ipc";
+import type { Screen, ShellToWebview } from "../../main/ipc";
 import { TOOLBAR_ICONS, type ToolbarIconId } from "./shellIcons";
 
 /** Same wrapper the submodule providers use for their generated icons. */
@@ -19,40 +19,56 @@ declare global {
 const api = window.shellApi;
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+const homeBtn = byId<HTMLButtonElement>("home-btn");
 const btnCad = byId<HTMLButtonElement>("mode-cad");
 const btnMesh = byId<HTMLButtonElement>("mode-mesh");
 const openBtn = byId<HTMLButtonElement>("open-btn");
+const editBtn = byId<HTMLButtonElement>("edit-btn");
+const terminalBtn = byId<HTMLButtonElement>("terminal-btn");
 const fileTitle = byId<HTMLSpanElement>("file-title");
 const toasts = byId<HTMLDivElement>("toasts");
 
 // TikZ-generated, currentColor-based glyphs (icons/tikz-ui — see icons/README.md).
+homeBtn.innerHTML = `${icon("home")} Home`;
 btnCad.innerHTML = `${icon("preMode")} Pre-Processing`;
 btnMesh.innerHTML = `${icon("postMode")} Post-Processing`;
 openBtn.innerHTML = `${icon("open")} Open…`;
+editBtn.innerHTML = `${icon("edit")} Edit`;
+terminalBtn.innerHTML = `${icon("terminal")} Terminal`;
 
-const titles: Record<Mode, string | null> = { cad: null, mesh: null };
-let mode: Mode = "cad";
+const titles: Record<"cad" | "mesh" | "editor", string | null> = { cad: null, mesh: null, editor: null };
+let editorDirty = false;
+let screen: Screen = "home";
 
 function renderMode(): void {
-  btnCad.classList.toggle("active", mode === "cad");
-  btnMesh.classList.toggle("active", mode === "mesh");
-  const t = titles[mode];
+  btnCad.classList.toggle("active", screen === "cad");
+  btnMesh.classList.toggle("active", screen === "mesh");
+  if (screen === "editor") {
+    const t = titles.editor;
+    fileTitle.textContent = t ? `${t}${editorDirty ? " ●" : ""}` : "Text editor";
+    return;
+  }
+  const t = screen === "home" ? null : titles[screen];
   fileTitle.textContent = t ? t : "No file open — use Open… or File ▸ Open";
 }
 
+homeBtn.addEventListener("click", () => api.post({ type: "goHome" }));
 btnCad.addEventListener("click", () => api.post({ type: "setMode", mode: "cad" }));
 btnMesh.addEventListener("click", () => api.post({ type: "setMode", mode: "mesh" }));
 openBtn.addEventListener("click", () => api.post({ type: "openFile" }));
+editBtn.addEventListener("click", () => api.post({ type: "editCurrentFile" }));
+terminalBtn.addEventListener("click", () => api.post({ type: "toggleTerminal" }));
 
 api.onMessage((raw) => {
   const msg = raw as ShellToWebview;
   switch (msg.type) {
-    case "mode":
-      mode = msg.mode;
+    case "screen":
+      screen = msg.screen;
       renderMode();
       break;
     case "title":
-      titles[msg.mode] = msg.fileName;
+      titles[msg.view] = msg.fileName;
+      if (msg.view === "editor") editorDirty = msg.dirty ?? false;
       renderMode();
       break;
     case "toast": {

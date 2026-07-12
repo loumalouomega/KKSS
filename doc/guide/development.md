@@ -9,7 +9,7 @@ thin vscode-coupled glue layer. KKSS replaces only the glue:
 
 ```
 ┌────────────────────────── BaseWindow ──────────────────────────┐
-│ shell toolbar (mode toggle · Open · title · toasts)            │
+│ shell toolbar (Home · mode toggle · Open · title · toasts)     │
 ├────────────────────────────────────────────────────────────────┤
 │ cad view                        │ mesh view                    │
 │ cad/media/viewer.js (unmodified)│ mesh/media/webview.js (unmod)│
@@ -25,6 +25,108 @@ thin vscode-coupled glue layer. KKSS replaces only the glue:
 │    MMG → the submodule's own worker pair, unchanged            │
 └────────────────────────────────────────────────────────────────┘
 ```
+
+A fourth, full-window `WebContentsView` — the **home screen**
+(`app/renderer/home/`) — is stacked on top and shown on launch (and via the
+toolbar's Home button, `Ctrl+0`, or **View ▸ Home**). It covers the shell and
+both mode views; entering a mode hides it. Screens are tracked as
+`Screen = "home" | Mode` in `app/main/ipc.ts` and switched with
+`MainWindow.setScreen()` (`app/main/windows.ts`) — mode views are only ever
+`setVisible()`-toggled, so their state survives trips through the home
+screen. The home menu's buttons are config-driven: add an entry to
+`app/renderer/home/homeConfig.ts`, a `HomeAction` case in `app/main/ipc.ts`,
+and its handler in `app/main/index.ts` (`home:toHost`/`home:toWebview`
+channels via `app/preload/homePreload.ts`, same contextBridge pattern as the
+shell).
+
+### About dialog & updates
+
+**Help ▸ About KKSS…** (and the home screen's Help button) opens a frameless
+singleton window (`app/main/services/about.ts`, same pattern as the modal
+picker) backed by `app/renderer/about/` over `about:init` / `about:toHost` /
+`about:toWebview` (`app/preload/aboutPreload.ts`). It shows the version
+(`app.getVersion()`), the author (injected from `package.json` by an esbuild
+`define`), and an update check.
+
+Update flow (`app/main/services/updates.ts`):
+
+- **Availability** — the GitHub REST API (`releases/latest`) + a `semver`
+  compare; works in dev runs too. Offline / rate-limited / bad tags degrade
+  to a "Couldn't check for updates" line with Retry — never a crash.
+- **Delivery** — `electron-updater` (GitHub provider), only where the app can
+  self-replace: the Windows NSIS install and the Linux AppImage. `.deb`
+  installs and the (unsigned) macOS builds get an "Open releases page" button
+  instead, as does any runtime updater failure.
+- Both `semver` and `electron-updater` are devDependencies bundled into
+  `out/main.js` by esbuild — the package still ships no `node_modules`.
+
+The feed plumbing electron-updater needs: the `publish:` block in
+`electron-builder.yml` makes electron-builder emit `latest*.yml` into
+`release/` and embed `resources/app-update.yml` in each package (even with
+`--publish never`), and `.github/workflows/release.yml` uploads
+`release/latest*.yml` + `release/*.blockmap` so they land on the GitHub
+Release next to the installers. Remove either half and in-app updates stop
+finding releases.
+
+## Embedded terminal (node-pty + xterm.js)
+
+The Terminal toolbar button / ``Ctrl+` `` toggles a bottom panel
+`WebContentsView` (lazily created in `app/main/windows.ts`; `layout()`
+shrinks the mode views by `TERMINAL_HEIGHT` while it's shown). The renderer
+(`app/renderer/terminal/`, `@xterm/xterm` + fit addon) talks to
+`app/main/services/terminal.ts` over `term:toHost` / `term:toWebview`
+(`app/preload/terminalPreload.ts`): one node-pty session shared by both
+modes, spawned on first show in the current file's directory — PowerShell on
+Windows, `$SHELL` elsewhere, overridable via **Settings ▸ Terminal Shell**
+(`stateStore` key `terminalShell`) — kept alive while hidden, killed on quit;
+the renderer offers an Enter-to-restart when the shell exits.
+
+**node-pty is the app's only native module**, and the only `node_modules`
+entry that ships in the package (see the `files` rules in
+`electron-builder.yml`; `asar: false` means the `.node` binaries load
+directly). It is N-API, so **no Electron-ABI rebuild step exists or is
+needed** — Windows/macOS use the prebuilt binaries shipped in the npm
+package, Linux compiles once during `npm ci` (GitHub runners and typical dev
+boxes have the toolchain). Two consequences to keep in mind:
+
+- `package.json`'s `allowScripts` must keep the `node-pty@…` entry — without
+  it the install scripts are skipped and the binaries never materialize.
+- The release workflow builds on **one runner per OS/arch**
+  (`ubuntu-24.04-arm`, `windows-11-arm` for the arm64 targets): Linux needs
+  a native compile and Windows assembles arch-specific ConPTY binaries at
+  install time, so cross-arch packaging from a single runner is no longer
+  possible.
+
+**CSP note:** xterm.js injects `<style>` elements at runtime, so
+`app/renderer/terminal/index.html` allows `'unsafe-inline'` styles — this
+page only; every other page keeps the strict `style-src kkss:`.
+
+## Text editor (CodeMirror 6)
+
+The `editor` screen (`Screen = "home" | "editor" | Mode`) is a
+`WebContentsView` with body bounds — the shell toolbar stays visible and the
+terminal panel shares space with it. `app/renderer/editor/` bundles
+CodeMirror 6 (`codemirror` basic setup + `@codemirror/lang-json`/`lang-python`
++ one-dark theme); all fs work lives in `app/main/services/editor.ts` behind
+`editor:toHost` / `editor:toWebview` (`app/preload/editorPreload.ts`) — the
+renderer never touches the filesystem. File ▸ Save / Save As route to the
+editor when it's the active screen (`main.screen()`), and the in-page
+CodeMirror keymap binds `Mod-s` for the focused case. Dirty handling: the
+buffer survives screen switches (views are only hidden), so prompts fire only
+on the destructive paths — window close (Save / Don't Save / Cancel) and
+opening another file over unsaved changes. Like the terminal page, the editor
+page allows `'unsafe-inline'` styles (CodeMirror injects `<style>` at
+runtime).
+
+## Settings menu
+
+The **Settings** native menu (`app/main/menu.ts`) holds app-level
+preferences persisted in `app/main/services/stateStore.ts`: **Color Theme**
+(`sceneTheme` — the same key the mesh viewer's own theme toggle persists;
+served to the mode views via their synchronous `initialState`, so it applies
+when a view next loads a file) and **Terminal Shell** (`terminalShell`).
+Viewer-level actions are deliberately absent from the menu bar — the
+submodules' own toolbars provide them.
 
 Key pieces (all under `app/`):
 

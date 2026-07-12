@@ -2,15 +2,22 @@
 
 TikZ-drawn icons for KKSS, sharing the visual language and build pipeline of
 the two submodules' `icons/` directories ([cad/icons](../cad/icons),
-[mesh/icons](../mesh/icons)) — `open.tex` is copied verbatim from mesh, and
-`preMode.tex` reuses the isometric-cube technique of cad's `addBox`/`volume`
-icons, so all three projects look like one family.
+[mesh/icons](../mesh/icons)) — `open.tex` and `edit.tex` are copied verbatim
+from mesh, and `preMode.tex` reuses the isometric-cube technique of cad's
+`addBox`/`volume` icons, so all three projects look like one family.
+(`home.tex` is deliberately a house, not cad's same-named hamburger — that
+glyph means "File menu" there, while KKSS's Home returns to the main menu.)
+
+No `pdflatex`? [Tectonic](https://tectonic-typesetting.github.io) is a
+verified drop-in for the `.tex → .pdf` step (byte-identical path output apart
+from float noise the codegen normalizes away); `pdftocairo` still comes from
+poppler. Both install user-space via micromamba/conda-forge.
 
 Two independent sets:
 
 | Set | Sources | Output | Use |
 | --- | --- | --- | --- |
-| Shell toolbar icons | `tikz-ui/*.tex` | `svg-ui/*.svg` → generated `../app/renderer/shell/shellIcons.ts` | Mode-toggle + Open buttons (monochrome, `currentColor`, theme-adaptive) |
+| Shell toolbar icons | `tikz-ui/*.tex` | `svg-ui/*.svg` → generated `../app/renderer/shell/shellIcons.ts` | Toolbar buttons (Home / mode toggle / Open / Edit / Terminal) + the home-screen menu buttons (monochrome, `currentColor`, theme-adaptive) |
 | Application icon | `tikz-app/kkss.tex` | `app/icon-1024.png`, `app/icon.png` (512), `app/icon-256.png` | electron-builder installers (`electron-builder.yml`) + Linux window icon (`out/icon.png`) |
 
 All `tikz-ui` sources use the shared `tikzpicture` options (`line width=1.3pt,

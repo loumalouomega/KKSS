@@ -9,23 +9,48 @@ import { Menu, shell } from "electron";
 import type { MainWindow } from "./windows";
 import type { CadHost } from "./cadHost";
 import type { MeshHost } from "./mesh/meshHost";
-import type { Mode } from "./ipc";
-import { showQuickPick, showInputBox } from "./services/quickPick";
-import { toast } from "./services/notifications";
+import type { Screen } from "./ipc";
+import { showQuickPick } from "./services/quickPick";
+import { showAbout } from "./services/about";
+import { stateStore } from "./services/stateStore";
+import type { EditorService } from "./services/editor";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
+import { DOCS_URL } from "./urls";
 
 export interface MenuDeps {
   main: MainWindow;
   cadHost: CadHost;
   meshHost: MeshHost;
-  setMode(mode: Mode): void;
+  editor: EditorService;
+  setScreen(screen: Screen): void;
+  toggleTerminal(): void;
 }
 
-const DOCS_URL = "https://loumalouomega.github.io/KKSS/";
+/** Scene themes understood by the viewers (mesh provider's own value set). */
+const SCENE_THEMES: Array<{ value: string; label: string }> = [
+  { value: "auto", label: "Auto" },
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+  { value: "scientific", label: "Scientific" },
+];
+
+/** Shell choices for the embedded terminal, per platform. */
+const SHELL_CHOICES: Array<{ value: string | undefined; label: string }> =
+  process.platform === "win32"
+    ? [
+        { value: undefined, label: "PowerShell (default)" },
+        { value: "cmd.exe", label: "Command Prompt" },
+      ]
+    : [
+        { value: undefined, label: "System default ($SHELL)" },
+        { value: "/bin/bash", label: "bash" },
+        { value: "/bin/zsh", label: "zsh" },
+      ];
 
 export function installMenu(deps: MenuDeps): void {
-  const { main, cadHost, meshHost } = deps;
+  const { main, cadHost, meshHost, editor } = deps;
   const inCad = () => main.mode() === "cad";
+  const inEditor = () => main.screen() === "editor";
 
   /** kratos.mesh.export — quick-pick a format, then dispatch (extension.ts:109). */
   const meshExportPick = async (): Promise<void> => {
@@ -34,26 +59,6 @@ export function installMenu(deps: MenuDeps): void {
       { placeHolder: "Export mesh as…" }
     );
     if (pick) meshHost.dispatchMenu({ type: "menuExport", format: pick.ext });
-  };
-
-  /** kratos.mdpa.findEntity (extension.ts:128-145). */
-  const findEntity = async (): Promise<void> => {
-    const entityType = await showQuickPick(
-      ["Node", "Element", "Condition", "Geometry"].map((label) => ({ label })),
-      { placeHolder: "Entity type" }
-    );
-    if (!entityType) return;
-    const raw = await showInputBox({ prompt: `Enter ${entityType.label} ID` });
-    if (raw === undefined) return;
-    if (!/^\d+$/.test(raw.trim())) {
-      toast("warning", "Entity ID must be a positive integer.");
-      return;
-    }
-    meshHost.postToActive({
-      type: "locateEntity",
-      entityType: entityType.label,
-      entityId: Number(raw.trim()),
-    });
   };
 
   const menu = Menu.buildFromTemplate([
@@ -66,16 +71,24 @@ export function installMenu(deps: MenuDeps): void {
           click: () => (inCad() ? void cadHost.openFileDialog() : void openMesh()),
         },
         {
+          label: "Open in Text Editor…",
+          click: () => void editor.open(),
+        },
+        {
           label: "Save",
           accelerator: "CmdOrCtrl+S",
-          click: () =>
-            inCad() ? void cadHost.flushSidecars() : void meshHost.dispatchMenu({ type: "menuSave" }),
+          click: () => {
+            if (inEditor()) return editor.requestSave(false);
+            inCad() ? void cadHost.flushSidecars() : void meshHost.dispatchMenu({ type: "menuSave" });
+          },
         },
         {
           label: "Save As…",
           accelerator: "CmdOrCtrl+Shift+S",
-          click: () =>
-            inCad() ? cadHost.export() : void meshHost.dispatchMenu({ type: "menuSaveAs" }),
+          click: () => {
+            if (inEditor()) return editor.requestSave(true);
+            inCad() ? cadHost.export() : void meshHost.dispatchMenu({ type: "menuSaveAs" });
+          },
         },
         {
           label: "Export…",
@@ -90,31 +103,65 @@ export function installMenu(deps: MenuDeps): void {
       label: "&View",
       submenu: [
         {
+          label: "Home",
+          accelerator: "CmdOrCtrl+0",
+          click: () => deps.setScreen("home"),
+        },
+        {
           label: "Pre-Processing (CAD)",
           accelerator: "CmdOrCtrl+1",
-          click: () => deps.setMode("cad"),
+          click: () => deps.setScreen("cad"),
         },
         {
           label: "Post-Processing (Mesh)",
           accelerator: "CmdOrCtrl+2",
-          click: () => deps.setMode("mesh"),
+          click: () => deps.setScreen("mesh"),
+        },
+        { type: "separator" },
+        {
+          label: "Toggle Terminal",
+          accelerator: "CmdOrCtrl+`",
+          click: () => deps.toggleTerminal(),
         },
         { type: "separator" },
         { label: "Reset Camera", click: () => meshHost.postToActive({ type: "resetCamera" }) },
         { label: "Toggle Node IDs", click: () => meshHost.postToActive({ type: "toggleNodeIds" }) },
         { type: "separator" },
         { label: "Toggle Developer Tools", accelerator: "CmdOrCtrl+Shift+I", click: () => {
-          const view = main.views[main.mode()];
+          const screen = main.screen();
+          const view =
+            screen === "home" ? main.home : screen === "editor" ? main.editor : main.views[main.mode()];
           view.webContents.toggleDevTools();
         } },
       ],
     },
+    // App-level preferences only — viewer actions (quality, fields, find…)
+    // live in the submodules' own toolbars, so they are not duplicated here.
     {
-      label: "&Tools",
+      label: "&Settings",
       submenu: [
-        { label: "Mesh Quality", click: () => meshHost.postToActive({ type: "computeQuality" }) },
-        { label: "Field Visualization", click: () => meshHost.postToActive({ type: "field" }) },
-        { label: "Find Entity…", accelerator: "CmdOrCtrl+F", click: () => void findEntity() },
+        {
+          label: "Color Theme",
+          submenu: SCENE_THEMES.map((t) => ({
+            label: t.label,
+            type: "radio" as const,
+            checked: stateStore.get("sceneTheme", "auto") === t.value,
+            // Shared with the mesh viewer's own theme toggle (same stateStore
+            // key); viewers pick it up when they next load a file.
+            click: () => void stateStore.update("sceneTheme", t.value),
+          })),
+        },
+        {
+          label: "Terminal Shell",
+          submenu: SHELL_CHOICES.map((s) => ({
+            label: s.label,
+            type: "radio" as const,
+            checked: stateStore.get<string>("terminalShell") === s.value,
+            // Applies to the next terminal session (exit the current shell or
+            // restart the app to switch).
+            click: () => void stateStore.update("terminalShell", s.value),
+          })),
+        },
       ],
     },
     {
@@ -129,6 +176,8 @@ export function installMenu(deps: MenuDeps): void {
           label: "VSCode-MDPA-Preview (post-processing submodule)",
           click: () => void shell.openExternal("https://github.com/loumalouomega/VSCode-MDPA-Preview"),
         },
+        { type: "separator" },
+        { label: "About KKSS…", click: () => showAbout() },
       ],
     },
   ]);

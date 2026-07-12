@@ -31,8 +31,18 @@ embedded as git submodules and reused **without modification**:
 | 🔷 **Pre-Processing** | [CAD-Preview](https://github.com/loumalouomega/CAD-Preview) (`cad/`) | STEP/IGES/BREP + STL/OBJ/PLY/glTF viewing, part definition, parametric geometry editing, Gmsh FE meshing, MDPA export |
 | 🔶 **Post-Processing** | [VSCode-MDPA-Preview](https://github.com/loumalouomega/VSCode-MDPA-Preview) (`mesh/`) | MDPA/VTK inspection, field & time-series visualization, mesh quality, mesh operations with undo/redo, MMG remeshing |
 
-A toolbar toggle switches between the modes; both stay alive, keeping their
-loaded file, camera, and history.
+The app opens on a **home screen** with one button per task; a toolbar toggle
+(and `Ctrl+0` for Home) switches between the screens, and both viewers stay
+alive, keeping their loaded file, camera, and history. Also in the box:
+
+- **Embedded terminal** (``Ctrl+` ``) — a real PowerShell/`$SHELL` panel below
+  the viewer for launching Kratos runs, powered by node-pty + xterm.js.
+- **Text editor** — a lightweight CodeMirror 6 editor for input files and
+  scripts (JSON/Python highlighting, dirty-state guards).
+- **About & updates** — Help ▸ About checks GitHub for new releases and can
+  download + install them in place (Windows installer and Linux AppImage).
+- **Settings menu** — color theme (shared with the mesh viewer) and terminal
+  shell, persisted across runs.
 
 **Documentation:** <https://loumalouomega.github.io/KKSS/> ·
 **Downloads:** [download page](https://loumalouomega.github.io/KKSS/download)

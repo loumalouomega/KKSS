@@ -1,22 +1,32 @@
 /**
- * Main window: one BaseWindow hosting three WebContentsViews —
- * a slim always-visible shell toolbar (mode toggle, Open, title, toasts) and
- * the two mode views (cad = CAD-Preview webview, mesh = MDPA/VTK webview).
- * Both mode views are created at startup and toggled with setVisible() so
- * each keeps its loaded file, camera, and history across switches.
+ * Main window: one BaseWindow hosting stacked WebContentsViews —
+ * a slim shell toolbar (mode toggle, Open, title, toasts), the two mode views
+ * (cad = CAD-Preview webview, mesh = MDPA/VTK webview), a full-window home
+ * screen (main menu) shown on launch and via "Home", and a lazily created
+ * bottom terminal panel shared by both modes. Views are toggled with
+ * setVisible() so each mode keeps its loaded file, camera, and history
+ * across switches.
  */
 import { BaseWindow, WebContentsView } from "electron";
 import * as path from "path";
-import type { Mode } from "./ipc";
+import type { Mode, Screen } from "./ipc";
 
 export const SHELL_HEIGHT = 40;
+export const TERMINAL_HEIGHT = 280;
 
 export interface MainWindow {
   win: BaseWindow;
   shell: WebContentsView;
+  home: WebContentsView;
+  editor: WebContentsView;
   views: Record<Mode, WebContentsView>;
+  /** Last active mode — stays valid while the home screen is shown. */
   mode: () => Mode;
-  setMode: (mode: Mode) => void;
+  screen: () => Screen;
+  setScreen: (screen: Screen) => void;
+  terminalVisible: () => boolean;
+  /** Shows/hides the terminal panel, creating its view on first use. */
+  toggleTerminal: () => { view: WebContentsView; visible: boolean };
 }
 
 export function createMainWindow(outDir: string): MainWindow {
@@ -54,32 +64,97 @@ export function createMainWindow(outDir: string): MainWindow {
 
   const views: Record<Mode, WebContentsView> = { cad: makeView("cad"), mesh: makeView("mesh") };
 
+  const home = new WebContentsView({
+    webPreferences: {
+      preload: path.join(outDir, "preload", "homePreload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  const editor = new WebContentsView({
+    webPreferences: {
+      preload: path.join(outDir, "preload", "editorPreload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
   win.contentView.addChildView(shell);
   win.contentView.addChildView(views.cad);
   win.contentView.addChildView(views.mesh);
+  win.contentView.addChildView(editor);
+  win.contentView.addChildView(home); // last = topmost: covers shell + modes
 
-  let current: Mode = "cad";
+  let currentMode: Mode = "cad";
+  let currentScreen: Screen = "home";
+  let terminal: WebContentsView | null = null;
+  let terminalShown = false;
 
   const layout = () => {
     const { width, height } = win.getContentBounds();
     shell.setBounds({ x: 0, y: 0, width, height: SHELL_HEIGHT });
-    const body = { x: 0, y: SHELL_HEIGHT, width, height: Math.max(0, height - SHELL_HEIGHT) };
+    const panel = terminalShown ? TERMINAL_HEIGHT : 0;
+    const body = { x: 0, y: SHELL_HEIGHT, width, height: Math.max(0, height - SHELL_HEIGHT - panel) };
     views.cad.setBounds(body);
     views.mesh.setBounds(body);
+    editor.setBounds(body);
+    terminal?.setBounds({ x: 0, y: Math.max(SHELL_HEIGHT, height - panel), width, height: panel });
+    home.setBounds({ x: 0, y: 0, width, height });
   };
   win.on("resize", layout);
   layout();
 
-  const setMode = (mode: Mode) => {
-    current = mode;
-    views.cad.setVisible(mode === "cad");
-    views.mesh.setVisible(mode === "mesh");
+  const toggleTerminal = () => {
+    if (!terminal) {
+      terminal = new WebContentsView({
+        webPreferences: {
+          preload: path.join(outDir, "preload", "terminalPreload.js"),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: false,
+        },
+      });
+      win.contentView.addChildView(terminal);
+      win.contentView.addChildView(home); // keep the home screen topmost
+      void terminal.webContents.loadURL("kkss://app/renderer/terminal/index.html");
+    }
+    terminalShown = !terminalShown;
+    terminal.setVisible(terminalShown);
+    layout();
+    if (terminalShown) terminal.webContents.focus();
+    return { view: terminal, visible: terminalShown };
   };
-  setMode("cad");
+
+  const setScreen = (screen: Screen) => {
+    currentScreen = screen;
+    if (screen === "cad" || screen === "mesh") currentMode = screen;
+    home.setVisible(screen === "home");
+    editor.setVisible(screen === "editor");
+    views.cad.setVisible(screen === "cad");
+    views.mesh.setVisible(screen === "mesh");
+    if (screen === "editor") editor.webContents.focus();
+  };
+  setScreen("home");
 
   void shell.webContents.loadURL("kkss://app/renderer/shell/index.html");
+  void home.webContents.loadURL("kkss://app/renderer/home/index.html");
+  void editor.webContents.loadURL("kkss://app/renderer/editor/index.html");
   void views.cad.webContents.loadURL("kkss://app/renderer/cad/index.html");
   void views.mesh.webContents.loadURL("kkss://app/renderer/mesh/index.html");
 
-  return { win, shell, views, mode: () => current, setMode };
+  return {
+    win,
+    shell,
+    home,
+    editor,
+    views,
+    mode: () => currentMode,
+    screen: () => currentScreen,
+    setScreen,
+    terminalVisible: () => terminalShown,
+    toggleTerminal,
+  };
 }

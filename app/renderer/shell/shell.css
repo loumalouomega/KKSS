@@ -57,7 +57,10 @@ body {
   color: var(--vscode-button-foreground);
 }
 
-#open-btn {
+#home-btn,
+#open-btn,
+#edit-btn,
+#terminal-btn {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
   border: none;
@@ -67,7 +70,10 @@ body {
   cursor: pointer;
 }
 
-#open-btn:hover {
+#home-btn:hover,
+#open-btn:hover,
+#edit-btn:hover,
+#terminal-btn:hover {
   background: var(--vscode-button-secondaryHoverBackground);
 }
 

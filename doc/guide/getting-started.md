@@ -23,6 +23,15 @@ Release builds are currently unsigned. On macOS, right-click the app and choose
 **Open** the first time to bypass Gatekeeper.
 :::
 
+## The home screen
+
+KKSS opens on a main menu with one button per task — **Pre-Processing**,
+**Post-Processing**, and **Help**. Pick a mode to enter it; the **Home**
+button in the toolbar (or `Ctrl+0` / **View ▸ Home**) brings the menu back at
+any time without losing what's loaded in either mode.
+
+![The home screen](/screenshots/home-screen.png)
+
 ## The two modes
 
 The toolbar at the top of the window holds the mode toggle:
@@ -42,6 +51,55 @@ your undo history are all preserved.
 | --- | --- |
 | ![CAD mode](/screenshots/cad-viewer.png) | ![Mesh mode](/screenshots/mesh-viewer.png) |
 
+## About & updates
+
+**Help** on the home screen (or **Help ▸ About KKSS…**) shows the app
+version and checks GitHub for a newer release. When an update exists,
+**Update now** downloads and installs it in place on Windows and on the Linux
+AppImage — restart when prompted. `.deb` and macOS installs instead get a
+button to the releases page (those package types can't self-update; macOS
+builds are unsigned). No network? The dialog still shows your version and
+offers a Retry.
+
+## Embedded terminal
+
+The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**)
+opens a shell panel below the viewer — handy for launching Kratos runs
+(`python MainKratos.py`) while watching the model. The session starts in the
+current file's directory, runs PowerShell on Windows and your `$SHELL` on
+macOS/Linux (changeable under **Settings ▸ Terminal Shell**), keeps running
+while hidden (hide it with the **✕ Hide** button in the panel's corner, the
+toolbar button, or ``Ctrl+` ``), and offers a restart when the shell exits. The panel is shared
+by both modes; its height is fixed in this version.
+
+## Text editor
+
+The **Edit** toolbar button opens the file currently loaded in the active
+mode (`.mdpa`, `.stp`, …) as plain text — handy for touching up an input deck
+without leaving the app. **Text Editor** on the home screen (or **File ▸
+Open in Text Editor…**) opens any file via a dialog instead. It's a
+lightweight editor for input files, scripts and configuration — `.json` and
+`.py` get syntax highlighting; binary or very large files are refused with a
+notice. `Ctrl+S` saves, `Ctrl+Shift+S`
+saves as, and the toolbar has Open/Save/Save As buttons. Unsaved changes show
+a ● next to the file name; switching screens never loses the buffer, and
+closing the window with unsaved changes prompts to save. Pair it with the
+terminal panel (``Ctrl+` ``) to edit and launch a Kratos case side by side.
+
+## Settings
+
+The **Settings** menu (also reachable from the home screen's Settings button)
+holds app-level preferences, persisted across runs:
+
+- **Color Theme** — Auto / Dark / Light / Scientific. The same scene theme
+  the mesh viewer's own toolbar toggle controls; viewers apply it when they
+  next load a file.
+- **Terminal Shell** — the shell the embedded terminal launches (takes
+  effect for the next terminal session).
+
+Viewer actions (mesh quality, field visualization, find entity…) are *not*
+in the menu bar — they live in each viewer's own toolbar.
+
 ## Opening files
 
 - **Open… button** or `Ctrl+O` — opens a file in the current mode.
@@ -57,7 +115,8 @@ your undo history are all preserved.
 | `Ctrl+S` | Save (CAD: flush sidecars · Mesh: overwrite the source file) |
 | `Ctrl+Shift+S` | Save As |
 | `Ctrl+E` | Export |
+| `Ctrl+0` | Back to the home screen (main menu) |
 | `Ctrl+1` / `Ctrl+2` | Switch to Pre-Processing / Post-Processing |
-| `Ctrl+F` | Find entity by ID (mesh mode) |
+| ``Ctrl+` `` | Toggle the embedded terminal |
 
 On macOS use `Cmd` instead of `Ctrl`.

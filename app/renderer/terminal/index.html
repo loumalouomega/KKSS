@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 'unsafe-inline' styles: xterm.js injects <style> elements at runtime.
+       This page only — every other page keeps the strict style-src. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src kkss: 'unsafe-inline'; script-src kkss:; font-src kkss:" />
+  <link href="../theme/vscode-vars.css" rel="stylesheet" />
+  <link href="./xterm.css" rel="stylesheet" />
+  <link href="./terminal.css" rel="stylesheet" />
+  <title>KKSS Terminal</title>
+</head>
+<body>
+  <button id="hide-btn" title="Hide terminal (Ctrl+`) — the shell keeps running">✕ Hide</button>
+  <div id="terminal"></div>
+  <script src="./terminal.js"></script>
+</body>
+</html>

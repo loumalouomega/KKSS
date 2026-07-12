@@ -1,0 +1,87 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  user-select: none;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+}
+
+#home {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+}
+
+#logo {
+  width: 96px;
+  height: 96px;
+}
+
+#title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--vscode-textLink-foreground);
+}
+
+#subtitle {
+  margin: 0 0 24px;
+  font-size: 13px;
+  color: var(--vscode-descriptionForeground);
+}
+
+#menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 320px;
+}
+
+.menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  cursor: pointer;
+  text-align: left;
+}
+
+/* TikZ-generated inline SVG glyphs (shellIcons.ts), sized up for menu rows. */
+.menu-btn-icon svg {
+  width: 22px;
+  height: 22px;
+  vertical-align: middle;
+}
+
+.menu-btn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-btn:hover {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.menu-btn-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.menu-btn-description {
+  font-size: 11px;
+  opacity: 0.8;
+}

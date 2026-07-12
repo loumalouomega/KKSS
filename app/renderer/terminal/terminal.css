@@ -1,0 +1,40 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--vscode-editor-background);
+}
+
+#terminal {
+  height: 100%;
+  box-sizing: border-box;
+  border-top: 1px solid var(--vscode-panel-border);
+  padding: 4px 6px 0;
+}
+
+#hide-btn {
+  position: absolute;
+  top: 6px;
+  right: 16px; /* clear of the scrollbar */
+  z-index: 10;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+#hide-btn:hover {
+  opacity: 1;
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* Let the fit addon own the size; xterm.css sets its own inner layout. */
+#terminal .xterm {
+  height: 100%;
+}

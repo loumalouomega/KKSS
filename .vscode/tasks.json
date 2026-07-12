@@ -1,0 +1,49 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "env": {
+      "Path": "C:\\Program Files\\nodejs;${env:Path}"
+    }
+  },
+  "tasks": [
+    {
+      "label": "KKSS: Build Package",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dist"],
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Builds submodules + app, then packages installers into release/ via electron-builder"
+    },
+    {
+      "label": "KKSS: Install Locally (Windows)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "$exe = Get-ChildItem -Path release -Filter 'KKSS-*-win-*.exe' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if (-not $exe) { throw 'No Windows installer found in release/ - run the KKSS: Build Package task first.' }; Start-Process -FilePath $exe.FullName -Wait"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "detail": "Runs the latest NSIS installer from release/ to install KKSS locally"
+    },
+    {
+      "label": "KKSS: Build & Install (Windows)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "KKSS: Build Package",
+        "KKSS: Install Locally (Windows)"
+      ],
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "detail": "Build the installer package and launch it to install KKSS locally for testing/debugging"
+    }
+  ]
+}
