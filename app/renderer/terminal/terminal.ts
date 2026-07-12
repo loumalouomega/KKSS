@@ -70,6 +70,10 @@ new ResizeObserver(() => {
   api.post({ type: "resize", cols: term.cols, rows: term.rows });
 }).observe(container);
 
+(document.getElementById("hide-btn") as HTMLButtonElement).addEventListener("click", () =>
+  api.post({ type: "hide" })
+);
+
 window.addEventListener("focus", () => term.focus());
 term.focus();
 api.post({ type: "termReady", cols: term.cols, rows: term.rows });

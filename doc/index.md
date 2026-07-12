@@ -26,9 +26,12 @@ features:
   - icon: 🔀
     title: One toggle, two engines
     details: Switch instantly between modes; each keeps its loaded file, camera, and edit history. Both engines are the unmodified VS Code extensions, embedded as git submodules — upstream improvements arrive by bumping a submodule pointer.
+  - icon: 🧰
+    title: Built-in workbench
+    details: An embedded terminal (node-pty + xterm.js) for launching Kratos runs, a CodeMirror text editor for input files and scripts, and in-app update checks against GitHub Releases.
   - icon: 📦
     title: Cross-platform
-    details: Windows, macOS, and Linux installers built and published automatically on every release tag.
+    details: Windows, macOS, and Linux installers built and published automatically on every release tag — with in-place auto-update on Windows and the Linux AppImage.
 ---
 
 ## The two modes at a glance
@@ -40,7 +43,7 @@ features:
 ## Quick start
 
 1. Grab the installer for your platform and architecture from the [download page](/download) (AppImage/deb, NSIS installer, or dmg).
-2. Launch **KKSS**. The toolbar toggle switches between **🔷 Pre-Processing** (CAD) and **🔶 Post-Processing** (mesh/results).
+2. Launch **KKSS** and pick a task on the home screen — **🔷 Pre-Processing** (CAD), **🔶 Post-Processing** (mesh/results), or the text editor. The toolbar switches screens at any time (`Ctrl+0` returns Home).
 3. Press `Ctrl+O` (or click **Open…**) and pick a model: CAD files open in Pre-Processing mode, `.mdpa`/VTK files in Post-Processing mode.
 
 See [Getting Started](/guide/getting-started) for a tour of both modes.

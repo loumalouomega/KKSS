@@ -68,7 +68,8 @@ opens a shell panel below the viewer — handy for launching Kratos runs
 (`python MainKratos.py`) while watching the model. The session starts in the
 current file's directory, runs PowerShell on Windows and your `$SHELL` on
 macOS/Linux (changeable under **Settings ▸ Terminal Shell**), keeps running
-while hidden, and offers a restart when the shell exits. The panel is shared
+while hidden (hide it with the **✕ Hide** button in the panel's corner, the
+toolbar button, or ``Ctrl+` ``), and offers a restart when the shell exits. The panel is shared
 by both modes; its height is fixed in this version.
 
 ## Text editor

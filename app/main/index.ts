@@ -110,10 +110,15 @@ app.whenReady().then(() => {
     void editor.confirmClose();
   });
 
-  terminal = new TerminalService(() => {
-    const current = main?.mode() === "cad" ? cadHost?.currentFile : meshHost?.currentFile;
-    return current ? path.dirname(current) : undefined;
-  });
+  terminal = new TerminalService(
+    () => {
+      const current = main?.mode() === "cad" ? cadHost?.currentFile : meshHost?.currentFile;
+      return current ? path.dirname(current) : undefined;
+    },
+    () => {
+      if (main?.terminalVisible()) toggleTerminal();
+    }
+  );
 
   installMenu({ main, cadHost, meshHost, editor, setScreen, toggleTerminal });
 

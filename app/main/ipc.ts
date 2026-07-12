@@ -52,7 +52,8 @@ export type TermToHost =
   | { type: "termReady"; cols: number; rows: number }
   | { type: "input"; data: string }
   | { type: "resize"; cols: number; rows: number }
-  | { type: "restart" };
+  | { type: "restart" }
+  | { type: "hide" };
 
 /** Messages sent to the terminal-panel renderer. */
 export type TermToWebview =

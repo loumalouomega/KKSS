@@ -25,8 +25,14 @@ export class TerminalService {
   private lastCols = 80;
   private lastRows = 24;
 
-  /** @param cwdProvider Directory for new shells (current file's dir, or home). */
-  constructor(private readonly cwdProvider: () => string | undefined) {
+  /**
+   * @param cwdProvider Directory for new shells (current file's dir, or home).
+   * @param onHide Hide the panel (the ✕ button; the pty keeps running).
+   */
+  constructor(
+    private readonly cwdProvider: () => string | undefined,
+    private readonly onHide: () => void
+  ) {
     ipcMain.on("term:toHost", (event, raw) => {
       if (!this.target || event.sender !== this.target) return;
       const msg = raw as TermToHost;
@@ -46,6 +52,9 @@ export class TerminalService {
           break;
         case "restart":
           if (!this.proc) this.spawn();
+          break;
+        case "hide":
+          this.onHide();
           break;
       }
     });
