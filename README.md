@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="icons/app/icon-256.png" alt="KKSS logo" width="128" height="128" />
+</div>
+
 # KKSS — Keep Kratos Simple Stupid
 
 [![CI](https://github.com/loumalouomega/KKSS/actions/workflows/ci.yml/badge.svg)](https://github.com/loumalouomega/KKSS/actions/workflows/ci.yml)
