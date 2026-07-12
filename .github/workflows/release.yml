@@ -54,6 +54,10 @@ jobs:
       - name: Build (submodules + app)
         run: npm run build
 
+      - name: Clean release directory
+        shell: bash
+        run: rm -rf release
+
       - name: Package installers
         run: npx electron-builder ${{ matrix.args }} --publish never
 
