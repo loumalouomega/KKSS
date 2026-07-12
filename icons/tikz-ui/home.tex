@@ -1,0 +1,11 @@
+% Shell icon: home — a house (roof, walls, door), the back-to-main-menu glyph.
+% (Deliberately NOT cad's home.tex hamburger — that one means "File menu".)
+\documentclass[tikz,border=2mm]{standalone}
+\usetikzlibrary{arrows.meta,calc,shapes.geometric}
+\begin{document}
+\begin{tikzpicture}[line width=1.3pt, line cap=round, line join=round, >=Stealth, x=1mm,y=1mm]
+  \draw[thick] (-11,0) -- (0,9) -- (11,0);
+  \draw[thick] (-8,1.5) -- (-8,-9) -- (8,-9) -- (8,1.5);
+  \draw[thick] (-2,-9) -- (-2,-3) -- (2,-3) -- (2,-9);
+\end{tikzpicture}
+\end{document}

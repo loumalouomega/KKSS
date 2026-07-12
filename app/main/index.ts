@@ -1,5 +1,5 @@
 /** KKSS Electron main entry. */
-import { app, ipcMain } from "electron";
+import { app, ipcMain, Menu } from "electron";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
@@ -135,6 +135,12 @@ app.whenReady().then(() => {
       case "editor":
         void editor?.open();
         break;
+      case "settings": {
+        // Settings live in the native menu bar — pop its submenu up here.
+        const settings = Menu.getApplicationMenu()?.items.find((i) => i.label === "&Settings");
+        settings?.submenu?.popup({ window: main.win });
+        break;
+      }
       case "help":
         showAbout();
         break;

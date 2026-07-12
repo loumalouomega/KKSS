@@ -47,9 +47,8 @@ body {
 
 .menu-btn {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  align-items: center;
+  gap: 12px;
   padding: 10px 16px;
   border: 1px solid var(--vscode-panel-border);
   border-radius: 4px;
@@ -57,6 +56,19 @@ body {
   color: var(--vscode-button-secondaryForeground);
   cursor: pointer;
   text-align: left;
+}
+
+/* TikZ-generated inline SVG glyphs (shellIcons.ts), sized up for menu rows. */
+.menu-btn-icon svg {
+  width: 22px;
+  height: 22px;
+  vertical-align: middle;
+}
+
+.menu-btn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .menu-btn:hover {

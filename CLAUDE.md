@@ -142,7 +142,10 @@ launch helpers live in `tools/e2eShared.mjs` (used by the smoke test too).
 `tikz-ui/*.tex` → pdflatex + pdftocairo → `svg-ui/*.svg` →
 `build-toolbar-icons.mjs` (copied verbatim from mesh) → **generated, committed**
 `app/renderer/shell/shellIcons.ts` (currentColor, theme-adaptive; `open.tex`
-is copied verbatim from mesh so the family stays visually consistent). The
+and `edit.tex` are copied verbatim from mesh so the family stays visually
+consistent; the home-screen menu buttons consume the same generated icons).
+No pdflatex? tectonic + poppler via micromamba is a verified drop-in for the
+`.tex → .svg` steps (see icons/README.md). The
 **app icon** is `icons/tikz-app/kkss.tex` (the colored "split cube": blue CAD
 half, orange mesh half) → `icons/app/icon{,-256,-1024}.png`, consumed by
 `electron-builder.yml` and copied to `out/icon.png` for the Linux window icon.

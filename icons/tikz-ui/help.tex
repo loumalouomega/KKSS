@@ -1,0 +1,9 @@
+% Shell icon: help — a question mark (arc, stem, dot), the About/Help glyph.
+\documentclass[tikz,border=2mm]{standalone}
+\usetikzlibrary{arrows.meta,calc,shapes.geometric}
+\begin{document}
+\begin{tikzpicture}[line width=1.3pt, line cap=round, line join=round, >=Stealth, x=1mm,y=1mm]
+  \draw[thick] (-4.5,5) arc(180:0:4.5) arc(0:-90:4.5) -- (0,-3);
+  \filldraw (0,-8) circle (1.2);
+\end{tikzpicture}
+\end{document}

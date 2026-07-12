@@ -29,9 +29,12 @@ const fileTitle = byId<HTMLSpanElement>("file-title");
 const toasts = byId<HTMLDivElement>("toasts");
 
 // TikZ-generated, currentColor-based glyphs (icons/tikz-ui — see icons/README.md).
+homeBtn.innerHTML = `${icon("home")} Home`;
 btnCad.innerHTML = `${icon("preMode")} Pre-Processing`;
 btnMesh.innerHTML = `${icon("postMode")} Post-Processing`;
 openBtn.innerHTML = `${icon("open")} Open…`;
+editBtn.innerHTML = `${icon("edit")} Edit`;
+terminalBtn.innerHTML = `${icon("terminal")} Terminal`;
 
 const titles: Record<"cad" | "mesh" | "editor", string | null> = { cad: null, mesh: null, editor: null };
 let editorDirty = false;

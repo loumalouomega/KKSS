@@ -92,7 +92,7 @@ export type AboutToWebview = {
 };
 
 /** Actions of the home-screen menu buttons (see app/renderer/home/homeConfig.ts). */
-export type HomeAction = "preprocessing" | "postprocessing" | "editor" | "help";
+export type HomeAction = "preprocessing" | "postprocessing" | "editor" | "settings" | "help";
 
 /** Messages posted by the home-screen renderer. */
 export type HomeToHost =

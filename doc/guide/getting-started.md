@@ -88,7 +88,8 @@ terminal panel (``Ctrl+` ``) to edit and launch a Kratos case side by side.
 
 ## Settings
 
-The **Settings** menu holds app-level preferences, persisted across runs:
+The **Settings** menu (also reachable from the home screen's Settings button)
+holds app-level preferences, persisted across runs:
 
 - **Color Theme** — Auto / Dark / Light / Scientific. The same scene theme
   the mesh viewer's own toolbar toggle controls; viewers apply it when they
