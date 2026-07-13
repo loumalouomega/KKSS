@@ -2,7 +2,7 @@
   "name": "kkss",
   "displayName": "KKSS — Keep Kratos Simple Stupid",
   "description": "Cross-platform desktop application for pre- and post-processing Kratos Multiphysics simulations, built on the CAD-Preview and VSCode-MDPA-Preview extensions.",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "license": "GPL-3.0-only",
   "author": "Vicente Mataix Ferrándiz",
   "repository": {
