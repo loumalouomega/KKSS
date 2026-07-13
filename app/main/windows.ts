@@ -2,8 +2,9 @@
  * Main window: one BaseWindow hosting stacked WebContentsViews —
  * a slim shell toolbar (mode toggle, Open, title, toasts), the two mode views
  * (cad = CAD-Preview webview, mesh = MDPA/VTK webview), a full-window home
- * screen (main menu) shown on launch and via "Home", and a lazily created
- * bottom terminal panel shared by both modes. Views are toggled with
+ * screen (main menu) shown on launch and via "Home", plus two lazily created
+ * panels shared by both modes: a bottom terminal and a right-hand AI chat
+ * sidebar. Views are toggled with
  * setVisible() so each mode keeps its loaded file, camera, and history
  * across switches.
  */
@@ -13,6 +14,7 @@ import type { Mode, Screen } from "./ipc";
 
 export const SHELL_HEIGHT = 40;
 export const TERMINAL_HEIGHT = 280;
+export const CHAT_WIDTH = 360;
 
 export interface MainWindow {
   win: BaseWindow;
@@ -27,6 +29,9 @@ export interface MainWindow {
   terminalVisible: () => boolean;
   /** Shows/hides the terminal panel, creating its view on first use. */
   toggleTerminal: () => { view: WebContentsView; visible: boolean };
+  chatVisible: () => boolean;
+  /** Shows/hides the chat sidebar, creating its view on first use. */
+  toggleChat: () => { view: WebContentsView; visible: boolean };
 }
 
 export function createMainWindow(outDir: string): MainWindow {
@@ -92,16 +97,21 @@ export function createMainWindow(outDir: string): MainWindow {
   let currentScreen: Screen = "home";
   let terminal: WebContentsView | null = null;
   let terminalShown = false;
+  let chat: WebContentsView | null = null;
+  let chatShown = false;
 
   const layout = () => {
     const { width, height } = win.getContentBounds();
     shell.setBounds({ x: 0, y: 0, width, height: SHELL_HEIGHT });
+    const sidebar = chatShown ? Math.min(CHAT_WIDTH, Math.floor(width / 2)) : 0;
+    const bodyWidth = Math.max(0, width - sidebar);
     const panel = terminalShown ? TERMINAL_HEIGHT : 0;
-    const body = { x: 0, y: SHELL_HEIGHT, width, height: Math.max(0, height - SHELL_HEIGHT - panel) };
+    const body = { x: 0, y: SHELL_HEIGHT, width: bodyWidth, height: Math.max(0, height - SHELL_HEIGHT - panel) };
     views.cad.setBounds(body);
     views.mesh.setBounds(body);
     editor.setBounds(body);
-    terminal?.setBounds({ x: 0, y: Math.max(SHELL_HEIGHT, height - panel), width, height: panel });
+    terminal?.setBounds({ x: 0, y: Math.max(SHELL_HEIGHT, height - panel), width: bodyWidth, height: panel });
+    chat?.setBounds({ x: bodyWidth, y: SHELL_HEIGHT, width: sidebar, height: Math.max(0, height - SHELL_HEIGHT) });
     home.setBounds({ x: 0, y: 0, width, height });
   };
   win.on("resize", layout);
@@ -126,6 +136,27 @@ export function createMainWindow(outDir: string): MainWindow {
     layout();
     if (terminalShown) terminal.webContents.focus();
     return { view: terminal, visible: terminalShown };
+  };
+
+  const toggleChat = () => {
+    if (!chat) {
+      chat = new WebContentsView({
+        webPreferences: {
+          preload: path.join(outDir, "preload", "chatPreload.js"),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: false,
+        },
+      });
+      win.contentView.addChildView(chat);
+      win.contentView.addChildView(home); // keep the home screen topmost
+      void chat.webContents.loadURL("kkss://app/renderer/chat/index.html");
+    }
+    chatShown = !chatShown;
+    chat.setVisible(chatShown);
+    layout();
+    if (chatShown) chat.webContents.focus();
+    return { view: chat, visible: chatShown };
   };
 
   const setScreen = (screen: Screen) => {
@@ -156,5 +187,7 @@ export function createMainWindow(outDir: string): MainWindow {
     setScreen,
     terminalVisible: () => terminalShown,
     toggleTerminal,
+    chatVisible: () => chatShown,
+    toggleChat,
   };
 }

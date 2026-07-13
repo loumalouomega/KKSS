@@ -12,6 +12,7 @@ import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
 import { TerminalService } from "./services/terminal";
 import { EditorService } from "./services/editor";
+import { ChatService } from "./services/chat/chatService";
 import { configureNotifications, handleToastButton, toast } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { __configureVscodeShim } from "./vscodeShim";
@@ -26,6 +27,7 @@ let cadHost: CadHost | null = null;
 let meshHost: MeshHost | null = null;
 let terminal: TerminalService | null = null;
 let editor: EditorService | null = null;
+let chat: ChatService | null = null;
 
 /** A file path passed on the command line (also used by the e2e smoke test). */
 function cliFileArg(): string | undefined {
@@ -62,6 +64,21 @@ function toggleTerminal(): void {
   if (!main || !terminal) return;
   const { view } = main.toggleTerminal();
   terminal.attach(view.webContents);
+}
+
+/** Shows/hides the AI chat sidebar, attaching the chat service on first use. */
+function toggleChat(): void {
+  if (!main || !chat) return;
+  const { view, visible } = main.toggleChat();
+  chat.attach(view.webContents);
+  if (visible) chat.ensureStarted();
+}
+
+/** Settings live in the native menu bar — pop its submenu up (home + chat). */
+function openSettingsMenu(): void {
+  if (!main) return;
+  const settings = Menu.getApplicationMenu()?.items.find((i) => i.label === "&Settings");
+  settings?.submenu?.popup({ window: main.win });
 }
 
 app.whenReady().then(() => {
@@ -120,7 +137,16 @@ app.whenReady().then(() => {
     }
   );
 
-  installMenu({ main, cadHost, meshHost, editor, setScreen, toggleTerminal });
+  chat = new ChatService({
+    outDir: __dirname,
+    currentFiles: () => ({ cad: cadHost?.currentFile, mesh: meshHost?.currentFile }),
+    openSettings: openSettingsMenu,
+    onHide: () => {
+      if (main?.chatVisible()) toggleChat();
+    },
+  });
+
+  installMenu({ main, cadHost, meshHost, editor, setScreen, toggleTerminal, toggleChat });
 
   ipcMain.on("home:toHost", (_event, raw) => {
     const msg = raw as HomeToHost;
@@ -135,12 +161,9 @@ app.whenReady().then(() => {
       case "editor":
         void editor?.open();
         break;
-      case "settings": {
-        // Settings live in the native menu bar — pop its submenu up here.
-        const settings = Menu.getApplicationMenu()?.items.find((i) => i.label === "&Settings");
-        settings?.submenu?.popup({ window: main.win });
+      case "settings":
+        openSettingsMenu();
         break;
-      }
       case "help":
         showAbout();
         break;
@@ -166,6 +189,9 @@ app.whenReady().then(() => {
         break;
       case "toggleTerminal":
         toggleTerminal();
+        break;
+      case "toggleChat":
+        toggleChat();
         break;
       case "editCurrentFile": {
         const current = main.mode() === "cad" ? cadHost?.currentFile : meshHost?.currentFile;

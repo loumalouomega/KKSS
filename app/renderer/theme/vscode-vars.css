@@ -16,6 +16,9 @@
   --vscode-errorForeground: #f48771;
   --vscode-focusBorder: #007fd4;
 
+  --vscode-charts-green: #89d185;
+  --vscode-editor-font-family: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", monospace;
+
   --vscode-editor-background: #1e1e1e;
   --vscode-editorWidget-background: #252526;
   --vscode-editorWidget-border: #454545;
@@ -37,6 +40,7 @@
   --vscode-input-background: #3c3c3c;
   --vscode-input-border: #3c3c3c;
   --vscode-input-foreground: #cccccc;
+  --vscode-inputValidation-errorBackground: #5a1d1d;
   --vscode-inputValidation-infoBackground: #063b49;
   --vscode-inputValidation-warningBackground: #352a05;
   --vscode-inputValidation-warningBorder: #b89500;
@@ -64,6 +68,7 @@
   --vscode-sideBar-border: rgba(128, 128, 128, 0.35);
   --vscode-sideBarSectionHeader-foreground: #cccccc;
 
+  --vscode-textCodeBlock-background: rgba(10, 10, 10, 0.4);
   --vscode-textLink-foreground: #3794ff;
   --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
 }

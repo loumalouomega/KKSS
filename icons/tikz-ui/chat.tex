@@ -1,0 +1,17 @@
+% Shell icon: AI chat — a rounded speech bubble with a tail and three
+% "typing" dots, in the shared monochrome line style.
+\documentclass[tikz,border=2mm]{standalone}
+\usetikzlibrary{arrows.meta,calc,shapes.geometric}
+\begin{document}
+\begin{tikzpicture}[line width=1.3pt, line cap=round, line join=round, >=Stealth, x=1mm,y=1mm]
+  % Bubble outline with the tail merged into the bottom edge.
+  \draw[thick, rounded corners=2mm]
+    (-11,9) -- (11,9) -- (11,-4) -- (-1,-4);
+  \draw[thick] (-1,-4) -- (-6,-9) -- (-6,-4);
+  \draw[thick, rounded corners=2mm] (-6,-4) -- (-11,-4) -- (-11,9);
+  % Typing dots.
+  \fill (-5,2.5) circle (1.1);
+  \fill (0,2.5) circle (1.1);
+  \fill (5,2.5) circle (1.1);
+\end{tikzpicture}
+\end{document}
