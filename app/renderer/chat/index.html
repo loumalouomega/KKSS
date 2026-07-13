@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src kkss:; script-src kkss:; img-src kkss: data:" />
+  <link href="../theme/vscode-vars.css" rel="stylesheet" />
+  <link href="./chat.css" rel="stylesheet" />
+  <title>KKSS AI Chat</title>
+</head>
+<body>
+  <div id="chat">
+    <header id="chat-header">
+      <span id="chat-title" title="AI assistant">AI Chat</span>
+      <span id="servers" title="MCP tool servers"></span>
+      <button id="new-btn" title="Start a new conversation">⟳ New</button>
+      <button id="hide-btn" title="Hide chat (Ctrl+Shift+L)">✕</button>
+    </header>
+    <div id="messages" aria-live="polite"></div>
+    <footer id="composer">
+      <textarea id="input" rows="3"
+        placeholder="Ask about the open model, meshing, or running Kratos… (Enter to send, Shift+Enter for a new line)"></textarea>
+      <button id="send-btn" title="Send (Enter)">Send</button>
+    </footer>
+  </div>
+  <script src="./chat.js"></script>
+</body>
+</html>

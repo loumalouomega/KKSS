@@ -10,9 +10,13 @@ import type { MainWindow } from "./windows";
 import type { CadHost } from "./cadHost";
 import type { MeshHost } from "./mesh/meshHost";
 import type { Screen } from "./ipc";
-import { showQuickPick } from "./services/quickPick";
+import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
 import { stateStore } from "./services/stateStore";
+import { hasSecret, setSecret } from "./services/chat/secrets";
+import { LLM_KEYS } from "./services/chat/chatService";
+import { DEFAULT_ANTHROPIC_MODEL } from "./services/chat/providers/anthropic";
+import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./services/chat/providers/openaiCompat";
 import type { EditorService } from "./services/editor";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
 import { DOCS_URL } from "./urls";
@@ -24,6 +28,7 @@ export interface MenuDeps {
   editor: EditorService;
   setScreen(screen: Screen): void;
   toggleTerminal(): void;
+  toggleChat(): void;
 }
 
 /** Scene themes understood by the viewers (mesh provider's own value set). */
@@ -46,6 +51,27 @@ const SHELL_CHOICES: Array<{ value: string | undefined; label: string }> =
         { value: "/bin/bash", label: "bash" },
         { value: "/bin/zsh", label: "zsh" },
       ];
+
+/** Secret entry: never prefills the stored value; empty input clears it. */
+async function promptSecret(key: string, title: string, placeHolder: string): Promise<void> {
+  const value = await showInputBox({
+    title,
+    prompt: hasSecret(key) ? "Currently configured — enter a new key to replace it, or leave empty to clear." : undefined,
+    placeHolder,
+  });
+  if (value === undefined) return; // cancelled
+  await setSecret(key, value.trim());
+}
+
+/** Plain setting entry, prefilled with the current (or default) value. */
+async function promptValue(key: string, title: string, defaultValue: string): Promise<void> {
+  const value = await showInputBox({
+    title,
+    value: stateStore.get<string>(key) || defaultValue,
+  });
+  if (value === undefined) return; // cancelled
+  await stateStore.update(key, value.trim() || undefined);
+}
 
 export function installMenu(deps: MenuDeps): void {
   const { main, cadHost, meshHost, editor } = deps;
@@ -123,6 +149,11 @@ export function installMenu(deps: MenuDeps): void {
           accelerator: "CmdOrCtrl+`",
           click: () => deps.toggleTerminal(),
         },
+        {
+          label: "Toggle AI Chat",
+          accelerator: "CmdOrCtrl+Shift+L",
+          click: () => deps.toggleChat(),
+        },
         { type: "separator" },
         { label: "Reset Camera", click: () => meshHost.postToActive({ type: "resetCamera" }) },
         { label: "Toggle Node IDs", click: () => meshHost.postToActive({ type: "toggleNodeIds" }) },
@@ -161,6 +192,47 @@ export function installMenu(deps: MenuDeps): void {
             // restart the app to switch).
             click: () => void stateStore.update("terminalShell", s.value),
           })),
+        },
+        {
+          // All values are read per chat request — changes apply immediately,
+          // no restart. API keys are stored safeStorage-encrypted (secrets.ts).
+          label: "LLM Assistant",
+          submenu: [
+            {
+              label: "Provider",
+              submenu: [
+                { value: "anthropic", label: "Anthropic (Claude)" },
+                { value: "openai", label: "OpenAI-compatible" },
+              ].map((p) => ({
+                label: p.label,
+                type: "radio" as const,
+                checked: stateStore.get(LLM_KEYS.provider, "anthropic") === p.value,
+                click: () => void stateStore.update(LLM_KEYS.provider, p.value),
+              })),
+            },
+            { type: "separator" },
+            {
+              label: "Anthropic API Key…",
+              click: () => void promptSecret(LLM_KEYS.anthropicKey, "Anthropic API Key", "sk-ant-…"),
+            },
+            {
+              label: "Anthropic Model…",
+              click: () => void promptValue(LLM_KEYS.anthropicModel, "Anthropic Model", DEFAULT_ANTHROPIC_MODEL),
+            },
+            { type: "separator" },
+            {
+              label: "OpenAI-compatible API Key…",
+              click: () => void promptSecret(LLM_KEYS.openaiKey, "OpenAI-compatible API Key", "sk-… (leave empty for keyless backends like Ollama)"),
+            },
+            {
+              label: "OpenAI-compatible Base URL…",
+              click: () => void promptValue(LLM_KEYS.openaiBaseUrl, "OpenAI-compatible Base URL", DEFAULT_OPENAI_BASE_URL),
+            },
+            {
+              label: "OpenAI-compatible Model…",
+              click: () => void promptValue(LLM_KEYS.openaiModel, "OpenAI-compatible Model", DEFAULT_OPENAI_MODEL),
+            },
+          ],
         },
       ],
     },

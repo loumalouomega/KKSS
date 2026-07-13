@@ -22,6 +22,9 @@ const required = [
   ["mesh/dist/mmg-core.wasm", "npm run package --prefix mesh"],
   ["cad/dist/opencascade.wasm.wasm", "npm run build --prefix cad"],
   ["cad/dist/gmsh-core.wasm", "npm run build --prefix cad"],
+  // Stdio MCP servers spawned by the chat sidebar (app/main/services/chat/).
+  ["cad/dist/mcp-server.js", "npm run build --prefix cad"],
+  ["mesh/dist/mcpServer.js", "npm run package --prefix mesh"],
 ];
 for (const [rel, fix] of required) {
   if (!fs.existsSync(path.join(__dirname, rel))) {
@@ -113,6 +116,7 @@ const preloadConfig = {
     "app/preload/aboutPreload.ts",
     "app/preload/terminalPreload.ts",
     "app/preload/editorPreload.ts",
+    "app/preload/chatPreload.ts",
   ],
   bundle: true,
   platform: "node",
@@ -133,6 +137,7 @@ const shellRendererConfig = {
     "app/renderer/about/about.ts",
     "app/renderer/terminal/terminal.ts",
     "app/renderer/editor/editor.ts",
+    "app/renderer/chat/chat.ts",
   ],
   bundle: true,
   platform: "browser",
@@ -171,6 +176,11 @@ function copyArtifacts() {
     // (extensionPath = out/cad-runtime).
     ["cad/dist/opencascade.wasm.wasm", out("cad-runtime/dist/opencascade.wasm.wasm")],
     ["cad/dist/gmsh-core.wasm", out("cad-runtime/dist/gmsh-core.wasm")],
+    // Stdio MCP servers for the chat sidebar. cad's sits beside its WASM so
+    // its extensionPath (= dirname/..) resolves to out/cad-runtime; mesh's
+    // sits beside out/mmg-core.wasm (it reads __dirname/mmg-core.wasm).
+    ["cad/dist/mcp-server.js", out("cad-runtime/dist/mcp-server.js")],
+    ["mesh/dist/mcpServer.js", out("mcpServer.js")],
     // Static app assets.
     ["icons/app/icon-256.png", out("icon.png")], // Linux window/taskbar icon
     ["app/renderer/theme/vscode-vars.css", out("renderer/theme/vscode-vars.css")],
@@ -187,6 +197,8 @@ function copyArtifacts() {
     ["node_modules/@xterm/xterm/css/xterm.css", out("renderer/terminal/xterm.css")],
     ["app/renderer/editor/index.html", out("renderer/editor/index.html")],
     ["app/renderer/editor/editor.css", out("renderer/editor/editor.css")],
+    ["app/renderer/chat/index.html", out("renderer/chat/index.html")],
+    ["app/renderer/chat/chat.css", out("renderer/chat/chat.css")],
   ];
   for (const [srcRel, dst] of copies) {
     const src = path.join(__dirname, srcRel);

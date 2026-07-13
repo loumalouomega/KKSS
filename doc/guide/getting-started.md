@@ -72,6 +72,34 @@ while hidden (hide it with the **✕ Hide** button in the panel's corner, the
 toolbar button, or ``Ctrl+` ``), and offers a restart when the shell exits. The panel is shared
 by both modes; its height is fixed in this version.
 
+## AI assistant
+
+The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**)
+opens a chat sidebar on the right where an LLM can drive KKSS for you: load
+and edit CAD models, define sub-model-parts, generate and export meshes,
+inspect and transform MDPA/VTK files, set up Kratos cases, and run
+simulations. The assistant works through the same tool servers (MCP) that
+power the two viewers plus the standalone
+[kratos-mcp-server](https://pypi.org/project/kratos-mcp-server/); the three
+dots in the sidebar header show each server's status (green = ready, red =
+unavailable — hover for details). The first two ship with KKSS; the Kratos
+one is fetched with [`uvx`](https://docs.astral.sh/uv/) and is simply marked
+unavailable if `uv` isn't installed.
+
+Before first use, pick a provider and set an API key under
+**Settings ▸ LLM Assistant**:
+
+- **Anthropic (Claude)** — the default; set *Anthropic API Key* (and
+  optionally the model, default `claude-opus-4-8`).
+- **OpenAI-compatible** — any `chat/completions` backend: set the *Base URL*
+  (e.g. `https://api.openai.com/v1` or `http://localhost:11434/v1` for
+  Ollama), the model name, and a key if the backend needs one.
+
+Keys are stored encrypted with your OS keychain when available. Edits made by
+the assistant land in the same sidecar files the viewers use — reload the
+file to see them. Send with `Enter`, stop a running response with the same
+button, and start over with **⟳ New**.
+
 ## Text editor
 
 The **Edit** toolbar button opens the file currently loaded in the active
@@ -96,6 +124,10 @@ holds app-level preferences, persisted across runs:
   next load a file.
 - **Terminal Shell** — the shell the embedded terminal launches (takes
   effect for the next terminal session).
+- **LLM Assistant** — provider (Anthropic / OpenAI-compatible), API keys,
+  model names, and the OpenAI-compatible base URL for the AI chat sidebar.
+  Keys are encrypted with the OS keychain (Electron `safeStorage`) when one
+  is available; changes apply to the next message, no restart needed.
 
 Viewer actions (mesh quality, field visualization, find entity…) are *not*
 in the menu bar — they live in each viewer's own toolbar.
@@ -118,5 +150,6 @@ in the menu bar — they live in each viewer's own toolbar.
 | `Ctrl+0` | Back to the home screen (main menu) |
 | `Ctrl+1` / `Ctrl+2` | Switch to Pre-Processing / Post-Processing |
 | ``Ctrl+` `` | Toggle the embedded terminal |
+| `Ctrl+Shift+L` | Toggle the AI chat sidebar |
 
 On macOS use `Cmd` instead of `Ctrl`.

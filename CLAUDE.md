@@ -46,6 +46,25 @@ of the change, not a follow-up. Concretely:
 If a change is purely internal refactoring with no observable behavior or API
 difference, docs don't need to move — use judgment, but default to checking.
 
+## Keep chat features in sync
+
+**Every time a new feature is added to the app, update the AI chat sidebar so
+the assistant can see and use it — part of the same change, not a follow-up.**
+Concretely:
+- New viewer/file capability (formats, edit ops, mesh operations…) → check the
+  submodule MCP servers expose it. If they don't, that's upstream work on the
+  submodule's `kkss.dev` branch (the zero-modification rule applies to the MCP
+  servers too); bump the gitlink when it lands.
+- New app-level ability, setting, or workflow → update the system prompt's
+  capability description in `app/main/services/chat/chatService.ts`, the
+  server wiring in `app/main/services/chat/mcpManager.ts` if a new tool source
+  is involved, and the **Settings ▸ LLM Assistant** menu if it's configurable.
+- New context the assistant should know (e.g. a new "current file" notion) →
+  extend `ChatDeps.currentFiles()` / the context suffix — not the system
+  prompt, which stays byte-stable for prompt caching.
+- Plus the matching docs: `doc/guide/development.md`'s chat section and
+  `doc/guide/getting-started.md`'s AI assistant section.
+
 ## Architecture (non-negotiable invariants)
 
 - **Zero submodule modifications.** The app consumes the submodules' built
@@ -102,6 +121,21 @@ difference, docs don't need to move — use judgment, but default to checking.
   in the native menu. App preferences go in the Settings menu, persisted via
   `stateStore` (`sceneTheme` is shared with the mesh viewer's own theme
   toggle; it reaches views through `initialState` on their next file load).
+- **Chat sidebar: main process owns network + processes; MCP servers ship
+  as-built.** `app/main/services/chat/` runs the LLM agent loop and spawns
+  the three stdio MCP servers; the chat renderer keeps the strict CSP and
+  never sees an API key. Placement contracts of the unmodified server
+  bundles: `cad/dist/mcp-server.js` is copied to
+  **`out/cad-runtime/dist/mcp-server.js`** (its `extensionPath` = the
+  bundle's `dirname/..`, and the OCCT/Gmsh WASM already live there) and
+  `mesh/dist/mcpServer.js` to **`out/mcpServer.js`** (it reads
+  `__dirname/mmg-core.wasm`). Spawn the Node bundles with
+  `process.execPath` + `ELECTRON_RUN_AS_NODE=1` (no system Node in packaged
+  installs), and **always pass `{...process.env}` to `StdioClientTransport`**
+  — the MCP SDK otherwise strips env to a minimal set, silently losing PATH
+  (breaks `uvx kratos-mcp-server`). API keys go through
+  `services/chat/secrets.ts` (safeStorage-encrypted in the stateStore) —
+  never store them plaintext-by-design or ship them to a renderer.
 - **Update feed is two-part — keep both halves.** The `publish:` block in
   `electron-builder.yml` makes electron-builder emit `latest*.yml` update
   metadata and embed `app-update.yml` in each package; the release workflow

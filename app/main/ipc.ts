@@ -30,6 +30,8 @@ export const channels = {
   termToWebview: "term:toWebview",
   editorToHost: "editor:toHost",
   editorToWebview: "editor:toWebview",
+  chatToHost: "chat:toHost",
+  chatToWebview: "chat:toWebview",
 } as const;
 
 export type EditorLanguage = "json" | "python" | "plain";
@@ -59,6 +61,58 @@ export type TermToHost =
 export type TermToWebview =
   | { type: "data"; data: string }
   | { type: "exit"; code: number };
+
+/** Error classes the chat sidebar renders differently (banner + settings button). */
+export type ChatErrorKind = "auth" | "network" | "noKey" | "other";
+
+/** Startup/health state of one MCP server backing the chat agent. */
+export interface ChatServerStatus {
+  key: "cad" | "mesh" | "kratos";
+  /** MCP server display name (e.g. "cad-preview"). */
+  name: string;
+  state: "starting" | "ready" | "unavailable";
+  toolCount?: number;
+  /** Short failure description (state: unavailable). */
+  error?: string;
+}
+
+/**
+ * One transcript entry as sent over the wire to the chat renderer. The
+ * main-process transcript keeps full tool-result texts for the model;
+ * the wire form carries a truncated preview only.
+ */
+export type ChatWireEntry =
+  | { kind: "user"; text: string }
+  | { kind: "assistant"; text: string; stopped?: boolean }
+  | { kind: "toolCall"; callId: string; server: string; tool: string; argsJson: string }
+  | { kind: "toolResult"; callId: string; ok: boolean; preview: string }
+  | { kind: "error"; message: string; errorKind: ChatErrorKind };
+
+/** Messages posted by the chat-sidebar renderer. */
+export type ChatToHost =
+  | { type: "chatReady" }
+  | { type: "send"; text: string }
+  | { type: "stop" }
+  | { type: "newChat" }
+  | { type: "openSettings" }
+  | { type: "hide" };
+
+/** Messages sent to the chat-sidebar renderer. */
+export type ChatToWebview =
+  | {
+      type: "state";
+      entries: ChatWireEntry[];
+      busy: boolean;
+      servers: ChatServerStatus[];
+      /** e.g. "Anthropic · claude-opus-4-8" — shown in the header tooltip. */
+      providerLabel: string;
+    }
+  | { type: "entry"; entry: ChatWireEntry }
+  | { type: "assistantStart" }
+  | { type: "assistantDelta"; text: string }
+  | { type: "assistantDone"; entry: ChatWireEntry }
+  | { type: "busy"; busy: boolean }
+  | { type: "servers"; servers: ChatServerStatus[] };
 
 /** Static facts sent to the About window once its page has loaded. */
 export interface AboutInit {
@@ -105,6 +159,7 @@ export type ShellToHost =
   | { type: "setMode"; mode: Mode }
   | { type: "goHome" }
   | { type: "toggleTerminal" }
+  | { type: "toggleChat" }
   | { type: "editCurrentFile" }
   | { type: "openFile" }
   | { type: "toastButton"; id: number; button: string };

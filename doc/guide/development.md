@@ -118,15 +118,65 @@ opening another file over unsaved changes. Like the terminal page, the editor
 page allows `'unsafe-inline'` styles (CodeMirror injects `<style>` at
 runtime).
 
+## AI chat sidebar (LLM agent + MCP)
+
+The Chat toolbar button / `Ctrl+Shift+L` toggles a right-hand sidebar
+`WebContentsView` (lazily created in `app/main/windows.ts`; `layout()`
+shrinks the body views and the terminal panel by `CHAT_WIDTH` while it's
+shown). The renderer (`app/renderer/chat/`, dependency-free, strict CSP)
+talks to `app/main/services/chat/chatService.ts` over `chat:toHost` /
+`chat:toWebview` (`app/preload/chatPreload.ts`); all network and
+child-process work stays in the main process, and the transcript is replayed
+on `chatReady` so hiding/showing the sidebar never loses the conversation.
+
+`ChatService` runs the agent loop: a provider adapter streams one model turn,
+tool calls are dispatched, and the loop repeats until the model stops calling
+tools (or the user hits Stop — dangling tool calls are pruned from the next
+request by `transcript.ts`). Two providers exist behind one interface
+(`app/main/services/chat/providers/`): **Anthropic** via `@anthropic-ai/sdk`
+(adaptive thinking, with a one-shot conservative retry for older models) and
+**OpenAI-compatible** via raw `fetch` + SSE against a configurable
+`{baseUrl}/chat/completions` (works with OpenAI, Ollama, OpenRouter…). Both
+SDKs are devDeps bundled into `out/main.js` — nothing new ships in
+`node_modules`.
+
+Tools come from three stdio MCP servers managed by
+`app/main/services/chat/mcpManager.ts` (spawned lazily on first chat use,
+per-server failure tolerated, tool names namespaced `cad__*` / `mesh__*` /
+`kratos__*`):
+
+| Server | Bundle / command | Placement contract |
+| --- | --- | --- |
+| `cad-preview` (11 tools) | `out/cad-runtime/dist/mcp-server.js` | beside the OCCT/Gmsh WASM, so its `extensionPath` (= `dirname/..`) resolves to `out/cad-runtime` |
+| `kratos-mdpa` (13 tools) | `out/mcpServer.js` | beside `out/mmg-core.wasm` (the bundle reads `__dirname/mmg-core.wasm`) |
+| `kratos-mcp-server` (PyPI) | `uvx kratos-mcp-server` | marked *unavailable* if `uv` is missing; chat continues without it |
+
+The two Node bundles are spawned with **Electron's own binary +
+`ELECTRON_RUN_AS_NODE=1`** (packaged machines have no system Node), and the
+full parent environment is always passed to `StdioClientTransport` — the SDK
+otherwise strips env to a minimal set, which silently breaks `uvx` (PATH).
+The bundles are copied from the submodules' `dist/` by `esbuild.mjs`'s
+`copyArtifacts()`; the submodules themselves are unmodified (the MCP servers
+are built by their normal `build`/`package` scripts on the `kkss.dev`
+branch).
+
+API keys are entered via **Settings ▸ LLM Assistant** (`showInputBox`
+modals) and stored in the stateStore encrypted with Electron `safeStorage`
+(`app/main/services/chat/secrets.ts`; plaintext fallback when the OS has no
+keyring). Settings are read per request — no restart needed. stateStore keys:
+`llmProvider`, `llmModelAnthropic`, `llmKeyAnthropic`, `llmModelOpenai`,
+`llmKeyOpenai`, `llmOpenaiBaseUrl`.
+
 ## Settings menu
 
 The **Settings** native menu (`app/main/menu.ts`) holds app-level
 preferences persisted in `app/main/services/stateStore.ts`: **Color Theme**
 (`sceneTheme` — the same key the mesh viewer's own theme toggle persists;
 served to the mode views via their synchronous `initialState`, so it applies
-when a view next loads a file) and **Terminal Shell** (`terminalShell`).
-Viewer-level actions are deliberately absent from the menu bar — the
-submodules' own toolbars provide them.
+when a view next loads a file), **Terminal Shell** (`terminalShell`), and
+**LLM Assistant** (provider, API keys, models, base URL — see the chat
+sidebar section above). Viewer-level actions are deliberately absent from
+the menu bar — the submodules' own toolbars provide them.
 
 Key pieces (all under `app/`):
 

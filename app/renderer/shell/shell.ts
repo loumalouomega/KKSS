@@ -25,6 +25,7 @@ const btnMesh = byId<HTMLButtonElement>("mode-mesh");
 const openBtn = byId<HTMLButtonElement>("open-btn");
 const editBtn = byId<HTMLButtonElement>("edit-btn");
 const terminalBtn = byId<HTMLButtonElement>("terminal-btn");
+const chatBtn = byId<HTMLButtonElement>("chat-btn");
 const fileTitle = byId<HTMLSpanElement>("file-title");
 const toasts = byId<HTMLDivElement>("toasts");
 
@@ -35,6 +36,7 @@ btnMesh.innerHTML = `${icon("postMode")} Post-Processing`;
 openBtn.innerHTML = `${icon("open")} Open…`;
 editBtn.innerHTML = `${icon("edit")} Edit`;
 terminalBtn.innerHTML = `${icon("terminal")} Terminal`;
+chatBtn.innerHTML = `${icon("chat")} Chat`;
 
 const titles: Record<"cad" | "mesh" | "editor", string | null> = { cad: null, mesh: null, editor: null };
 let editorDirty = false;
@@ -58,6 +60,7 @@ btnMesh.addEventListener("click", () => api.post({ type: "setMode", mode: "mesh"
 openBtn.addEventListener("click", () => api.post({ type: "openFile" }));
 editBtn.addEventListener("click", () => api.post({ type: "editCurrentFile" }));
 terminalBtn.addEventListener("click", () => api.post({ type: "toggleTerminal" }));
+chatBtn.addEventListener("click", () => api.post({ type: "toggleChat" }));
 
 api.onMessage((raw) => {
   const msg = raw as ShellToWebview;
