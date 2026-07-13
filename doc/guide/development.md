@@ -189,7 +189,11 @@ Key pieces (all under `app/`):
   meshExport,opHistory}.ts` run verbatim.
 - **`app/main/cadHost.ts`** — a 1:1 port of `cad/src/provider.ts` (the cad
   provider imports OCCT directly, which must live in a worker here, so the
-  cad side is ported rather than shimmed).
+  cad side is ported rather than shimmed). Its `CadHostHooks.onMeshExported`
+  fires after a meshing-panel export writes a file; `app/main/index.ts` wires
+  it to `openFile(path, "mesh")` (gated by `modeForFile`) so a mesh exported in
+  pre mode that post mode can display (`.mdpa`, `.vtk`, …) opens straight into
+  the mesh view — a one-way pre → post sync.
 - **`kkss://` and `kkss-file://`** schemes — replacements for
   `asWebviewUri`/`localResourceRoots` (app assets and allow-listed user
   files respectively).
