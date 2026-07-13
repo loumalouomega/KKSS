@@ -95,6 +95,8 @@ export interface CadHostHooks {
   onOpenRequest(fsPath: string): void;
   /** Current file changed (shell title). */
   onTitle(fileName: string | null): void;
+  /** A mesh file was exported to disk (post mode may want to open it). */
+  onMeshExported(fsPath: string): void;
 }
 
 export class CadHost {
@@ -305,14 +307,15 @@ export class CadHost {
           return;
         }
         const { parts, options } = await this.resolveMeshPartsAndOptions(input, msg.options);
+        let savedPath: string | undefined;
         if (msg.target === "msh") {
           const result = await cadCompute.generateMesh(this.runtimePath, input, options, parts);
-          await this.promptSaveAndWrite(doc.path, "msh", "GMSH Mesh", async () =>
+          savedPath = await this.promptSaveAndWrite(doc.path, "msh", "GMSH Mesh", async () =>
             Buffer.from(result.mshText, "utf8")
           );
         } else if (msg.target === "geoUnrolled") {
           const geo = await cadCompute.exportGeoUnrolled(this.runtimePath, input, options, parts);
-          await this.promptSaveAndWrite(doc.path, "geo_unrolled", "GMSH Unrolled Geometry", async (savePath) => {
+          savedPath = await this.promptSaveAndWrite(doc.path, "geo_unrolled", "GMSH Unrolled Geometry", async (savePath) => {
             if (!geo.xao) return Buffer.from(geo.text, "utf8");
             // B-rep geometry can't be textually unrolled — write the XAO
             // companion beside the chosen path and point the Merge stub at it
@@ -331,17 +334,20 @@ export class CadHost {
             parts,
             msg.target === "mdpaElements" ? "elements" : "geometries"
           );
-          await this.promptSaveAndWrite(doc.path, format.extension, format.filterLabel, async () =>
+          savedPath = await this.promptSaveAndWrite(doc.path, format.extension, format.filterLabel, async () =>
             Buffer.from(text, "utf8")
           );
         } else {
           const format = meshExportFormat(msg.target);
           if (!format) throw new Error(`Unknown mesh export format: ${msg.target}`);
           const text = await cadCompute.exportMeshFormat(this.runtimePath, input, options, parts, msg.target);
-          await this.promptSaveAndWrite(doc.path, format.extension, format.filterLabel, async () =>
+          savedPath = await this.promptSaveAndWrite(doc.path, format.extension, format.filterLabel, async () =>
             Buffer.from(text, "utf8")
           );
         }
+        // Pre → post sync: a written mesh may be openable in post mode. The
+        // router (in index.ts) decides whether this format actually is.
+        if (savedPath) this.hooks.onMeshExported(savedPath);
       } catch (err) {
         this.post({ type: "error", message: `Export failed: ${(err as Error).message}` });
       }
@@ -500,25 +506,30 @@ export class CadHost {
     );
   }
 
-  /** Port of provider.promptSaveAndWrite. */
+  /**
+   * Port of provider.promptSaveAndWrite. Returns the written path on success,
+   * or undefined when the user cancels the dialog or the write fails.
+   */
   private async promptSaveAndWrite(
     modelPath: string,
     ext: string,
     filterLabel: string,
     getBytes: (savePath: string) => Promise<Uint8Array>
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     const baseName = path.basename(modelPath).replace(/\.[^.]+$/, "");
     const savePath = await showSaveDialog({
       defaultPath: path.join(path.dirname(modelPath), `${baseName}.${ext}`),
       filters: [{ name: filterLabel, extensions: [ext] }],
     });
-    if (!savePath) return;
+    if (!savePath) return undefined;
     try {
       const bytes = await getBytes(savePath);
       await fs.writeFile(savePath, bytes);
       this.post({ type: "status", text: `Exported to ${savePath}` });
+      return savePath;
     } catch (err) {
       this.post({ type: "error", message: `Export failed: ${(err as Error).message}` });
+      return undefined;
     }
   }
 }
