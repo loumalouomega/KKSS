@@ -10,7 +10,7 @@
 # modifying submodule behavior.
 appId: org.kratosmultiphysics.kkss
 productName: KKSS
-copyright: © Vicente Mataix Ferrándiz — GPL-3.0
+copyright: © Vicente Mataix Ferrándiz — AGPL-3.0
 asar: false
 
 # electron-updater's update feed. Even with `--publish never`, this makes

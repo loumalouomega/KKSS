@@ -14,7 +14,7 @@
 [![Gmsh](https://img.shields.io/badge/Gmsh-WASM-green)](https://gmsh.info/)
 [![MMG](https://img.shields.io/badge/MMG-5.8-yellow)](https://www.mmgtools.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 
 <div align="center">
   <img src="images/pre_processing.png" alt="Pre-Processing (CAD) mode — STEP model with parts, edits and FE meshing panels" style="width: 49%;" />
@@ -29,7 +29,7 @@ embedded as git submodules and reused **without modification**:
 | Mode | Engine (submodule) | What it does |
 | --- | --- | --- |
 | 🔷 **Pre-Processing** | [CAD-Preview](https://github.com/loumalouomega/CAD-Preview) (`cad/`) | STEP/IGES/BREP + STL/OBJ/PLY/glTF viewing, part definition, parametric geometry editing, Gmsh FE meshing, MDPA export |
-| 🔶 **Post-Processing** | [VSCode-MDPA-Preview](https://github.com/loumalouomega/VSCode-MDPA-Preview) (`mesh/`) | MDPA/VTK inspection, field & time-series visualization, mesh quality, mesh operations with undo/redo, MMG remeshing |
+| 🔶 **Post-Processing** | [VSCode-MDPA-Preview](https://github.com/loumalouomega/VSCode-MDPA-Preview) (`mesh/`) | MDPA/VTK inspection, field & time-series visualization, mesh quality, mesh operations with undo/redo, MMG remeshing, Kratos case setup & runs via built-in problemtypes (incl. the Flowgraph node-editor) |
 
 The app opens on a **home screen** with one button per task; a toolbar toggle
 (and `Ctrl+0` for Home) switches between the screens, and both viewers stay
@@ -83,8 +83,10 @@ and the submodule update procedure.
 
 ## Licensing
 
-KKSS is licensed **GPL-3.0** (see [LICENSE](LICENSE)). It bundles the
+KKSS is licensed **AGPL-3.0** (see [LICENSE](LICENSE)). It bundles the
 GPL-2.0-or-later licensed CAD-Preview engine — whose shipped WASM statically
-links [Gmsh](https://gmsh.info) and OpenCASCADE — and the MIT-licensed
-VSCode-MDPA-Preview engine; GPL-3.0 is the compatible license for the
-combined distribution.
+links [Gmsh](https://gmsh.info) and OpenCASCADE — and the AGPL-3.0-or-later
+licensed VSCode-MDPA-Preview engine, whose Flowgraph problemtype embeds the
+AGPL-3.0 [`@kratos-flowgraph/flowgraph`](https://www.npmjs.com/package/@kratos-flowgraph/flowgraph)
+node editor; AGPL-3.0 is the compatible license for the combined
+distribution.

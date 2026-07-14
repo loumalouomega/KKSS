@@ -3,12 +3,18 @@
  * (esbuild alias, main bundle only). It implements exactly the API surface the
  * mesh submodule's host-side code touches at runtime when driven by KKSS:
  *
- *   mesh/src/meshExport.ts   — window.show{Open,Save}Dialog, show*Message,
- *                              Uri.file, commands.executeCommand("vscode.openWith")
- *   mesh/src/opHistory.ts    — same dialog/message surface
- *   mesh/src/*EditorProvider — workspace.createFileSystemWatcher(RelativePattern),
- *                              window.withProgress, Uri.joinPath, globalState
- *                              (via the fake ExtensionContext in meshHost.ts)
+ *   mesh/src/meshExport.ts       — window.show{Open,Save}Dialog, show*Message,
+ *                                  Uri.file, commands.executeCommand("vscode.openWith")
+ *   mesh/src/opHistory.ts        — same dialog/message surface
+ *   mesh/src/*EditorProvider     — workspace.createFileSystemWatcher(RelativePattern),
+ *                                  window.withProgress, Uri.joinPath, globalState
+ *                                  (via the fake ExtensionContext in meshHost.ts),
+ *                                  workspace.getConfiguration("kratos.flowgraph")
+ *   mesh/src/flowgraphController — workspace.getConfiguration, Uri.parse (non-file
+ *                                  URIs), env.asExternalUri (identity — no
+ *                                  Remote-SSH/tunnel in KKSS)
+ *   mesh/src/ptController.ts     — workspace.openTextDocument + window.showTextDocument
+ *                                  (routed to the app's own text-editor screen)
  *
  * Anything else throws loudly so a submodule update that starts using a new
  * API fails visibly instead of silently misbehaving.
@@ -24,10 +30,15 @@ import { createFileSystemWatcher } from "./services/watcher";
 export interface VscodeShimHooks {
   /** Implements the "vscode.openWith" command (routes into cad/mesh views). */
   openWith(fsPath: string, viewType: string): void;
+  /** Implements the openTextDocument/showTextDocument "reveal a file" flow. */
+  openTextDocument(fsPath: string): void;
 }
 
 let hooks: VscodeShimHooks = {
   openWith: () => {
+    throw new Error("vscodeShim: hooks not configured");
+  },
+  openTextDocument: () => {
     throw new Error("vscodeShim: hooks not configured");
   },
 };
@@ -39,24 +50,53 @@ export function __configureVscodeShim(h: VscodeShimHooks): void {
 // ---- Uri ---------------------------------------------------------------------
 
 export class Uri {
-  private constructor(public readonly fsPath: string) {}
+  private constructor(
+    private readonly raw: string,
+    private readonly isFileUri: boolean
+  ) {}
+
+  get fsPath(): string {
+    if (!this.isFileUri) throw new Error("vscodeShim: fsPath is only valid for file:// URIs");
+    return this.raw;
+  }
 
   /** Posix-style path, mirroring vscode.Uri.path usage in the providers. */
   get path(): string {
     return this.fsPath.split(nodePath.sep).join("/");
   }
 
+  /** e.g. "http" for a parsed non-file URI, "file" for a file URI. */
+  get scheme(): string {
+    if (this.isFileUri) return "file";
+    return /^([a-z][a-z0-9+.-]*):/i.exec(this.raw)?.[1] ?? "";
+  }
+
+  /** e.g. "127.0.0.1:5173" for a parsed non-file URI. */
+  get authority(): string {
+    if (this.isFileUri) return "";
+    return /^[a-z][a-z0-9+.-]*:\/\/([^/]*)/i.exec(this.raw)?.[1] ?? "";
+  }
+
   static file(p: string): Uri {
-    return new Uri(p);
+    return new Uri(p, true);
+  }
+
+  /** Non-file URIs only (e.g. the localhost URL flowgraphController forks). */
+  static parse(value: string): Uri {
+    return new Uri(value, false);
   }
 
   static joinPath(base: Uri, ...segments: string[]): Uri {
-    return new Uri(nodePath.join(base.fsPath, ...segments));
+    return new Uri(nodePath.join(base.fsPath, ...segments), true);
   }
 
   toString(): string {
-    return `file://${this.path}`;
+    return this.isFileUri ? `file://${this.path}` : this.raw;
   }
+}
+
+export class TextDocument {
+  constructor(public readonly uri: Uri) {}
 }
 
 export class RelativePattern {
@@ -70,6 +110,18 @@ export enum ProgressLocation {
   SourceControl = 1,
   Window = 10,
   Notification = 15,
+}
+
+/**
+ * KKSS has one panel per mode (see CLAUDE.md's "one document per mode"
+ * invariant), so there is no split-editor equivalent — values exist only so
+ * `vscode.ViewColumn.Beside` (ptController.ts's openResults) doesn't throw;
+ * commands.executeCommand("vscode.openWith") ignores the column argument.
+ */
+export enum ViewColumn {
+  Active = -1,
+  Beside = -2,
+  One = 1,
 }
 
 // ---- window ------------------------------------------------------------------
@@ -149,6 +201,11 @@ export const window = {
   showWarningMessage: (message: string, ...rest: unknown[]) => showMessage("warning", message, rest),
   showErrorMessage: (message: string, ...rest: unknown[]) => showMessage("error", message, rest),
 
+  /** Reveals a generated file — routed to the app's own text-editor screen. */
+  showTextDocument: async (doc: TextDocument, _options?: unknown): Promise<void> => {
+    hooks.openTextDocument(doc.uri.fsPath);
+  },
+
   withProgress: async <R>(
     options: ProgressOptions,
     task: (progress: { report(value: { message?: string }): void }, token: CancellationTokenLike) => Promise<R>
@@ -186,6 +243,26 @@ export const workspace = {
       dispose: () => watcher.dispose(),
     };
   },
+
+  /**
+   * KKSS has no settings.json equivalent for extension contribution points,
+   * so this always resolves to the caller-supplied default — i.e. the same
+   * schema default declared in the submodule's package.json.
+   */
+  getConfiguration: (_section?: string) => ({
+    get: <T>(_key: string, defaultValue?: T): T | undefined => defaultValue,
+  }),
+
+  openTextDocument: async (pathOrUri: string | Uri): Promise<TextDocument> => {
+    return new TextDocument(typeof pathOrUri === "string" ? Uri.file(pathOrUri) : pathOrUri);
+  },
+};
+
+// ---- env ---------------------------------------------------------------------
+
+export const env = {
+  /** Identity — KKSS has no Remote-SSH/Codespaces tunnel to resolve through. */
+  asExternalUri: async (uri: Uri): Promise<Uri> => uri,
 };
 
 // ---- commands -------------------------------------------------------------------

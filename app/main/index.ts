@@ -89,6 +89,7 @@ app.whenReady().then(() => {
   configureNotifications(sendShell);
   __configureVscodeShim({
     openWith: (fsPath, viewType) => openFile(fsPath, modeForViewType(viewType)),
+    openTextDocument: (fsPath) => void editor?.openPath(fsPath),
   });
 
   for (const mode of ["cad", "mesh"] as Mode[]) {

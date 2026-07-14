@@ -27,6 +27,7 @@
   --vscode-editorWarning-foreground: #cca700;
 
   --vscode-button-background: #0e639c;
+  --vscode-button-border: transparent;
   --vscode-button-foreground: #ffffff;
   --vscode-button-hoverBackground: #1177bb;
   --vscode-button-secondaryBackground: #3a3d41;
