@@ -107,6 +107,12 @@ app.whenReady().then(() => {
   cadHost = new CadHost(main.views.cad, path.join(__dirname, "cad-runtime"), {
     onOpenRequest: (fsPath) => openFile(fsPath),
     onTitle: (fileName) => sendShell({ type: "title", view: "cad", fileName }),
+    // Pre → post sync: a mesh exported from CAD that post mode can display
+    // (.mdpa, .vtk, …) is opened straight into the mesh view. The router gates
+    // this so shared formats (.stl/.obj/.ply) and CAD-only outputs never jump.
+    onMeshExported: (fsPath) => {
+      if (main && modeForFile(fsPath, main.mode()) === "mesh") openFile(fsPath, "mesh");
+    },
   });
 
   meshHost = new MeshHost(main.views.mesh, __dirname, {

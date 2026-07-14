@@ -118,7 +118,11 @@ Concretely:
 - **One document per mode** (v1): opening a file disposes the mode's session,
   reloads its view, and replays the extension's own `ready` handshake order.
   `.stl/.obj/.ply` are viewable in both modes — the active mode wins
-  (`app/main/router.ts`).
+  (`app/main/router.ts`). **Pre → post is one-way synced:** a mesh exported
+  from CAD/pre that post mode can display (`.mdpa`, `.vtk`, …) auto-opens in the
+  mesh view (`CadHost.onMeshExported` → `openFile(…, "mesh")` in
+  `app/main/index.ts`, gated by `modeForFile` so shared/CAD-only outputs never
+  jump). Post → pre is deliberately not synced.
 - **node-pty is the ONLY native module and the ONLY shipped node_modules
   entry** (embedded terminal, `app/main/services/terminal.ts`). It is N-API:
   never add an electron-rebuild step — Windows/macOS use its npm-shipped

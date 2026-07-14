@@ -72,6 +72,20 @@ const mmgAlias = {
   ),
 };
 
+// Same reason for gmsh-wasm: its ESM entry pulls in gmsh-core.mjs's top-level
+// await, which esbuild cannot bundle into a CJS output. The .cjs entry uses a
+// synchronous require("worker_threads") instead (see cad/src/gmshService.ts and
+// cad's CLAUDE.md). cad marks the package external and ships it in node_modules;
+// KKSS ships no node_modules, so it bundles the .cjs build directly — restoring
+// what cad's own createRequire(...) resolution did before it switched to a
+// static import.
+const gmshAlias = {
+  "@loumalouomega/gmsh-wasm": path.join(
+    __dirname,
+    "cad/node_modules/@loumalouomega/gmsh-wasm/dist/gmsh.cjs"
+  ),
+};
+
 /** @type {import('esbuild').BuildOptions} */
 const mainConfig = {
   entryPoints: ["app/main/index.ts"],
@@ -84,7 +98,7 @@ const mainConfig = {
   // node_modules/node-pty in the package (see electron-builder.yml files).
   external: ["electron", "node-pty"],
   // `vscode` (imported by the reused mesh host modules) resolves to our shim.
-  alias: { ...mmgAlias, vscode: path.join(__dirname, "app/main/vscodeShim.ts") },
+  alias: { ...mmgAlias, ...gmshAlias, vscode: path.join(__dirname, "app/main/vscodeShim.ts") },
   ...importMetaShim,
   define: {
     ...importMetaShim.define,
@@ -104,6 +118,13 @@ const cadWorkerConfig = {
   target: "node20",
   outfile: "out/cadCompute.worker.js",
   plugins: [wasmPathPlugin],
+  // gmshService.ts (bundled into this worker) imports gmsh-wasm — force its
+  // CJS build so the top-level await in the ESM entry never reaches this CJS bundle.
+  alias: { ...gmshAlias },
+  // gmsh-core.cjs's emscripten runtime has a `require("ws")` in its Node
+  // WebSocket-socket branch — dead code for mesh generation (no networking) and
+  // ws isn't even a declared dep. Keep it external so it never has to resolve.
+  external: ["ws"],
   ...importMetaShim,
   sourcemap: true,
   logLevel: "info",
