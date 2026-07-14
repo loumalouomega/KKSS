@@ -149,9 +149,25 @@ Concretely:
   `process.execPath` + `ELECTRON_RUN_AS_NODE=1` (no system Node in packaged
   installs), and **always pass `{...process.env}` to `StdioClientTransport`**
   — the MCP SDK otherwise strips env to a minimal set, silently losing PATH
-  (breaks `uvx kratos-mcp-server`). API keys go through
-  `services/chat/secrets.ts` (safeStorage-encrypted in the stateStore) —
-  never store them plaintext-by-design or ship them to a renderer.
+  (breaks `uvx kratos-mcp-server`). The kratos server is **pinned** to
+  `KRATOS_MCP_VERSION` in `mcpManager.ts` (`uvx kratos-mcp-server@<v>`) — bump
+  that constant to upgrade; its 40 tools + resources + prompts are discovered
+  at runtime, so nothing else changes. `McpManager` also aggregates MCP
+  resources/prompts (surfaced to the chat as synthetic `mcp__*` tools via
+  `chatTools()`). API keys go through `services/chat/secrets.ts`
+  (safeStorage-encrypted in the stateStore) — never store them
+  plaintext-by-design or ship them to a renderer.
+- **One shared McpManager, two front-ends.** `McpHub`
+  (`services/chat/mcpHub.ts`) owns the single `McpManager`; both the chat loop
+  and the optional **HTTP meta MCP server** (`services/metaServer/`) call
+  `hub.ensureStarted()`, so the three children are spawned once (constructed in
+  `index.ts`, disposed on `will-quit`). The meta server re-exposes the same
+  aggregated toolset (+ resources/prompts) over `127.0.0.1:<port>/mcp`
+  (`StreamableHTTPServerTransport`) for an external LLM client — **off by
+  default, bearer-token + Host-checked** (these tools touch disk). Wired via
+  **Settings ▸ MCP Server**. New stateStore keys: `metaServerEnabled`,
+  `metaServerPort`; secret: `metaServerToken`. Still ships no `node_modules`
+  (SDK server subpaths bundle into `out/main.js`).
 - **Update feed is two-part — keep both halves.** The `publish:` block in
   `electron-builder.yml` makes electron-builder emit `latest*.yml` update
   metadata and embed `app-update.yml` in each package; the release workflow

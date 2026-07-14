@@ -12,7 +12,8 @@ import { app, ipcMain, WebContents } from "electron";
 import type { ChatErrorKind, ChatToHost, ChatToWebview } from "../../ipc";
 import { stateStore } from "../stateStore";
 import { getSecret } from "./secrets";
-import { buildServerSpecs, McpManager } from "./mcpManager";
+import type { McpManager } from "./mcpManager";
+import type { McpHub } from "./mcpHub";
 import { ChatEntry, toWire } from "./transcript";
 import { Provider, ProviderError } from "./providers/types";
 import { createAnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from "./providers/anthropic";
@@ -63,8 +64,14 @@ edit operations via sidecar files, define FEM sub-model-parts, generate and expo
 Call cad__describe_capabilities before your first cad__apply_edit_ops to learn the operation catalog.
 - mesh__* (kratos-mdpa): mesh inspection and transformation — MDPA/VTK/STL info, quality metrics, \
 transforms (incl. MMG remeshing), format conversion, Kratos case setup (problemtypes, ProjectParameters, materials).
-- kratos__* (kratos-mcp-server): the Kratos Multiphysics engine itself — project scaffolding, \
-running simulations as background jobs, post-processing and probing results.
+- kratos__* (kratos-mcp-server): the Kratos Multiphysics engine and its knowledge layer — \
+single- and multi-stage project scaffolding, running simulations as background jobs, post-processing \
+and probing results, introspecting process/solver defaults, material and linear-solver presets, \
+explaining an existing ProjectParameters.json, and Flowgraph import/export (the same node-graph \
+format KKSS's mesh mode edits).
+- mcp__* (knowledge base): mcp__list_resources / mcp__read_resource surface worked examples and \
+reference docs the servers ship; mcp__list_prompts / mcp__get_prompt fetch guided setup recipes. \
+Consult these before scaffolding an unfamiliar analysis type.
 
 Tools operate on files on disk; edits are written to sidecar files the app's viewers replay, so the \
 user sees your changes when the file is (re)loaded. Always pass absolute paths. If a tool family is \
@@ -73,8 +80,8 @@ unavailable, say so and continue with what works. Be concise; lead with the outc
 const MAX_ITERATIONS = 25;
 
 export interface ChatDeps {
-  /** out/ directory (== __dirname of main.js) for locating the MCP bundles. */
-  outDir: string;
+  /** Shared MCP manager owner (the three servers are spawned once, app-wide). */
+  hub: McpHub;
   /** Currently open files, appended as context to each request. */
   currentFiles(): { cad?: string | null; mesh?: string | null };
   /** Pops the native Settings menu (noKey / auth error banner button). */
@@ -118,7 +125,10 @@ export class ChatService {
           break;
       }
     });
-    app.on("will-quit", () => void this.dispose());
+    // The hub owns the servers' lifecycle (disposed in index.ts on will-quit);
+    // we only mirror their status into the sidebar and abort the loop on quit.
+    this.deps.hub.onStatus((servers) => this.send({ type: "servers", servers }));
+    app.on("will-quit", () => this.abort?.abort());
   }
 
   /** Points the service at the sidebar view's WebContents (idempotent). */
@@ -128,9 +138,7 @@ export class ChatService {
 
   /** Spawns the MCP servers on first use (chat open), not at app launch. */
   ensureStarted(): void {
-    if (this.mcp) return;
-    this.mcp = new McpManager(buildServerSpecs(this.deps.outDir), (servers) => this.send({ type: "servers", servers }));
-    void this.mcp.start();
+    this.mcp = this.deps.hub.ensureStarted();
   }
 
   private send(message: ChatToWebview): void {
@@ -143,7 +151,7 @@ export class ChatService {
       type: "state",
       entries: this.entries.map(toWire),
       busy: this.busy,
-      servers: this.mcp?.statuses() ?? [],
+      servers: this.deps.hub.statuses(),
       providerLabel: settings.provider === "anthropic" ? `Anthropic · ${settings.model}` : `${settings.baseUrl} · ${settings.model}`,
     });
   }
@@ -216,7 +224,7 @@ export class ChatService {
         const result = await provider.streamTurn({
           system: SYSTEM_PROMPT,
           entries: requestEntries(),
-          tools: mcp.tools(),
+          tools: mcp.chatTools(),
           model: settings.model,
           signal,
           onTextDelta: (delta) => this.send({ type: "assistantDelta", text: delta }),
@@ -269,9 +277,8 @@ export class ChatService {
     }
   }
 
-  async dispose(): Promise<void> {
+  /** Aborts any in-flight turn; the servers themselves are owned by the hub. */
+  dispose(): void {
     this.abort?.abort();
-    await this.mcp?.dispose();
-    this.mcp = null;
   }
 }

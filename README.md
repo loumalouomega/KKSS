@@ -38,8 +38,15 @@ alive, keeping their loaded file, camera, and history. Also in the box:
 - **AI assistant** (`Ctrl+Shift+L`) — a chat sidebar where an LLM (Anthropic
   Claude or any OpenAI-compatible backend) drives CAD editing, meshing, case
   setup, and Kratos runs through the engines' MCP tool servers plus the
-  [kratos-mcp-server](https://pypi.org/project/kratos-mcp-server/); API key
-  configured in the Settings menu, stored via the OS keychain.
+  [kratos-mcp-server](https://pypi.org/project/kratos-mcp-server/) (project
+  scaffolding, multi-stage orchestration, presets, ProjectParameters explain,
+  Flowgraph interop, and worked-example resources); API key configured in the
+  Settings menu, stored via the OS keychain. The same unified toolset can be
+  exposed to an **external** MCP client — Claude Code, GitHub Copilot, Claude
+  Desktop — over a localhost Streamable HTTP endpoint via **Settings ▸ MCP
+  Server** (off by default, bearer-token protected); see
+  [Use your own MCP client](doc/guide/getting-started.md#use-your-own-mcp-client)
+  for the one-line Claude Code and Copilot setup.
 - **Embedded terminal** (``Ctrl+` ``) — a real PowerShell/`$SHELL` panel below
   the viewer for launching Kratos runs, powered by node-pty + xterm.js.
 - **Text editor** — a lightweight CodeMirror 6 editor for input files and

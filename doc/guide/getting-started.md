@@ -100,6 +100,58 @@ the assistant land in the same sidecar files the viewers use — reload the
 file to see them. Send with `Enter`, stop a running response with the same
 button, and start over with **⟳ New**.
 
+### Use your own MCP client
+
+If you'd rather drive KKSS from an **external** LLM client (Claude Code, GitHub
+Copilot, Claude Desktop, another agent) than the built-in sidebar, enable
+**Settings ▸ MCP Server**. KKSS then serves the same unified cad + mesh + Kratos
+toolset — plus the Kratos worked-example resources and guided prompts — over a
+localhost **Streamable HTTP** MCP endpoint. Use **Copy Address & Token…** to grab
+the `http://127.0.0.1:<port>/mcp` URL and its bearer token (default port
+`7391`). It is off by default and bound to localhost only; the token gates access
+because these tools read and write files on disk — **Regenerate Token…** rotates
+it (update your clients afterwards). Change the port under the same menu (toggle
+the server off and on to rebind). Tools arrive namespaced `cad__*` / `mesh__*` /
+`kratos__*`; the Kratos worked examples show up as MCP resources and prompts.
+
+Leave KKSS running with the server enabled, then point a client at it:
+
+**Claude Code** — register it as an HTTP server (repeat `--header` for the token):
+
+```bash
+claude mcp add --transport http kkss http://127.0.0.1:7391/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+Run `/mcp` inside Claude Code to confirm `kkss` is connected and list its tools.
+Remove it later with `claude mcp remove kkss`.
+
+**GitHub Copilot (VS Code)** — add an HTTP server entry to `.vscode/mcp.json` in
+your workspace (or run *MCP: Add Server…* from the Command Palette). Using an
+`input` keeps the token out of the file — VS Code prompts for it once and stores
+it securely:
+
+```jsonc
+{
+  "inputs": [
+    { "id": "kkss-token", "type": "promptString", "description": "KKSS MCP token", "password": true }
+  ],
+  "servers": {
+    "kkss": {
+      "type": "http",
+      "url": "http://127.0.0.1:7391/mcp",
+      "headers": { "Authorization": "Bearer ${input:kkss-token}" }
+    }
+  }
+}
+```
+
+Click **Start** on the server in `mcp.json`, then open Copilot Chat in **Agent**
+mode and enable the `kkss` tools from the tools (🛠) picker.
+
+Any MCP client that speaks Streamable HTTP with a bearer header works the same
+way — give it the URL and the `Authorization: Bearer <token>` header.
+
 ## Text editor
 
 The **Edit** toolbar button opens the file currently loaded in the active
@@ -128,6 +180,10 @@ holds app-level preferences, persisted across runs:
   model names, and the OpenAI-compatible base URL for the AI chat sidebar.
   Keys are encrypted with the OS keychain (Electron `safeStorage`) when one
   is available; changes apply to the next message, no restart needed.
+- **MCP Server** — enable the localhost HTTP endpoint that exposes KKSS's
+  toolset to an external MCP client, set its port, and copy or regenerate the
+  bearer token (see *AI assistant ▸ Use your own MCP client* above). Off by
+  default.
 
 Viewer actions (mesh quality, field visualization, find entity…) are *not*
 in the menu bar — they live in each viewer's own toolbar.

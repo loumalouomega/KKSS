@@ -1,7 +1,8 @@
 /** KKSS Electron main entry. */
-import { app, ipcMain, Menu } from "electron";
+import { app, clipboard, dialog, ipcMain, Menu } from "electron";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
+import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
 import { createMainWindow, MainWindow } from "./windows";
 import { CadHost } from "./cadHost";
@@ -13,6 +14,9 @@ import { configureAbout, showAbout } from "./services/about";
 import { TerminalService } from "./services/terminal";
 import { EditorService } from "./services/editor";
 import { ChatService } from "./services/chat/chatService";
+import { McpHub } from "./services/chat/mcpHub";
+import { getSecret, setSecret } from "./services/chat/secrets";
+import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
 import { configureNotifications, handleToastButton, toast } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { __configureVscodeShim } from "./vscodeShim";
@@ -28,6 +32,8 @@ let meshHost: MeshHost | null = null;
 let terminal: TerminalService | null = null;
 let editor: EditorService | null = null;
 let chat: ChatService | null = null;
+let mcpHub: McpHub | null = null;
+let metaServer: MetaMcpServer | null = null;
 
 /** A file path passed on the command line (also used by the e2e smoke test). */
 function cliFileArg(): string | undefined {
@@ -72,6 +78,66 @@ function toggleChat(): void {
   const { view, visible } = main.toggleChat();
   chat.attach(view.webContents);
   if (visible) chat.ensureStarted();
+}
+
+/** Configured meta-server port (falls back to the default on an invalid value). */
+function metaServerPort(): number {
+  const value = Number(stateStore.get(META_SERVER_KEYS.port, DEFAULT_META_SERVER_PORT));
+  return Number.isInteger(value) && value > 0 && value < 65536 ? value : DEFAULT_META_SERVER_PORT;
+}
+
+/** Returns the stored bearer token, generating and persisting one on first use. */
+async function ensureMetaServerToken(): Promise<string> {
+  let token = getSecret(META_SERVER_KEYS.token);
+  if (!token) {
+    token = randomUUID();
+    await setSecret(META_SERVER_KEYS.token, token);
+  }
+  return token;
+}
+
+/** Persists the opt-in and starts/stops the listener (surfaces bind errors). */
+async function setMetaServerEnabled(enabled: boolean): Promise<void> {
+  if (!metaServer) return;
+  await stateStore.update(META_SERVER_KEYS.enabled, enabled);
+  if (!enabled) {
+    await metaServer.disable();
+    return;
+  }
+  await ensureMetaServerToken();
+  try {
+    await metaServer.enable();
+    toast("info", `MCP server listening on ${metaServer.address()}`);
+  } catch (error) {
+    await stateStore.update(META_SERVER_KEYS.enabled, false);
+    toast("error", `MCP server failed to start: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/** Copies the endpoint URL + bearer token for pasting into an external MCP client. */
+async function copyMetaServerConfig(): Promise<void> {
+  const token = await ensureMetaServerToken();
+  const url = metaServer?.address() ?? `http://127.0.0.1:${metaServerPort()}/mcp`;
+  clipboard.writeText(`${url}\nAuthorization: Bearer ${token}`);
+  await dialog.showMessageBox({
+    type: "info",
+    title: "MCP Server Address Copied",
+    message: "Endpoint + bearer token copied to the clipboard.",
+    detail:
+      `URL: ${url}\nHeader: Authorization: Bearer ${token}\n\n` +
+      "These tools read and write files on disk and can run simulations. Only share this " +
+      "address and token with a client you trust.",
+  });
+}
+
+/** Rotates the bearer token, restarting the listener if it is running. */
+async function regenerateMetaServerToken(): Promise<void> {
+  await setSecret(META_SERVER_KEYS.token, randomUUID());
+  if (metaServer?.isRunning()) {
+    await metaServer.disable();
+    await metaServer.enable();
+  }
+  toast("info", "MCP server token regenerated — update any connected clients.");
 }
 
 /** Settings live in the native menu bar — pop its submenu up (home + chat). */
@@ -144,8 +210,19 @@ app.whenReady().then(() => {
     }
   );
 
+  // One McpManager owner, shared by the chat loop and the HTTP meta server, so
+  // the three MCP child servers are spawned once (whichever front-end starts first).
+  mcpHub = new McpHub(__dirname);
+
+  metaServer = new MetaMcpServer({
+    hub: mcpHub,
+    version: app.getVersion(),
+    port: metaServerPort,
+    token: () => getSecret(META_SERVER_KEYS.token),
+  });
+
   chat = new ChatService({
-    outDir: __dirname,
+    hub: mcpHub,
     currentFiles: () => ({ cad: cadHost?.currentFile, mesh: meshHost?.currentFile }),
     openSettings: openSettingsMenu,
     onHide: () => {
@@ -153,7 +230,24 @@ app.whenReady().then(() => {
     },
   });
 
-  installMenu({ main, cadHost, meshHost, editor, setScreen, toggleTerminal, toggleChat });
+  installMenu({
+    main,
+    cadHost,
+    meshHost,
+    editor,
+    setScreen,
+    toggleTerminal,
+    toggleChat,
+    metaServer: {
+      enabled: () => stateStore.get(META_SERVER_KEYS.enabled, false) ?? false,
+      setEnabled: (enabled) => void setMetaServerEnabled(enabled),
+      copyConfig: () => void copyMetaServerConfig(),
+      regenerateToken: () => void regenerateMetaServerToken(),
+    },
+  });
+
+  // Honor the persisted opt-in on startup.
+  if (stateStore.get(META_SERVER_KEYS.enabled, false)) void setMetaServerEnabled(true);
 
   ipcMain.on("home:toHost", (_event, raw) => {
     const msg = raw as HomeToHost;
@@ -221,6 +315,13 @@ app.whenReady().then(() => {
     // Give the views a beat to finish their first load; openPath reloads anyway.
     setTimeout(() => openFile(fileArg), 300);
   }
+});
+
+// Single teardown for the shared MCP manager + the HTTP meta server (the chat
+// service only aborts its in-flight turn).
+app.on("will-quit", () => {
+  void metaServer?.dispose();
+  void mcpHub?.dispose();
 });
 
 app.on("window-all-closed", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildServerSpecs, flattenContent, namespaceTool, splitToolName } from "../app/main/services/chat/mcpManager";
+import { buildServerSpecs, flattenContent, KRATOS_MCP_VERSION, namespaceTool, splitToolName } from "../app/main/services/chat/mcpManager";
 
 const KEYS = ["cad", "mesh", "kratos"];
 
@@ -46,7 +46,7 @@ describe("buildServerSpecs", () => {
     expect(cad.args[0].replace(/\\/g, "/")).toBe("/app/out/cad-runtime/dist/mcp-server.js");
     expect(mesh.args[0].replace(/\\/g, "/")).toBe("/app/out/mcpServer.js");
     expect(kratos.command).toBe("uvx");
-    expect(kratos.args).toEqual(["kratos-mcp-server"]);
+    expect(kratos.args).toEqual([`kratos-mcp-server@${KRATOS_MCP_VERSION}`]);
   });
 
   it("runs the node bundles under Electron's own binary and keeps PATH", () => {

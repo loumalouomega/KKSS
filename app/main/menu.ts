@@ -17,6 +17,7 @@ import { hasSecret, setSecret } from "./services/chat/secrets";
 import { LLM_KEYS } from "./services/chat/chatService";
 import { DEFAULT_ANTHROPIC_MODEL } from "./services/chat/providers/anthropic";
 import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./services/chat/providers/openaiCompat";
+import { DEFAULT_META_SERVER_PORT, META_SERVER_KEYS } from "./services/metaServer/metaServer";
 import type { EditorService } from "./services/editor";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
 import { DOCS_URL } from "./urls";
@@ -29,6 +30,13 @@ export interface MenuDeps {
   setScreen(screen: Screen): void;
   toggleTerminal(): void;
   toggleChat(): void;
+  /** HTTP meta MCP server controls (see index.ts). */
+  metaServer: {
+    enabled(): boolean;
+    setEnabled(enabled: boolean): void;
+    copyConfig(): void;
+    regenerateToken(): void;
+  };
 }
 
 /** Scene themes understood by the viewers (mesh provider's own value set). */
@@ -231,6 +239,34 @@ export function installMenu(deps: MenuDeps): void {
             {
               label: "OpenAI-compatible Model…",
               click: () => void promptValue(LLM_KEYS.openaiModel, "OpenAI-compatible Model", DEFAULT_OPENAI_MODEL),
+            },
+          ],
+        },
+        {
+          // Exposes the same cad+mesh+kratos toolset over a localhost HTTP MCP
+          // endpoint so an external LLM client can drive KKSS. Off by default;
+          // localhost-bound + bearer-token protected (these tools touch disk).
+          label: "MCP Server",
+          submenu: [
+            {
+              label: "Enable (external LLM access)",
+              type: "checkbox" as const,
+              checked: deps.metaServer.enabled(),
+              click: (item) => deps.metaServer.setEnabled(item.checked),
+            },
+            { type: "separator" },
+            {
+              label: "Port…",
+              // Applies on next enable (toggle off/on to rebind).
+              click: () => void promptValue(META_SERVER_KEYS.port, "MCP Server Port", String(DEFAULT_META_SERVER_PORT)),
+            },
+            {
+              label: "Copy Address & Token…",
+              click: () => deps.metaServer.copyConfig(),
+            },
+            {
+              label: "Regenerate Token…",
+              click: () => deps.metaServer.regenerateToken(),
             },
           ],
         },

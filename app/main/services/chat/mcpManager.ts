@@ -1,8 +1,9 @@
 /**
  * MCP client manager for the chat agent: spawns the three stdio MCP servers
  * (cad = cad-preview bundle, mesh = kratos-mdpa bundle, kratos =
- * kratos-mcp-server from PyPI via uvx), aggregates their tools under
- * namespaced names ("cad__load_model") and routes tool calls back.
+ * kratos-mcp-server from PyPI via uvx, pinned to KRATOS_MCP_VERSION),
+ * aggregates their tools, resources and prompts under namespaced names
+ * ("cad__load_model") and routes calls back.
  *
  * The cad/mesh bundles are Node CJS scripts run with Electron's own binary
  * (ELECTRON_RUN_AS_NODE=1) so no system Node is required in packaged builds.
@@ -15,6 +16,7 @@
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { CallToolResult, GetPromptResult, Prompt, ReadResourceResult, Resource } from "@modelcontextprotocol/sdk/types.js";
 import * as path from "node:path";
 import type { ChatServerStatus } from "../../ipc";
 import { truncate } from "./transcript";
@@ -31,6 +33,10 @@ export interface ServerSpec {
   env: Record<string, string>;
 }
 
+/** Pinned kratos-mcp-server release (uvx resolves this exact version). Bump on
+ *  upgrade; the tool/resource/prompt surface is discovered at runtime. */
+export const KRATOS_MCP_VERSION = "0.3.0";
+
 const NAMESPACE_SEPARATOR = "__";
 /** Cap on tool-result text handed back to the model. */
 export const RESULT_CHARS = 50_000;
@@ -38,6 +44,39 @@ export const RESULT_CHARS = 50_000;
 const CONNECT_TIMEOUT_MS = 60_000;
 /** Meshing/simulation tools can legitimately run for minutes. */
 const CALL_TIMEOUT_MS = 10 * 60_000;
+
+/** Reserved prefix for the aggregated resource/prompt tools (not a real server). */
+export const META_NAMESPACE = "mcp";
+/** Synthetic tools that expose the servers' MCP resources & prompts to the chat
+ *  provider loop (which only understands tools). The HTTP meta server exposes the
+ *  same resources/prompts *natively* instead, so these are chat-only. */
+const META_TOOLS: ToolDef[] = [
+  {
+    name: `${META_NAMESPACE}__list_resources`,
+    description: "List worked-example and reference resources the MCP servers ship (name, uri, description).",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: `${META_NAMESPACE}__read_resource`,
+    description: "Read a resource by its uri (as returned by mcp__list_resources).",
+    inputSchema: { type: "object", properties: { uri: { type: "string" } }, required: ["uri"], additionalProperties: false },
+  },
+  {
+    name: `${META_NAMESPACE}__list_prompts`,
+    description: "List guided setup prompts the MCP servers ship (name, description, arguments).",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: `${META_NAMESPACE}__get_prompt`,
+    description: "Render a guided prompt by name (from mcp__list_prompts), passing any required arguments.",
+    inputSchema: {
+      type: "object",
+      properties: { name: { type: "string" }, arguments: { type: "object", additionalProperties: true } },
+      required: ["name"],
+      additionalProperties: false,
+    },
+  },
+];
 
 export function namespaceTool(key: ServerKey, tool: string): string {
   return `${key}${NAMESPACE_SEPARATOR}${tool}`;
@@ -90,7 +129,7 @@ export function buildServerSpecs(outDir: string): ServerSpec[] {
       key: "kratos",
       name: "kratos-mcp-server",
       command: "uvx",
-      args: ["kratos-mcp-server"],
+      args: [`kratos-mcp-server@${KRATOS_MCP_VERSION}`],
       env: { ...process.env } as Record<string, string>,
     },
   ];
@@ -106,6 +145,8 @@ interface ServerState {
 export class McpManager {
   private readonly servers: ServerState[];
   private started = false;
+  /** uri → owning server, rebuilt on each listResources() (URIs aren't namespaced). */
+  private readonly resourceOwners = new Map<string, ServerState>();
 
   constructor(
     specs: ServerSpec[],
@@ -167,14 +208,152 @@ export class McpManager {
     this.onStatus(this.statuses());
   }
 
+  /** Real, namespaced tools aggregated across servers (used by the HTTP meta server). */
   tools(): ToolDef[] {
     return this.servers.flatMap((server) => server.tools);
   }
 
+  /** tools() plus the synthetic resource/prompt tools — for the chat provider loop. */
+  chatTools(): ToolDef[] {
+    return [...this.tools(), ...META_TOOLS];
+  }
+
   toolName = (server: string, tool: string): string => namespaceTool(server as ServerKey, tool);
+
+  private ready(): ServerState[] {
+    return this.servers.filter((s) => s.client);
+  }
+
+  /** Aggregated MCP resources across ready servers; records the owner of each uri. */
+  async listResources(): Promise<Resource[]> {
+    this.resourceOwners.clear();
+    const out: Resource[] = [];
+    await Promise.all(
+      this.ready().map(async (server) => {
+        try {
+          const { resources } = await server.client!.listResources();
+          for (const resource of resources) {
+            this.resourceOwners.set(resource.uri, server);
+            out.push(resource);
+          }
+        } catch {
+          /* server without a resources capability — skip */
+        }
+      })
+    );
+    return out;
+  }
+
+  /** Reads a resource by uri, routing to its owner (falls back to scanning servers). */
+  async readResource(uri: string): Promise<ReadResourceResult> {
+    let owner = this.resourceOwners.get(uri);
+    if (!owner) {
+      await this.listResources(); // stale/unseen uri — refresh the owner map
+      owner = this.resourceOwners.get(uri);
+    }
+    const candidates = owner ? [owner] : this.ready();
+    let lastError = "no server served this uri";
+    for (const server of candidates) {
+      try {
+        return await server.client!.readResource({ uri });
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+    }
+    throw new Error(`Cannot read resource ${uri}: ${lastError}`);
+  }
+
+  /** Aggregated MCP prompts, names namespaced by owning server (e.g. "kratos__setup..."). */
+  async listPrompts(): Promise<Prompt[]> {
+    const out: Prompt[] = [];
+    await Promise.all(
+      this.ready().map(async (server) => {
+        try {
+          const { prompts } = await server.client!.listPrompts();
+          for (const prompt of prompts) out.push({ ...prompt, name: namespaceTool(server.spec.key, prompt.name) });
+        } catch {
+          /* server without a prompts capability — skip */
+        }
+      })
+    );
+    return out;
+  }
+
+  /** Renders a namespaced prompt, routing to its owning server. */
+  async getPrompt(namespaced: string, args: Record<string, string>): Promise<GetPromptResult> {
+    const split = splitToolName(namespaced, this.servers.map((s) => s.spec.key));
+    const server = split && this.servers.find((s) => s.spec.key === split.server);
+    if (!split || !server?.client) throw new Error(`Unknown prompt: ${namespaced}`);
+    return server.client.getPrompt({ name: split.tool, arguments: args });
+  }
+
+  /** Raw tool call that returns the untouched CallToolResult (used by the HTTP meta
+   *  server so image/structured content survives). Never throws — errors become a
+   *  CallToolResult with isError. */
+  async callToolRaw(namespaced: string, args: Record<string, unknown>): Promise<CallToolResult> {
+    const split = splitToolName(namespaced, this.servers.map((s) => s.spec.key));
+    const server = split && this.servers.find((s) => s.spec.key === split.server);
+    if (!split || !server) return { isError: true, content: [{ type: "text", text: `Unknown tool: ${namespaced}` }] };
+    if (!server.client) return { isError: true, content: [{ type: "text", text: `MCP server "${server.status.name}" is unavailable: ${server.status.error ?? "not connected"}` }] };
+    try {
+      return (await server.client.callTool({ name: split.tool, arguments: args }, undefined, {
+        timeout: CALL_TIMEOUT_MS,
+        resetTimeoutOnProgress: true,
+      })) as CallToolResult;
+    } catch (error) {
+      return { isError: true, content: [{ type: "text", text: `Tool call failed: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+
+  /** Serves a synthetic mcp__* tool as flattened text for the chat loop. */
+  private async callMetaTool(tool: string, args: Record<string, unknown>): Promise<{ ok: boolean; text: string }> {
+    try {
+      if (tool === "list_resources") {
+        const resources = await this.listResources();
+        const text = resources.map((r) => `- ${r.uri}${r.name ? `  (${r.name})` : ""}${r.description ? ` — ${r.description}` : ""}`).join("\n");
+        return { ok: true, text: text || "(no resources available)" };
+      }
+      if (tool === "read_resource") {
+        const uri = String(args.uri ?? "");
+        if (!uri) return { ok: false, text: "read_resource requires a 'uri' argument." };
+        const result = await this.readResource(uri);
+        const text = (result.contents ?? []).map((c) => ("text" in c && typeof c.text === "string" ? c.text : `[${c.mimeType ?? "binary"} content]`)).join("\n");
+        return { ok: true, text: text || "(empty resource)" };
+      }
+      if (tool === "list_prompts") {
+        const prompts = await this.listPrompts();
+        const text = prompts.map((p) => `- ${p.name}${p.description ? ` — ${p.description}` : ""}${p.arguments?.length ? ` [args: ${p.arguments.map((a) => a.name).join(", ")}]` : ""}`).join("\n");
+        return { ok: true, text: text || "(no prompts available)" };
+      }
+      if (tool === "get_prompt") {
+        const name = String(args.name ?? "");
+        if (!name) return { ok: false, text: "get_prompt requires a 'name' argument." };
+        const result = await this.getPrompt(name, (args.arguments as Record<string, string>) ?? {});
+        const text = (result.messages ?? [])
+          .map((m) => `[${m.role}] ${m.content && typeof m.content === "object" && "text" in m.content ? String((m.content as { text?: unknown }).text ?? "") : "[non-text content]"}`)
+          .join("\n");
+        return { ok: true, text: text || result.description || "(empty prompt)" };
+      }
+      return { ok: false, text: `Unknown meta tool: ${tool}` };
+    } catch (error) {
+      return { ok: false, text: `Meta tool failed: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  }
 
   /** Routes a namespaced tool call; never throws — errors become tool results. */
   async callTool(namespaced: string, argsJson: string): Promise<{ ok: boolean; text: string }> {
+    let args: Record<string, unknown> = {};
+    try {
+      args = argsJson ? (JSON.parse(argsJson) as Record<string, unknown>) : {};
+    } catch {
+      return { ok: false, text: `Invalid JSON arguments for ${namespaced}` };
+    }
+
+    // Synthetic resource/prompt tools are served from the aggregation layer, not a child.
+    if (namespaced.startsWith(`${META_NAMESPACE}${NAMESPACE_SEPARATOR}`)) {
+      return this.callMetaTool(namespaced.slice(META_NAMESPACE.length + NAMESPACE_SEPARATOR.length), args);
+    }
+
     const split = splitToolName(
       namespaced,
       this.servers.map((s) => s.spec.key)
@@ -183,12 +362,6 @@ export class McpManager {
     if (!split || !server) return { ok: false, text: `Unknown tool: ${namespaced}` };
     if (!server.client) return { ok: false, text: `MCP server "${server.status.name}" is unavailable: ${server.status.error ?? "not connected"}` };
 
-    let args: Record<string, unknown> = {};
-    try {
-      args = argsJson ? (JSON.parse(argsJson) as Record<string, unknown>) : {};
-    } catch {
-      return { ok: false, text: `Invalid JSON arguments for ${namespaced}` };
-    }
     try {
       const result = await server.client.callTool({ name: split.tool, arguments: args }, undefined, {
         timeout: CALL_TIMEOUT_MS,

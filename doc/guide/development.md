@@ -170,7 +170,17 @@ per-server failure tolerated, tool names namespaced `cad__*` / `mesh__*` /
 | --- | --- | --- |
 | `cad-preview` (11 tools) | `out/cad-runtime/dist/mcp-server.js` | beside the OCCT/Gmsh WASM, so its `extensionPath` (= `dirname/..`) resolves to `out/cad-runtime` |
 | `kratos-mdpa` (13 tools) | `out/mcpServer.js` | beside `out/mmg-core.wasm` (the bundle reads `__dirname/mmg-core.wasm`) |
-| `kratos-mcp-server` (PyPI) | `uvx kratos-mcp-server` | marked *unavailable* if `uv` is missing; chat continues without it |
+| `kratos-mcp-server` (40 tools) | `uvx kratos-mcp-server@<version>` | pinned to `KRATOS_MCP_VERSION`; marked *unavailable* if `uv` is missing; chat continues without it |
+
+The kratos server is **pinned** to `KRATOS_MCP_VERSION` (`mcpManager.ts`) — bump
+that constant to upgrade; the tool/resource/prompt surface is discovered at
+runtime (`listTools`), so no other code changes when it grows. Its 0.3.0 knowledge
+layer also ships MCP **resources** (worked examples) and **prompts** (guided
+setups); `McpManager` aggregates both (`listResources`/`readResource`/`listPrompts`/
+`getPrompt`, resource URIs owner-mapped, prompt names namespaced). The provider
+loop only understands tools, so these are surfaced to the chat as four synthetic
+`mcp__*` tools (`chatTools()` = real tools + `mcp__list_resources` /
+`mcp__read_resource` / `mcp__list_prompts` / `mcp__get_prompt`).
 
 The two Node bundles are spawned with **Electron's own binary +
 `ELECTRON_RUN_AS_NODE=1`** (packaged machines have no system Node), and the
@@ -188,6 +198,30 @@ keyring). Settings are read per request — no restart needed. stateStore keys:
 `llmProvider`, `llmModelAnthropic`, `llmKeyAnthropic`, `llmModelOpenai`,
 `llmKeyOpenai`, `llmOpenaiBaseUrl`.
 
+### Meta MCP server (expose the toolset over HTTP)
+
+The same aggregated toolset can be re-exposed as a single MCP **server** so an
+*external* LLM client (Claude Desktop, another agent) drives KKSS — the inverse
+of the sidebar (which makes KKSS an MCP client). One `McpManager` is shared
+between both front-ends via **`McpHub`** (`app/main/services/chat/mcpHub.ts`),
+constructed once in `index.ts` and disposed on `will-quit`; whichever of {chat
+opened, external client connected} happens first spawns the three children, the
+other reuses them — never a double spawn.
+
+`app/main/services/metaServer/` holds the server: `buildServer.ts` wires
+`McpManager` behind the low-level MCP `Server` (raw JSON-Schema tools forwarded
+verbatim via `callToolRaw`, resources & prompts re-exposed natively), and
+`metaServer.ts` (`MetaMcpServer`) runs a bare `http.createServer` bound to
+`127.0.0.1` with the SDK's `StreamableHTTPServerTransport` (stateful sessions
+keyed by `Mcp-Session-Id`; late server readiness emits `list_changed`). It is
+**off by default**, requires an `Authorization: Bearer <token>` (generated on
+first enable, safeStorage-encrypted like the API keys), and validates the `Host`
+header — these tools touch the filesystem and run simulations. The SDK server
+subpaths bundle into `out/main.js`; nothing new ships in `node_modules`. Enable
+it and copy the `http://127.0.0.1:<port>/mcp` address + token from **Settings ▸
+MCP Server**. stateStore keys: `metaServerEnabled`, `metaServerPort` (default
+`7391`); secret: `metaServerToken`.
+
 ## Settings menu
 
 The **Settings** native menu (`app/main/menu.ts`) holds app-level
@@ -196,8 +230,10 @@ preferences persisted in `app/main/services/stateStore.ts`: **Color Theme**
 served to the mode views via their synchronous `initialState`, so it applies
 when a view next loads a file), **Terminal Shell** (`terminalShell`), and
 **LLM Assistant** (provider, API keys, models, base URL — see the chat
-sidebar section above). Viewer-level actions are deliberately absent from
-the menu bar — the submodules' own toolbars provide them.
+sidebar section above), and **MCP Server** (enable/port/copy-address-&-token/
+regenerate-token — the meta MCP server, see above). Viewer-level actions are
+deliberately absent from the menu bar — the submodules' own toolbars provide
+them.
 
 Key pieces (all under `app/`):
 
