@@ -12,11 +12,11 @@ const failed = ref(false)
 // Rows keyed by the "-<os>-<arch>." substring electron-builder.yml's
 // artifactName pattern guarantees (KKSS-<version>-<os>-<arch>.<ext>).
 const targets = [
-  { label: 'Linux', arch: 'x86-64', key: '-linux-x64.', note: 'AppImage (portable) or .deb' },
-  { label: 'Linux', arch: 'ARM 64', key: '-linux-arm64.', note: 'AppImage (portable) or .deb' },
-  { label: 'Windows', arch: 'x86-64', key: '-win-x64.', note: 'NSIS installer' },
-  { label: 'Windows', arch: 'ARM 64', key: '-win-arm64.', note: 'NSIS installer' },
-  { label: 'macOS', arch: 'Apple Silicon (ARM 64)', key: '-mac-arm64.', note: '.dmg (or .zip)' },
+  { icon: '/os/linux.svg', label: 'Linux', arch: 'x86-64', key: '-linux-x64.', note: 'AppImage (portable) or .deb' },
+  { icon: '/os/linux.svg', label: 'Linux', arch: 'ARM 64', key: '-linux-arm64.', note: 'AppImage (portable) or .deb' },
+  { icon: '/os/windows.svg', label: 'Windows', arch: 'x86-64', key: '-win-x64.', note: 'NSIS installer' },
+  { icon: '/os/windows.svg', label: 'Windows', arch: 'ARM 64', key: '-win-arm64.', note: 'NSIS installer' },
+  { icon: '/os/macos.svg', label: 'macOS', arch: 'Apple Silicon (ARM 64)', key: '-mac-arm64.', note: '.dmg (or .zip)' },
 ]
 
 const rows = computed(() =>
@@ -63,7 +63,7 @@ Could not query the GitHub API from your browser — grab the installers directl
   </thead>
   <tbody>
     <tr v-for="t in rows" :key="t.key">
-      <td>{{ t.label }}</td>
+      <td><img :src="t.icon" alt="" width="22" height="22" style="vertical-align:middle;margin-right:7px" /> {{ t.label }}</td>
       <td>{{ t.arch }}</td>
       <td>
         <template v-if="t.assets.length">

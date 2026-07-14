@@ -1,0 +1,15 @@
+% Download-page OS glyph: Windows — a generic four-pane window on a blue badge.
+% A plain object drawing (window with four panes), not a brand logo.
+\documentclass[tikz,border=1mm]{standalone}
+\usetikzlibrary{arrows.meta,calc}
+\definecolor{winbg}{HTML}{2C7DD6}
+\begin{document}
+\begin{tikzpicture}[line cap=round, line join=round, x=1mm,y=1mm]
+  \fill[winbg] (0,0) circle (13);
+  % 2x2 grid of rounded panes, centred on the badge
+  \fill[white, rounded corners=0.7mm] (-5.6,0.8) rectangle (-0.8,5.6);
+  \fill[white, rounded corners=0.7mm] (0.8,0.8) rectangle (5.6,5.6);
+  \fill[white, rounded corners=0.7mm] (-5.6,-5.6) rectangle (-0.8,-0.8);
+  \fill[white, rounded corners=0.7mm] (0.8,-5.6) rectangle (5.6,-0.8);
+\end{tikzpicture}
+\end{document}

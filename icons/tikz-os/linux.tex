@@ -1,0 +1,28 @@
+% Download-page OS glyph: Linux — a simple, generic penguin on a light badge.
+% A friendly generic penguin, not a specific mascot artwork.
+\documentclass[tikz,border=1mm]{standalone}
+\usetikzlibrary{arrows.meta,calc}
+\definecolor{penbg}{HTML}{EEF1F5}
+\definecolor{beak}{HTML}{F4A72B}
+\begin{document}
+\begin{tikzpicture}[line cap=round, line join=round, x=1mm,y=1mm]
+  \fill[penbg] (0,0) circle (13);
+  % body (black egg)
+  \fill[black] (0,-1.5) ellipse (7.4 and 9);
+  % white belly
+  \fill[white] (0,-3.2) ellipse (4.9 and 6.1);
+  % white face patches
+  \fill[white] (-2.4,3.1) circle (2.7);
+  \fill[white] (2.4,3.1) circle (2.7);
+  % eyes + highlights
+  \fill[black] (-2.1,3.2) circle (0.95);
+  \fill[black] (2.1,3.2) circle (0.95);
+  \fill[white] (-1.8,3.5) circle (0.30);
+  \fill[white] (2.4,3.5) circle (0.30);
+  % beak
+  \fill[beak] (-1.7,1.7) -- (1.7,1.7) -- (0,-0.5) -- cycle;
+  % feet
+  \fill[beak] (-3.1,-10.6) ellipse (2.5 and 1.25);
+  \fill[beak] (3.1,-10.6) ellipse (2.5 and 1.25);
+\end{tikzpicture}
+\end{document}

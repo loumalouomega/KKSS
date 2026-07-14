@@ -3,6 +3,7 @@ out/
 release/
 icons/build-ui/
 icons/build-app/
+icons/build-os/
 doc/.vitepress/dist/
 doc/.vitepress/cache/
 *.log
