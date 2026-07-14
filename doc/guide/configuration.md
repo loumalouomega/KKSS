@@ -4,13 +4,11 @@ KKSS deliberately keeps configuration minimal ("Keep Kratos Simple Stupid").
 
 ## Scene theme
 
-The mesh viewer's theme selector (Auto / Dark / Light / Scientific, in the
-Post-Processing toolbar) persists across sessions.
+The mesh viewer's theme selector (Auto / Dark / Light / Scientific, in the Post-Processing toolbar) persists across sessions.
 
 ## LLM assistant
 
-**Settings ▸ LLM Assistant** configures the AI chat sidebar
-([Getting Started ▸ AI assistant](/guide/getting-started#ai-assistant)):
+**Settings ▸ LLM Assistant** configures the AI chat sidebar ([Getting Started ▸ AI assistant](/guide/getting-started#ai-assistant)):
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
@@ -21,10 +19,7 @@ Post-Processing toolbar) persists across sessions.
 | OpenAI-compatible Base URL | any `chat/completions` endpoint | `https://api.openai.com/v1` |
 | OpenAI-compatible Model | model name your backend expects | `gpt-4o` |
 
-Changes apply to the next chat message — no restart. API keys are encrypted
-with the OS keychain when one is available; on systems without a keyring
-they fall back to plaintext in `state.json` (below). Entering an empty value
-clears a stored key.
+Changes apply to the next chat message — no restart. API keys are encrypted with the OS keychain when one is available; on systems without a keyring they fall back to plaintext in `state.json` (below). Entering an empty value clears a stored key.
 
 ## Where state lives
 
@@ -36,5 +31,4 @@ clears a stored key.
 
 ## Command-line
 
-`kkss <file>` opens the given model on startup in the mode the file's
-extension implies.
+`kkss <file>` opens the given model on startup in the mode the file's extension implies.

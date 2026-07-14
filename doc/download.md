@@ -45,16 +45,14 @@ onMounted(async () => {
 
 # Download KKSS
 
-KKSS is built for every release tag by the
-[release workflow](https://github.com/loumalouomega/KKSS/blob/master/.github/workflows/release.yml)
-and published to [GitHub Releases](https://github.com/loumalouomega/KKSS/releases).
+KKSS is built for every release tag by the [release workflow](https://github.com/loumalouomega/KKSS/blob/master/.github/workflows/release.yml) and published to [GitHub Releases](https://github.com/loumalouomega/KKSS/releases).
 
 <p v-if="rel">
-  Latest release: <a :href="rel.html_url"><strong>{{ rel.tag_name }}</strong></a>
+Latest release: <a :href="rel.html_url"><strong>{{ rel.tag_name }}</strong></a>
   <span v-if="rel.published_at"> · {{ new Date(rel.published_at).toLocaleDateString() }}</span>
 </p>
 <p v-else-if="failed">
-  Could not query the GitHub API from your browser — grab the installers directly from the
+Could not query the GitHub API from your browser — grab the installers directly from the
   <a :href="RELEASES + '/latest'"><strong>latest release page</strong></a>.
 </p>
 <p v-else>Loading the latest release…</p>
@@ -74,7 +72,7 @@ and published to [GitHub Releases](https://github.com/loumalouomega/KKSS/release
           </div>
         </template>
         <template v-else>
-          {{ t.note }} — see the <a :href="RELEASES + '/latest'">release page</a>
+{{ t.note }} — see the <a :href="RELEASES + '/latest'">release page</a>
         </template>
       </td>
     </tr>
@@ -82,14 +80,9 @@ and published to [GitHub Releases](https://github.com/loumalouomega/KKSS/release
 </table>
 
 ::: tip Which file do I want?
-- **Linux**: the `.AppImage` runs anywhere without installation (`chmod +x` it);
-  the `.deb` integrates with apt-based distributions.
-- **Windows**: the `.exe` is a standard NSIS installer (choose your install
-  directory during setup).
-- **macOS**: open the `.dmg` and drag KKSS to Applications. Release builds are
-  currently **unsigned** — right-click the app and choose *Open* the first time
-  to bypass Gatekeeper.
+- **Linux**: the `.AppImage` runs anywhere without installation (`chmod +x` it); the `.deb` integrates with apt-based distributions.
+- **Windows**: the `.exe` is a standard NSIS installer (choose your install directory during setup).
+- **macOS**: open the `.dmg` and drag KKSS to Applications. Release builds are currently **unsigned** — right-click the app and choose *Open* the first time to bypass Gatekeeper.
 :::
 
-Older versions and release notes live on the
-[releases page](https://github.com/loumalouomega/KKSS/releases).
+Older versions and release notes live on the [releases page](https://github.com/loumalouomega/KKSS/releases).
