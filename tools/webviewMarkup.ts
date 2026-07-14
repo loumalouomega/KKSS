@@ -14,7 +14,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { viewerBodyHtml } from "../cad/src/viewerDom";
-import { FILE_MENU_HTML, SIDEBAR_HTML } from "../mesh/src/webviewChrome";
+import { FILE_MENU_HTML, FLOWGRAPH_PANE_HTML, SIDEBAR_HTML } from "../mesh/src/webviewChrome";
 import { TOOLBAR_ICONS } from "../mesh/src/toolbarIcons";
 
 /** Same helper the mesh providers define (mdpaEditorProvider.ts). */
@@ -58,6 +58,11 @@ const MESH_CSP = [
   `style-src kkss: 'unsafe-inline'`,
   `script-src kkss:`,
   `worker-src blob:`,
+  // The embedded Flowgraph editor is served from a localhost port (or an
+  // https tunnel) resolved via asExternalUri at runtime, so frame-src is
+  // scoped by scheme/host rather than an exact port (mdpaEditorProvider.ts /
+  // vtkEditorProvider.ts getHtml).
+  `frame-src http://localhost:* http://127.0.0.1:* https:`,
   `child-src blob:`,
   `connect-src kkss: blob: data:`,
 ].join("; ");
@@ -74,6 +79,7 @@ function meshBody(): string {
     ${SIDEBAR_HTML}
     <div id="sidebar-resizer" title="Drag to resize the sidebar"></div>
     <div id="viewport">
+      <div id="vtk-sub">
       ${FILE_MENU_HTML}
       <div id="cut-panel" class="hidden">
         <span style="opacity:0.7;font-size:11px">Axis</span>
@@ -115,6 +121,8 @@ function meshBody(): string {
         <span id="find-status"></span>
       </div>
       <div id="render-root"></div>
+      </div>
+      ${FLOWGRAPH_PANE_HTML}
     </div>
   </div>`;
 }

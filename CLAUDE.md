@@ -88,6 +88,18 @@ Concretely:
   and the OCCT/Gmsh binaries live under `out/cad-runtime/dist/` (the services
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
+- **Flowgraph embedding is a forked child process, not WASM.** The mesh
+  submodule's Flowgraph problemtype embeds the AGPL-3.0
+  `@kratos-flowgraph/flowgraph` node editor in an iframe backed by a small
+  Express server the submodule forks on demand. `app/main/mesh/meshHost.ts`
+  owns one shared `FlowgraphController` (mirroring `mesh/src/extension.ts`
+  activate()), passes it to `new MdpaEditorProvider(context, flowgraph)` (the
+  VTK provider takes only `context`), and disposes it on Electron's
+  `will-quit` so the child process doesn't outlive the app. Same `__dirname`
+  path-contract pattern as MMG: `out/flowgraphServer.js` and the
+  `out/flowgraph/` asset tree (mesh's `dist/flowgraph/` — Flowgraph's
+  `public/`+`views/`, its `LICENSE`, and our `vscode-bridge.js`) must sit
+  beside `out/main.js`.
 - **Custom schemes replace VS Code webview plumbing.** `kkss://app/...`
   serves out/ assets; `kkss-file://local/<enc>` serves user files from
   allow-listed roots only (`app/main/protocol.ts` — the `localResourceRoots`
@@ -192,7 +204,9 @@ together.
 
 ## License
 
-KKSS is **GPL-3.0** because it distributes the GPL-2.0-or-later CAD-Preview
+KKSS is **AGPL-3.0** because it distributes the GPL-2.0-or-later CAD-Preview
 engine (whose WASM statically links Gmsh + OpenCASCADE) together with the
-MIT-licensed mesh engine. Before adding any dependency that ships in the
-packaged app, check GPL compatibility first (same rule as cad's CLAUDE.md).
+now-AGPL-3.0-or-later mesh engine — its Flowgraph problemtype embeds the
+AGPL-3.0 `@kratos-flowgraph/flowgraph` node editor. Before adding any
+dependency that ships in the packaged app, check GPL/AGPL compatibility first
+(same rule as cad's CLAUDE.md).

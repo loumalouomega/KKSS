@@ -25,6 +25,9 @@ const required = [
   // Stdio MCP servers spawned by the chat sidebar (app/main/services/chat/).
   ["cad/dist/mcp-server.js", "npm run build --prefix cad"],
   ["mesh/dist/mcpServer.js", "npm run package --prefix mesh"],
+  // Flowgraph static server + its served assets (flowgraphController.ts).
+  ["mesh/dist/flowgraphServer.js", "npm run package --prefix mesh"],
+  ["mesh/dist/flowgraph", "npm run package --prefix mesh"],
 ];
 for (const [rel, fix] of required) {
   if (!fs.existsSync(path.join(__dirname, rel))) {
@@ -202,6 +205,10 @@ function copyArtifacts() {
     // sits beside out/mmg-core.wasm (it reads __dirname/mmg-core.wasm).
     ["cad/dist/mcp-server.js", out("cad-runtime/dist/mcp-server.js")],
     ["mesh/dist/mcpServer.js", out("mcpServer.js")],
+    // Flowgraph static server must sit next to out/main.js (flowgraphController
+    // resolves both it and out/flowgraph/ via __dirname); its served assets
+    // (public/views/LICENSE/vscode-bridge.js) are copied as a tree below.
+    ["mesh/dist/flowgraphServer.js", out("flowgraphServer.js")],
     // Static app assets.
     ["icons/app/icon-256.png", out("icon.png")], // Linux window/taskbar icon
     ["app/renderer/theme/vscode-vars.css", out("renderer/theme/vscode-vars.css")],
@@ -226,6 +233,9 @@ function copyArtifacts() {
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.copyFileSync(src, dst);
   }
+  // Flowgraph's served assets (public/views/LICENSE/vscode-bridge.js) are a
+  // directory tree, not a single file — mirrored verbatim next to out/main.js.
+  fs.cpSync(path.join(__dirname, "mesh/dist/flowgraph"), out("flowgraph"), { recursive: true });
   console.log(`Copied ${copies.length} artifacts into out/`);
 }
 

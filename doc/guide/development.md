@@ -39,6 +39,27 @@ and its handler in `app/main/index.ts` (`home:toHost`/`home:toWebview`
 channels via `app/preload/homePreload.ts`, same contextBridge pattern as the
 shell).
 
+### Flowgraph embedding
+
+The mesh submodule's **Flowgraph** problemtype (`view: "flowgraph"`) splits
+the MDPA preview's viewport to embed the AGPL-3.0
+[`@kratos-flowgraph/flowgraph`](https://www.npmjs.com/package/@kratos-flowgraph/flowgraph)
+node editor in an `<iframe>`, served by a small Express+EJS app the submodule
+forks on demand (`mesh/src/flowgraphServer.ts`, `mesh/src/
+flowgraphController.ts`). `meshHost.ts` owns the shared, ref-counted
+`FlowgraphController` instance — mirroring `mesh/src/extension.ts`'s
+`activate()` — passing it into `new MdpaEditorProvider(context, flowgraph)`
+(the VTK provider still takes only `context`; it ships the same pane markup
+inertly for chrome parity) and disposing it on Electron's `will-quit` so the
+forked child process never outlives the app.
+
+**Path contract**: like the MMG worker pair, `flowgraphController.ts`
+resolves its server and assets via `__dirname`, so `esbuild.mjs`'s
+`copyArtifacts()` places `out/flowgraphServer.js` and the `out/flowgraph/`
+asset tree (copied from `mesh/dist/flowgraph/` — Flowgraph's `public/`+
+`views/`, its `LICENSE`, and our `vscode-bridge.js`) directly beside
+`out/main.js`.
+
 ### About dialog & updates
 
 **Help ▸ About KKSS…** (and the home screen's Help button) opens a frameless
@@ -184,9 +205,13 @@ Key pieces (all under `app/`):
   VS Code compatibility layer: `acquireVsCodeApi().postMessage` → IPC, and
   inbound IPC → a normal window `message` event.
 - **`app/main/vscodeShim.ts`** — a minimal `vscode` module (dialogs, messages,
-  file watcher, progress, `openWith`) that esbuild aliases in place of the
-  real API, letting `mesh/src/{mdpaEditorProvider,vtkEditorProvider,
-  meshExport,opHistory}.ts` run verbatim.
+  file watcher, progress, `openWith`, `getConfiguration` — always resolving
+  to the caller's default, since KKSS has no settings.json equivalent —
+  `openTextDocument`/`showTextDocument` routed to the app's own text-editor
+  screen, and `env.asExternalUri` as an identity passthrough since there is
+  no Remote-SSH/Codespaces tunnel) that esbuild aliases in place of the real
+  API, letting `mesh/src/{mdpaEditorProvider,vtkEditorProvider,meshExport,
+  opHistory,flowgraphController,ptController}.ts` run verbatim.
 - **`app/main/cadHost.ts`** — a 1:1 port of `cad/src/provider.ts` (the cad
   provider imports OCCT directly, which must live in a worker here, so the
   cad side is ported rather than shimmed). Its `CadHostHooks.onMeshExported`

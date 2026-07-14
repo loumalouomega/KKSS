@@ -8,13 +8,20 @@
  * MMG wiring mirrors mesh/src/extension.ts activate(): worker runner +
  * wasmBinary handed to the loader (mmgWorker.js/mmg-core.wasm sit next to
  * out/main.js — the __dirname contract in mmgWorkerClient.ts).
+ *
+ * The Flowgraph problemtype's shared FlowgraphController (also mirroring
+ * extension.ts activate()) forks flowgraphServer.js — it too sits next to
+ * out/main.js, alongside the flowgraph/ asset tree it serves (see
+ * flowgraphController.ts's __dirname-relative lookups) — and is torn down on
+ * will-quit so the child process doesn't outlive the app.
  */
-import { ipcMain, WebContentsView } from "electron";
+import { app, ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type * as vscodeTypes from "vscode";
 import { MdpaEditorProvider } from "../../../mesh/src/mdpaEditorProvider";
 import { VtkEditorProvider } from "../../../mesh/src/vtkEditorProvider";
+import { FlowgraphController } from "../../../mesh/src/flowgraphController";
 import type { MenuMessage } from "../../../mesh/src/meshExport";
 import { configureMmg } from "../../../mesh/src/parser/remesh";
 import { configureMmgRunner } from "../../../mesh/src/parser/operations";
@@ -107,6 +114,7 @@ export interface MeshHostHooks {
 export class MeshHost {
   private readonly mdpaProvider: MdpaEditorProvider;
   private readonly vtkProvider: VtkEditorProvider;
+  private readonly flowgraph: FlowgraphController;
   private currentPanel: FakeWebviewPanel | undefined;
   private currentPath: string | undefined;
   private pendingOpen: string | undefined;
@@ -134,7 +142,8 @@ export class MeshHost {
       subscriptions: [],
     } as unknown as vscodeTypes.ExtensionContext;
 
-    this.mdpaProvider = new MdpaEditorProvider(context);
+    this.flowgraph = new FlowgraphController();
+    this.mdpaProvider = new MdpaEditorProvider(context, this.flowgraph);
     this.vtkProvider = new VtkEditorProvider(context);
 
     ipcMain.on("mesh:toHost", (event, msg: { type?: string }) => {
@@ -142,6 +151,10 @@ export class MeshHost {
       if (process.env.KKSS_E2E) console.log(`[mesh] webview → host: ${msg?.type}`);
       this.dispatch(msg);
     });
+
+    // The Flowgraph server is a forked child process — kill it on quit
+    // rather than leaving it orphaned (same pattern as terminal/chat).
+    app.on("will-quit", () => this.flowgraph.dispose());
   }
 
   get currentFile(): string | undefined {
