@@ -90,7 +90,7 @@ jobs:
       # packaged app checks them on the GitHub Release (About ▸ Update now).
       # Names never collide across platforms (latest.yml / latest-mac.yml /
       # latest-linux*.yml), so merge-multiple below is safe.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: kkss-${{ matrix.os }}
           path: |
