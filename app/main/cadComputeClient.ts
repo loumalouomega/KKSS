@@ -32,7 +32,8 @@ function ensureWorker(): Worker {
     else call.reject(new Error(res.error ?? "cadCompute worker error"));
   });
   worker.on("error", (err) => {
-    for (const call of pending.values()) call.reject(err);
+    const error = err instanceof Error ? err : new Error(String(err));
+    for (const call of pending.values()) call.reject(error);
     pending.clear();
     worker = undefined;
   });
