@@ -33,7 +33,7 @@ files:
   - "!out/tools/**"
   # node-pty runtime pieces only: lib/ + the platform binaries. Sources,
   # build-time deps, and debug symbols stay out; foreign-platform prebuilds
-  # are pruned per target below.
+  # are pruned per target below (linux/mac only — see the note above `win:`).
   - node_modules/node-pty/**
   - "!node_modules/node-pty/{src,deps,scripts,third_party,typings,node_modules}/**"
   - "!node_modules/node-pty/**/*.pdb"
@@ -55,12 +55,19 @@ linux:
     # Linux has no prebuilds — node-pty compiles into build/Release at npm ci.
     - "!node_modules/node-pty/prebuilds/**"
 
+# No per-platform `files` prune on Windows: a platform files list creates a
+# second matcher over the same tree, and electron-builder schedules the same
+# file for copy once per matcher. On Windows the two concurrent copies of the
+# largest artifact (opencascade.wasm.wasm, ~63 MB) collide in an EBUSY sharing
+# violation (observed with electron-builder 26). The prune only saved the
+# ~0.2 MB darwin prebuilds, so shipping them is the cheaper trade. Linux/mac
+# keep their prunes (~58 MB of win32 prebuilds each): POSIX tolerates the
+# duplicate concurrent copies (that's also what USE_HARD_LINKS=false in
+# release.yml is about — under hard links the duplicate copy throws EEXIST).
 win:
   icon: icons/app/icon.png
   target:
     - nsis
-  files:
-    - "!node_modules/node-pty/prebuilds/darwin-*/**"
 
 nsis:
   oneClick: false

@@ -78,8 +78,9 @@ jobs:
         # reproduces here and never locally. USE_HARD_LINKS=false is the
         # maintainer-endorsed toggle (electron-userland/electron-builder#7093).
         # USE_SYSTEM_FPM makes getFpmPath() use the gem-installed fpm above
-        # instead of the bundled linux-x86 binary (removed in electron-builder
-        # v27+; fine here, we're pinned to ^25.1.8).
+        # instead of the bundled linux-x86 binary. Still supported on our
+        # electron-builder ^26, but removed in v27+ — re-evaluate this flag
+        # before any future v27 bump.
         env:
           USE_HARD_LINKS: 'false'
           USE_SYSTEM_FPM: ${{ matrix.system_fpm && 'true' || 'false' }}

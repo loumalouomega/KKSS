@@ -130,8 +130,14 @@ Concretely:
   package.json or the binaries never materialize). It stays `external` in
   esbuild's mainConfig and ships via the node-pty `files` rules in
   electron-builder.yml. Release CI builds on one runner per OS/arch because
-  of it. Pages that need runtime-injected styles (terminal's xterm.js) may
-  relax CSP to `style-src kkss: 'unsafe-inline'` — that page only.
+  of it. **Never add a `files` list under `win:`** — a per-platform files
+  list is a second matcher over the same tree, electron-builder copies every
+  matched file once per matcher, and on Windows the duplicate concurrent
+  copies of the big OCCT WASM collide in EBUSY (see the comment in
+  electron-builder.yml; linux/mac tolerate it, which is also what
+  `USE_HARD_LINKS=false` in release.yml is about). Pages that need
+  runtime-injected styles (terminal's xterm.js) may relax CSP to
+  `style-src kkss: 'unsafe-inline'` — that page only.
 - **Menu bar holds app-level items only.** Viewer actions (quality, fields,
   find entity…) live in the submodules' own toolbars — don't duplicate them
   in the native menu. App preferences go in the Settings menu, persisted via
