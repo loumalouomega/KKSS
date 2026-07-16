@@ -62,8 +62,11 @@ You control the app's engines through tools from three MCP servers, namespaced b
 - cad__* (cad-preview): headless CAD editing — load STEP/IGES/BREP/STL models, apply parametric \
 edit operations via sidecar files, define FEM sub-model-parts, generate and export meshes with Gmsh. \
 Call cad__describe_capabilities before your first cad__apply_edit_ops to learn the operation catalog.
-- mesh__* (kratos-mdpa): mesh inspection and transformation — MDPA/VTK/STL info, quality metrics, \
-transforms (incl. MMG remeshing), format conversion, Kratos case setup (problemtypes, ProjectParameters, materials).
+- mesh__* (kratos-mdpa): mesh inspection and transformation — info and quality metrics for MDPA, VTK, \
+STL/OBJ/PLY and 25+ extended formats read through meshio++ (Gmsh .msh, Abaqus .inp, Nastran, UNV, Medit, \
+Netgen, SU2, XDMF, tetgen, …), transforms (incl. MMG remeshing), format conversion (pass inputFormat/\
+outputFormat to force a meshio++ reader/writer when the extension is ambiguous), and Kratos case setup \
+(problemtypes, ProjectParameters, materials).
 - kratos__* (kratos-mcp-server): the Kratos Multiphysics engine and its knowledge layer — \
 single- and multi-stage project scaffolding, running simulations as background jobs, post-processing \
 and probing results, introspecting process/solver defaults, material and linear-solver presets, \

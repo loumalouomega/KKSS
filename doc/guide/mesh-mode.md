@@ -10,7 +10,7 @@ Post-Processing mode embeds the full [VSCode-MDPA-Preview](https://loumalouomega
 - **Visualize results**: nodal/elemental/conditional field data with colormaps, isosurfaces, and vector quivers; VTK time-series play back on a timeline, and new step files written by a running simulation extend it automatically.
 - **Check mesh quality**: aspect/edge ratio, min/max angles, and size gradation histograms with bad-element highlighting.
 - **Modify meshes** with full undo/redo and saveable JSON recipes: merge coincident nodes, remove orphans, scale/translate/rotate, delete/rename/ extract SubModelParts, linear→quadratic conversion, and **MMG remeshing** and **level-set splitting** (run in a worker thread, with live progress and cancel).
-- **Save and export**: overwrite the source (with a one-time warning), Save As, or export the whole model — or a single SubModelPart — to MDPA, VTK, VTU, VTP, STL, OBJ, or PLY.
+- **Save and export**: overwrite the source (with a one-time warning), Save As, or export the whole model — or a single SubModelPart — to MDPA, VTK, VTU, VTP, STL, OBJ, or PLY, plus ~23 extended formats via meshio++ (Gmsh `.msh`, Abaqus `.inp`, Nastran, UNV, Medit, Netgen, SU2, XDMF, and more).
 - **Screenshots**: save the current view as a PNG.
 
 | Outline & edit sidebar | File menu |
