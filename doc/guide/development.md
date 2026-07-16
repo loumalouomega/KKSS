@@ -31,6 +31,12 @@ The mesh submodule's **Flowgraph** problemtype (`view: "flowgraph"`) splits the 
 
 **Path contract**: like the MMG worker pair, `flowgraphController.ts` resolves its server and assets via `__dirname`, so `esbuild.mjs`'s `copyArtifacts()` places `out/flowgraphServer.js` and the `out/flowgraph/` asset tree (copied from `mesh/dist/flowgraph/` — Flowgraph's `public/`+ `views/`, its `LICENSE`, and our `vscode-bridge.js`) directly beside `out/main.js`.
 
+### Extended mesh formats (meshio++)
+
+The mesh submodule reads/writes ~25 mesh formats it has no native parser for (Gmsh, Abaqus, Nastran, I-deas UNV, Medit, Netgen, SU2, XDMF, COMSOL, tetgen, …) through [`@meshioplusplus/wasm`](https://www.npmjs.com/package/@meshioplusplus/wasm) — meshio++'s C++ core compiled to WebAssembly. It is ESM-only (its Emscripten glue reads `import.meta.url`), so the submodule keeps it `external` and ships it verbatim as the `mesh/dist/meshio/` tree, and `mesh/src/parser/meshio.ts` loads it through a runtime dynamic `import()` rather than a bundled require.
+
+**Path contract**: `meshio.ts`'s `packageDir()` falls back to `path.join(__dirname, "meshio")`, and `meshio.ts` is bundled into **both** `out/main.js` (mesh host → `meshFileParser`/`meshWriter`) and `out/mcpServer.js` — both with `__dirname === out/`. So `copyArtifacts()` mirrors `mesh/dist/meshio/` to a single `out/meshio/` tree beside `out/main.js`, serving the app host and the MCP server at once. The `.wasm` is loaded via meshio++'s `locateFile` hook (the `wasmBinary` buffer hook MMG uses is unavailable in this build), which is why `out/` stays unpacked (`asar: false`). `@meshioplusplus/wasm` is also added to the parent `mainConfig.external` in `esbuild.mjs`, because the bundled `meshio.ts` contains a `require.resolve("@meshioplusplus/wasm/package.json")` literal esbuild would otherwise try to resolve at build time.
+
 ### About dialog & updates
 
 **Help ▸ About KKSS…** (and the home screen's Help button) opens a frameless singleton window (`app/main/services/about.ts`, same pattern as the modal picker) backed by `app/renderer/about/` over `about:init` / `about:toHost` / `about:toWebview` (`app/preload/aboutPreload.ts`). It shows the version (`app.getVersion()`), the author (injected from `package.json` by an esbuild `define`), and an update check.
@@ -70,12 +76,12 @@ Tools come from three stdio MCP servers managed by `app/main/services/chat/mcpMa
 | Server | Bundle / command | Placement contract |
 | --- | --- | --- |
 | `cad-preview` (11 tools) | `out/cad-runtime/dist/mcp-server.js` | beside the OCCT/Gmsh WASM, so its `extensionPath` (= `dirname/..`) resolves to `out/cad-runtime` |
-| `kratos-mdpa` (13 tools) | `out/mcpServer.js` | beside `out/mmg-core.wasm` (the bundle reads `__dirname/mmg-core.wasm`) |
+| `kratos-mdpa` (13 tools) | `out/mcpServer.js` | beside `out/mmg-core.wasm` (the bundle reads `__dirname/mmg-core.wasm`) and the `out/meshio/` tree (meshio++'s `__dirname/meshio` fallback, for the extended-format tools) |
 | `kratos-mcp-server` (40 tools) | `uvx kratos-mcp-server@<version>` | pinned to `KRATOS_MCP_VERSION`; marked *unavailable* if `uv` is missing; chat continues without it |
 
 The kratos server is **pinned** to `KRATOS_MCP_VERSION` (`mcpManager.ts`) — bump that constant to upgrade; the tool/resource/prompt surface is discovered at runtime (`listTools`), so no other code changes when it grows. Its 0.3.0 knowledge layer also ships MCP **resources** (worked examples) and **prompts** (guided setups); `McpManager` aggregates both (`listResources`/`readResource`/`listPrompts`/ `getPrompt`, resource URIs owner-mapped, prompt names namespaced). The provider loop only understands tools, so these are surfaced to the chat as four synthetic `mcp__*` tools (`chatTools()` = real tools + `mcp__list_resources` / `mcp__read_resource` / `mcp__list_prompts` / `mcp__get_prompt`).
 
-The two Node bundles are spawned with **Electron's own binary + `ELECTRON_RUN_AS_NODE=1`** (packaged machines have no system Node), and the full parent environment is always passed to `StdioClientTransport` — the SDK otherwise strips env to a minimal set, which silently breaks `uvx` (PATH). The bundles are copied from the submodules' `dist/` by `esbuild.mjs`'s `copyArtifacts()`; the submodules themselves are unmodified (the MCP servers are built by their normal `build`/`package` scripts on the `kkss.dev` branch).
+The two Node bundles are spawned with **Electron's own binary + `ELECTRON_RUN_AS_NODE=1`** (packaged machines have no system Node), and the full parent environment is always passed to `StdioClientTransport` — the SDK otherwise strips env to a minimal set, which silently breaks `uvx` (PATH). The bundles are copied from the submodules' `dist/` by `esbuild.mjs`'s `copyArtifacts()` — which also mirrors the `out/meshio/` tree beside `out/mcpServer.js` so the `mesh_convert`/`mesh_info` tools can read/write the extended meshio++ formats (see *Extended mesh formats* above); the submodules themselves are unmodified (the MCP servers are built by their normal `build`/`package` scripts on the `kkss.dev` branch).
 
 API keys are entered via **Settings ▸ LLM Assistant** (`showInputBox` modals) and stored in the stateStore encrypted with Electron `safeStorage` (`app/main/services/chat/secrets.ts`; plaintext fallback when the OS has no keyring). Settings are read per request — no restart needed. stateStore keys: `llmProvider`, `llmModelAnthropic`, `llmKeyAnthropic`, `llmModelOpenai`, `llmKeyOpenai`, `llmOpenaiBaseUrl`.
 

@@ -88,6 +88,23 @@ Concretely:
   and the OCCT/Gmsh binaries live under `out/cad-runtime/dist/` (the services
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
+- **meshio++ (extended mesh formats) is a verbatim WASM tree, loaded in-process.**
+  The mesh submodule reads/writes ~25 formats it has no native parser for (Gmsh,
+  Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, …) through the ESM-only
+  `@meshioplusplus/wasm` package. Like pyodide/flowgraph it ships verbatim as
+  `mesh/dist/meshio/`; `copyArtifacts()` mirrors it to a single **`out/meshio/`**
+  tree beside `out/main.js` — `mesh/src/parser/meshio.ts`'s `packageDir()` falls
+  back to `__dirname/meshio`, and since `meshio.ts` is bundled into **both**
+  `out/main.js` and `out/mcpServer.js` (`__dirname === out/` for each) that one
+  copy serves the mesh host and the MCP server. It loads the `.wasm` via meshio++'s
+  `locateFile` hook (the `wasmBinary` buffer hook MMG uses is pruned from this
+  build), so the tree must exist on disk — another reason for `asar: false`.
+  `@meshioplusplus/wasm` (and `@meshioplusplus/wasm/*`) is in `mainConfig.external`
+  in `esbuild.mjs`: the bundled `meshio.ts` has a
+  `require.resolve("@meshioplusplus/wasm/package.json")` literal esbuild would
+  otherwise resolve at build time. Not bundled → **never patch the submodule**;
+  after a mesh bump, rerun `npm run package --prefix mesh` so `mesh/dist/meshio/`
+  is regenerated before the parent build copies it.
 - **Flowgraph embedding is a forked child process, not WASM.** The mesh
   submodule's Flowgraph problemtype embeds the AGPL-3.0
   `@kratos-flowgraph/flowgraph` node editor in an iframe backed by a small

@@ -16,7 +16,7 @@ A cross-platform desktop application for **pre- and post-processing [Kratos Mult
 | Mode | Engine (submodule) | What it does |
 | --- | --- | --- |
 | 🔷 **Pre-Processing** | [CAD-Preview](https://github.com/loumalouomega/CAD-Preview) (`cad/`) | STEP/IGES/BREP + STL/OBJ/PLY/glTF viewing, part definition, parametric geometry editing, Gmsh FE meshing, MDPA export |
-| 🔶 **Post-Processing** | [VSCode-MDPA-Preview](https://github.com/loumalouomega/VSCode-MDPA-Preview) (`mesh/`) | MDPA/VTK inspection, field & time-series visualization, mesh quality, mesh operations with undo/redo, MMG remeshing, Kratos case setup & runs via built-in problemtypes (incl. the Flowgraph node-editor) |
+| 🔶 **Post-Processing** | [VSCode-MDPA-Preview](https://github.com/loumalouomega/VSCode-MDPA-Preview) (`mesh/`) | MDPA/VTK inspection plus 25+ extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, SU2, …), field & time-series visualization, mesh quality, mesh operations with undo/redo, MMG remeshing, Kratos case setup & runs via built-in problemtypes (incl. the Flowgraph node-editor) |
 
 The app opens on a **home screen** with one button per task; a toolbar toggle (and `Ctrl+0` for Home) switches between the screens, and both viewers stay alive, keeping their loaded file, camera, and history. Also in the box:
 

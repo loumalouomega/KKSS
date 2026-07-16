@@ -28,6 +28,8 @@ const required = [
   // Flowgraph static server + its served assets (flowgraphController.ts).
   ["mesh/dist/flowgraphServer.js", "npm run package --prefix mesh"],
   ["mesh/dist/flowgraph", "npm run package --prefix mesh"],
+  // meshio++ WASM tree backing the extended mesh formats (meshio.ts).
+  ["mesh/dist/meshio/src/index.mjs", "npm run package --prefix mesh"],
 ];
 for (const [rel, fix] of required) {
   if (!fs.existsSync(path.join(__dirname, rel))) {
@@ -96,7 +98,12 @@ const mainConfig = {
   outfile: "out/main.js",
   // node-pty is the app's only native module: kept external and shipped as
   // node_modules/node-pty in the package (see electron-builder.yml files).
-  external: ["electron", "node-pty"],
+  // @meshioplusplus/wasm is external too (mirroring mesh's own esbuild.js): the
+  // bundled meshio.ts has a `require.resolve("@meshioplusplus/wasm/package.json")`
+  // literal esbuild would try to resolve at build time (this repo has no such
+  // module), and its ESM-only glue must never be inlined. At runtime meshio.ts
+  // falls back to `__dirname/meshio`, i.e. the out/meshio/ tree copied below.
+  external: ["electron", "node-pty", "@meshioplusplus/wasm", "@meshioplusplus/wasm/*"],
   // `vscode` (imported by the reused mesh host modules) resolves to our shim.
   alias: { ...mmgAlias, ...gmshAlias, vscode: path.join(__dirname, "app/main/vscodeShim.ts") },
   ...importMetaShim,
@@ -236,6 +243,11 @@ function copyArtifacts() {
   // Flowgraph's served assets (public/views/LICENSE/vscode-bridge.js) are a
   // directory tree, not a single file — mirrored verbatim next to out/main.js.
   fs.cpSync(path.join(__dirname, "mesh/dist/flowgraph"), out("flowgraph"), { recursive: true });
+  // meshio++ (@meshioplusplus/wasm) is another verbatim tree: meshio.ts loads
+  // it via a runtime dynamic import of out/meshio/src/index.mjs + locateFile
+  // pointing at out/meshio/dist/*.wasm (its packageDir() __dirname fallback).
+  // One copy beside out/main.js serves both the mesh host and out/mcpServer.js.
+  fs.cpSync(path.join(__dirname, "mesh/dist/meshio"), out("meshio"), { recursive: true });
   console.log(`Copied ${copies.length} artifacts into out/`);
 }
 
