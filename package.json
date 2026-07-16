@@ -2,7 +2,7 @@
   "name": "kkss",
   "displayName": "KKSS — Keep Kratos Simple Stupid",
   "description": "Cross-platform desktop application for pre- and post-processing Kratos Multiphysics simulations, built on the CAD-Preview and VSCode-MDPA-Preview extensions.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "license": "AGPL-3.0-only",
   "author": "Vicente Mataix Ferrándiz",
   "repository": {
@@ -11,7 +11,7 @@
   },
   "main": "out/main.js",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "submodules:install": "npm ci --prefix cad && npm ci --prefix mesh",
@@ -37,7 +37,7 @@
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/theme-one-dark": "^6.1.3",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@types/node": "^18.19.0",
+    "@types/node": "^22.0.0",
     "@types/semver": "^7.7.1",
     "@types/vscode": "^1.125.0",
     "@xterm/addon-fit": "^0.10.0",
@@ -51,7 +51,7 @@
     "playwright-core": "^1.49.0",
     "semver": "^7.8.5",
     "typescript": "^5.4.0",
-    "vitest": "^1.4.0"
+    "vitest": "^4.1.10"
   },
   "allowScripts": {
     "electron@37.10.3": true,
