@@ -162,11 +162,13 @@ export type ShellToHost =
   | { type: "toggleChat" }
   | { type: "editCurrentFile" }
   | { type: "openFile" }
+  | { type: "setZoom"; factor: number }
   | { type: "toastButton"; id: number; button: string };
 
 /** Messages sent to the shell toolbar renderer. */
 export type ShellToWebview =
   | { type: "screen"; screen: Screen }
   | { type: "title"; view: Mode | "editor"; fileName: string | null; dirty?: boolean }
+  | { type: "zoom"; factor: number }
   | { type: "toast"; id: number; kind: "info" | "warning" | "error" | "progress"; text: string; buttons?: string[] }
   | { type: "toastUpdate"; id: number; text?: string; done?: boolean };

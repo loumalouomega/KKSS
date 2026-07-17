@@ -27,7 +27,28 @@ const editBtn = byId<HTMLButtonElement>("edit-btn");
 const terminalBtn = byId<HTMLButtonElement>("terminal-btn");
 const chatBtn = byId<HTMLButtonElement>("chat-btn");
 const fileTitle = byId<HTMLSpanElement>("file-title");
+const zoomSelect = byId<HTMLSelectElement>("zoom-select");
 const toasts = byId<HTMLDivElement>("toasts");
+
+// Interface-scale presets — kept in sync with ZOOM_PRESETS in app/main/windows.ts.
+const ZOOM_PRESETS = [0.75, 0.9, 1, 1.1, 1.25, 1.5];
+for (const f of ZOOM_PRESETS) {
+  const opt = document.createElement("option");
+  opt.value = String(f);
+  opt.textContent = `${Math.round(f * 100)}%`;
+  zoomSelect.appendChild(opt);
+}
+zoomSelect.value = "1";
+zoomSelect.addEventListener("change", () =>
+  api.post({ type: "setZoom", factor: Number(zoomSelect.value) })
+);
+
+/** Reflects the host's applied scale (menu shortcuts change it too). */
+function setZoomValue(factor: number): void {
+  let nearest = ZOOM_PRESETS[0];
+  for (const f of ZOOM_PRESETS) if (Math.abs(f - factor) < Math.abs(nearest - factor)) nearest = f;
+  zoomSelect.value = String(nearest);
+}
 
 // TikZ-generated, currentColor-based glyphs (icons/tikz-ui — see icons/README.md).
 homeBtn.innerHTML = `${icon("home")} Home`;
@@ -73,6 +94,9 @@ api.onMessage((raw) => {
       titles[msg.view] = msg.fileName;
       if (msg.view === "editor") editorDirty = msg.dirty ?? false;
       renderMode();
+      break;
+    case "zoom":
+      setZoomValue(msg.factor);
       break;
     case "toast": {
       const el = document.createElement("div");

@@ -89,9 +89,10 @@ Concretely:
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
 - **meshio++ (extended mesh formats) is a verbatim WASM tree, loaded in-process.**
-  The mesh submodule reads/writes ~25 formats it has no native parser for (Gmsh,
-  Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, …) through the ESM-only
-  `@meshioplusplus/wasm` package. Like pyodide/flowgraph it ships verbatim as
+  The mesh submodule reads ~29 (writes ~26) formats it has no native parser for
+  (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, …) through the
+  ESM-only `@meshioplusplus/wasm` package (6.1.0, which adds the field-only
+  `.dex`/`.ip`/`.mff` formats — point fields, no geometry). Like pyodide/flowgraph it ships verbatim as
   `mesh/dist/meshio/`; `copyArtifacts()` mirrors it to a single **`out/meshio/`**
   tree beside `out/main.js` — `mesh/src/parser/meshio.ts`'s `packageDir()` falls
   back to `__dirname/meshio`, and since `meshio.ts` is bundled into **both**
@@ -211,6 +212,19 @@ Concretely:
   that). Opening a file (CLI arg included) jumps straight to the owning
   mode. The editor's fs work stays in `app/main/services/editor.ts` — its
   renderer never touches the filesystem.
+- **Interface scale is one global zoom factor, chrome included.**
+  `MainWindow.setZoom()` (`app/main/windows.ts`) calls `setZoomFactor` on
+  *every* view (shell, home, editor, both modes, terminal, chat), and because
+  `setZoomFactor` scales content but not bounds, `layout()` multiplies the
+  fixed chrome constants (`SHELL_HEIGHT`/`TERMINAL_HEIGHT`/`CHAT_WIDTH`) by the
+  same factor — change one, change the other or the toolbar clips. Electron
+  drops a view's zoom to 1 on navigation, so each view re-asserts it on
+  `did-finish-load` (mode views reload on file open). Driven by the shell's
+  scale picker (`ShellToHost.setZoom`/`ShellToWebview.zoom`) and **View ▸ Zoom
+  In/Out/Reset** (`Ctrl +`/`Ctrl -`/`Ctrl+Shift+0` — `Ctrl+0` is Home);
+  persisted under the `uiZoom` stateStore key and re-applied via
+  `createMainWindow(__dirname, zoom)` on launch. `ZOOM_PRESETS` is the source
+  of truth — the shell renderer mirrors the same list to build the dropdown.
 
 ## Screenshots are generated, not hand-captured
 
