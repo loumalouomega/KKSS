@@ -60,12 +60,21 @@ async function attempt(c) {
   const { app, output } = await launchApp(c.file, { extraArgs: SOFTWARE_GL });
   const deadline = Date.now() + c.timeoutMs;
   try {
-    // 1. Protocol handshake visible on the KKSS_E2E message trace.
-    await waitForMarkers(output, c.expect, deadline);
-
-    // 2. The mode's webview page is live and shows its viewer DOM.
+    // 1. Grab the mode's webview page and assert its viewer DOM mounts *as the
+    //    view loads* — before the host pushes the model and vtk.js starts the
+    //    GPU render. Headless CI runners have no real GPU, so that render can
+    //    still crash the mesh renderer mid-frame even with software rendering
+    //    forced (the window blanks). We verify the integration — routing, HTML
+    //    generation, shim + bundle load — not that a broken CI GPU survives a
+    //    full render (real hardware does; the doc screenshots prove it).
     const page = await appWindow(app, c.windowUrl, deadline);
     await page.waitForSelector("#app", { state: "attached", timeout: 15_000 });
+
+    // 2. Protocol handshake on the KKSS_E2E trace. These are host→webview *sends*,
+    //    logged before the webview renders, so they land even if the render later
+    //    crashes — and the host only sends them after the webview posts `ready`,
+    //    which itself follows the DOM mount above.
+    await waitForMarkers(output, c.expect, deadline);
   } finally {
     await app.close().catch(() => {});
   }
