@@ -29,9 +29,11 @@ The toolbar at the top of the window holds the mode toggle:
 ![The shell toolbar: mode toggle, Open button, and the current file](/screenshots/shell-toolbar.png)
 
 - **🔷 Pre-Processing** — CAD geometry and model preparation ([details](/guide/cad-mode)). Opens STEP, IGES, BREP, STL, OBJ, PLY, and glTF.
-- **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 25+ extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, …).
+- **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 29 extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and a Mesh Size panel reports nodal/element size statistics.
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved.
+
+The toolbar also has an **interface-scale** picker on the right (75 %–150 %) for adjusting how large the whole app appears — useful on high-DPI or low-resolution displays. It scales every part of the window (toolbar, viewers, terminal, chat) together, is remembered across launches, and can also be driven from the keyboard: `Ctrl +` / `Ctrl -` step through the sizes and `Ctrl+Shift+0` resets to 100 % (also under **View ▸ Zoom In / Zoom Out / Reset Zoom**).
 
 | 🔷 Pre-Processing | 🔶 Post-Processing |
 | --- | --- |

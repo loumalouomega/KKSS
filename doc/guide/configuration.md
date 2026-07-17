@@ -6,6 +6,10 @@ KKSS deliberately keeps configuration minimal ("Keep Kratos Simple Stupid").
 
 The mesh viewer's theme selector (Auto / Dark / Light / Scientific, in the Post-Processing toolbar) persists across sessions.
 
+## Interface scale
+
+The **scale picker** on the right of the shell toolbar (75 %–150 %) sets how large the whole application is drawn — the toolbar, both viewers, the terminal, and the chat sidebar all scale together, so the layout stays proportional on high-DPI or low-resolution displays. The choice persists across launches. It's also on the keyboard: `Ctrl +` / `Ctrl -` step through the presets and `Ctrl+Shift+0` resets to 100 % (mirrored under **View ▸ Zoom In / Zoom Out / Reset Zoom**).
+
 ## LLM assistant
 
 **Settings ▸ LLM Assistant** configures the AI chat sidebar ([Getting Started ▸ AI assistant](/guide/getting-started#ai-assistant)):
@@ -25,7 +29,7 @@ Changes apply to the next chat message — no restart. API keys are encrypted wi
 
 | State | Location |
 | --- | --- |
-| App state (theme, one-time warnings) | `state.json` in the platform's user-data dir (`~/.config/KKSS` on Linux, `%APPDATA%/KKSS` on Windows, `~/Library/Application Support/KKSS` on macOS) |
+| App state (theme, interface scale, one-time warnings) | `state.json` in the platform's user-data dir (`~/.config/KKSS` on Linux, `%APPDATA%/KKSS` on Windows, `~/Library/Application Support/KKSS` on macOS) |
 | CAD parts / edits / mesh options | JSON sidecars next to the opened model — see [Pre-Processing mode](/guide/cad-mode#sidecar-files) |
 | Mesh operation recipes | Saved explicitly via the Edit sidebar's Save/Load buttons |
 

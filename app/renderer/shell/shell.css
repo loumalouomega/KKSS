@@ -86,6 +86,17 @@ body {
   color: var(--vscode-descriptionForeground);
 }
 
+#zoom-select {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 3px;
+  padding: 3px 4px;
+  font-size: 12px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
 #toasts {
   display: flex;
   gap: 6px;

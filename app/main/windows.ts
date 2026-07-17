@@ -16,6 +16,13 @@ export const SHELL_HEIGHT = 40;
 export const TERMINAL_HEIGHT = 280;
 export const CHAT_WIDTH = 360;
 
+/** Discrete interface-scale steps offered by the shell's zoom picker. */
+export const ZOOM_PRESETS = [0.75, 0.9, 1, 1.1, 1.25, 1.5] as const;
+export const DEFAULT_ZOOM = 1;
+const ZOOM_MIN = ZOOM_PRESETS[0];
+const ZOOM_MAX = ZOOM_PRESETS[ZOOM_PRESETS.length - 1];
+const clampZoom = (f: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, f));
+
 export interface MainWindow {
   win: BaseWindow;
   shell: WebContentsView;
@@ -32,9 +39,13 @@ export interface MainWindow {
   chatVisible: () => boolean;
   /** Shows/hides the chat sidebar, creating its view on first use. */
   toggleChat: () => { view: WebContentsView; visible: boolean };
+  /** Current interface scale (applied to every view + the chrome bounds). */
+  zoom: () => number;
+  /** Scales every view's content and the chrome constants; clamped to presets. */
+  setZoom: (factor: number) => number;
 }
 
-export function createMainWindow(outDir: string): MainWindow {
+export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): MainWindow {
   const win = new BaseWindow({
     width: 1360,
     height: 860,
@@ -99,22 +110,34 @@ export function createMainWindow(outDir: string): MainWindow {
   let terminalShown = false;
   let chat: WebContentsView | null = null;
   let chatShown = false;
+  // setZoomFactor scales each view's *content* but not its bounds, so the fixed
+  // chrome (shell bar, terminal, chat) must scale in lockstep or it would clip.
+  let currentZoom = clampZoom(initialZoom);
 
   const layout = () => {
     const { width, height } = win.getContentBounds();
-    shell.setBounds({ x: 0, y: 0, width, height: SHELL_HEIGHT });
-    const sidebar = chatShown ? Math.min(CHAT_WIDTH, Math.floor(width / 2)) : 0;
+    const shellH = Math.round(SHELL_HEIGHT * currentZoom);
+    shell.setBounds({ x: 0, y: 0, width, height: shellH });
+    const sidebar = chatShown ? Math.min(Math.round(CHAT_WIDTH * currentZoom), Math.floor(width / 2)) : 0;
     const bodyWidth = Math.max(0, width - sidebar);
-    const panel = terminalShown ? TERMINAL_HEIGHT : 0;
-    const body = { x: 0, y: SHELL_HEIGHT, width: bodyWidth, height: Math.max(0, height - SHELL_HEIGHT - panel) };
+    const panel = terminalShown ? Math.round(TERMINAL_HEIGHT * currentZoom) : 0;
+    const body = { x: 0, y: shellH, width: bodyWidth, height: Math.max(0, height - shellH - panel) };
     views.cad.setBounds(body);
     views.mesh.setBounds(body);
     editor.setBounds(body);
-    terminal?.setBounds({ x: 0, y: Math.max(SHELL_HEIGHT, height - panel), width: bodyWidth, height: panel });
-    chat?.setBounds({ x: bodyWidth, y: SHELL_HEIGHT, width: sidebar, height: Math.max(0, height - SHELL_HEIGHT) });
+    terminal?.setBounds({ x: 0, y: Math.max(shellH, height - panel), width: bodyWidth, height: panel });
+    chat?.setBounds({ x: bodyWidth, y: shellH, width: sidebar, height: Math.max(0, height - shellH) });
     home.setBounds({ x: 0, y: 0, width, height });
   };
   win.on("resize", layout);
+
+  // Electron resets a view's zoom to 1 on every navigation, so reassert it once
+  // each page commits (the mode views reload on file open). Applied to lazily
+  // created views (terminal, chat) in their factories below.
+  const trackZoom = (view: WebContentsView) =>
+    view.webContents.on("did-finish-load", () => view.webContents.setZoomFactor(currentZoom));
+  for (const v of [shell, home, editor, views.cad, views.mesh]) trackZoom(v);
+
   layout();
 
   const toggleTerminal = () => {
@@ -129,6 +152,7 @@ export function createMainWindow(outDir: string): MainWindow {
       });
       win.contentView.addChildView(terminal);
       win.contentView.addChildView(home); // keep the home screen topmost
+      trackZoom(terminal);
       void terminal.webContents.loadURL("kkss://app/renderer/terminal/index.html");
     }
     terminalShown = !terminalShown;
@@ -150,6 +174,7 @@ export function createMainWindow(outDir: string): MainWindow {
       });
       win.contentView.addChildView(chat);
       win.contentView.addChildView(home); // keep the home screen topmost
+      trackZoom(chat);
       void chat.webContents.loadURL("kkss://app/renderer/chat/index.html");
     }
     chatShown = !chatShown;
@@ -170,6 +195,14 @@ export function createMainWindow(outDir: string): MainWindow {
   };
   setScreen("home");
 
+  const setZoom = (factor: number): number => {
+    currentZoom = clampZoom(factor);
+    const live = [shell, home, editor, views.cad, views.mesh, terminal, chat];
+    for (const v of live) if (v) v.webContents.setZoomFactor(currentZoom);
+    layout();
+    return currentZoom;
+  };
+
   void shell.webContents.loadURL("kkss://app/renderer/shell/index.html");
   void home.webContents.loadURL("kkss://app/renderer/home/index.html");
   void editor.webContents.loadURL("kkss://app/renderer/editor/index.html");
@@ -189,5 +222,7 @@ export function createMainWindow(outDir: string): MainWindow {
     toggleTerminal,
     chatVisible: () => chatShown,
     toggleChat,
+    zoom: () => currentZoom,
+    setZoom,
   };
 }

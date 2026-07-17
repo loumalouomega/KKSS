@@ -30,6 +30,12 @@ export interface MenuDeps {
   setScreen(screen: Screen): void;
   toggleTerminal(): void;
   toggleChat(): void;
+  /** Interface-scale controls (see index.ts) — step through the shell's zoom presets. */
+  zoom: {
+    stepIn(): void;
+    stepOut(): void;
+    reset(): void;
+  };
   /** HTTP meta MCP server controls (see index.ts). */
   metaServer: {
     enabled(): boolean;
@@ -150,6 +156,31 @@ export function installMenu(deps: MenuDeps): void {
           label: "Post-Processing (Mesh)",
           accelerator: "CmdOrCtrl+2",
           click: () => deps.setScreen("mesh"),
+        },
+        { type: "separator" },
+        {
+          // Interface scale: applies to every view + the chrome, persisted.
+          // Ctrl+0 is "Home", so Reset uses Ctrl+Shift+0.
+          label: "Zoom In",
+          accelerator: "CmdOrCtrl+Plus",
+          click: () => deps.zoom.stepIn(),
+        },
+        // Hidden twin so the unshifted "Ctrl+=" also zooms in (Plus needs Shift).
+        {
+          label: "Zoom In",
+          accelerator: "CmdOrCtrl+=",
+          visible: false,
+          click: () => deps.zoom.stepIn(),
+        },
+        {
+          label: "Zoom Out",
+          accelerator: "CmdOrCtrl+-",
+          click: () => deps.zoom.stepOut(),
+        },
+        {
+          label: "Reset Zoom",
+          accelerator: "CmdOrCtrl+Shift+0",
+          click: () => deps.zoom.reset(),
         },
         { type: "separator" },
         {

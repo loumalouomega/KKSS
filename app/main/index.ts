@@ -4,7 +4,7 @@ import * as fsSync from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
-import { createMainWindow, MainWindow } from "./windows";
+import { createMainWindow, MainWindow, DEFAULT_ZOOM, ZOOM_PRESETS } from "./windows";
 import { CadHost } from "./cadHost";
 import { MeshHost } from "./mesh/meshHost";
 import { installMenu } from "./menu";
@@ -43,6 +43,30 @@ function cliFileArg(): string | undefined {
 
 function sendShell(message: unknown): void {
   main?.shell.webContents.send("shell:toWebview", message);
+}
+
+/** Persisted interface-scale (shared across launches). */
+const UI_ZOOM_KEY = "uiZoom";
+
+/** Applies an interface scale, persists it, and reflects it back to the shell picker. */
+function setUiZoom(factor: number): void {
+  if (!main) return;
+  const applied = main.setZoom(factor);
+  void stateStore.update(UI_ZOOM_KEY, applied);
+  sendShell({ type: "zoom", factor: applied });
+}
+
+/** Steps to the adjacent zoom preset (dir +1 = larger, -1 = smaller). */
+function stepUiZoom(dir: number): void {
+  if (!main) return;
+  const presets = ZOOM_PRESETS as readonly number[];
+  // Nearest current preset, so stepping is stable even after a clamp.
+  let i = 0;
+  for (let k = 1; k < presets.length; k++) {
+    if (Math.abs(presets[k] - main.zoom()) < Math.abs(presets[i] - main.zoom())) i = k;
+  }
+  const next = Math.min(presets.length - 1, Math.max(0, i + dir));
+  setUiZoom(presets[next]);
 }
 
 /** Opens a file in the mode the router picks (active mode wins on overlap). */
@@ -151,7 +175,7 @@ app.whenReady().then(() => {
   installProtocolHandlers(__dirname);
   configurePicker(__dirname);
   configureAbout(__dirname);
-  main = createMainWindow(__dirname);
+  main = createMainWindow(__dirname, stateStore.get<number>(UI_ZOOM_KEY, DEFAULT_ZOOM) ?? DEFAULT_ZOOM);
   configureNotifications(sendShell);
   __configureVscodeShim({
     openWith: (fsPath, viewType) => openFile(fsPath, modeForViewType(viewType)),
@@ -238,6 +262,11 @@ app.whenReady().then(() => {
     setScreen,
     toggleTerminal,
     toggleChat,
+    zoom: {
+      stepIn: () => stepUiZoom(1),
+      stepOut: () => stepUiZoom(-1),
+      reset: () => setUiZoom(DEFAULT_ZOOM),
+    },
     metaServer: {
       enabled: () => stateStore.get(META_SERVER_KEYS.enabled, false) ?? false,
       setEnabled: (enabled) => void setMetaServerEnabled(enabled),
@@ -281,6 +310,7 @@ app.whenReady().then(() => {
         sendShell({ type: "screen", screen: main.screen() });
         sendShell({ type: "title", view: "cad", fileName: cadHost?.currentFile ? path.basename(cadHost.currentFile) : null });
         sendShell({ type: "title", view: "mesh", fileName: meshHost?.currentFile ? path.basename(meshHost.currentFile) : null });
+        sendShell({ type: "zoom", factor: main.zoom() });
         break;
       case "setMode":
         setScreen(msg.mode);
@@ -303,6 +333,9 @@ app.whenReady().then(() => {
       case "openFile":
         if (main.mode() === "cad") void cadHost?.openFileDialog();
         else void openMesh(); // mesh/src/meshExport openMesh → dialog → openWith hook
+        break;
+      case "setZoom":
+        setUiZoom(msg.factor);
         break;
       case "toastButton":
         handleToastButton(msg.id, msg.button);

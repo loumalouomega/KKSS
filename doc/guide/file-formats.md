@@ -8,7 +8,7 @@
 | `.gltf` `.glb` | 🔷 Pre-Processing | Loaded natively by Three.js |
 | `.mdpa` | 🔶 Post-Processing | Kratos model part |
 | `.vtk` `.vtu` `.vtp` `.vti` `.vts` `.vtr` `.vtm` | 🔶 Post-Processing | Legacy + XML VTK, multiblock, time-series |
-| `.msh` `.inp` `.bdf` `.nas` `.fem` `.unv` `.mesh` `.vol` `.su2` `.xdmf` `.xmf` `.off` `.avs` `.dat` `.tec` `.mphtxt` `.node` `.ele` `.f3grid` `.pf3` `.post` `.dato` `.ugrid` `.mfm` `.wkt` `.xml` | 🔶 Post-Processing | Extended formats read via [meshio++](https://github.com/nschloe/meshio) (Gmsh, Abaqus/ANSYS, Nastran, I-deas UNV, Medit, Netgen, SU2, XDMF, COMSOL, tetgen, …) |
+| `.msh` `.inp` `.bdf` `.nas` `.fem` `.unv` `.mesh` `.vol` `.su2` `.xdmf` `.xmf` `.off` `.avs` `.dat` `.tec` `.mphtxt` `.node` `.ele` `.f3grid` `.pf3` `.post` `.dato` `.ugrid` `.mfm` `.wkt` `.xml` `.dex` `.ip` `.mff` | 🔶 Post-Processing | Extended formats read via [meshio++](https://github.com/nschloe/meshio) (Gmsh, Abaqus/ANSYS, Nastran, I-deas UNV, Medit, Netgen, SU2, XDMF, COMSOL, tetgen, …). `.dex`/`.ip`/`.mff` are field-only formats — they carry point fields with no geometry, so reading one yields a point cloud (or an empty mesh) |
 | `.stl` `.obj` `.ply` | Both | Opens in the **currently active** mode |
 
 ## Export targets
@@ -21,4 +21,4 @@
 
 When an FE-meshing export produces a file Post-Processing can display (`.mdpa`, `.vtk`, …), the app switches to Post-Processing mode and opens it automatically — a one-way pre → post handoff. Exports the post viewer can't open (`.msh`, `.inp`, …) and shared formats (`.stl`/`.obj`/`.ply`) stay in Pre-Processing.
 
-**Post-Processing**: MDPA, VTK (legacy), VTU, VTP, STL, OBJ, PLY — for the whole model or any single SubModelPart — plus ~23 extended formats written via [meshio++](https://github.com/nschloe/meshio) (Gmsh `.msh`, Abaqus `.inp`, Nastran `.bdf`/`.nas`/`.fem`, I-deas UNV, Medit `.mesh`, Netgen `.vol`, SU2, XDMF, and more). Structured VTK types (`.vti`/`.vts`/ `.vtr`) and `.vtm` are view-only.
+**Post-Processing**: MDPA, VTK (legacy), VTU, VTP, STL, OBJ, PLY — for the whole model or any single SubModelPart — plus ~26 extended formats written via [meshio++](https://github.com/nschloe/meshio) (Gmsh `.msh`, Abaqus `.inp`, Nastran `.bdf`/`.nas`/`.fem`, I-deas UNV, Medit `.mesh`, Netgen `.vol`, SU2, XDMF, and more), including the field-only `.dex`/`.ip`/`.mff` targets (point fields kept, geometry dropped). Structured VTK types (`.vti`/`.vts`/ `.vtr`) and `.vtm` are view-only.

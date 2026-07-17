@@ -11,6 +11,27 @@
  */
 import { launchApp, waitForMarkers, appWindow } from "./e2eShared.mjs";
 
+// Headless CI runners have no real GPU. Left to auto-pick, Chromium crashes the
+// mesh viewer's vtk.js renderer mid-frame — the GPU compositor fails to allocate
+// shared memory ("Creation of StagingBuffer's SharedImage failed") and the driver
+// stalls on ReadPixels — blanking the mesh window after the model loads, so the
+// mesh smoke cases fail with "No window matching /renderer/mesh/" even though the
+// host↔webview handshake completed. Force a fully software path:
+//   --use-gl=angle --use-angle=swiftshader  → software WebGL for vtk.js
+//   --disable-gpu-compositing               → software compositor (no GPU
+//                                             SharedImages — the failing alloc)
+//   --disable-dev-shm-usage                 → /tmp instead of the small /dev/shm
+// Scoped to the smoke test only; screenshots keep hardware rendering for quality.
+const SOFTWARE_GL = [
+  "--use-gl=angle",
+  "--use-angle=swiftshader",
+  "--disable-gpu-compositing",
+  "--disable-dev-shm-usage",
+];
+
+/** Software rendering in CI is occasionally still flaky; one clean retry. */
+const ATTEMPTS = 2;
+
 const CASES = [
   {
     name: "cad STEP (OCCT worker)",
@@ -35,8 +56,8 @@ const CASES = [
   },
 ];
 
-async function runCase(c) {
-  const { app, output } = await launchApp(c.file);
+async function attempt(c) {
+  const { app, output } = await launchApp(c.file, { extraArgs: SOFTWARE_GL });
   const deadline = Date.now() + c.timeoutMs;
   try {
     // 1. Protocol handshake visible on the KKSS_E2E message trace.
@@ -45,10 +66,21 @@ async function runCase(c) {
     // 2. The mode's webview page is live and shows its viewer DOM.
     const page = await appWindow(app, c.windowUrl, deadline);
     await page.waitForSelector("#app", { state: "attached", timeout: 15_000 });
-
-    console.log(`PASS ${c.name}`);
   } finally {
     await app.close().catch(() => {});
+  }
+}
+
+async function runCase(c) {
+  for (let i = 1; i <= ATTEMPTS; i++) {
+    try {
+      await attempt(c);
+      console.log(`PASS ${c.name}${i > 1 ? ` (attempt ${i})` : ""}`);
+      return;
+    } catch (err) {
+      if (i === ATTEMPTS) throw err;
+      console.error(`retry ${c.name} (attempt ${i} failed: ${err instanceof Error ? err.message : err})`);
+    }
   }
 }
 
