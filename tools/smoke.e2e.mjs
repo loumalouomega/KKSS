@@ -11,6 +11,14 @@
  */
 import { launchApp, waitForMarkers, appWindow } from "./e2eShared.mjs";
 
+// Force a deterministic *software* WebGL backend (ANGLE over SwiftShader) for the
+// mesh viewer's vtk.js. Headless CI runners have no real GPU; left to auto-pick,
+// Chromium lands on an unstable driver path (llvmpipe) that crashes the mesh
+// renderer mid-frame ("StagingBuffer's SharedImage failed" / "GPU stall due to
+// ReadPixels"), blanking the window after the model loads. SwiftShader is slower
+// but reliable everywhere — the smoke test only needs "renders without crashing".
+const SOFTWARE_GL = ["--use-gl=angle", "--use-angle=swiftshader"];
+
 const CASES = [
   {
     name: "cad STEP (OCCT worker)",
@@ -36,7 +44,7 @@ const CASES = [
 ];
 
 async function runCase(c) {
-  const { app, output } = await launchApp(c.file);
+  const { app, output } = await launchApp(c.file, { extraArgs: SOFTWARE_GL });
   const deadline = Date.now() + c.timeoutMs;
   try {
     // 1. Protocol handshake visible on the KKSS_E2E message trace.
