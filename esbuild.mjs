@@ -145,6 +145,7 @@ const preloadConfig = {
     "app/preload/pickerPreload.ts",
     "app/preload/homePreload.ts",
     "app/preload/aboutPreload.ts",
+    "app/preload/whatsNewPreload.ts",
     "app/preload/terminalPreload.ts",
     "app/preload/editorPreload.ts",
     "app/preload/chatPreload.ts",
@@ -166,6 +167,7 @@ const shellRendererConfig = {
     "app/renderer/picker/picker.ts",
     "app/renderer/home/home.ts",
     "app/renderer/about/about.ts",
+    "app/renderer/whatsnew/whatsnew.ts",
     "app/renderer/terminal/terminal.ts",
     "app/renderer/editor/editor.ts",
     "app/renderer/chat/chat.ts",
@@ -227,6 +229,11 @@ function copyArtifacts() {
     ["app/renderer/home/home.css", out("renderer/home/home.css")],
     ["app/renderer/about/about.html", out("renderer/about/about.html")],
     ["app/renderer/about/about.css", out("renderer/about/about.css")],
+    ["app/renderer/whatsnew/whatsnew.html", out("renderer/whatsnew/whatsnew.html")],
+    ["app/renderer/whatsnew/whatsnew.css", out("renderer/whatsnew/whatsnew.css")],
+    // Read by services/whatsNew.ts (__dirname/CHANGELOG.md) to populate the
+    // "What's New" dialog — the repo-root file, copied verbatim.
+    ["CHANGELOG.md", out("CHANGELOG.md")],
     ["app/renderer/terminal/index.html", out("renderer/terminal/index.html")],
     ["app/renderer/terminal/terminal.css", out("renderer/terminal/terminal.css")],
     ["node_modules/@xterm/xterm/css/xterm.css", out("renderer/terminal/xterm.css")],

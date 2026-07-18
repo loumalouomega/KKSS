@@ -12,6 +12,7 @@ import type { MeshHost } from "./mesh/meshHost";
 import type { Screen } from "./ipc";
 import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
+import { showChangelog } from "./services/whatsNew";
 import { stateStore } from "./services/stateStore";
 import { hasSecret, setSecret } from "./services/chat/secrets";
 import { LLM_KEYS } from "./services/chat/chatService";
@@ -316,6 +317,7 @@ export function installMenu(deps: MenuDeps): void {
           click: () => void shell.openExternal("https://github.com/loumalouomega/VSCode-MDPA-Preview"),
         },
         { type: "separator" },
+        { label: "What's New…", click: () => showChangelog() },
         { label: "About KKSS…", click: () => showAbout() },
       ],
     },

@@ -1,0 +1,84 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+#whatsnew {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px 14px;
+  box-sizing: border-box;
+  height: 100vh;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+}
+
+#title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--vscode-textLink-foreground);
+}
+
+#version {
+  font-weight: 400;
+  color: var(--vscode-descriptionForeground);
+}
+
+#entries {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 12px;
+  padding-right: 4px;
+}
+
+#entries section {
+  margin-bottom: 14px;
+}
+
+#entries h2 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+#entries .date {
+  font-weight: 400;
+  color: var(--vscode-descriptionForeground);
+}
+
+#entries ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+#entries li {
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+#footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+#footer button {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 3px;
+  padding: 6px 16px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#footer button:hover {
+  background: var(--vscode-button-hoverBackground);
+}

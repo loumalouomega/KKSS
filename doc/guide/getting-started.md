@@ -43,6 +43,8 @@ The toolbar also has an **interface-scale** picker on the right (75 %–150 %) f
 
 **Help** on the home screen (or **Help ▸ About KKSS…**) shows the app version and checks GitHub for a newer release. When an update exists, **Update now** downloads and installs it in place on Windows and on the Linux AppImage — restart when prompted. `.deb` and macOS installs instead get a button to the releases page (those package types can't self-update; macOS builds are unsigned). No network? The dialog still shows your version and offers a Retry.
 
+After an update, the next launch automatically pops up a **What's New** window listing what changed since the version you last ran — no popup on a first install, and it only ever shows entries newer than what you'd already seen. Dismiss it with **Got it** (or Esc); reopen the full history any time from **Help ▸ What's New…**.
+
 ## Embedded terminal
 
 The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**) opens a shell panel below the viewer — handy for launching Kratos runs (`python MainKratos.py`) while watching the model. The session starts in the current file's directory, runs PowerShell on Windows and your `$SHELL` on macOS/Linux (changeable under **Settings ▸ Terminal Shell**), keeps running while hidden (hide it with the **✕ Hide** button in the panel's corner, the toolbar button, or ``Ctrl+` ``), and offers a restart when the shell exits. The panel is shared by both modes; its height is fixed in this version.

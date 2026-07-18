@@ -26,6 +26,8 @@ export const channels = {
   aboutInit: "about:init",
   aboutToHost: "about:toHost",
   aboutToWebview: "about:toWebview",
+  whatsNewInit: "whatsNew:init",
+  whatsNewToHost: "whatsNew:toHost",
   termToHost: "term:toHost",
   termToWebview: "term:toWebview",
   editorToHost: "editor:toHost",
@@ -144,6 +146,22 @@ export type AboutToWebview = {
   /** Whether in-app download+install is possible on this install type. */
   canAutoUpdate?: boolean;
 };
+
+/** One CHANGELOG.md release entry, parsed by services/whatsNew.ts. */
+export interface ChangelogEntry {
+  version: string;
+  date: string;
+  bullets: string[];
+}
+
+/** Static facts sent to the What's New window once its page has loaded. */
+export interface WhatsNewInit {
+  version: string;
+  entries: ChangelogEntry[];
+}
+
+/** Messages posted by the What's New dialog renderer. */
+export type WhatsNewToHost = { type: "close" };
 
 /** Actions of the home-screen menu buttons (see app/renderer/home/homeConfig.ts). */
 export type HomeAction = "preprocessing" | "postprocessing" | "editor" | "settings" | "help";

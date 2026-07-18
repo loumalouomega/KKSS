@@ -11,6 +11,7 @@ import { installMenu } from "./menu";
 import { modeForFile, modeForViewType } from "./router";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
+import { configureWhatsNew, checkForNewVersion } from "./services/whatsNew";
 import { TerminalService } from "./services/terminal";
 import { EditorService } from "./services/editor";
 import { ChatService } from "./services/chat/chatService";
@@ -175,6 +176,7 @@ app.whenReady().then(() => {
   installProtocolHandlers(__dirname);
   configurePicker(__dirname);
   configureAbout(__dirname);
+  configureWhatsNew(__dirname);
   main = createMainWindow(__dirname, stateStore.get<number>(UI_ZOOM_KEY, DEFAULT_ZOOM) ?? DEFAULT_ZOOM);
   configureNotifications(sendShell);
   __configureVscodeShim({
@@ -342,6 +344,10 @@ app.whenReady().then(() => {
         break;
     }
   });
+
+  // Shows the "What's New" changelog once per version bump (silent on a fresh
+  // install and under the e2e smoke test — see services/whatsNew.ts).
+  checkForNewVersion();
 
   const fileArg = cliFileArg();
   if (fileArg) {
