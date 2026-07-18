@@ -182,8 +182,12 @@ Concretely:
   config) and must launch with `env -u ELECTRON_RUN_AS_NODE`. The build
   context requires initialized submodules; `docker/*.sh` must stay LF
   (`.gitattributes` enforces this — the scripts run inside the Linux
-  container). `.github/workflows/docker.yml` builds and boot-checks the image;
-  user docs live in `doc/guide/web-deployment.md`.
+  container). `.github/workflows/docker.yml` builds and boot-checks the image
+  on branch pushes/PRs, and on `v*.*.*` tags additionally **publishes
+  `vmataix/kkss` (`X.Y.Z` + `latest`, amd64-only) to Docker Hub** —
+  gated on the boot check, authenticated via the `DOCKERHUB_USERNAME` /
+  `DOCKERHUB_TOKEN` repository secrets. User docs live in
+  `doc/guide/web-deployment.md`.
 - **Menu bar holds app-level items only.** Viewer actions (quality, fields,
   find entity…) live in the submodules' own toolbars — don't duplicate them
   in the native menu. App preferences go in the Settings menu, persisted via

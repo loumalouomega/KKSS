@@ -48,7 +48,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, testing, an
 ### Run in a browser (Docker)
 
 The unmodified app can also be streamed to a browser tab from a Docker
-container (Xvfb + noVNC; single-user/demo scope):
+container (Xvfb + noVNC; single-user/demo scope). A prebuilt linux/amd64
+image is published to [Docker Hub](https://hub.docker.com/r/vmataix/kkss)
+on every release:
+
+```bash
+docker run -d -p 6080:6080 --shm-size=1g vmataix/kkss:latest
+# then open http://localhost:6080/vnc.html
+```
+
+Or build it yourself from a checkout with initialized submodules:
 
 ```bash
 git submodule update --init --recursive
