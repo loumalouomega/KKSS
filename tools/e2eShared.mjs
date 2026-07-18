@@ -46,14 +46,32 @@ export async function waitForMarkers(output, markers, deadline) {
   }
 }
 
-/** Polls for the window whose page URL contains `urlPart`. */
-export async function appWindow(app, urlPart, deadline) {
+/**
+ * Polls for the window whose page URL contains `urlPart`.
+ *
+ * With `deadGraceMs` set, gives up early when a window keeps reporting a
+ * non-app URL (e.g. ":") for that long: a view whose renderer crashed before
+ * committing its URL never recovers within the launch, so waiting out the
+ * full deadline only delays the caller's relaunch-and-retry.
+ */
+export async function appWindow(app, urlPart, deadline, { deadGraceMs } = {}) {
+  let deadSince;
   for (;;) {
-    for (const page of app.windows()) {
+    const windows = app.windows();
+    for (const page of windows) {
       if (page.url().includes(urlPart)) return page;
     }
-    if (Date.now() > deadline) {
-      const urls = app.windows().map((w) => w.url());
+    const urls = windows.map((w) => w.url());
+    const now = Date.now();
+    if (deadGraceMs && urls.some((u) => !u.startsWith("kkss:"))) {
+      deadSince ??= now;
+      if (now - deadSince > deadGraceMs) {
+        throw new Error(`No window matching "${urlPart}" and a window looks renderer-dead after ${deadGraceMs}ms. Windows: ${urls.join(", ")}`);
+      }
+    } else {
+      deadSince = undefined;
+    }
+    if (now > deadline) {
       throw new Error(`No window matching "${urlPart}". Windows: ${urls.join(", ")}`);
     }
     await sleep(250);

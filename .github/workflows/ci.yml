@@ -25,6 +25,13 @@ jobs:
 
       - run: npm ci
 
+      # npm ci can leave node_modules/electron/dist unpopulated, in which case
+      # the smoke test's first launch lazily downloads the binary and eats into
+      # its case deadline. Force the download here (no-op when already present).
+      # Same fix as docker/Dockerfile.
+      - name: Ensure Electron binary
+        run: node node_modules/electron/install.js && test -x node_modules/electron/dist/electron
+
       - name: Install submodule dependencies
         run: npm run submodules:install
 

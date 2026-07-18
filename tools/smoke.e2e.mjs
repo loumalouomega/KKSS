@@ -29,8 +29,14 @@ const SOFTWARE_GL = [
   "--disable-dev-shm-usage",
 ];
 
-/** Software rendering in CI is occasionally still flaky; one clean retry. */
-const ATTEMPTS = 2;
+/**
+ * Software rendering in CI is occasionally still flaky — the mesh view's
+ * renderer can die on load (its window then reports a bogus URL like ":").
+ * Each attempt is a fresh launch; the dead-renderer fast-fail in appWindow
+ * keeps failed attempts cheap, so allow two clean retries.
+ */
+const ATTEMPTS = 3;
+const DEAD_RENDERER_GRACE_MS = 15_000;
 
 const CASES = [
   {
@@ -71,7 +77,7 @@ async function attempt(c) {
     //    forced (the window blanks). We verify the integration — routing, HTML
     //    generation, shim + bundle load — not that a broken CI GPU survives a
     //    full render (real hardware does; the doc screenshots prove it).
-    const page = await appWindow(app, c.windowUrl, deadline);
+    const page = await appWindow(app, c.windowUrl, deadline, { deadGraceMs: DEAD_RENDERER_GRACE_MS });
     await page.waitForSelector("#app", { state: "attached", timeout: 15_000 });
 
     // 2. Protocol handshake on the KKSS_E2E trace. These are host→webview *sends*,
