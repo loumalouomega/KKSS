@@ -5,6 +5,15 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.0.6] - 2026-07-18
+
+- feat: bump the mesh submodule to meshio++ 6.6.1, adding read support for
+  EnSight Gold (`.case`/`.geo`) and Triangle (`.poly`) meshes and export to
+  the write-only SVG/TikZ figure formats (a new "Figures" export menu group)
+- docs: format counts and lists updated across README.md, doc/, CLAUDE.md,
+  and the AI chat sidebar's system prompt to reflect the 32 read / 29 write
+  meshio++ formats
+
 ## [1.0.5] - 2026-07-18
 
 - ci: publish the streamed-desktop Docker image to Docker Hub as
