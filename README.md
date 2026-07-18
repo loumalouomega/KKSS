@@ -45,6 +45,18 @@ npm run dist       # package installers into release/
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, testing, and the submodule update procedure.
 
+### Run in a browser (Docker)
+
+The unmodified app can also be streamed to a browser tab from a Docker
+container (Xvfb + noVNC; single-user/demo scope):
+
+```bash
+git submodule update --init --recursive
+docker compose up --build     # then open http://localhost:6080/vnc.html
+```
+
+See the [web deployment guide](https://loumalouomega.github.io/KKSS/guide/web-deployment) for volumes, environment variables, and security caveats.
+
 ## Licensing
 
 KKSS is licensed **AGPL-3.0** (see [LICENSE](LICENSE)). It bundles the GPL-2.0-or-later licensed CAD-Preview engine — whose shipped WASM statically links [Gmsh](https://gmsh.info) and OpenCASCADE — and the AGPL-3.0-or-later licensed VSCode-MDPA-Preview engine, whose Flowgraph problemtype embeds the AGPL-3.0 [`@kratos-flowgraph/flowgraph`](https://www.npmjs.com/package/@kratos-flowgraph/flowgraph) node editor; AGPL-3.0 is the compatible license for the combined distribution.

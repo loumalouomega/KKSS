@@ -15,6 +15,10 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
 
+  // localhost URLs (e.g. the Docker/noVNC quickstart) are runtime endpoints,
+  // not site pages — don't fail the build on them.
+  ignoreDeadLinks: [/^https?:\/\/localhost/],
+
   themeConfig: {
     nav: [
       { text: 'Download', link: '/download' },
@@ -25,7 +29,8 @@ export default defineConfig({
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },
           { text: 'File Formats', link: '/guide/file-formats' },
-          { text: 'Configuration', link: '/guide/configuration' }
+          { text: 'Configuration', link: '/guide/configuration' },
+          { text: 'Web Deployment (Docker)', link: '/guide/web-deployment' }
         ]
       },
       { text: 'Development', link: '/guide/development' },
@@ -47,7 +52,8 @@ export default defineConfig({
       {
         text: 'Development',
         items: [
-          { text: 'Architecture & Building', link: '/guide/development' }
+          { text: 'Architecture & Building', link: '/guide/development' },
+          { text: 'Web Deployment (Docker)', link: '/guide/web-deployment' }
         ]
       }
     ],

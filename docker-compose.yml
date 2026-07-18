@@ -1,0 +1,24 @@
+# Run KKSS in the browser: docker compose up --build → http://localhost:6080/vnc.html
+# Prereq: git submodule update --init --recursive (the image builds from the
+# checked-out submodules). Single-user/demo scope — one container = one session.
+services:
+  kkss:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: kkss-web:local
+    ports:
+      - "6080:6080" # noVNC — open http://localhost:6080/vnc.html
+    shm_size: "1gb" # belt-and-braces alongside --disable-dev-shm-usage
+    restart: unless-stopped
+    environment:
+      DISPLAY_SIZE: "1920x1080" # virtual screen geometry (fixed per start)
+      # VNC_PASSWORD: "changeme" # optional session password (set before exposing beyond localhost)
+      # OPEN_FILE: /workspace/model.mdpa # optional file to open at launch
+    volumes:
+      # User simulation files — the in-app dialogs browse the container FS.
+      - ./mesh/example:/workspace
+      # Settings (state.json) persistence across container restarts.
+      - kkss-userdata:/root/.config/kkss
+volumes:
+  kkss-userdata:

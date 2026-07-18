@@ -1,0 +1,13 @@
+# Keep the Docker build context lean; the image installs and builds from scratch.
+.git
+.github
+node_modules
+cad/node_modules
+mesh/node_modules
+out
+release
+doc/node_modules
+doc/.vitepress/dist
+doc/.vitepress/cache
+test
+images

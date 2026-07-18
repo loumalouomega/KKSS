@@ -17,6 +17,8 @@ npm test               # vitest glue tests in test/ (submodules run their own su
 npm run smoke          # headless e2e (Linux: xvfb-run -a npm run smoke)
 npm start              # full build + launch
 npm run dist           # package installers into release/
+npm run docker:build   # build the streamed-desktop web image (docker compose build)
+npm run docker:up      # serve the app to a browser at http://localhost:6080/vnc.html
 npm run build:icons    # TikZ → SVG/PNG icons (needs pdflatex + pdftocairo)
 npm run docs:screenshots  # regenerate doc screenshots from the live app (see below)
 npm run docs:dev / docs:build  # VitePress site in doc/
@@ -172,6 +174,16 @@ Concretely:
   `USE_HARD_LINKS=false` in release.yml is about). Pages that need
   runtime-injected styles (terminal's xterm.js) may relax CSP to
   `style-src kkss: 'unsafe-inline'` — that page only.
+- **Docker web deployment streams the unmodified desktop app.** `docker/`
+  (Dockerfile + `entrypoint.sh`) + root `docker-compose.yml` run the app
+  headless (Xvfb + openbox + x11vnc + noVNC on port 6080) — no app-code fork.
+  The entrypoint's Electron flag set **must stay in sync with
+  `tools/smoke.e2e.mjs`/`tools/e2eShared.mjs`** (the CI-proven headless
+  config) and must launch with `env -u ELECTRON_RUN_AS_NODE`. The build
+  context requires initialized submodules; `docker/*.sh` must stay LF
+  (`.gitattributes` enforces this — the scripts run inside the Linux
+  container). `.github/workflows/docker.yml` builds and boot-checks the image;
+  user docs live in `doc/guide/web-deployment.md`.
 - **Menu bar holds app-level items only.** Viewer actions (quality, fields,
   find entity…) live in the submodules' own toolbars — don't duplicate them
   in the native menu. App preferences go in the Settings menu, persisted via

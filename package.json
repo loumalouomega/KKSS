@@ -29,7 +29,9 @@
     "start:fast": "npm run build:app && electron .",
     "dist": "npm run build && electron-builder --publish never",
     "docs:dev": "npm run docs:dev --prefix doc",
-    "docs:build": "npm run docs:build --prefix doc"
+    "docs:build": "npm run docs:build --prefix doc",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.111.0",

@@ -1,0 +1,62 @@
+# Proves the streamed-desktop Docker image builds and boots: noVNC answers and
+# the Electron process is alive. Build-only for now — publishing to GHCR on
+# v* tags is a possible follow-up (add docker/login-action + push: true).
+name: Docker
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "docker/**"
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - "package*.json"
+      - "app/**"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    paths:
+      - "docker/**"
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - "package*.json"
+      - "app/**"
+      - ".github/workflows/docker.yml"
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          tags: kkss-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Boot container and healthcheck
+        run: |
+          docker run -d --name kkss --shm-size=1g -p 6080:6080 kkss-web:ci
+          ok=0
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:6080/ >/dev/null; then ok=1; break; fi
+            sleep 2
+          done
+          [ "$ok" = "1" ]
+          curl -fsS http://localhost:6080/vnc.html >/dev/null
+          # The app process must be alive (rendering itself is asserted by the
+          # smoke test in ci.yml, not here).
+          docker exec kkss pgrep -f "electron" >/dev/null
+          docker logs kkss
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f kkss || true
