@@ -46,6 +46,22 @@ of the change, not a follow-up. Concretely:
 If a change is purely internal refactoring with no observable behavior or API
 difference, docs don't need to move — use judgment, but default to checking.
 
+## Keep CHANGELOG.md in sync
+
+**Every version bump (`chore: bump version to X.Y.Z` in `package.json` /
+`package-lock.json`, immediately followed by a `vX.Y.Z` tag) must add a
+matching entry to `CHANGELOG.md` in the same change** — don't leave it for a
+follow-up. Format (Keep a Changelog style, newest first):
+- A `## [X.Y.Z] - YYYY-MM-DD` heading (use the tag's date; UTC) with bullet
+  points summarizing the notable commits since the previous tag — feature
+  work and user-facing fixes, not every `chore:`/merge commit. If the release
+  is a version bump only with no functional change, say so in one line (see
+  the 1.0.1 entry for the pattern).
+- A compare-link reference at the bottom:
+  `[X.Y.Z]: https://github.com/loumalouomega/KKSS/compare/vPREV...vX.Y.Z`.
+`git log vPREV..HEAD --oneline` (or `gh release view vX.Y.Z` once the release
+exists) is the source of truth for what changed — don't guess.
+
 ## Keep chat features in sync
 
 **Every time a new feature is added to the app, update the AI chat sidebar so
