@@ -5,6 +5,13 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.0.3] - 2026-07-18
+
+- ci: fix the smoke test's CAD case spuriously failing Playwright's own
+  `electron.launch()` timeout — it was hardcoded to 60s, shorter than the
+  case's own 90s deadline, so the heavier OCCT+WebGL boot could never use
+  its full budget
+
 ## [1.0.2] - 2026-07-17
 
 - ci: make the smoke test robust to the headless-GPU render crash
@@ -95,6 +102,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.0.3]: https://github.com/loumalouomega/KKSS/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/loumalouomega/KKSS/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/loumalouomega/KKSS/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/loumalouomega/KKSS/compare/v0.9.1...v1.0.0
