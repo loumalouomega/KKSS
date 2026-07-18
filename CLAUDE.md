@@ -107,10 +107,13 @@ Concretely:
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
 - **meshio++ (extended mesh formats) is a verbatim WASM tree, loaded in-process.**
-  The mesh submodule reads ~29 (writes ~26) formats it has no native parser for
-  (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, …) through the
-  ESM-only `@meshioplusplus/wasm` package (6.1.0, which adds the field-only
-  `.dex`/`.ip`/`.mff` formats — point fields, no geometry). Like pyodide/flowgraph it ships verbatim as
+  The mesh submodule reads ~32 (writes ~29) formats it has no native parser for
+  (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
+  Triangle, …) through the ESM-only `@meshioplusplus/wasm` package (6.6.1, which
+  adds the field-only `.dex`/`.ip`/`.mff` formats — point fields, no geometry —
+  plus EnSight Gold `.case`/`.geo` and Triangle `.poly` reads and the write-only
+  SVG/TikZ figure formats, exposed in the export menu's "Figures" group). Like
+  pyodide/flowgraph it ships verbatim as
   `mesh/dist/meshio/`; `copyArtifacts()` mirrors it to a single **`out/meshio/`**
   tree beside `out/main.js` — `mesh/src/parser/meshio.ts`'s `packageDir()` falls
   back to `__dirname/meshio`, and since `meshio.ts` is bundled into **both**

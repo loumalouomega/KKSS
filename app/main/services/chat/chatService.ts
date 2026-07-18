@@ -64,8 +64,8 @@ edit operations via sidecar files, define FEM sub-model-parts, generate and expo
 Call cad__describe_capabilities before your first cad__apply_edit_ops to learn the operation catalog.
 - mesh__* (kratos-mdpa): mesh inspection and transformation — info, quality metrics, and mesh size \
 (nodal Kratos NODAL_H + element edge length with box-whisker stats and IQR small/large outlier ids) for MDPA, \
-VTK, STL/OBJ/PLY and 29 extended formats read through meshio++ (Gmsh .msh, Abaqus .inp, Nastran, UNV, Medit, \
-Netgen, SU2, XDMF, tetgen, …), transforms (incl. MMG remeshing), format conversion (pass inputFormat/\
+VTK, STL/OBJ/PLY and 32 extended formats read through meshio++ (Gmsh .msh, Abaqus .inp, Nastran, UNV, Medit, \
+Netgen, SU2, XDMF, tetgen, EnSight Gold, Triangle, …), transforms (incl. MMG remeshing), format conversion (pass inputFormat/\
 outputFormat to force a meshio++ reader/writer when the extension is ambiguous), and Kratos case setup \
 (problemtypes, ProjectParameters, materials).
 - kratos__* (kratos-mcp-server): the Kratos Multiphysics engine and its knowledge layer — \

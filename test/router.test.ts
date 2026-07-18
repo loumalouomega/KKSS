@@ -17,9 +17,10 @@ describe("modeForFile", () => {
   });
 
   it("routes the extended meshio++ formats to mesh regardless of active mode", () => {
-    // Gmsh, Abaqus, Nastran, I-deas UNV, Netgen, SU2, Medit — read via
-    // @meshioplusplus/wasm; cad's router claims none of these extensions.
-    for (const f of ["a.msh", "a.inp", "a.bdf", "a.unv", "a.vol", "a.su2", "a.mesh"]) {
+    // Gmsh, Abaqus, Nastran, I-deas UNV, Netgen, SU2, Medit, EnSight Gold,
+    // Triangle — read via @meshioplusplus/wasm; cad's router claims none of
+    // these extensions.
+    for (const f of ["a.msh", "a.inp", "a.bdf", "a.unv", "a.vol", "a.su2", "a.mesh", "a.case", "a.geo", "a.poly"]) {
       expect(modeForFile(f, "cad")).toBe("mesh");
       expect(modeForFile(f, "mesh")).toBe("mesh");
     }
