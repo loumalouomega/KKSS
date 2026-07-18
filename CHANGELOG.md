@@ -5,6 +5,14 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.0.5] - 2026-07-18
+
+- ci: publish the streamed-desktop Docker image to Docker Hub as
+  [`vmataix/kkss`](https://hub.docker.com/r/vmataix/kkss) (`X.Y.Z` +
+  `latest`, linux/amd64) on release tags, gated on the boot healthcheck (#22)
+- docs: the web-deployment guide and README now lead with the prebuilt-image
+  quickstart (`docker run vmataix/kkss:latest`)
+
 ## [1.0.4] - 2026-07-18
 
 - feat: run KKSS in the browser via Docker — the unmodified desktop app runs
