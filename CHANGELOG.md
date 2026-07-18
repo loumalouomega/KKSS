@@ -5,6 +5,17 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.0.4] - 2026-07-18
+
+- feat: run KKSS in the browser via Docker — the unmodified desktop app runs
+  headless (Xvfb + SwiftShader) and is streamed with x11vnc + noVNC on port
+  6080 (`docker/Dockerfile`, `docker/entrypoint.sh`, `docker-compose.yml`,
+  `npm run docker:build` / `docker:up`); single-user/demo scope
+- ci: add a Docker workflow that builds the image and boot-checks it (noVNC
+  answering + Electron process alive)
+- docs: new web-deployment guide (`doc/guide/web-deployment.md`) covering
+  quickstart, volumes, environment variables, and security caveats
+
 ## [1.0.3] - 2026-07-18
 
 - ci: fix the smoke test's CAD case spuriously failing Playwright's own
@@ -102,6 +113,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.0.4]: https://github.com/loumalouomega/KKSS/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/loumalouomega/KKSS/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/loumalouomega/KKSS/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/loumalouomega/KKSS/compare/v1.0.0...v1.0.1
