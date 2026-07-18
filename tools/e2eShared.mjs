@@ -20,13 +20,13 @@ export const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
  * `output()` accessor over combined stdout+stderr (the KKSS_E2E=1
  * host↔webview message trace).
  */
-export async function launchApp(file, { extraArgs = [] } = {}) {
+export async function launchApp(file, { extraArgs = [], timeout = 60_000 } = {}) {
   const app = await _electron.launch({
     executablePath: electronPath,
     args: [".", "--no-sandbox", "--enable-unsafe-swiftshader", "--disable-gpu-sandbox", ...extraArgs, ...(file ? [file] : [])],
     cwd: root,
     env: { ...process.env, KKSS_E2E: "1", ELECTRON_RUN_AS_NODE: undefined },
-    timeout: 60_000,
+    timeout,
   });
   let captured = "";
   app.process().stdout?.on("data", (d) => (captured += d.toString()));

@@ -57,7 +57,11 @@ const CASES = [
 ];
 
 async function attempt(c) {
-  const { app, output } = await launchApp(c.file, { extraArgs: SOFTWARE_GL });
+  // Playwright's own launch() wait must cover at least the case's inner
+  // deadline below — otherwise a slow-booting case (e.g. cad's heavier
+  // OCCT+WebGL startup) can hit Playwright's launch timeout before its own
+  // waitForMarkers/appWindow deadline ever gets a chance to apply.
+  const { app, output } = await launchApp(c.file, { extraArgs: SOFTWARE_GL, timeout: c.timeoutMs });
   const deadline = Date.now() + c.timeoutMs;
   try {
     // 1. Grab the mode's webview page and assert its viewer DOM mounts *as the
