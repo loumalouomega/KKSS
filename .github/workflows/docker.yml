@@ -1,11 +1,17 @@
 # Proves the streamed-desktop Docker image builds and boots: noVNC answers and
-# the Electron process is alive. Build-only for now — publishing to GHCR on
-# v* tags is a possible follow-up (add docker/login-action + push: true).
+# the Electron process is alive. On v*.*.* tags the boot check additionally
+# gates a publish to Docker Hub (vmataix/kkss, X.Y.Z + latest) — needs
+# the DOCKERHUB_USERNAME / DOCKERHUB_TOKEN repository secrets. Branch pushes
+# and PRs stay build-only. amd64 only (an arm64 image would need an
+# ubuntu-24.04-arm runner like release.yml's matrix — QEMU is impractical:
+# the in-image npm ci compiles node-pty and runs the full submodule build).
 name: Docker
 
 on:
   push:
     branches: [master]
+    # paths filters are ignored for tag pushes, so tags always run.
+    tags: ["v*.*.*"]
     paths:
       - "docker/**"
       - "docker-compose.yml"
@@ -56,6 +62,39 @@ jobs:
           # smoke test in ci.yml, not here).
           docker exec kkss pgrep -f "electron" >/dev/null
           docker logs kkss
+
+      # Publish only for release tags, and only after the boot check above —
+      # a broken image never reaches Docker Hub.
+      - name: Log in to Docker Hub
+        if: github.ref_type == 'tag'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker Hub tags
+        if: github.ref_type == 'tag'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: vmataix/kkss
+          # latest=auto (default) skips `latest` for hyphenated prereleases,
+          # matching release.yml's prerelease convention.
+          tags: |
+            type=semver,pattern={{version}}
+
+      - name: Push to Docker Hub
+        if: github.ref_type == 'tag'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Fully cached by the build step above — this re-tags and pushes,
+          # it does not rebuild.
+          cache-from: type=gha
 
       - name: Cleanup
         if: always()

@@ -10,7 +10,23 @@ This is a **single-user / demo** deployment: one container is one session.
 Multi-tenant SaaS hosting is out of scope for now (see
 [outlook](#saas-outlook) below).
 
-## Quickstart
+## Quickstart (prebuilt image)
+
+Releases publish the image to Docker Hub as
+[`vmataix/kkss`](https://hub.docker.com/r/vmataix/kkss)
+(linux/amd64), so all you need is Docker:
+
+```bash
+docker run -d -p 6080:6080 --shm-size=1g \
+  -v /path/to/your/simulations:/workspace \
+  vmataix/kkss:latest
+```
+
+Then open <http://localhost:6080/vnc.html> and click *Connect*. Tags: every
+release from v1.0.5 onward is available as its version number (`1.0.5`, …)
+plus a `latest` alias.
+
+## Building the image yourself
 
 Prerequisites: Docker (Desktop or Engine with the compose plugin) and a
 checkout with initialized submodules:
@@ -22,10 +38,9 @@ git submodule update --init --recursive
 docker compose up --build
 ```
 
-Then open <http://localhost:6080/vnc.html> and click *Connect*. The first
-build takes a while (it downloads Electron and compiles node-pty from source)
-and produces a large image (several GB) — subsequent builds reuse cached
-layers.
+The first build takes a while (it downloads Electron and compiles node-pty
+from source) and produces a large image (several GB) — subsequent builds
+reuse cached layers.
 
 `npm run docker:build` / `npm run docker:up` are shorthands for
 `docker compose build` / `docker compose up`.
