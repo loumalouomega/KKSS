@@ -5,6 +5,13 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.0.7] - 2026-07-18
+
+- feat: show a "What's New" dialog automatically when the app is launched
+  after a version upgrade, listing the CHANGELOG.md entries since the last
+  version you ran; reopen the full history any time from **Help ▸ What's
+  New…**
+
 ## [1.0.6] - 2026-07-18
 
 - feat: bump the mesh submodule to meshio++ 6.6.1, adding read support for
