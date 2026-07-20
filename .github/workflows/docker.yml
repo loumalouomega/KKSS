@@ -75,7 +75,7 @@ jobs:
       - name: Docker Hub tags
         if: github.ref_type == 'tag'
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: vmataix/kkss
           # latest=auto (default) skips `latest` for hyphenated prereleases,
