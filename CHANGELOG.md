@@ -5,6 +5,43 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.0.8] - 2026-07-28
+
+- feat: bump the mesh submodule to 2.8.3 (from 2.2.0) and the CAD submodule to
+  1.0.5, bringing to Post-Processing mode:
+  - **10 new mesh operations**, in six collapsible sidebar subcategories:
+    smoothing (Taubin/Laplacian), RCM/Morton/Hilbert renumbering,
+    space-filling-curve partitioning, uniform refinement, quadratic → linear,
+    simplexify, box/plane crop, a safe formula field calculator with
+    nodal ↔ elemental averaging, and mesh merging with an optional
+    coincident-node weld — all undoable, saveable as recipes, and reachable
+    from the `mesh_transform` MCP tool
+  - **SPHERE / particle meshes**: one-node elements render as real sphere
+    glyphs scaled in model space, with a suggested radius for the usual
+    radius-less DEM/peridynamics file and an undoable **Set element radius**
+    operation that creates or scales the field
+  - **Face normals** for spotting inverted elements, and **Export skin…** —
+    the boundary of a mesh's volume cells as a standalone surface mesh (also
+    the new `mesh_extract_skin` MCP tool)
+  - **Expression-driven remesh sizing**: MMG's new `size = ƒ(h)` mode sets each
+    node's target size from a formula over the nodal size, the whole-mesh size
+    statistics and the coordinates, with per-SubModelPart overrides
+  - **New formats** via meshio++ 9.3.0 (from 6.6.1): Exodus II `.e`/`.exo`/
+    `.ex2` (read + write, with the time steps stored *inside* the file driving
+    the timeline), CGNS, MOAB `.h5m`, `.hmf`, and read-only Salome `.med` — 39
+    read / ~35 write formats in total. Named groups (Gmsh physical groups,
+    Abaqus sets, Exodus element blocks / node sets / side sets) now arrive as
+    SubModelParts
+  - **Toolbar cleanup**: Mesh Size moved into a new **Advanced** menu alongside
+    Spheres…, Face normals and Export skin…
+- feat: the vscode shim now implements `window.showQuickPick` (routed to the
+  app's own modal picker), which is what the new Export skin… flow uses to
+  choose its output format
+- feat: the AI chat sidebar's system prompt describes the new formats,
+  operations and Exodus time-step selection, so the assistant can use them
+- fix: define the `--vscode-inputValidation-error{Border,Foreground}` theme
+  variables the mesh viewer's expression-validation styling needs
+
 ## [1.0.7] - 2026-07-18
 
 - feat: show a "What's New" dialog automatically when the app is launched
@@ -137,6 +174,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.0.8]: https://github.com/loumalouomega/KKSS/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/loumalouomega/KKSS/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/loumalouomega/KKSS/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/loumalouomega/KKSS/compare/v1.0.4...v1.0.5

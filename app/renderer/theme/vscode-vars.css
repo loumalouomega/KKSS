@@ -42,6 +42,11 @@
   --vscode-input-border: #3c3c3c;
   --vscode-input-foreground: #cccccc;
   --vscode-inputValidation-errorBackground: #5a1d1d;
+  --vscode-inputValidation-errorBorder: #be1100;
+  /* Dark Modern leaves inputValidation.errorForeground unset (it inherits the
+     editor foreground); the mesh stylesheet's own fallback chain prefers the
+     error color, so match --vscode-errorForeground rather than #cccccc. */
+  --vscode-inputValidation-errorForeground: #f48771;
   --vscode-inputValidation-infoBackground: #063b49;
   --vscode-inputValidation-warningBackground: #352a05;
   --vscode-inputValidation-warningBorder: #b89500;

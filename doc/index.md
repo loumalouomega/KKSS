@@ -22,7 +22,7 @@ features:
     details: Open STEP/IGES/BREP and STL/OBJ/PLY/glTF models, define parts, apply parametric edits, and generate finite-element meshes with Gmsh — powered by the CAD-Preview engine (Three.js + OpenCascade WASM).
   - icon: 🔶
     title: Post-Processing mode
-    details: Inspect MDPA models, VTK results, and 32 extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, SU2, EnSight Gold, Triangle, …) with combinable field modes (contour, isosurfaces, quivers, deformed shape), quality and mesh-size reports, time-series playback, mesh operations with undo/redo, and MMG remeshing; set up and run Kratos cases via built-in problemtypes, including the Flowgraph node-editor — powered by the VSCode-MDPA-Preview engine (vtk.js + MMG WASM).
+    details: Inspect MDPA models, VTK results, and 39 extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, SU2, Exodus, CGNS, MED, EnSight Gold, Triangle, …) with combinable field modes (contour, isosurfaces, quivers, deformed shape), sphere/particle glyphs and face-normal checks, quality and mesh-size reports, time-series playback, and 20+ mesh operations with undo/redo (smoothing, renumbering, partitioning, refinement, cropping, field calculator, merging, MMG remeshing); set up and run Kratos cases via built-in problemtypes, including the Flowgraph node-editor — powered by the VSCode-MDPA-Preview engine (vtk.js + MMG WASM).
   - icon: 🔀
     title: One toggle, two engines
     details: Switch instantly between modes; each keeps its loaded file, camera, and edit history. Both engines are the unmodified VS Code extensions, embedded as git submodules — upstream improvements arrive by bumping a submodule pointer.

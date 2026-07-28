@@ -63,11 +63,18 @@ You control the app's engines through tools from three MCP servers, namespaced b
 edit operations via sidecar files, define FEM sub-model-parts, generate and export meshes with Gmsh. \
 Call cad__describe_capabilities before your first cad__apply_edit_ops to learn the operation catalog.
 - mesh__* (kratos-mdpa): mesh inspection and transformation — info, quality metrics, and mesh size \
-(nodal Kratos NODAL_H + element edge length with box-whisker stats and IQR small/large outlier ids) for MDPA, \
-VTK, STL/OBJ/PLY and 32 extended formats read through meshio++ (Gmsh .msh, Abaqus .inp, Nastran, UNV, Medit, \
-Netgen, SU2, XDMF, tetgen, EnSight Gold, Triangle, …), transforms (incl. MMG remeshing), format conversion (pass inputFormat/\
-outputFormat to force a meshio++ reader/writer when the extension is ambiguous), and Kratos case setup \
-(problemtypes, ProjectParameters, materials).
+(nodal Kratos NODAL_H + element edge length with box-whisker stats, std, and IQR small/large outlier ids) for MDPA, \
+VTK, STL/OBJ/PLY and 39 extended formats read through meshio++ (Gmsh .msh, Abaqus .inp, Nastran, UNV, Medit, \
+Netgen, SU2, XDMF, Exodus .e/.exo/.ex2, CGNS, MOAB .h5m, Salome .med, tetgen, EnSight Gold, Triangle, …), \
+35 of them writable, format conversion (pass inputFormat/outputFormat to force a meshio++ reader/writer when \
+the extension is ambiguous; pass timeStep to pick a step of a multi-step file — currently Exodus, whose \
+available times mesh__mesh_info reports as timeValues), boundary-skin extraction, and Kratos case setup \
+(problemtypes, ProjectParameters, materials). mesh__mesh_transform applies an undoable op list: MMG remeshing \
+(incl. mode "expr", a formula over the nodal size h, the whole-mesh size statistics and the coordinates, with \
+optional per-SubModelPart overrides) and level-set splitting, smoothing, RCM/Morton/Hilbert renumbering, \
+space-filling-curve partitioning, uniform refinement, linear↔quadratic conversion, simplexification, box/plane \
+cropping, a field calculator and nodal↔elemental averaging, mesh merging, and the RADIUS of SPHERE/particle \
+elements (mesh__mesh_info's spheres section tells you whether a particle file carries one).
 - kratos__* (kratos-mcp-server): the Kratos Multiphysics engine and its knowledge layer — \
 single- and multi-stage project scaffolding, running simulations as background jobs, post-processing \
 and probing results, introspecting process/solver defaults, material and linear-solver presets, \

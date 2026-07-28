@@ -14,7 +14,13 @@
 import * as fs from "fs";
 import * as path from "path";
 import { viewerBodyHtml } from "../cad/src/viewerDom";
-import { FILE_MENU_HTML, FLOWGRAPH_PANE_HTML, SIDEBAR_HTML } from "../mesh/src/webviewChrome";
+import {
+  FILE_MENU_HTML,
+  ADVANCED_BUTTON_HTML,
+  ADVANCED_MENU_HTML,
+  FLOWGRAPH_PANE_HTML,
+  SIDEBAR_HTML,
+} from "../mesh/src/webviewChrome";
 import { TOOLBAR_ICONS } from "../mesh/src/toolbarIcons";
 
 /** Same helper the mesh providers define (mdpaEditorProvider.ts). */
@@ -97,10 +103,10 @@ function meshBody(): string {
         <button data-action="wireframe" title="Toggle wireframe">${icon("wireframe")} Wireframe</button>
         <button data-action="nodeIds" title="Toggle node ids">${icon("nodeIds")} Node IDs</button>
         <button data-action="quality" title="Compute mesh quality">${icon("quality")} Quality</button>
-        <button data-action="meshSize" title="Mesh size (nodal / element) + box-whisker">${icon("meshSize")} Mesh Size</button>
         <button data-action="field" title="Visualize field data">${icon("field")} Field</button>
         <button data-action="grid" title="Toggle background grid">${icon("grid")} Grid</button>
         <button data-action="find" title="Find entity by ID">${icon("find")} Find</button>
+        ${ADVANCED_BUTTON_HTML}
         <button data-action="screenshot" title="Save screenshot as PNG">${icon("screenshot")}</button>
         <select id="theme-select" title="Scene theme">
           <option value="auto">Auto</option>
@@ -109,6 +115,7 @@ function meshBody(): string {
           <option value="scientific">Scientific</option>
         </select>
       </div>
+      ${ADVANCED_MENU_HTML}
       <div id="find-bar">
         <select id="find-type">
           <option>Node</option>

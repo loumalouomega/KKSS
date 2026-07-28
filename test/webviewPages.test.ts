@@ -40,6 +40,18 @@ describe.skipIf(!built)("generated webview pages", () => {
     }
   });
 
+  it("carries the Advanced menu (meshBody() replicates the providers' toolbar)", () => {
+    // Mesh Size / Spheres / Face normals / Export skin live in this popup, a
+    // sibling of #toolbar — webview/main.ts looks it up by id, so a stale
+    // meshBody() would leave every one of them dead in KKSS only.
+    const html = read("mesh");
+    expect(html).toContain('id="advanced-popup"');
+    expect(html).toContain('data-action="advanced"');
+    for (const action of ["meshSize", "spheres", "normals", "exportSkin"]) {
+      expect(html).toContain(`data-action="${action}"`);
+    }
+  });
+
   it("keeps vtk.js blob workers allowed in the mesh CSP", () => {
     expect(read("mesh")).toContain("worker-src blob:");
   });

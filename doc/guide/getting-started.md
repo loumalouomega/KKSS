@@ -29,7 +29,7 @@ The toolbar at the top of the window holds the mode toggle:
 ![The shell toolbar: mode toggle, Open button, and the current file](/screenshots/shell-toolbar.png)
 
 - **🔷 Pre-Processing** — CAD geometry and model preparation ([details](/guide/cad-mode)). Opens STEP, IGES, BREP, STL, OBJ, PLY, and glTF.
-- **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 32 extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and a Mesh Size panel reports nodal/element size statistics.
+- **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 39 extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, Exodus, CGNS, MED, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and an **Advanced** toolbar menu holds the Mesh Size panel (nodal/element size statistics), sphere glyphs for particle meshes, face normals for spotting inverted elements, and boundary-skin export.
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved.
 

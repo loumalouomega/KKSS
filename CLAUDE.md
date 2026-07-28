@@ -107,13 +107,22 @@ Concretely:
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
 - **meshio++ (extended mesh formats) is a verbatim WASM tree, loaded in-process.**
-  The mesh submodule reads ~32 (writes ~29) formats it has no native parser for
+  The mesh submodule reads 39 (writes ~35) formats it has no native parser for
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
-  Triangle, …) through the ESM-only `@meshioplusplus/wasm` package (6.6.1, which
-  adds the field-only `.dex`/`.ip`/`.mff` formats — point fields, no geometry —
-  plus EnSight Gold `.case`/`.geo` and Triangle `.poly` reads and the write-only
-  SVG/TikZ figure formats, exposed in the export menu's "Figures" group). Like
-  pyodide/flowgraph it ships verbatim as
+  Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
+  `@meshioplusplus/wasm` package (9.3.0, which adds the field-only
+  `.dex`/`.ip`/`.mff` formats — point fields, no geometry — the write-only
+  SVG/TikZ figure formats exposed in the export menu's "Figures" group, and,
+  since it statically links HDF5/netCDF, the Exodus/CGNS/H5M/HMF/MED family
+  plus `timeStep`/`timeValues` for the in-file Exodus timeline). **Both WASM
+  variants must ship**: since 8.8.0 the package carries
+  `meshioplusplus_wasm_mt.{mjs,wasm}` beside the sequential pair (~+6.2 MB) and
+  auto-selects the threaded one under Node — i.e. in the main process and
+  `out/mcpServer.js` — so shipping only the old pair makes *every* extended
+  format die with an opaque `LinkError`. The submodule's copy plugin emits all
+  four and `copyArtifacts()` mirrors the tree wholesale, so nothing parent-side
+  enumerates them; verify `out/meshio/dist/meshioplusplus_wasm*` lists four
+  files after a bump. Like pyodide/flowgraph it ships verbatim as
   `mesh/dist/meshio/`; `copyArtifacts()` mirrors it to a single **`out/meshio/`**
   tree beside `out/main.js` — `mesh/src/parser/meshio.ts`'s `packageDir()` falls
   back to `__dirname/meshio`, and since `meshio.ts` is bundled into **both**
