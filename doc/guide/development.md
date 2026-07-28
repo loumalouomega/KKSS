@@ -135,6 +135,32 @@ npm test            # vitest glue tests (test/)
 npm run smoke       # headless end-to-end smoke test (needs xvfb on Linux)
 ```
 
+### Dependency security pins
+
+Only `node-pty` is a runtime dependency, but that understates the shipped
+surface: esbuild **bundles** several devDependencies into `out/main.js`
+(`@anthropic-ai/sdk`, `@modelcontextprotocol/sdk`, `electron-updater`,
+`semver`, and everything they pull in). A "dev-only" advisory on one of those
+transitives is therefore a real advisory against the packaged app, so check
+where a flagged package actually lands before dismissing it:
+
+```bash
+npm ls <package> --all      # who requires it
+grep -c "<package>" out/main.js   # does it reach the bundle?
+```
+
+When an upstream range still admits a vulnerable version, pin it in the root
+`package.json`'s `overrides` block (the `cad/` and `mesh/` submodules keep
+equivalent pins for their own trees) and drop the entry once upstream's own
+range excludes the bad versions. Current pins — `fast-uri` and
+`@hono/node-server`, both reaching the bundle through
+`@modelcontextprotocol/sdk` (via `ajv` and the SDK's `streamableHttp.js`
+transport respectively). Advisories that resolve only inside the
+**electron-builder** toolchain (`brace-expansion`, `minimatch`, `tar`) are
+build-time only — they never enter `out/`, and GitHub's Dependabot
+auto-dismisses them; do not force-resolve them, since the requested majors
+differ across that tree and a blanket override breaks packaging.
+
 ## Regenerating documentation screenshots
 
 Screenshots are **generated, not hand-captured** — the same philosophy as the cad submodule's `scripts/screenshots/` pipeline, but even more end-to-end: `tools/screenshots.mjs` launches the real Electron app (Playwright-Electron) on real example files from the submodules and captures the live windows at 2x pixel density.

@@ -41,6 +41,12 @@ full auto-generated compare links.
   operations and Exodus time-step selection, so the assistant can use them
 - fix: define the `--vscode-inputValidation-error{Border,Foreground}` theme
   variables the mesh viewer's expression-validation styling needs
+- security: pin `fast-uri` ≥ 3.1.4 (GHSA-v2hh-gcrm-f6hx, host confusion via a
+  literal backslash authority delimiter) and `@hono/node-server` ≥ 2.0.5
+  (GHSA-frvp-7c67-39w9, `serve-static` path traversal on Windows via an encoded
+  backslash) through npm `overrides`. Both arrive via
+  `@modelcontextprotocol/sdk`, whose own ranges still admit the vulnerable
+  versions, and both are bundled into `out/main.js` — so they shipped in the app
 
 ## [1.0.7] - 2026-07-18
 

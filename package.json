@@ -55,6 +55,10 @@
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },
+  "overrides": {
+    "fast-uri": "^3.1.4",
+    "@hono/node-server": "^2.0.5"
+  },
   "allowScripts": {
     "electron@43.1.1": true,
     "esbuild@0.28.1": true,
