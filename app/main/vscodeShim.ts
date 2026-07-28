@@ -3,7 +3,9 @@
  * (esbuild alias, main bundle only). It implements exactly the API surface the
  * mesh submodule's host-side code touches at runtime when driven by KKSS:
  *
- *   mesh/src/meshExport.ts       — window.show{Open,Save}Dialog, show*Message,
+ *   mesh/src/meshExport.ts       — window.show{Open,Save}Dialog, window.showQuickPick
+ *                                  (exportSkin, reached from Advanced ▸ Export skin…
+ *                                  with no pre-chosen format), show*Message,
  *                                  Uri.file, commands.executeCommand("vscode.openWith")
  *   mesh/src/opHistory.ts        — same dialog/message surface
  *   mesh/src/*EditorProvider     — workspace.createFileSystemWatcher(RelativePattern),
@@ -22,6 +24,7 @@
 import { dialog } from "electron";
 import * as nodePath from "node:path";
 import { showOpenDialog as electronOpen, showSaveDialog as electronSave, FileFilter } from "./services/dialogs";
+import { showQuickPick as electronQuickPick, QuickPickItem } from "./services/quickPick";
 import { toast, progressToast } from "./services/notifications";
 import { createFileSystemWatcher } from "./services/watcher";
 
@@ -196,6 +199,18 @@ export const window = {
     });
     return picked ? Uri.file(picked) : undefined;
   },
+
+  /**
+   * The modal picker window (services/quickPick.ts) the app already uses for
+   * cad's export targets and the mesh Export menu. vscode resolves to the
+   * picked item itself, so callers read back their own extra properties
+   * (meshExport's exportSkin uses `description` to carry the extension).
+   */
+  showQuickPick: async <T extends QuickPickItem>(
+    items: T[],
+    options?: { title?: string; placeHolder?: string }
+  ): Promise<T | undefined> =>
+    electronQuickPick(items, { title: options?.title, placeHolder: options?.placeHolder }),
 
   showInformationMessage: (message: string, ...rest: unknown[]) => showMessage("info", message, rest),
   showWarningMessage: (message: string, ...rest: unknown[]) => showMessage("warning", message, rest),
