@@ -316,6 +316,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.2.2]: https://github.com/loumalouomega/KKSS/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/loumalouomega/KKSS/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/loumalouomega/KKSS/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/loumalouomega/KKSS/compare/v1.0.8...v1.1.0
