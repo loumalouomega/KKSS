@@ -5,6 +5,20 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.2.1] - 2026-08-04
+
+- fix: **the 1.2.0 Docker image never reached the registries.** Its workflow
+  referenced a `aquasecurity/trivy-action` version that does not exist, so both
+  architecture jobs died during setup before building anything, and the
+  Dockerfile tripped the new hadolint step (a pipe in a `RUN` without
+  `pipefail`). The pipe is gone — GNU `find`'s `-print -quit` replaces
+  `… | head -1` — and the scanner is pinned to a real release. The 1.2.0
+  desktop installers were unaffected and published normally
+- chore: the Dockerfile is now clean under hadolint at its strictest level:
+  the `HEALTHCHECK` uses exec form, and `USER` is numeric (`1000:1000`) so a
+  runtime that enforces non-root without reading `/etc/passwd` — Kubernetes'
+  `runAsNonRoot`, for one — can still resolve it
+
 ## [1.2.0] - 2026-08-04
 
 - feat: **the Docker image shrinks from 5.54 GB to 1.99 GB** (−64%, measured on
@@ -289,6 +303,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.2.1]: https://github.com/loumalouomega/KKSS/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/loumalouomega/KKSS/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/loumalouomega/KKSS/compare/v1.0.8...v1.1.0
 [1.0.8]: https://github.com/loumalouomega/KKSS/compare/v1.0.7...v1.0.8
