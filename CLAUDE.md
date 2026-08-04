@@ -19,6 +19,8 @@ npm start              # full build + launch
 npm run dist           # package installers into release/
 npm run docker:build   # build the streamed-desktop web image (docker compose build)
 npm run docker:up      # serve the app to a browser at http://localhost:6080/vnc.html
+npm run docker:up:ghcr # same, from the published image (no checkout/build needed)
+npm run dist:dir       # package to release/linux-unpacked (what the image ships)
 npm run build:icons    # TikZ → SVG/PNG icons (needs pdflatex + pdftocairo)
 npm run docs:screenshots  # regenerate doc screenshots from the live app (see below)
 npm run docs:dev / docs:build  # VitePress site in doc/
@@ -224,19 +226,38 @@ Concretely:
   runtime-injected styles (terminal's xterm.js) may relax CSP to
   `style-src kkss: 'unsafe-inline'` — that page only.
 - **Docker web deployment streams the unmodified desktop app.** `docker/`
-  (Dockerfile + `entrypoint.sh`) + root `docker-compose.yml` run the app
-  headless (Xvfb + openbox + x11vnc + noVNC on port 6080) — no app-code fork.
-  The entrypoint's Electron flag set **must stay in sync with
-  `tools/smoke.e2e.mjs`/`tools/e2eShared.mjs`** (the CI-proven headless
-  config) and must launch with `env -u ELECTRON_RUN_AS_NODE`. The build
-  context requires initialized submodules; `docker/*.sh` must stay LF
-  (`.gitattributes` enforces this — the scripts run inside the Linux
-  container). `.github/workflows/docker.yml` builds and boot-checks the image
-  on branch pushes/PRs, and on `v*.*.*` tags additionally **publishes
-  `vmataix/kkss` (`X.Y.Z` + `latest`, amd64-only) to Docker Hub** —
-  gated on the boot check, authenticated via the `DOCKERHUB_USERNAME` /
-  `DOCKERHUB_TOKEN` repository secrets. User docs live in
-  `doc/guide/web-deployment.md`.
+  (Dockerfile + `entrypoint.sh`) + root `docker-compose.yml` (build) /
+  `docker-compose.ghcr.yml` (pull) run the app headless (Xvfb + openbox +
+  x11vnc + noVNC on port 6080) — no app-code fork. Invariants:
+  - **The image is multi-stage and the runtime stage carries only
+    `release/linux-unpacked` + the X/VNC stack.** The builder runs
+    `npm run dist:dir`, so `electron-builder.yml`'s `files` rules stay the one
+    source of truth for what the app needs at runtime — never hand-copy `out/`
+    into the runtime stage as a second, drifting list. Nothing Node-, npm- or
+    source-shaped may reach it (CI asserts `npm` is absent).
+  - It runs as the **non-root `kkss` user (uid 1000)**; settings live at
+    `/home/kkss/.config/kkss`. The packaged app stays root-owned so the runtime
+    user cannot modify its own binaries.
+  - The entrypoint's Electron flag set **must stay in sync with
+    `tools/smoke.e2e.mjs`/`tools/e2eShared.mjs`** (the CI-proven headless
+    config), must launch with `env -u ELECTRON_RUN_AS_NODE`, and launches the
+    **packaged binary** (`$KKSS_BIN`), not `node_modules/.bin/electron`. It
+    supervises every process it starts (`wait -n` over tracked PIDs) and
+    forwards SIGTERM, so one dead child takes the container down rather than
+    leaving it "up" serving nothing. `xdpyinfo` (from `x11-utils`) is what the
+    readiness poll and healthcheck depend on — keep the package.
+  - The build context requires initialized submodules; `docker/*.sh` must stay
+    LF (`.gitattributes` enforces this — the scripts run inside the Linux
+    container). There is deliberately **one** `.dockerignore`: a
+    `docker/Dockerfile.dockerignore` would silently override it.
+  - `.github/workflows/docker.yml` lints, builds, boot-checks and scans the
+    image per architecture on its own native runner (amd64 + arm64 — QEMU is
+    impractical and `--platform=$BUILDPLATFORM` is wrong for a packaged
+    Electron binary). On `v*.*.*` tags each arch pushes **by digest** and a
+    `manifest` job merges them into one multi-arch tag on **GHCR**
+    (`ghcr.io/loumalouomega/kkss`, built-in `GITHUB_TOKEN`) and **Docker Hub**
+    (`vmataix/kkss`, `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets).
+    User docs live in `doc/guide/web-deployment.md`.
 - **Menu bar holds app-level items only.** Viewer actions (quality, fields,
   find entity…) live in the submodules' own toolbars — don't duplicate them
   in the native menu. App preferences go in the Settings menu, persisted via

@@ -1,13 +1,25 @@
-# Keep the Docker build context lean; the image installs and builds from scratch.
+# Keep the Docker build context lean; the image installs and builds from
+# scratch. There is deliberately only ONE ignore file: BuildKit would let a
+# `docker/Dockerfile.dockerignore` override this one, which is an easy way to
+# end up shipping a context nobody meant to.
 .git
 .github
 node_modules
-cad/node_modules
-mesh/node_modules
+**/node_modules
 out
 release
-doc/node_modules
-doc/.vitepress/dist
-doc/.vitepress/cache
-test
+doc
 images
+test
+# Icon *sources* and the TikZ pipeline; only icons/app/*.png is built against.
+icons/tikz-app
+icons/tikz-os
+icons/tikz-ui
+icons/svg-ui
+icons/build-ui
+.vscode
+*.log
+
+# Kept on purpose, despite looking incidental:
+#   CHANGELOG.md      — esbuild copies it into out/ for the What's New dialog
+#   icons/app/*.png   — the Linux window icon and electron-builder's app icon

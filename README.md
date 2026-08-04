@@ -48,12 +48,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, testing, an
 ### Run in a browser (Docker)
 
 The unmodified app can also be streamed to a browser tab from a Docker
-container (Xvfb + noVNC; single-user/demo scope). A prebuilt linux/amd64
-image is published to [Docker Hub](https://hub.docker.com/r/vmataix/kkss)
-on every release:
+container (Xvfb + noVNC; single-user/demo scope). Every release publishes a
+**linux/amd64 + linux/arm64** image to
+[GHCR](https://github.com/loumalouomega/KKSS/pkgs/container/kkss) and
+[Docker Hub](https://hub.docker.com/r/vmataix/kkss):
 
 ```bash
-docker run -d -p 6080:6080 --shm-size=1g vmataix/kkss:latest
+docker run -d -p 6080:6080 --shm-size=1g ghcr.io/loumalouomega/kkss:latest
 # then open http://localhost:6080/vnc.html
 ```
 

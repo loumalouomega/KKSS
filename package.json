@@ -28,10 +28,14 @@
     "start": "npm run build && electron .",
     "start:fast": "npm run build:app && electron .",
     "dist": "npm run build && electron-builder --publish never",
+    "dist:dir": "npm run build && electron-builder --dir --publish never",
     "docs:dev": "npm run docs:dev --prefix doc",
     "docs:build": "npm run docs:build --prefix doc",
     "docker:build": "docker compose build",
-    "docker:up": "docker compose up"
+    "docker:up": "docker compose up",
+    "docker:up:ghcr": "docker compose -f docker-compose.ghcr.yml up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

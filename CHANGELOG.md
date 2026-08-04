@@ -5,6 +5,39 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [Unreleased]
+
+- feat: **a much smaller Docker image.** The Dockerfile is now multi-stage: one
+  stage builds and packages the app with the project's own electron-builder
+  config, and the final image carries only that packaged output plus the X/VNC
+  stack — no Node, no npm, no source tree, and none of the ~730 MB of `cad/` +
+  `mesh/` build-only dependencies
+- feat: **images for linux/arm64 as well as linux/amd64**, published to
+  **GHCR** (`ghcr.io/loumalouomega/kkss`) alongside Docker Hub. Each
+  architecture builds on its own native runner and the two are merged into one
+  multi-arch tag
+- feat: **`docker-compose.ghcr.yml`** runs the published image with no
+  checkout, no submodules and no build; both compose files now take
+  `KKSS_PORT`, `KKSS_WORKSPACE` (a host path *or* a named volume) and
+  `KKSS_TAG`, and `npm run docker:up:ghcr` / `docker:down` / `docker:logs`
+  wrap them
+- feat: the container **runs as the unprivileged `kkss` user** (uid 1000)
+  instead of root, and the packaged app is root-owned and read-only to it.
+  **Breaking:** settings moved from `/root/.config/kkss` to
+  `/home/kkss/.config/kkss` — see the web-deployment guide for the one-command
+  volume migration
+- fix: the entrypoint now supervises every process it starts. Previously it
+  waited only on Electron, so a dead Xvfb, x11vnc or websockify left the
+  container "up" while serving nothing; it also forwards SIGTERM to its
+  children, so `docker stop` returns promptly instead of waiting out the
+  10-second SIGKILL timeout
+- fix: install `x11-utils`. The entrypoint polls `xdpyinfo` to wait for the
+  virtual display, but nothing provided it, so that readiness check was a
+  silent no-op
+- chore: the image's healthcheck now asserts the X display and the app process
+  as well as the noVNC port; CI adds hadolint plus a Trivy scan, and checks the
+  container is unprivileged and free of a leaked build toolchain
+
 ## [1.1.0] - 2026-08-04
 
 - feat: bump the CAD submodule to 1.2.6 (from 1.0.5) and the mesh submodule to

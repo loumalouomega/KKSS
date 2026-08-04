@@ -1,0 +1,28 @@
+# Run the published KKSS image — no checkout, no submodules, no build:
+#   docker compose -f docker-compose.ghcr.yml up -d
+#   → http://localhost:6080/vnc.html
+#
+# Identical to docker-compose.yml except that it pulls instead of building.
+# Images are published for linux/amd64 and linux/arm64 on every release; set
+# KKSS_TAG to pin a version (e.g. KKSS_TAG=1.2.0) instead of tracking latest.
+services:
+  kkss:
+    image: "ghcr.io/loumalouomega/kkss:${KKSS_TAG:-latest}"
+    ports:
+      - "${KKSS_PORT:-6080}:6080" # noVNC — open http://localhost:6080/vnc.html
+    shm_size: "1gb" # belt-and-braces alongside --disable-dev-shm-usage
+    restart: unless-stopped
+    stop_grace_period: 20s
+    environment:
+      DISPLAY_SIZE: "${KKSS_DISPLAY_SIZE:-1920x1080}"
+      # VNC_PASSWORD: "changeme" # optional session password (set before exposing beyond localhost)
+      # OPEN_FILE: /workspace/model.mdpa # optional file to open at launch
+    volumes:
+      # There is no repo here, so this defaults to a named volume. Compose's
+      # short syntax switches on the leading "/", so the same line takes an
+      # absolute host path: KKSS_WORKSPACE=/path/to/your/simulations
+      - "${KKSS_WORKSPACE:-kkss-workspace}:/workspace"
+      - kkss-userdata:/home/kkss/.config/kkss
+volumes:
+  kkss-workspace:
+  kkss-userdata:

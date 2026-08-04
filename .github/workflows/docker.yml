@@ -1,10 +1,15 @@
-# Proves the streamed-desktop Docker image builds and boots: noVNC answers and
-# the Electron process is alive. On v*.*.* tags the boot check additionally
-# gates a publish to Docker Hub (vmataix/kkss, X.Y.Z + latest) — needs
-# the DOCKERHUB_USERNAME / DOCKERHUB_TOKEN repository secrets. Branch pushes
-# and PRs stay build-only. amd64 only (an arm64 image would need an
-# ubuntu-24.04-arm runner like release.yml's matrix — QEMU is impractical:
-# the in-image npm ci compiles node-pty and runs the full submodule build).
+# Proves the streamed-desktop Docker image builds and boots — noVNC answers,
+# the X display is up and the app process is alive — on both architectures, and
+# on v*.*.* tags publishes a multi-arch manifest to GHCR and Docker Hub.
+#
+# One job per architecture on its OWN native runner. The usual multi-arch
+# shortcut (build once with --platform=$BUILDPLATFORM) does not apply here:
+# the image ships a packaged Electron app, i.e. a per-arch native binary, and
+# QEMU is impractical because the in-image build compiles node-pty and runs the
+# full submodule build. Each job pushes by digest; `manifest` merges them.
+#
+# Docker Hub needs the DOCKERHUB_USERNAME / DOCKERHUB_TOKEN secrets; GHCR uses
+# the built-in GITHUB_TOKEN. Branch pushes and PRs stay build-only.
 name: Docker
 
 on:
@@ -14,23 +19,59 @@ on:
     tags: ["v*.*.*"]
     paths:
       - "docker/**"
-      - "docker-compose.yml"
+      - "docker-compose*.yml"
       - ".dockerignore"
+      - "electron-builder.yml"
       - "package*.json"
       - "app/**"
       - ".github/workflows/docker.yml"
   pull_request:
     paths:
       - "docker/**"
-      - "docker-compose.yml"
+      - "docker-compose*.yml"
       - ".dockerignore"
+      - "electron-builder.yml"
       - "package*.json"
       - "app/**"
       - ".github/workflows/docker.yml"
 
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # GHCR requires a lowercase path; github.repository is mixed case.
+  GHCR_IMAGE: ghcr.io/loumalouomega/kkss
+  DOCKERHUB_IMAGE: vmataix/kkss
+
 jobs:
-  image:
+  lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hadolint/hadolint-action@v3.3.0
+        with:
+          dockerfile: docker/Dockerfile
+          # Pinning every apt package version is impractical for a base we
+          # rebuild on every release; the rest of the ruleset still applies.
+          ignore: DL3008
+
+  image:
+    name: image (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,6 +79,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
+      # Build once, locally, and boot-check it before anything is published.
       - uses: docker/build-push-action@v7
         with:
           context: .
@@ -45,8 +87,10 @@ jobs:
           push: false
           load: true
           tags: kkss-web:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Per-arch scope: one shared scope would have the two runners
+          # evicting each other's layers.
+          cache-from: type=gha,scope=docker-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.arch }}
 
       - name: Boot container and healthcheck
         run: |
@@ -58,13 +102,46 @@ jobs:
           done
           [ "$ok" = "1" ]
           curl -fsS http://localhost:6080/vnc.html >/dev/null
-          # The app process must be alive (rendering itself is asserted by the
-          # smoke test in ci.yml, not here).
-          docker exec kkss pgrep -f "electron" >/dev/null
+          # The same three signals the image's own HEALTHCHECK asserts
+          # (rendering itself is covered by the smoke test in ci.yml).
+          docker exec kkss xdpyinfo -display :99 >/dev/null
+          docker exec kkss pgrep -f /opt/kkss/kkss >/dev/null
+          # The image must run unprivileged and must not carry a toolchain.
+          test "$(docker exec kkss id -u)" = "1000"
+          if docker exec kkss sh -c 'command -v npm' >/dev/null 2>&1; then
+            echo "npm is present in the runtime stage — the build stage leaked" >&2
+            exit 1
+          fi
           docker logs kkss
 
-      # Publish only for release tags, and only after the boot check above —
-      # a broken image never reaches Docker Hub.
+      - name: Stop cleanly (the entrypoint must forward SIGTERM)
+        run: |
+          start=$(date +%s)
+          docker stop kkss >/dev/null
+          elapsed=$(( $(date +%s) - start ))
+          echo "docker stop took ${elapsed}s"
+          # A container that ignores SIGTERM is SIGKILLed at the 10s timeout.
+          [ "$elapsed" -lt 10 ]
+
+      - name: Scan for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: kkss-web:ci
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          # Report on PRs/branches; only a release is gated on a clean scan.
+          exit-code: ${{ github.ref_type == 'tag' && '1' || '0' }}
+
+      # ---- publish (release tags only, after the checks above) ----
+      - name: Log in to GHCR
+        if: github.ref_type == 'tag'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Log in to Docker Hub
         if: github.ref_type == 'tag'
         uses: docker/login-action@v4
@@ -72,30 +149,104 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Docker Hub tags
+      # Push by digest only — no per-arch tags land in the registries; the
+      # `manifest` job below combines the digests into one multi-arch tag.
+      - name: Push by digest
         if: github.ref_type == 'tag'
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          # Fully cached by the build step above — this re-tags and pushes,
+          # it does not rebuild.
+          cache-from: type=gha,scope=docker-${{ matrix.arch }}
+          outputs: |
+            type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+            type=image,name=${{ env.DOCKERHUB_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export the digest
+        if: github.ref_type == 'tag'
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${{ matrix.arch }}-${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+
+      - uses: actions/upload-artifact@v4
+        if: github.ref_type == 'tag'
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f kkss || true
+
+  manifest:
+    needs: image
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tags
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: vmataix/kkss
+          images: |
+            ${{ env.GHCR_IMAGE }}
+            ${{ env.DOCKERHUB_IMAGE }}
           # latest=auto (default) skips `latest` for hyphenated prereleases,
           # matching release.yml's prerelease convention.
           tags: |
             type=semver,pattern={{version}}
 
-      - name: Push to Docker Hub
-        if: github.ref_type == 'tag'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: docker/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # Fully cached by the build step above — this re-tags and pushes,
-          # it does not rebuild.
-          cache-from: type=gha
+      # One manifest list per image name, assembled from the per-arch digests.
+      - name: Create and push the manifest lists
+        working-directory: /tmp/digests
+        # META_JSON goes through the environment, not string interpolation into
+        # the script — a quote in the JSON would otherwise break the shell.
+        env:
+          META_JSON: ${{ steps.meta.outputs.json }}
+        run: |
+          # Digest artifacts are named "<arch>-<hex>"; recover the refs.
+          digests=$(printf '%s\n' * | sed 's/^[^-]*-/@sha256:/')
+          for image in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
+            tags=$(jq -r --arg img "$image" \
+              '.tags | map(select(startswith($img + ":"))) | map("-t " + .) | join(" ")' \
+              <<< "$META_JSON")
+            # shellcheck disable=SC2086 — both lists must word-split.
+            docker buildx imagetools create $tags $(printf "${image}%s " $digests)
+          done
 
-      - name: Cleanup
-        if: always()
-        run: docker rm -f kkss || true
+      - name: Verify both architectures are present
+        run: |
+          for image in "${{ env.GHCR_IMAGE }}" "${{ env.DOCKERHUB_IMAGE }}"; do
+            ref="${image}:${{ steps.meta.outputs.version }}"
+            docker buildx imagetools inspect "$ref"
+            docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' \
+              | jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] | (index("amd64") and index("arm64"))'
+          done
