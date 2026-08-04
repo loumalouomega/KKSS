@@ -106,10 +106,16 @@ jobs:
           # (rendering itself is covered by the smoke test in ci.yml).
           docker exec kkss xdpyinfo -display :99 >/dev/null
           docker exec kkss pgrep -f /opt/kkss/kkss >/dev/null
-          # The image must run unprivileged and must not carry a toolchain.
+          # The image must run unprivileged and must not carry the build stage.
           test "$(docker exec kkss id -u)" = "1000"
           if docker exec kkss sh -c 'command -v npm' >/dev/null 2>&1; then
             echo "npm is present in the runtime stage — the build stage leaked" >&2
+            exit 1
+          fi
+          # (`node` IS present: Debian's novnc package depends on nodejs. That
+          # is a runtime dependency of the streaming stack, not a leak.)
+          if docker exec kkss test -e /kkss; then
+            echo "/kkss exists — the source tree leaked into the runtime stage" >&2
             exit 1
           fi
           docker logs kkss

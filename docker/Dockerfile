@@ -40,11 +40,13 @@ COPY . .
 # runtime — no second, drifting list here.
 # electron-builder suffixes the output directory with the architecture on
 # anything but x64 (`linux-unpacked` vs `linux-arm64-unpacked`), so normalize
-# the name — the runtime stage below copies from one fixed path on both.
+# the name — the runtime stage below copies from one fixed path on both. The
+# staging path is OUTSIDE the work tree on purpose: /kkss/app is the repo's own
+# source directory, and `mv` would move the package *into* it.
 RUN --mount=type=cache,target=/root/.cache/electron-builder \
     npm run dist:dir \
- && mv "$(find release -maxdepth 1 -type d -name 'linux*unpacked' | head -1)" /kkss/app \
- && test -x /kkss/app/kkss
+ && mv "$(find release -maxdepth 1 -type d -name 'linux*unpacked' | head -1)" /packaged \
+ && test -x /packaged/kkss
 
 # ---------------------------------------------------------------- runtime ---
 FROM debian:bookworm-slim AS runtime
@@ -85,7 +87,7 @@ RUN groupadd --gid 1000 kkss \
 # The packaged app stays root-owned and read-only to the runtime user — it
 # never writes into its own directory, and a non-root process that cannot
 # modify its own binaries is the point of running non-root at all.
-COPY --from=builder /kkss/app /opt/kkss
+COPY --from=builder /packaged /opt/kkss
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -94,7 +96,11 @@ RUN chmod +x /entrypoint.sh
 VOLUME /workspace
 
 USER kkss
-ENV DISPLAY=:99 \
+# C.UTF-8 is built into glibc (no `locales` package needed). Without it the
+# X window title round-trips through ANSI_X3.4-1968 and mangles the app's
+# non-ASCII characters.
+ENV LANG=C.UTF-8 \
+    DISPLAY=:99 \
     DISPLAY_SIZE=1920x1080 \
     NOVNC_PORT=6080 \
     KKSS_BIN=/opt/kkss/kkss

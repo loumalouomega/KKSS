@@ -7,11 +7,12 @@ full auto-generated compare links.
 
 ## [Unreleased]
 
-- feat: **a much smaller Docker image.** The Dockerfile is now multi-stage: one
-  stage builds and packages the app with the project's own electron-builder
-  config, and the final image carries only that packaged output plus the X/VNC
-  stack — no Node, no npm, no source tree, and none of the ~730 MB of `cad/` +
-  `mesh/` build-only dependencies
+- feat: **the Docker image shrinks from 5.54 GB to 1.99 GB** (−64%, measured on
+  linux/amd64). The Dockerfile is now multi-stage: one stage builds and
+  packages the app with the project's own electron-builder config, and the
+  final image carries only that packaged output plus the X/VNC stack — no npm,
+  no source tree, and none of the ~730 MB of `cad/` + `mesh/` build-only
+  dependencies
 - feat: **images for linux/arm64 as well as linux/amd64**, published to
   **GHCR** (`ghcr.io/loumalouomega/kkss`) alongside Docker Hub. Each
   architecture builds on its own native runner and the two are merged into one

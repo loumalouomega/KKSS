@@ -62,9 +62,11 @@ with `KKSS_TAG` (compose) or by using the full tag in `docker run`.
 ## Where it runs
 
 The image is **multi-stage**: one stage builds and packages the app, and the
-final image carries only that packaged output plus the X/VNC stack — no Node,
-no npm, no source tree, and none of the submodules' build dependencies. It runs
-as the unprivileged `kkss` user (uid 1000), not root.
+final image carries only that packaged output plus the X/VNC stack — no npm, no
+source tree, and none of the submodules' build dependencies. That puts it at
+about **2 GB** (linux/amd64), down from 5.5 GB before the split. It runs as the
+unprivileged `kkss` user (uid 1000), not root, and the app's own files are
+root-owned so the running process cannot modify them.
 
 ## Environment variables
 

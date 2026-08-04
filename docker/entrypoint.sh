@@ -20,6 +20,9 @@ export DISPLAY
 
 declare -a CHILDREN=()
 SHUTTING_DOWN=0
+# The window-sizing helper below is a child too, but deliberately NOT in
+# CHILDREN: it must not be waited on (it exits by itself) — only killed.
+HELPER_PID=""
 
 # Names are parallel to CHILDREN purely so a failure can say what died.
 declare -a CHILD_NAMES=()
@@ -29,8 +32,23 @@ shutdown() {
   local signal="${1:-TERM}"
   [ "$SHUTTING_DOWN" = "1" ] && return 0 # a second signal is a no-op
   SHUTTING_DOWN=1
-  for pid in "${CHILDREN[@]}"; do
+  for pid in "${CHILDREN[@]}" ${HELPER_PID:+"$HELPER_PID"}; do
     kill -"$signal" "$pid" 2>/dev/null || true
+  done
+}
+
+# Bounded drain. A bare `wait` would block on any still-running child — the
+# helper sleeps for up to 30s — and `docker stop` would give up and SIGKILL at
+# its 10s timeout instead of exiting cleanly.
+drain() {
+  local _ pid still
+  for _ in $(seq 1 30); do
+    still=0
+    for pid in "${CHILDREN[@]}"; do
+      kill -0 "$pid" 2>/dev/null && still=1
+    done
+    [ "$still" = "0" ] && return 0
+    sleep 0.1
   done
 }
 trap 'shutdown TERM' TERM
@@ -96,6 +114,7 @@ track $! KKSS
     sleep 0.5
   done
 ) &
+HELPER_PID=$!
 
 # Wake on whichever supervised child exits first. The pid list is explicit
 # (bash >= 5.1): a bare `wait -n` would also wake on the one-shot xdotool
@@ -110,7 +129,7 @@ set -e
 if [ "$SHUTTING_DOWN" = "1" ]; then
   # An orderly `docker stop`: children were signalled on purpose.
   shutdown TERM
-  wait 2>/dev/null || true
+  drain
   exit 0
 fi
 
@@ -122,5 +141,5 @@ for i in "${!CHILDREN[@]}"; do
   fi
 done
 shutdown TERM
-wait 2>/dev/null || true
+drain
 exit "$status"
