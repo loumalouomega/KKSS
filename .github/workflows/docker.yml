@@ -130,7 +130,7 @@ jobs:
           [ "$elapsed" -lt 10 ]
 
       - name: Scan for vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: kkss-web:ci
           format: table

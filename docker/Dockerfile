@@ -45,7 +45,7 @@ COPY . .
 # source directory, and `mv` would move the package *into* it.
 RUN --mount=type=cache,target=/root/.cache/electron-builder \
     npm run dist:dir \
- && mv "$(find release -maxdepth 1 -type d -name 'linux*unpacked' | head -1)" /packaged \
+ && mv "$(find release -maxdepth 1 -type d -name 'linux*unpacked' -print -quit)" /packaged \
  && test -x /packaged/kkss
 
 # ---------------------------------------------------------------- runtime ---
@@ -95,7 +95,10 @@ RUN chmod +x /entrypoint.sh
 # container filesystem, not the host's).
 VOLUME /workspace
 
-USER kkss
+# Numeric rather than `kkss` so a runtime that has to resolve the id without
+# reading /etc/passwd (Kubernetes' runAsNonRoot, for one) still sees a non-root
+# user. Same account created above.
+USER 1000:1000
 # C.UTF-8 is built into glibc (no `locales` package needed). Without it the
 # X window title round-trips through ANSI_X3.4-1968 and mangles the app's
 # non-ASCII characters.
@@ -109,9 +112,11 @@ EXPOSE 6080
 # Feature-level probe, not just "the port answers": noVNC has to serve, the X
 # display has to exist, and the app process has to be alive — otherwise a
 # crashed viewer looks healthy while streaming a black screen.
+# Exec form with an explicit shell (rather than the shell form) so the JSON
+# notation is unambiguous; the env vars are still expanded, just by this shell
+# at run time. The last command's status is the health verdict — no `|| exit 1`
+# needed.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=90s \
-  CMD curl -fsS "http://localhost:${NOVNC_PORT}/" >/dev/null \
-      && xdpyinfo -display "$DISPLAY" >/dev/null 2>&1 \
-      && pgrep -f "$KKSS_BIN" >/dev/null || exit 1
+  CMD ["/bin/sh", "-c", "curl -fsS \"http://localhost:${NOVNC_PORT}/\" >/dev/null && xdpyinfo -display \"$DISPLAY\" >/dev/null 2>&1 && pgrep -f \"$KKSS_BIN\" >/dev/null"]
 
 ENTRYPOINT ["tini", "--", "/entrypoint.sh"]
