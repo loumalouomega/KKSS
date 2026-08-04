@@ -5,7 +5,7 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
-## [Unreleased]
+## [1.2.0] - 2026-08-04
 
 - feat: **the Docker image shrinks from 5.54 GB to 1.99 GB** (−64%, measured on
   linux/amd64). The Dockerfile is now multi-stage: one stage builds and
@@ -289,6 +289,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.2.0]: https://github.com/loumalouomega/KKSS/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/loumalouomega/KKSS/compare/v1.0.8...v1.1.0
 [1.0.8]: https://github.com/loumalouomega/KKSS/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/loumalouomega/KKSS/compare/v1.0.6...v1.0.7
