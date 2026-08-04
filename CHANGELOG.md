@@ -5,6 +5,19 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.2.2] - 2026-08-04
+
+- chore: **the Docker image still is not published for linux/arm64.** Its boot
+  check fails on the native ARM runner while the same image, cross-packaged and
+  run under emulation, starts cleanly — app process alive, X display up, window
+  created, healthcheck green — so the cause is environmental rather than the
+  arm64 artifact. The check used to dump the container's logs only *after* its
+  assertions, so a failure reported nothing but `exit code 1`; it now always
+  reports the container's state (including whether it was OOM-killed) and its
+  last 100 log lines, and gives up as soon as the container exits rather than
+  polling a dead container for two minutes. linux/amd64 builds, boots and
+  scans cleanly
+
 ## [1.2.1] - 2026-08-04
 
 - fix: **the 1.2.0 Docker image never reached the registries.** Its workflow

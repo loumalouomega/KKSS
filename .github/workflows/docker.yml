@@ -94,10 +94,29 @@ jobs:
 
       - name: Boot container and healthcheck
         run: |
+          # Whatever fails below, show the container's own account of it —
+          # without this the log ends at a bare "exit code 1" and says nothing.
+          diagnose() {
+            echo "::group::container state"
+            docker ps -a --filter name=kkss --format '{{.Status}} — {{.Image}}'
+            docker inspect --format 'running={{.State.Running}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' kkss || true
+            echo "::endgroup::"
+            echo "::group::container logs"
+            docker logs kkss 2>&1 | tail -100 || true
+            echo "::endgroup::"
+          }
+          trap diagnose EXIT
+
           docker run -d --name kkss --shm-size=1g -p 6080:6080 kkss-web:ci
           ok=0
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:6080/ >/dev/null; then ok=1; break; fi
+            # An exited container will never answer — fail fast instead of
+            # burning the full two minutes on a corpse.
+            if [ "$(docker inspect --format '{{.State.Running}}' kkss)" != "true" ]; then
+              echo "container exited before noVNC came up" >&2
+              exit 1
+            fi
             sleep 2
           done
           [ "$ok" = "1" ]
@@ -118,7 +137,6 @@ jobs:
             echo "/kkss exists — the source tree leaked into the runtime stage" >&2
             exit 1
           fi
-          docker logs kkss
 
       - name: Stop cleanly (the entrypoint must forward SIGTERM)
         run: |
