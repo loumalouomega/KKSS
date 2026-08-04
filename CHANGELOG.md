@@ -5,6 +5,18 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.2.3] - 2026-08-04
+
+- fix: **the multi-arch Docker image should now actually publish.** Both
+  architectures have been building, booting and pushing cleanly since 1.2.2;
+  what failed was the final step that merges them into one tag. The two
+  registries were declared as two separate image exporters, and because each
+  push carries its own provenance attestation naming that registry, the two
+  manifest indexes hash differently — so the single digest the build reports
+  was only ever valid in the second registry, and merging it into the first
+  failed with "not found". Both registry names now ride on one exporter, which
+  produces one digest valid in both
+
 ## [1.2.2] - 2026-08-04
 
 - chore: **the Docker image still is not published for linux/arm64.** Its boot
@@ -316,6 +328,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.2.3]: https://github.com/loumalouomega/KKSS/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/loumalouomega/KKSS/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/loumalouomega/KKSS/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/loumalouomega/KKSS/compare/v1.1.0...v1.2.0
