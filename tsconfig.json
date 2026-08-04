@@ -10,7 +10,13 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      // Submodule dependencies live in the submodule's own node_modules, not
+      // the root tree. esbuild and vitest resolve these too (see esbuild.mjs's
+      // aliases and vitest.config.ts) — this is the type-checker's copy.
+      "fflate": ["./cad/node_modules/fflate"]
+    }
   },
   "include": ["app/**/*.ts", "test/**/*.ts", "cad/src/types/**/*.d.ts"]
 }

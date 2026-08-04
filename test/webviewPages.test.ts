@@ -35,21 +35,56 @@ describe.skipIf(!built)("generated webview pages", () => {
 
   it("carries the mesh provider skeleton", () => {
     const html = read("mesh");
-    for (const anchor of ['id="loading"', 'id="app"', 'id="sidebar"', 'id="render-root"', 'id="find-bar"']) {
+    // #menubar + #main arrived with mesh 3.0.0's unified chrome; style.css's
+    // whole layout hangs off them.
+    for (const anchor of [
+      'id="loading"',
+      'id="app"',
+      'id="menubar"',
+      'id="main"',
+      'id="sidebar"',
+      'id="render-root"',
+      'id="find-bar"',
+    ]) {
       expect(html).toContain(anchor);
     }
   });
 
-  it("carries the Advanced menu (meshBody() replicates the providers' toolbar)", () => {
-    // Mesh Size / Spheres / Face normals / Export skin live in this popup, a
-    // sibling of #toolbar — webview/main.ts looks it up by id, so a stale
-    // meshBody() would leave every one of them dead in KKSS only.
+  it("carries the View and Advanced menus (meshBody() replicates the providers' toolbar)", () => {
+    // Node IDs / Grid / Screenshot live in #view-popup and Mesh Size / Spheres
+    // / Face normals / Export skin / Lighting / Bookmarks in #advanced-popup,
+    // both siblings of #toolbar — webview/main.ts looks them up by id, so a
+    // stale meshBody() would leave every one of them dead in KKSS only.
     const html = read("mesh");
+    expect(html).toContain('id="view-popup"');
     expect(html).toContain('id="advanced-popup"');
-    expect(html).toContain('data-action="advanced"');
-    for (const action of ["meshSize", "spheres", "normals", "exportSkin"]) {
+    for (const action of ["viewMenu", "advanced", "inspect"]) {
       expect(html).toContain(`data-action="${action}"`);
     }
+    for (const action of ["nodeIds", "grid", "screenshot", "meshSize", "spheres", "normals", "exportSkin", "lighting", "bookmarks"]) {
+      expect(html).toContain(`data-action="${action}"`);
+    }
+  });
+
+  it("carries the redesigned Clip controls", () => {
+    // mesh 3.0.0 reparents #cut-panel into the nav card; its Off/On toggle and
+    // the Free oblique-normal inputs are new ids main.ts wires by hand.
+    const html = read("mesh");
+    for (const anchor of ['id="cut-toggle"', 'id="cut-free-inputs"', 'id="cut-normal-x"']) {
+      expect(html).toContain(anchor);
+    }
+  });
+
+  it("links design-system.css before style.css, then the KKSS overrides", () => {
+    // style.css resolves 37 --ds-* tokens defined only in design-system.css, and
+    // mesh-overrides.css hides the menubar — order decides all three.
+    const html = read("mesh");
+    const ds = html.indexOf("design-system.css");
+    const style = html.indexOf("./style.css");
+    const overrides = html.indexOf("mesh-overrides.css");
+    expect(ds).toBeGreaterThan(-1);
+    expect(style).toBeGreaterThan(ds);
+    expect(overrides).toBeGreaterThan(style);
   });
 
   it("keeps vtk.js blob workers allowed in the mesh CSP", () => {

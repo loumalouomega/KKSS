@@ -1,0 +1,18 @@
+/*
+ * KKSS-only overrides for the mesh webview, linked after the submodule's own
+ * design-system.css + style.css (tools/webviewMarkup.ts). The submodule is
+ * consumed verbatim, so anything KKSS needs to look different lives here.
+ *
+ * mesh 3.0.0 introduced an in-flow menu bar (`#menubar`) holding the webview's
+ * File menu and scene-theme picker. KKSS already owns both: File ▸ Open / Save /
+ * Save As / Export in the native menu (app/main/menu.ts) and Settings ▸ Color
+ * Theme, persisted through `stateStore` and pushed into the view as
+ * `initialState.sceneTheme`. Showing the strip too would put the same actions in
+ * two places and eat 34px of viewport, so it is emitted (webview/main.ts queries
+ * `#file-menu-btn`, `#theme-select`, … by id and would break on missing nodes)
+ * but hidden. The Problem-zip and Screenshot entries that live *only* in that
+ * menu have native equivalents — keep them in sync when the menu grows.
+ */
+#menubar {
+  display: none;
+}

@@ -104,7 +104,8 @@ The **Edit** toolbar button opens the file currently loaded in the active mode (
 
 The **Settings** menu (also reachable from the home screen's Settings button) holds app-level preferences, persisted across runs:
 
-- **Color Theme** — Auto / Dark / Light / Scientific. The same scene theme the mesh viewer's own toolbar toggle controls; viewers apply it when they next load a file.
+- **Color Theme** — Auto / Dark / Light / Scientific. The same scene theme the mesh viewer's own picker controls; viewers apply it when they next load a file.
+- **CAD Viewer Defaults** — up axis, default mesh-size preset, B-rep tessellation quality, and whether the grid and axes show on open. These seed a newly opened CAD document; a per-document sidecar value or a runtime toggle wins once set.
 - **Terminal Shell** — the shell the embedded terminal launches (takes effect for the next terminal session).
 - **LLM Assistant** — provider (Anthropic / OpenAI-compatible), API keys, model names, and the OpenAI-compatible base URL for the AI chat sidebar. Keys are encrypted with the OS keychain (Electron `safeStorage`) when one is available; changes apply to the next message, no restart needed.
 - **MCP Server** — enable the localhost HTTP endpoint that exposes KKSS's toolset to an external MCP client, set its port, and copy or regenerate the bearer token (see *AI assistant ▸ Use your own MCP client* above). Off by default.
@@ -114,8 +115,9 @@ Viewer actions (mesh quality, field visualization, find entity…) are *not* in 
 ## Opening files
 
 - **Open… button** or `Ctrl+O` — opens a file in the current mode.
-- **File ▸ Open** in the in-viewer File menu — same thing.
+- **File ▸ Open** in the CAD viewer's own File menu — same thing. (The mesh viewer's in-view File menu is hidden; use the app's **File** menu, which covers the same actions plus Save/Load Problem.)
 - Formats supported by both modes (`.stl`, `.obj`, `.ply`) open in whichever mode is currently active.
+- Mesh formats Pre-Processing can also import (`.mdpa`, `.vtk`, `.vtu`, `.med`, `.cgns`, `.exo`, `.xdmf`) always open in **Post-Processing**, which reads them natively. Use Pre-Processing's own Open dialog when you want the geometry-only CAD import instead.
 
 ## Keyboard shortcuts
 
@@ -125,9 +127,13 @@ Viewer actions (mesh quality, field visualization, find entity…) are *not* in 
 | `Ctrl+S` | Save (CAD: flush sidecars · Mesh: overwrite the source file) |
 | `Ctrl+Shift+S` | Save As |
 | `Ctrl+E` | Export |
+| `Ctrl+Alt+S` / `Ctrl+Alt+O` | Save / Load a problem archive (Post-Processing) |
+| `Ctrl+Alt+P` | Screenshot the current view to PNG |
 | `Ctrl+0` | Back to the home screen (main menu) |
 | `Ctrl+1` / `Ctrl+2` | Switch to Pre-Processing / Post-Processing |
 | ``Ctrl+` `` | Toggle the embedded terminal |
 | `Ctrl+Shift+L` | Toggle the AI chat sidebar |
 
 On macOS use `Cmd` instead of `Ctrl`.
+
+Inside the mesh view, `1`–`6` snap the camera to ±X/±Y/±Z and `i` to an isometric view.

@@ -25,6 +25,9 @@
   --vscode-editorCodeLens-foreground: #999999;
   --vscode-editorGroupHeader-tabsBackground: #252526;
   --vscode-editorWarning-foreground: #cca700;
+  /* cad/media/viewer.css's panel borders (CAD-Preview 1.2.x). Dark Modern gives
+     widget.border the same value as its editorWidget counterpart's neighbours. */
+  --vscode-widget-border: #3c3c3c;
 
   --vscode-button-background: #0e639c;
   --vscode-button-border: transparent;

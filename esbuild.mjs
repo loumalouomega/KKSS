@@ -18,6 +18,9 @@ const required = [
   ["cad/media/viewer.css", "npm run build --prefix cad"],
   ["mesh/media/webview.js", "npm run package --prefix mesh"],
   ["mesh/media/style.css", "npm run package --prefix mesh"],
+  // Shared token/base layer style.css builds on (mesh 3.0.0's design system).
+  // Must be linked before style.css — see tools/webviewMarkup.ts.
+  ["mesh/media/design-system.css", "npm run package --prefix mesh"],
   ["mesh/dist/mmgWorker.js", "npm run package --prefix mesh"],
   ["mesh/dist/mmg-core.wasm", "npm run package --prefix mesh"],
   ["cad/dist/opencascade.wasm.wasm", "npm run build --prefix cad"],
@@ -88,6 +91,16 @@ const gmshAlias = {
   ),
 };
 
+// cad/src/meshioService.ts loads meshio++ with a bare `await import(...)` and
+// no directory fallback (unlike mesh's own loader, which ends at
+// `__dirname/meshio`). KKSS ships no node_modules, so that specifier is
+// redirected to a shim that resolves the copied out/meshio/ tree — see
+// app/main/cadMeshioLoader.ts. Only the bare specifier is rewritten; mesh's
+// loader builds its path at runtime and is unaffected.
+const meshioAlias = {
+  "@meshioplusplus/wasm": path.join(__dirname, "app/main/cadMeshioLoader.ts"),
+};
+
 /** @type {import('esbuild').BuildOptions} */
 const mainConfig = {
   entryPoints: ["app/main/index.ts"],
@@ -126,8 +139,10 @@ const cadWorkerConfig = {
   outfile: "out/cadCompute.worker.js",
   plugins: [wasmPathPlugin],
   // gmshService.ts (bundled into this worker) imports gmsh-wasm — force its
-  // CJS build so the top-level await in the ESM entry never reaches this CJS bundle.
-  alias: { ...gmshAlias },
+  // CJS build so the top-level await in the ESM entry never reaches this CJS
+  // bundle. meshioService.ts's bare @meshioplusplus/wasm import is redirected
+  // to the out/meshio/ resolver shim (see meshioAlias above).
+  alias: { ...gmshAlias, ...meshioAlias },
   // gmsh-core.cjs's emscripten runtime has a `require("ws")` in its Node
   // WebSocket-socket branch — dead code for mesh generation (no networking) and
   // ws isn't even a declared dep. Keep it external so it never has to resolve.
@@ -200,7 +215,14 @@ function copyArtifacts() {
     ["cad/media/viewer.js", out("renderer/cad/viewer.js")],
     ["cad/media/viewer.css", out("renderer/cad/viewer.css")],
     ["mesh/media/webview.js", out("renderer/mesh/webview.js")],
+    // design-system.css defines the --ds-* tokens style.css resolves; the
+    // generated page links it first (tools/webviewMarkup.ts).
+    ["mesh/media/design-system.css", out("renderer/mesh/design-system.css")],
     ["mesh/media/style.css", out("renderer/mesh/style.css")],
+    // KKSS-only overrides, linked last: the app has a native menu bar, so the
+    // webview's own in-flow menubar is emitted (main.ts queries its nodes) but
+    // hidden.
+    ["app/renderer/theme/mesh-overrides.css", out("renderer/mesh/mesh-overrides.css")],
     // MMG worker pair must sit next to out/main.js (mmgWorkerClient resolves
     // the worker via __dirname; the wasm is fed by configureMmg at startup).
     ["mesh/dist/mmgWorker.js", out("mmgWorker.js")],

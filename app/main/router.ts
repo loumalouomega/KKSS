@@ -10,9 +10,19 @@ import type { Mode } from "./ipc";
 
 export function modeForFile(fsPath: string, activeMode: Mode): Mode | undefined {
   const ext = path.extname(fsPath).toLowerCase();
-  const cadOk = routeFile(fsPath) !== undefined;
+  const route = routeFile(fsPath);
+  const cadOk = route !== undefined;
   const meshOk = ext === ".mdpa" || SUPPORTED_MESH_EXTENSIONS.includes(ext);
-  if (cadOk && meshOk) return activeMode;
+  if (cadOk && meshOk) {
+    // CAD-Preview 1.2 can also import .mdpa/.vtk/.vtu/.med/.cgns/.exo/.xdmf
+    // through meshio++, as a geometry-only boundary surface. Those are
+    // post-processing formats here — and .mdpa is KKSS's flagship one — so they
+    // keep opening in mesh mode, which reads them natively (fields, blocks,
+    // SubModelParts). CAD mode's importer stays reachable from its own Open
+    // dialog. Only the genuinely shared surface formats (.stl/.obj/.ply) let
+    // the active mode win.
+    return route.strategy === "meshio" ? "mesh" : activeMode;
+  }
   if (cadOk) return "cad";
   if (meshOk) return "mesh";
   return undefined;

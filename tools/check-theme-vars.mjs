@@ -11,8 +11,14 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const sources = [
   "cad/media/viewer.css",
   "mesh/webview/style.css", // source of media/style.css (mesh/media is gitignored)
+  "mesh/webview/design-system.css", // mesh 3.0.0's shared token/base layer
 ];
 const themeFile = "app/renderer/theme/vscode-vars.css";
+// mesh's style.css builds on --ds-* tokens that live only in design-system.css.
+// The page links both (tools/webviewMarkup.ts), so a token style.css uses but
+// design-system.css never defines would render as an unresolved color/radius.
+const dsConsumer = "mesh/webview/style.css";
+const dsDefiner = "mesh/webview/design-system.css";
 
 const used = new Set();
 for (const rel of sources) {
@@ -31,4 +37,26 @@ if (missing.length > 0) {
   );
   process.exit(1);
 }
-console.log(`check-theme-vars: OK (${used.size} variables, all defined)`);
+
+const dsUsed = new Set(
+  [...fs.readFileSync(path.join(root, dsConsumer), "utf8").matchAll(/var\((--ds-[a-zA-Z0-9-]+)/g)].map(
+    (m) => m[1]
+  )
+);
+const dsDefined = new Set(
+  [...fs.readFileSync(path.join(root, dsDefiner), "utf8").matchAll(/(--ds-[a-zA-Z0-9-]+)\s*:/g)].map(
+    (m) => m[1]
+  )
+);
+const dsMissing = [...dsUsed].filter((v) => !dsDefined.has(v)).sort();
+if (dsMissing.length > 0) {
+  console.error(
+    `check-theme-vars: ${dsMissing.length} --ds-* token(s) used by ${dsConsumer} are not ` +
+      `defined in ${dsDefiner}:\n  ${dsMissing.join("\n  ")}`
+  );
+  process.exit(1);
+}
+
+console.log(
+  `check-theme-vars: OK (${used.size} --vscode-* variables, ${dsUsed.size} --ds-* tokens, all defined)`
+);

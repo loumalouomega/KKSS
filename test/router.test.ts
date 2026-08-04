@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { modeForFile, modeForViewType } from "../app/main/router";
+import { routeFile } from "../cad/src/fileRouter";
 
 describe("modeForFile", () => {
   it("routes CAD-only formats to cad regardless of active mode", () => {
@@ -11,6 +12,19 @@ describe("modeForFile", () => {
 
   it("routes mesh-only formats to mesh regardless of active mode", () => {
     for (const f of ["a.mdpa", "a.vtk", "a.vtu", "a.vtp", "a.vtm", "a.vti", "a.vts", "a.vtr"]) {
+      expect(modeForFile(f, "cad")).toBe("mesh");
+      expect(modeForFile(f, "mesh")).toBe("mesh");
+    }
+  });
+
+  it("keeps the meshio-strategy formats in mesh mode even though cad claims them too", () => {
+    // CAD-Preview 1.2 imports these through meshio++ as a geometry-only
+    // boundary surface, so routeFile() now resolves them — but they are
+    // post-processing formats here, and mesh mode reads them natively (fields,
+    // blocks, SubModelParts). Without the strategy check they would fall into
+    // the "active mode wins" branch and .mdpa would open in CAD mode.
+    for (const f of ["a.mdpa", "a.vtk", "a.vtu", "a.med", "a.cgns", "a.exo", "a.e", "a.xdmf"]) {
+      expect(routeFile(f)?.strategy).toBe("meshio"); // cad really does claim it
       expect(modeForFile(f, "cad")).toBe("mesh");
       expect(modeForFile(f, "mesh")).toBe("mesh");
     }

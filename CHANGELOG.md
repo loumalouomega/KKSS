@@ -5,6 +5,81 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.1.0] - 2026-08-04
+
+- feat: bump the CAD submodule to 1.2.6 (from 1.0.5) and the mesh submodule to
+  3.0.0 (from 2.8.3), bringing to **Pre-Processing** mode:
+  - **Save / Load Preprocess…** — bundle a CAD file and its sidecars into one
+    `.zip` and restore it later, now reachable from the native File menu. The
+    archive carries a per-entry SHA-256 and a reader-version gate, and the
+    reader rejects tampered entries, zip bombs and path-traversal names rather
+    than half-restoring; KKSS also refuses to restore an archive to a
+    destination whose extension doesn't match its source format
+  - **Persistence that survives a reopen**: pinned measurements
+    (`<model>.annotations.json`) and the camera / display mode / projection /
+    clip plane (`<model>.view.json`), plus a real XCAF assembly structure in
+    the Components tree and external-change reconciliation for the source and
+    every sidecar
+  - **Configurable B-rep tessellation** (Draft / Standard / Fine) and a cached
+    parse: an interactive edit now replays against a cached base shape instead
+    of re-reading the file — measured at ~14× faster on the bundled STEP
+    fixture (1511 ms → 104 ms)
+  - **Smooth-edge classification**, so patch seams can be hidden
+  - **A new import route**: `.vtk`/`.vtu`/`.med`/`.cgns`/`.exo`/`.xdmf`/`.mdpa`
+    open in CAD mode as boundary surfaces through meshio++, with named regions
+    turned into Parts and any scalar point/cell field usable to colour the
+    model. Opening one normally still lands in Post-Processing, which reads
+    them natively — use Pre-Processing's own Open… dialog (or drag-and-drop)
+    for the geometry-only import
+  - **Unit conversion on export** (mm/cm/m/in/ft), for the model Export command
+    and the FE Mesh panel alike — a real geometric scale, with STEP/IGES header
+    units written to match — plus **MED, CGNS and XDMF** mesh targets Gmsh's
+    own writers cannot produce
+  - **Measurement, mass properties and markup**: distance/length/angle/radius
+    with an ⟟ Exact button that recomputes against the true OCCT geometry,
+    volume/area/centre-of-mass/inertia for the model or one entity, and a
+    freehand/line/arrow/rectangle/circle annotation layer baked into
+    screenshots
+  - **Toolbar dropdowns and display modes**: Fit/Tree/FE Mesh plus View ▾ /
+    Select ▾ / Measure ▾ / Markup ▾, five whole-model render modes, a capped
+    clipping plane, exploded view, per-part isolate/hide with a tree filter,
+    and an orthographic/perspective toggle
+  - **Mesh quality statistics** with the worst elements highlighted through the
+    model, hex-dominant meshing, and best-effort **entity-id rebinding** so a
+    Part survives a topology-changing edit elsewhere in the model
+  - **Screenshot to PNG** (`Ctrl+Alt+P`, shared with post mode)
+- feat: and to **Post-Processing** mode:
+  - **A unified interface** with the CAD viewer, built on a shared design-token
+    layer: solid pill buttons, a distinct sidebar column, one dropdown recipe,
+    a redesigned nav card and orientation cube, and one floating-panel chrome
+  - **Inspect**: click any node/element/condition to read its id, block,
+    SubModelPart membership and every field value at it, with a Measure
+    sub-mode between two nodes
+  - **Threshold** field mode, a component selector, lockable colour ranges, log
+    scale, discrete bands, 12 colormaps and an in-scene scalar bar; per-layer
+    opacity; **Lighting…** and **Camera Bookmarks…**; and an oblique **Free**
+    clip normal
+  - **meshio++ 9.9.0**: `.med` becomes a writable format, and SubModelParts now
+    survive an export to MED (families), Abaqus (`*NSET`/`*ELSET`) and — block
+    names — Exodus; CGNS and Exodus keep field data they used to drop
+- feat: the native File menu gains **Save Problem…** (`Ctrl+Alt+S`), **Load
+  Problem…** (`Ctrl+Alt+O`) and **Screenshot…** (`Ctrl+Alt+P`) — the mesh
+  viewer's own in-view File menu moved into a menu bar that KKSS hides in
+  favour of the native one, so those entries live here now
+- feat: **Settings ▸ CAD Viewer Defaults** — up axis, default mesh-size preset,
+  B-rep tessellation quality, and grid/axes on open, seeding each newly opened
+  CAD document
+- feat: the AI chat sidebar's system prompt describes CAD-Preview's 23 tools
+  (from 13) — mass properties, inspect/measure/measure_exact, interference
+  checks, model comparison, render snapshots, standard-part search, parametric
+  scripts — and the mesh server's MED writer and time-step support
+- fix: `check-theme-vars` now scans mesh's `design-system.css` and additionally
+  guards `--ds-*` token closure, so the layer `style.css` depends on can't go
+  missing silently
+- chore: patch every open Dependabot advisory in both lockfiles (`undici`,
+  `ip-address`, `fast-uri`, `postcss`, `hono`, `tar`, `brace-expansion`) — all
+  dev/build-time except `fast-uri`, which ships bundled via the MCP SDK
+
 ## [1.0.8] - 2026-07-28
 
 - feat: bump the mesh submodule to 2.8.3 (from 2.2.0) and the CAD submodule to
@@ -180,6 +255,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.1.0]: https://github.com/loumalouomega/KKSS/compare/v1.0.8...v1.1.0
 [1.0.8]: https://github.com/loumalouomega/KKSS/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/loumalouomega/KKSS/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/loumalouomega/KKSS/compare/v1.0.5...v1.0.6

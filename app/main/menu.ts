@@ -7,7 +7,16 @@
  */
 import { Menu, shell } from "electron";
 import type { MainWindow } from "./windows";
-import type { CadHost } from "./cadHost";
+import { CAD_DEFAULT_KEYS, type CadHost } from "./cadHost";
+import {
+  DEFAULT_VIEWER_DEFAULTS,
+  type MeshSizePreset,
+  type UpAxis,
+} from "../../cad/src/viewerDefaults";
+import {
+  DEFAULT_TESSELLATION_QUALITY,
+  type TessellationQuality,
+} from "../../cad/src/tessellationQuality";
 import type { MeshHost } from "./mesh/meshHost";
 import type { Screen } from "./ipc";
 import { showQuickPick, showInputBox } from "./services/quickPick";
@@ -52,6 +61,23 @@ const SCENE_THEMES: Array<{ value: string; label: string }> = [
   { value: "dark", label: "Dark" },
   { value: "light", label: "Light" },
   { value: "scientific", label: "Scientific" },
+];
+
+/** CAD viewer default up-axis / mesh-size preset (cad's ViewerDefaults). */
+const CAD_UP_AXES: Array<{ value: UpAxis; label: string }> = [
+  { value: "y", label: "Y up" },
+  { value: "z", label: "Z up" },
+];
+const CAD_MESH_SIZE_PRESETS: Array<{ value: MeshSizePreset; label: string }> = [
+  { value: "coarse", label: "Coarse" },
+  { value: "medium", label: "Medium" },
+  { value: "fine", label: "Fine" },
+];
+/** B-rep tessellation quality (cad 1.2.6) — trades detail against load time. */
+const CAD_TESSELLATION_QUALITIES: Array<{ value: TessellationQuality; label: string }> = [
+  { value: "draft", label: "Draft (fastest)" },
+  { value: "standard", label: "Standard" },
+  { value: "fine", label: "Fine (most detail)" },
 ];
 
 /** Shell choices for the embedded terminal, per platform. */
@@ -135,6 +161,35 @@ export function installMenu(deps: MenuDeps): void {
           label: "Export…",
           accelerator: "CmdOrCtrl+E",
           click: () => (inCad() ? cadHost.export() : void meshExportPick()),
+        },
+        { type: "separator" },
+        // The mesh viewer's own File menu lives in its in-flow menubar, which
+        // KKSS hides (app/renderer/theme/mesh-overrides.css) in favour of this
+        // one — so its Problem-zip entries have to live here, on the same
+        // accelerators the extension contributes (kratos.problem.save/load).
+        {
+          label: "Save Problem…",
+          accelerator: "CmdOrCtrl+Alt+S",
+          click: () => void meshHost.dispatchMenu({ type: "menuSaveProblem" }),
+        },
+        {
+          label: "Load Problem…",
+          accelerator: "CmdOrCtrl+Alt+O",
+          click: () => void meshHost.dispatchMenu({ type: "menuLoadProblem" }),
+        },
+        { type: "separator" },
+        // The CAD counterpart: a .zip of the source + its sidecars. Load needs
+        // no open document, so it is never mode-gated.
+        { label: "Save Preprocess…", click: () => cadHost.savePreprocess() },
+        { label: "Load Preprocess…", click: () => cadHost.loadPreprocess() },
+        { type: "separator" },
+        {
+          // cad-preview.screenshot / kratos.mdpa.screenshot — both viewers gained
+          // one in this submodule bump; dispatch to whichever mode is active.
+          label: "Screenshot…",
+          accelerator: "CmdOrCtrl+Alt+P",
+          click: () =>
+            inCad() ? cadHost.screenshot() : meshHost.postToActive({ type: "takeScreenshot" }),
         },
         { type: "separator" },
         { role: "quit" },
@@ -221,6 +276,60 @@ export function installMenu(deps: MenuDeps): void {
             // key); viewers pick it up when they next load a file.
             click: () => void stateStore.update("sceneTheme", t.value),
           })),
+        },
+        {
+          // The `cadPreview.*` settings the CAD viewer reads as its
+          // cross-document defaults (CadHost.sendViewerDefaults). They only seed
+          // a newly opened document — a per-document sidecar value or a runtime
+          // toggle still wins. Background is intentionally absent: it needs a
+          // colour picker, and the view-controls Appearance group already
+          // offers one per session.
+          label: "CAD Viewer Defaults",
+          submenu: [
+            {
+              label: "Up Axis",
+              submenu: CAD_UP_AXES.map((a) => ({
+                label: a.label,
+                type: "radio" as const,
+                checked:
+                  stateStore.get(CAD_DEFAULT_KEYS.upAxis, DEFAULT_VIEWER_DEFAULTS.upAxis) === a.value,
+                click: () => void stateStore.update(CAD_DEFAULT_KEYS.upAxis, a.value),
+              })),
+            },
+            {
+              label: "Default Mesh Size",
+              submenu: CAD_MESH_SIZE_PRESETS.map((p) => ({
+                label: p.label,
+                type: "radio" as const,
+                checked:
+                  stateStore.get(CAD_DEFAULT_KEYS.meshSizePreset, DEFAULT_VIEWER_DEFAULTS.meshSizePreset) ===
+                  p.value,
+                click: () => void stateStore.update(CAD_DEFAULT_KEYS.meshSizePreset, p.value),
+              })),
+            },
+            {
+              // Tessellation is re-read per B-rep load, so this applies on the
+              // next edit or reopen — no restart.
+              label: "Tessellation Quality",
+              submenu: CAD_TESSELLATION_QUALITIES.map((q) => ({
+                label: q.label,
+                type: "radio" as const,
+                checked:
+                  stateStore.get(CAD_DEFAULT_KEYS.tessellationQuality, DEFAULT_TESSELLATION_QUALITY) ===
+                  q.value,
+                click: () => void stateStore.update(CAD_DEFAULT_KEYS.tessellationQuality, q.value),
+              })),
+            },
+            {
+              label: "Show Grid && Axes on Open",
+              type: "checkbox" as const,
+              checked: stateStore.get(
+                CAD_DEFAULT_KEYS.showGridAndAxes,
+                DEFAULT_VIEWER_DEFAULTS.showGridAndAxes
+              ),
+              click: (item) => void stateStore.update(CAD_DEFAULT_KEYS.showGridAndAxes, item.checked),
+            },
+          ],
         },
         {
           label: "Terminal Shell",

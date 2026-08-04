@@ -15,20 +15,39 @@ import * as fs from "fs";
 import * as path from "path";
 import { viewerBodyHtml } from "../cad/src/viewerDom";
 import {
-  FILE_MENU_HTML,
-  ADVANCED_BUTTON_HTML,
   ADVANCED_MENU_HTML,
+  CUT_PANEL_HTML,
   FLOWGRAPH_PANE_HTML,
+  MENUBAR_HTML,
   SIDEBAR_HTML,
+  TOOLBAR_HTML,
+  VIEW_MENU_HTML,
 } from "../mesh/src/webviewChrome";
 import { TOOLBAR_ICONS } from "../mesh/src/toolbarIcons";
 
-/** Same helper the mesh providers define (mdpaEditorProvider.ts). */
+/**
+ * Same helper the mesh providers define (mdpaEditorProvider.ts). The toolbar
+ * and both popups embed their own icons via `webviewChrome.ts`, so this is only
+ * needed for the find bar's close button, which the providers still inline.
+ */
 function icon(id: keyof typeof TOOLBAR_ICONS): string {
   return `<span class="toolbar-icon">${TOOLBAR_ICONS[id]}</span>`;
 }
 
-function page(opts: { title: string; csp: string; bundle: string; css: string; body: string }): string {
+/**
+ * `css` is an ordered list because mesh needs two sheets: design-system.css
+ * defines the `--ds-*` tokens style.css resolves, so it must be linked first
+ * (mdpaEditorProvider.getHtml does the same), and the KKSS-only overrides come
+ * last so they win.
+ */
+function page(opts: {
+  title: string;
+  csp: string;
+  bundle: string;
+  css: string[];
+  body: string;
+}): string {
+  const links = opts.css.map((f) => `  <link href="./${f}" rel="stylesheet" />`).join("\n");
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -36,7 +55,7 @@ function page(opts: { title: string; csp: string; bundle: string; css: string; b
   <meta http-equiv="Content-Security-Policy" content="${opts.csp}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
-  <link href="./${opts.css}" rel="stylesheet" />
+${links}
   <title>${opts.title}</title>
 </head>
 <body>
@@ -73,7 +92,17 @@ const MESH_CSP = [
   `connect-src kkss: blob: data:`,
 ].join("; ");
 
-/** Replica of the shared provider skeleton (mdpa/vtk getHtml bodies are identical). */
+/**
+ * Replica of the shared provider skeleton (mdpa/vtk getHtml bodies are
+ * identical) — mirrors mesh/src/mdpaEditorProvider.ts's getHtml body element
+ * for element. Everything that can come from `webviewChrome.ts` does; the only
+ * markup written out here is what the providers themselves inline.
+ *
+ * `MENUBAR_HTML` is emitted even though KKSS hides it (mesh-overrides.css):
+ * `webview/main.ts` looks its nodes up by id — including `#theme-select`, which
+ * the shared `sceneTheme` setting drives through `initialState` — so dropping
+ * it would leave those lookups null.
+ */
 function meshBody(): string {
   return `  <div id="loading">
     <div id="loading-inner">
@@ -82,39 +111,17 @@ function meshBody(): string {
     </div>
   </div>
   <div id="app" style="display:none">
+    ${MENUBAR_HTML}
+    <div id="main">
     ${SIDEBAR_HTML}
     <div id="sidebar-resizer" title="Drag to resize the sidebar"></div>
     <div id="viewport">
       <div id="vtk-sub">
-      ${FILE_MENU_HTML}
-      <div id="cut-panel" class="hidden">
-        <span style="opacity:0.7;font-size:11px">Axis</span>
-        <label><input type="radio" name="cut-axis" value="0"> X</label>
-        <label><input type="radio" name="cut-axis" value="1"> Y</label>
-        <label><input type="radio" name="cut-axis" value="2" checked> Z</label>
-        <button id="cut-flip">Flip</button>
-        <input type="range" id="cut-slider" min="0" max="100" value="50" step="0.5">
-        <span id="cut-position"></span>
+      <div id="cut-panel" class="hidden">${CUT_PANEL_HTML}
       </div>
-      <div id="toolbar">
-        <button data-action="reset" title="Reset camera">${icon("reset")} Reset</button>
-        <button data-action="pan" title="Toggle pan mode">${icon("pan")} Pan</button>
-        <button data-action="cut" title="Toggle clip plane">${icon("cut")} Cut Plane</button>
-        <button data-action="wireframe" title="Toggle wireframe">${icon("wireframe")} Wireframe</button>
-        <button data-action="nodeIds" title="Toggle node ids">${icon("nodeIds")} Node IDs</button>
-        <button data-action="quality" title="Compute mesh quality">${icon("quality")} Quality</button>
-        <button data-action="field" title="Visualize field data">${icon("field")} Field</button>
-        <button data-action="grid" title="Toggle background grid">${icon("grid")} Grid</button>
-        <button data-action="find" title="Find entity by ID">${icon("find")} Find</button>
-        ${ADVANCED_BUTTON_HTML}
-        <button data-action="screenshot" title="Save screenshot as PNG">${icon("screenshot")}</button>
-        <select id="theme-select" title="Scene theme">
-          <option value="auto">Auto</option>
-          <option value="dark">Dark</option>
-          <option value="light">Light</option>
-          <option value="scientific">Scientific</option>
-        </select>
+      <div id="toolbar">${TOOLBAR_HTML}
       </div>
+      ${VIEW_MENU_HTML}
       ${ADVANCED_MENU_HTML}
       <div id="find-bar">
         <select id="find-type">
@@ -132,6 +139,7 @@ function meshBody(): string {
       </div>
       ${FLOWGRAPH_PANE_HTML}
     </div>
+    </div>
   </div>`;
 }
 
@@ -141,11 +149,23 @@ fs.mkdirSync(path.join(outDir, "mesh"), { recursive: true });
 
 fs.writeFileSync(
   path.join(outDir, "cad", "index.html"),
-  page({ title: "KKSS — CAD Preview", csp: CAD_CSP, bundle: "viewer.js", css: "viewer.css", body: `  ${viewerBodyHtml()}` })
+  page({
+    title: "KKSS — CAD Preview",
+    csp: CAD_CSP,
+    bundle: "viewer.js",
+    css: ["viewer.css"],
+    body: `  ${viewerBodyHtml()}`,
+  })
 );
 fs.writeFileSync(
   path.join(outDir, "mesh", "index.html"),
-  page({ title: "KKSS — Mesh Preview", csp: MESH_CSP, bundle: "webview.js", css: "style.css", body: meshBody() })
+  page({
+    title: "KKSS — Mesh Preview",
+    csp: MESH_CSP,
+    bundle: "webview.js",
+    css: ["design-system.css", "style.css", "mesh-overrides.css"],
+    body: meshBody(),
+  })
 );
 
 console.log("gen-webview-html: wrote out/renderer/cad/index.html and out/renderer/mesh/index.html");

@@ -15,7 +15,7 @@ A cross-platform desktop application for **pre- and post-processing [Kratos Mult
 
 | Mode | Engine (submodule) | What it does |
 | --- | --- | --- |
-| 🔷 **Pre-Processing** | [CAD-Preview](https://github.com/loumalouomega/CAD-Preview) (`cad/`) | STEP/IGES/BREP + STL/OBJ/PLY/glTF viewing, part definition, parametric geometry editing, Gmsh FE meshing, MDPA export |
+| 🔷 **Pre-Processing** | [CAD-Preview](https://github.com/loumalouomega/CAD-Preview) (`cad/`) | STEP/IGES/BREP + STL/OBJ/PLY/glTF viewing (plus VTK/MED/CGNS/Exodus/XDMF/MDPA imported as boundary surfaces via meshio++), part definition, parametric geometry editing, measurement & mass properties, markup annotations, Gmsh FE meshing with quality statistics, and MDPA/MED/CGNS/XDMF export with optional unit conversion |
 | 🔶 **Post-Processing** | [VSCode-MDPA-Preview](https://github.com/loumalouomega/VSCode-MDPA-Preview) (`mesh/`) | MDPA/VTK inspection plus 39 extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, SU2, Exodus, CGNS, MED, EnSight Gold, Triangle, …), combinable field modes (contour/isosurface/quiver/deformed shape) & time-series visualization, sphere/particle rendering and face-normal (inverted-element) checks, mesh quality & mesh-size analysis, 20+ mesh operations with undo/redo (smoothing, renumbering, partitioning, refinement, cropping, field calculator, merging, MMG remeshing with expression-driven sizing), Kratos case setup & runs via built-in problemtypes (incl. the Flowgraph node-editor) |
 
 The app opens on a **home screen** with one button per task; a toolbar toggle (and `Ctrl+0` for Home) switches between the screens, and both viewers stay alive, keeping their loaded file, camera, and history. Also in the box:

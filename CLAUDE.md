@@ -159,14 +159,51 @@ Concretely:
   from the submodules' own markup modules (`cad/src/viewerDom.ts`,
   `mesh/src/webviewChrome.ts` + `toolbarIcons.ts`), so the DOM always matches
   what the bundles expect. The shim script must load **before** the bundle.
+  `tools/webviewMarkup.ts`'s `meshBody()` is a hand-kept replica of
+  `mdpaEditorProvider.getHtml`'s body — mirror it element for element on every
+  mesh bump, and consume `webviewChrome.ts`'s exports rather than inlining
+  markup. Mesh links **three** stylesheets in order: `design-system.css` (the
+  `--ds-*` token layer `style.css` builds on — copy it in `esbuild.mjs` too),
+  `style.css`, then `app/renderer/theme/mesh-overrides.css`.
+- **The mesh menubar is emitted, then hidden.** mesh 3.0.0 put the viewer's
+  File menu + scene-theme picker in an in-flow `#menubar` strip. KKSS's native
+  menu already owns both, so `mesh-overrides.css` hides it — but the markup
+  still ships, because `webview/main.ts` looks those nodes up by id. Anything
+  reachable **only** from that strip needs a native menu entry (that is why
+  File ▸ Save/Load Problem… exist).
 - **Theme variables are guarded.** The submodule stylesheets consume
   `--vscode-*` variables; `app/renderer/theme/vscode-vars.css` defines them
   and `tools/check-theme-vars.mjs` fails the build if a submodule update uses
-  one that is missing.
+  one that is missing. The same guard also asserts `--ds-*` closure between
+  mesh's `style.css` and `design-system.css`.
+- **The cad B-rep cache lives in the worker, not the host.**
+  `loadBRepCached` (cad 1.2.6) returns a `BRepCacheEntry` owning live OCCT
+  handles — never structured-clone-safe, so it can't cross the compute RPC.
+  `app/main/cadBRepCache.ts` holds it beside the OCCT singleton and returns
+  only the plain `BRepResult`; `CadHost.disposeSession` calls
+  `releaseBRepCache`, mirroring the provider's `onDidDispose`. A thrown load
+  **drops** the entry without disposing it (a WASM abort may have left it
+  half-torn-down) — same rule the provider's own catch follows.
+- **Submodule deps aren't in the root tree.** A glue test (or any root-level
+  module) that reaches into submodule source needs that submodule's own
+  `node_modules`. esbuild walks up from the importing file and finds them;
+  `vitest.config.ts` and `tsconfig.json`'s `paths` need explicit aliases (today:
+  `fflate`, for the preprocess archive).
+- **cad's meshio++ loader needs a KKSS-side resolver.**
+  `cad/src/meshioService.ts` does a bare `await import("@meshioplusplus/wasm")`
+  with no directory fallback (mesh's own loader ends at `__dirname/meshio`), so
+  in a packaged install — no `node_modules` — every meshio route would throw
+  `ERR_MODULE_NOT_FOUND`. `app/main/cadMeshioLoader.ts` is aliased in its place
+  in `cadWorkerConfig` and resolves the copied `out/meshio/` tree. It must not
+  use `require.resolve("@meshioplusplus/wasm/package.json")`: the alias catches
+  that subpath too and esbuild fails at build time on it.
 - **One document per mode** (v1): opening a file disposes the mode's session,
   reloads its view, and replays the extension's own `ready` handshake order.
   `.stl/.obj/.ply` are viewable in both modes — the active mode wins
-  (`app/main/router.ts`). **Pre → post is one-way synced:** a mesh exported
+  (`app/main/router.ts`). CAD-Preview 1.2 also claims `.mdpa/.vtk/.vtu/.med/
+  .cgns/.exo/.e/.xdmf` via meshio++, but those keep routing to **mesh** mode
+  (`routeFile(...)?.strategy === "meshio"`), which reads them natively; CAD's
+  geometry-only importer stays reachable from its own Open dialog. **Pre → post is one-way synced:** a mesh exported
   from CAD/pre that post mode can display (`.mdpa`, `.vtk`, …) auto-opens in the
   mesh view (`CadHost.onMeshExported` → `openFile(…, "mesh")` in
   `app/main/index.ts`, gated by `modeForFile` so shared/CAD-only outputs never
