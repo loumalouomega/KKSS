@@ -199,17 +199,53 @@ Concretely:
   in `cadWorkerConfig` and resolves the copied `out/meshio/` tree. It must not
   use `require.resolve("@meshioplusplus/wasm/package.json")`: the alias catches
   that subpath too and esbuild fails at build time on it.
-- **One document per mode** (v1): opening a file disposes the mode's session,
-  reloads its view, and replays the extension's own `ready` handshake order.
-  `.stl/.obj/.ply` are viewable in both modes — the active mode wins
-  (`app/main/router.ts`). CAD-Preview 1.2 also claims `.mdpa/.vtk/.vtu/.med/
-  .cgns/.exo/.e/.xdmf` via meshio++, but those keep routing to **mesh** mode
-  (`routeFile(...)?.strategy === "meshio"`), which reads them natively; CAD's
-  geometry-only importer stays reachable from its own Open dialog. **Pre → post is one-way synced:** a mesh exported
-  from CAD/pre that post mode can display (`.mdpa`, `.vtk`, …) auto-opens in the
-  mesh view (`CadHost.onMeshExported` → `openFile(…, "mesh")` in
-  `app/main/index.ts`, gated by `modeForFile` so shared/CAD-only outputs never
-  jump). Post → pre is deliberately not synced.
+- **Tabs: one `WebContentsView` + one `CadHost`/`MeshHost` instance per open
+  document, per mode.** Opening a document into a tab disposes only *that
+  tab's* session (`CadHost.dispose()`/`MeshHost.dispose()`) and reloads only
+  *that tab's* view — it never touches any other open tab, in either mode.
+  `app/main/windows.ts`'s `MainWindow` owns the tab registry
+  (`openTab`/`closeTab`/`setActiveTab`, `Record<Mode, Tab[]>` +
+  `Record<Mode, activeTabId>`) via the exact terminal/chat lazy-create +
+  `setVisible()` precedent, just N-of-a-kind instead of one singleton per
+  mode — only the focused tab of the active mode screen is ever visible or
+  bounded; a hidden tab keeps its camera/edit-history/scroll state untouched
+  and never reloads on a tab switch. The tab strip itself is plain DOM
+  painted inside the `shell` WebContentsView (no view of its own);
+  `app/main/windows.ts`'s `TAB_STRIP_HEIGHT` is reserved in `layout()` only
+  while a mode screen (which actually has tabs) is active. `app/main/index.ts`
+  is the tab orchestrator: `createTab(mode)` builds the view + Host together
+  (never split across two owners mid-construction), `cadHosts`/`meshHosts`
+  are `Map<tabId, Host>`, and `activeCadHost()`/`activeMeshHost()` resolve
+  "whichever tab is currently focused" for every caller that used to hold a
+  singular `cadHost`/`meshHost` reference (the native menu, the terminal's
+  cwd provider, the chat context suffix). **Two pieces of state are
+  genuinely shared across every tab, not per-tab:** `app/main/cadBRepCache.ts`
+  keys its worker-held B-rep cache entries by a `sessionId` each `CadHost`
+  is constructed with (a stable per-tab id from `windows.ts`), and mesh's
+  `FlowgraphController` (forks one shared child process) is constructed once
+  in `index.ts` and injected into every `MeshHost` — it was already built
+  ref-counted for exactly this multi-panel scenario, so it needed no
+  rework. **Open (Ctrl+O) replaces the focused tab's document**, matching
+  pre-tabs muscle memory exactly; **File ▸ New CAD/Mesh Tab** (or the tab
+  strip's `+`) is the explicit way to open a second document instead. Closing
+  a tab has no dirty-prompt — cad/mesh have no app-level "unsaved changes"
+  concept (sidecars autosave on a debounce), so this is a plain dispose, same
+  as replacing a tab's document always has been. Entering a mode screen
+  (`setScreen`) guarantees it has at least one tab, creating a blank one if
+  the user closed every tab of that mode, so the viewer is never left
+  literally empty. `.stl/.obj/.ply` are viewable in both modes — the active
+  mode wins (`app/main/router.ts`). CAD-Preview 1.2 also claims
+  `.mdpa/.vtk/.vtu/.med/.cgns/.exo/.e/.xdmf` via meshio++, but those keep
+  routing to **mesh** mode (`routeFile(...)?.strategy === "meshio"`), which
+  reads them natively; CAD's geometry-only importer stays reachable from its
+  own Open dialog. **Pre → post is one-way synced:** a mesh exported from
+  CAD/pre that post mode can display (`.mdpa`, `.vtk`, …) auto-opens in a
+  **new** mesh tab (`CadHost.onMeshExported` → `createTab("mesh")` +
+  `openPath(...)` in `app/main/index.ts`, gated by `modeForFile` so
+  shared/CAD-only outputs never jump) — deliberately never replacing whatever
+  the user currently has focused in mesh mode. Post → pre is deliberately not
+  synced. The text editor screen is **not** part of this tab model — it stays
+  single-document with its own dirty-guard-on-close, unaffected.
 - **node-pty is the ONLY native module and the ONLY shipped node_modules
   entry** (embedded terminal, `app/main/services/terminal.ts`). It is N-API:
   never add an electron-rebuild step — Windows/macOS use its npm-shipped

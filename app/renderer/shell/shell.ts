@@ -1,5 +1,5 @@
-/** Shell toolbar: mode toggle, Open button, current-file title, toasts. */
-import type { Screen, ShellToWebview } from "../../main/ipc";
+/** Shell toolbar: mode toggle, Open button, current-file title, toasts, tab strip. */
+import type { Mode, Screen, ShellTabInfo, ShellToWebview } from "../../main/ipc";
 import { TOOLBAR_ICONS, type ToolbarIconId } from "./shellIcons";
 
 /** Same wrapper the submodule providers use for their generated icons. */
@@ -29,6 +29,7 @@ const chatBtn = byId<HTMLButtonElement>("chat-btn");
 const fileTitle = byId<HTMLSpanElement>("file-title");
 const zoomSelect = byId<HTMLSelectElement>("zoom-select");
 const toasts = byId<HTMLDivElement>("toasts");
+const tabStrip = byId<HTMLDivElement>("tab-strip");
 
 // Interface-scale presets — kept in sync with ZOOM_PRESETS in app/main/windows.ts.
 const ZOOM_PRESETS = [0.75, 0.9, 1, 1.1, 1.25, 1.5];
@@ -59,20 +60,69 @@ editBtn.innerHTML = `${icon("edit")} Edit`;
 terminalBtn.innerHTML = `${icon("terminal")} Terminal`;
 chatBtn.innerHTML = `${icon("chat")} Chat`;
 
-const titles: Record<"cad" | "mesh" | "editor", string | null> = { cad: null, mesh: null, editor: null };
+let editorTitle: string | null = null;
 let editorDirty = false;
 let screen: Screen = "home";
+
+/** Per-mode tab-strip state, resynced wholesale on every "tabs" message. */
+const tabState: Record<Mode, { tabs: ShellTabInfo[]; activeTabId: string | undefined }> = {
+  cad: { tabs: [], activeTabId: undefined },
+  mesh: { tabs: [], activeTabId: undefined },
+};
 
 function renderMode(): void {
   btnCad.classList.toggle("active", screen === "cad");
   btnMesh.classList.toggle("active", screen === "mesh");
   if (screen === "editor") {
-    const t = titles.editor;
-    fileTitle.textContent = t ? `${t}${editorDirty ? " ●" : ""}` : "Text editor";
+    fileTitle.textContent = editorTitle ? `${editorTitle}${editorDirty ? " ●" : ""}` : "Text editor";
     return;
   }
-  const t = screen === "home" ? null : titles[screen];
-  fileTitle.textContent = t ? t : "No file open — use Open… or File ▸ Open";
+  // cad/mesh titles live in the tab strip now — this spacer stays blank there.
+  fileTitle.textContent = "";
+}
+
+/** Rebuilds the tab-strip row for whichever mode screen is active. */
+function renderTabStrip(): void {
+  const activeScreen = screen;
+  if (activeScreen !== "cad" && activeScreen !== "mesh") {
+    tabStrip.hidden = true;
+    return;
+  }
+  const mode = activeScreen;
+  tabStrip.hidden = false;
+  tabStrip.innerHTML = "";
+  const { tabs, activeTabId } = tabState[mode];
+  for (const tab of tabs) {
+    const row = document.createElement("div");
+    row.className = tab.id === activeTabId ? "tab active" : "tab";
+    row.setAttribute("role", "tab");
+    row.title = tab.fileName ?? "Untitled";
+    row.addEventListener("click", () => api.post({ type: "selectTab", mode, tabId: tab.id }));
+
+    const label = document.createElement("span");
+    label.className = "tab-label";
+    label.textContent = `${tab.fileName ?? "Untitled"}${tab.dirty ? " ●" : ""}`;
+    row.appendChild(label);
+
+    const close = document.createElement("button");
+    close.className = "tab-close";
+    close.textContent = "✕";
+    close.title = "Close tab";
+    close.addEventListener("click", (event) => {
+      event.stopPropagation();
+      api.post({ type: "closeTab", mode, tabId: tab.id });
+    });
+    row.appendChild(close);
+
+    tabStrip.appendChild(row);
+  }
+
+  const add = document.createElement("button");
+  add.className = "tab-new";
+  add.textContent = "+";
+  add.title = mode === "cad" ? "New pre-processing tab" : "New post-processing tab";
+  add.addEventListener("click", () => api.post({ type: "newTab", mode }));
+  tabStrip.appendChild(add);
 }
 
 homeBtn.addEventListener("click", () => api.post({ type: "goHome" }));
@@ -89,11 +139,16 @@ api.onMessage((raw) => {
     case "screen":
       screen = msg.screen;
       renderMode();
+      renderTabStrip();
       break;
     case "title":
-      titles[msg.view] = msg.fileName;
-      if (msg.view === "editor") editorDirty = msg.dirty ?? false;
+      editorTitle = msg.fileName;
+      editorDirty = msg.dirty ?? false;
       renderMode();
+      break;
+    case "tabs":
+      tabState[msg.mode] = { tabs: msg.tabs, activeTabId: msg.activeTabId };
+      if (screen === msg.mode) renderTabStrip();
       break;
     case "zoom":
       setZoomValue(msg.factor);

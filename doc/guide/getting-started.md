@@ -114,16 +114,21 @@ Viewer actions (mesh quality, field visualization, find entity…) are *not* in 
 
 ## Opening files
 
-- **Open… button** or `Ctrl+O` — opens a file in the current mode.
+- **Open… button** or `Ctrl+O` — opens a file in the current mode, replacing whatever the focused tab currently shows.
 - **File ▸ Open** in the CAD viewer's own File menu — same thing. (The mesh viewer's in-view File menu is hidden; use the app's **File** menu, which covers the same actions plus Save/Load Problem.)
 - Formats supported by both modes (`.stl`, `.obj`, `.ply`) open in whichever mode is currently active.
 - Mesh formats Pre-Processing can also import (`.mdpa`, `.vtk`, `.vtu`, `.med`, `.cgns`, `.exo`, `.xdmf`) always open in **Post-Processing**, which reads them natively. Use Pre-Processing's own Open dialog when you want the geometry-only CAD import instead.
+
+### Tabs — several open documents at once
+
+Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the toolbar, one per open document. Click **+** at the end of the strip, or **File ▸ New CAD Tab** / **New Mesh Tab**, to open a second document alongside the first — each tab keeps its own camera position, edit history, and (in Post-Processing) its own Flowgraph session, completely independent of the others. Click a tab to switch to it; click its **✕** to close it (closing needs no confirmation — nothing about tabs is unsaved in the way a text buffer can be, since both viewers autosave their sidecars). A mesh exported from a Pre-Processing tab (**File ▸ Export…** to `.mdpa`/`.vtk`/…) opens in a *new* Post-Processing tab rather than replacing whatever you're currently viewing there.
 
 ## Keyboard shortcuts
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+O` | Open a file in the active mode |
+| `Ctrl+O` | Open a file into the focused tab of the active mode |
+| `Ctrl+W` | Close the focused tab |
 | `Ctrl+S` | Save (CAD: flush sidecars · Mesh: overwrite the source file) |
 | `Ctrl+Shift+S` | Save As |
 | `Ctrl+E` | Export |

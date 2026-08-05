@@ -1,18 +1,27 @@
 /**
  * Main window: one BaseWindow hosting stacked WebContentsViews —
- * a slim shell toolbar (mode toggle, Open, title, toasts), the two mode views
- * (cad = CAD-Preview webview, mesh = MDPA/VTK webview), a full-window home
- * screen (main menu) shown on launch and via "Home", plus two lazily created
- * panels shared by both modes: a bottom terminal and a right-hand AI chat
- * sidebar. Views are toggled with
- * setVisible() so each mode keeps its loaded file, camera, and history
- * across switches.
+ * a slim shell toolbar (mode toggle, Open, title, toasts, tab strip), the two
+ * mode screens (cad = CAD-Preview webview, mesh = MDPA/VTK webview), a
+ * full-window home screen (main menu) shown on launch and via "Home", plus
+ * two lazily created panels shared by both modes: a bottom terminal and a
+ * right-hand AI chat sidebar.
+ *
+ * Each mode screen can hold several open documents ("tabs"), each its own
+ * `WebContentsView` — one full copy of the submodule's webview bundle per
+ * tab, exactly like the terminal/chat panels' lazy-create-then-setVisible
+ * precedent, just N-of-a-kind instead of one singleton. Only the active
+ * mode's active tab is ever visible/bounded; every other tab (same mode or
+ * the other one) stays hidden with its camera/history/scroll state intact —
+ * nothing reloads on a tab switch. The tab strip itself is plain DOM inside
+ * the `shell` WebContentsView (which already spans the window's full width),
+ * not a view of its own.
  */
 import { BaseWindow, WebContentsView } from "electron";
 import * as path from "path";
 import type { Mode, Screen } from "./ipc";
 
 export const SHELL_HEIGHT = 40;
+export const TAB_STRIP_HEIGHT = 34;
 export const TERMINAL_HEIGHT = 280;
 export const CHAT_WIDTH = 360;
 
@@ -23,12 +32,28 @@ const ZOOM_MIN = ZOOM_PRESETS[0];
 const ZOOM_MAX = ZOOM_PRESETS[ZOOM_PRESETS.length - 1];
 const clampZoom = (f: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, f));
 
+/** One open document within a mode screen. */
+export interface Tab {
+  id: string;
+  view: WebContentsView;
+}
+
 export interface MainWindow {
   win: BaseWindow;
   shell: WebContentsView;
   home: WebContentsView;
   editor: WebContentsView;
-  views: Record<Mode, WebContentsView>;
+  /** Open tabs for `mode`, in creation order. */
+  tabs: (mode: Mode) => readonly Tab[];
+  /** The focused tab within `mode`'s screen, if any are open. */
+  activeTabId: (mode: Mode) => string | undefined;
+  /** Creates a new (hidden) tab and its WebContentsView; does not focus it. */
+  openTab: (mode: Mode) => Tab;
+  /** Destroys a tab's WebContentsView. If it was focused, the caller must
+   *  setActiveTab a sibling (or leave the mode with none open). */
+  closeTab: (mode: Mode, tabId: string) => void;
+  /** Focuses a tab — the only one of its mode left visible/bounded. */
+  setActiveTab: (mode: Mode, tabId: string) => void;
   /** Last active mode — stays valid while the home screen is shown. */
   mode: () => Mode;
   screen: () => Screen;
@@ -78,7 +103,11 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
       },
     });
 
-  const views: Record<Mode, WebContentsView> = { cad: makeView("cad"), mesh: makeView("mesh") };
+  const tabs: Record<Mode, Tab[]> = { cad: [], mesh: [] };
+  const activeTab: Record<Mode, string | undefined> = { cad: undefined, mesh: undefined };
+  let nextTabId = 1;
+
+  const findTab = (mode: Mode, id: string): Tab | undefined => tabs[mode].find((t) => t.id === id);
 
   const home = new WebContentsView({
     webPreferences: {
@@ -99,10 +128,8 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
   });
 
   win.contentView.addChildView(shell);
-  win.contentView.addChildView(views.cad);
-  win.contentView.addChildView(views.mesh);
   win.contentView.addChildView(editor);
-  win.contentView.addChildView(home); // last = topmost: covers shell + modes
+  win.contentView.addChildView(home); // topmost so far: covers shell + editor
 
   let currentMode: Mode = "cad";
   let currentScreen: Screen = "home";
@@ -111,33 +138,87 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
   let chat: WebContentsView | null = null;
   let chatShown = false;
   // setZoomFactor scales each view's *content* but not its bounds, so the fixed
-  // chrome (shell bar, terminal, chat) must scale in lockstep or it would clip.
+  // chrome (shell bar, tab strip, terminal, chat) must scale in lockstep or it
+  // would clip.
   let currentZoom = clampZoom(initialZoom);
 
   const layout = () => {
     const { width, height } = win.getContentBounds();
     const shellH = Math.round(SHELL_HEIGHT * currentZoom);
-    shell.setBounds({ x: 0, y: 0, width, height: shellH });
+    // The tab strip is DOM painted inside `shell`'s own page, so its height is
+    // reserved by growing `shell`'s bounds, not by a view of its own — only
+    // while a mode screen (which actually has tabs) is active.
+    const tabsH =
+      currentScreen === "cad" || currentScreen === "mesh" ? Math.round(TAB_STRIP_HEIGHT * currentZoom) : 0;
+    const chromeH = shellH + tabsH;
+    shell.setBounds({ x: 0, y: 0, width, height: chromeH });
     const sidebar = chatShown ? Math.min(Math.round(CHAT_WIDTH * currentZoom), Math.floor(width / 2)) : 0;
     const bodyWidth = Math.max(0, width - sidebar);
     const panel = terminalShown ? Math.round(TERMINAL_HEIGHT * currentZoom) : 0;
-    const body = { x: 0, y: shellH, width: bodyWidth, height: Math.max(0, height - shellH - panel) };
-    views.cad.setBounds(body);
-    views.mesh.setBounds(body);
+    const body = { x: 0, y: chromeH, width: bodyWidth, height: Math.max(0, height - chromeH - panel) };
+    // Only the focused tab of each mode ever needs real bounds — every other
+    // tab (same mode or the other one) is hidden via setVisible(false).
+    const activeCad = activeTab.cad ? findTab("cad", activeTab.cad) : undefined;
+    const activeMesh = activeTab.mesh ? findTab("mesh", activeTab.mesh) : undefined;
+    activeCad?.view.setBounds(body);
+    activeMesh?.view.setBounds(body);
     editor.setBounds(body);
-    terminal?.setBounds({ x: 0, y: Math.max(shellH, height - panel), width: bodyWidth, height: panel });
-    chat?.setBounds({ x: bodyWidth, y: shellH, width: sidebar, height: Math.max(0, height - shellH) });
+    terminal?.setBounds({ x: 0, y: Math.max(chromeH, height - panel), width: bodyWidth, height: panel });
+    chat?.setBounds({ x: bodyWidth, y: chromeH, width: sidebar, height: Math.max(0, height - chromeH) });
     home.setBounds({ x: 0, y: 0, width, height });
   };
   win.on("resize", layout);
 
   // Electron resets a view's zoom to 1 on every navigation, so reassert it once
-  // each page commits (the mode views reload on file open). Applied to lazily
-  // created views (terminal, chat) in their factories below.
+  // each page commits (mode-tab views reload on file open). Applied to every
+  // tab view in openTab() below and to the lazily created terminal/chat views
+  // in their factories.
   const trackZoom = (view: WebContentsView) =>
     view.webContents.on("did-finish-load", () => view.webContents.setZoomFactor(currentZoom));
-  for (const v of [shell, home, editor, views.cad, views.mesh]) trackZoom(v);
+  for (const v of [shell, home, editor]) trackZoom(v);
 
+  const applyTabVisibility = () => {
+    for (const mode of ["cad", "mesh"] as const) {
+      const active = activeTab[mode];
+      for (const t of tabs[mode]) t.view.setVisible(currentScreen === mode && t.id === active);
+    }
+  };
+
+  const openTab = (mode: Mode): Tab => {
+    const view = makeView(mode);
+    const tab: Tab = { id: `${mode}-${nextTabId++}`, view };
+    tabs[mode].push(tab);
+    win.contentView.addChildView(view);
+    win.contentView.addChildView(home); // keep the home screen topmost
+    trackZoom(view);
+    view.setVisible(false); // shown only once focused, via setActiveTab
+    void view.webContents.loadURL(`kkss://app/renderer/${mode}/index.html`);
+    return tab;
+  };
+
+  const closeTab = (mode: Mode, tabId: string): void => {
+    const idx = tabs[mode].findIndex((t) => t.id === tabId);
+    if (idx < 0) return;
+    const [tab] = tabs[mode].splice(idx, 1);
+    win.contentView.removeChildView(tab.view);
+    tab.view.webContents.close();
+    if (activeTab[mode] === tabId) {
+      activeTab[mode] = undefined;
+      applyTabVisibility();
+    }
+  };
+
+  const setActiveTab = (mode: Mode, tabId: string): void => {
+    if (!findTab(mode, tabId)) return;
+    activeTab[mode] = tabId;
+    applyTabVisibility();
+    layout();
+  };
+
+  // No tabs are seeded here — index.ts creates the initial cad/mesh tab (and
+  // constructs their CadHost/MeshHost in the same step) right after this
+  // constructor returns, so a tab's view and its host are never split across
+  // two owners mid-construction.
   layout();
 
   const toggleTerminal = () => {
@@ -189,15 +270,25 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
     if (screen === "cad" || screen === "mesh") currentMode = screen;
     home.setVisible(screen === "home");
     editor.setVisible(screen === "editor");
-    views.cad.setVisible(screen === "cad");
-    views.mesh.setVisible(screen === "mesh");
+    applyTabVisibility();
+    // The tab strip's reserved height only applies to cad/mesh screens (see
+    // layout()), so switching to/from them must re-run it.
+    layout();
     if (screen === "editor") editor.webContents.focus();
   };
   setScreen("home");
 
   const setZoom = (factor: number): number => {
     currentZoom = clampZoom(factor);
-    const live = [shell, home, editor, views.cad, views.mesh, terminal, chat];
+    const live: (WebContentsView | null)[] = [
+      shell,
+      home,
+      editor,
+      ...tabs.cad.map((t) => t.view),
+      ...tabs.mesh.map((t) => t.view),
+      terminal,
+      chat,
+    ];
     for (const v of live) if (v) v.webContents.setZoomFactor(currentZoom);
     layout();
     return currentZoom;
@@ -206,15 +297,17 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
   void shell.webContents.loadURL("kkss://app/renderer/shell/index.html");
   void home.webContents.loadURL("kkss://app/renderer/home/index.html");
   void editor.webContents.loadURL("kkss://app/renderer/editor/index.html");
-  void views.cad.webContents.loadURL("kkss://app/renderer/cad/index.html");
-  void views.mesh.webContents.loadURL("kkss://app/renderer/mesh/index.html");
 
   return {
     win,
     shell,
     home,
     editor,
-    views,
+    tabs: (mode) => tabs[mode],
+    activeTabId: (mode) => activeTab[mode],
+    openTab,
+    closeTab,
+    setActiveTab,
     mode: () => currentMode,
     screen: () => currentScreen,
     setScreen,

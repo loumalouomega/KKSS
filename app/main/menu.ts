@@ -18,7 +18,7 @@ import {
   type TessellationQuality,
 } from "../../cad/src/tessellationQuality";
 import type { MeshHost } from "./mesh/meshHost";
-import type { Screen } from "./ipc";
+import type { Mode, Screen } from "./ipc";
 import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
 import { showChangelog } from "./services/whatsNew";
@@ -34,10 +34,17 @@ import { DOCS_URL } from "./urls";
 
 export interface MenuDeps {
   main: MainWindow;
-  cadHost: CadHost;
-  meshHost: MeshHost;
+  /** The CadHost/MeshHost backing whichever tab is currently focused — the
+   *  menu always acts on "whatever's focused right now", never a fixed
+   *  singleton (KKSS supports several concurrently open tabs per mode). */
+  activeCadHost(): CadHost | undefined;
+  activeMeshHost(): MeshHost | undefined;
   editor: EditorService;
   setScreen(screen: Screen): void;
+  /** File ▸ New CAD/Mesh Tab — creates and focuses an empty tab. */
+  newTab(mode: Mode): void;
+  /** File ▸ Close Tab. */
+  closeTab(mode: Mode, tabId: string): void;
   toggleTerminal(): void;
   toggleChat(): void;
   /** Interface-scale controls (see index.ts) — step through the shell's zoom presets. */
@@ -115,9 +122,16 @@ async function promptValue(key: string, title: string, defaultValue: string): Pr
 }
 
 export function installMenu(deps: MenuDeps): void {
-  const { main, cadHost, meshHost, editor } = deps;
+  const { main, activeCadHost, activeMeshHost, editor } = deps;
   const inCad = () => main.mode() === "cad";
   const inEditor = () => main.screen() === "editor";
+  /** The WebContentsView for whichever tab is focused in the active mode
+   *  screen (devtools toggle only — everything else goes through the hosts). */
+  const activeModeView = () => {
+    const mode = main.mode();
+    const id = main.activeTabId(mode);
+    return id ? main.tabs(mode).find((t) => t.id === id)?.view : undefined;
+  };
 
   /** kratos.mesh.export — quick-pick a format, then dispatch (extension.ts:109). */
   const meshExportPick = async (): Promise<void> => {
@@ -125,7 +139,7 @@ export function installMenu(deps: MenuDeps): void {
       exportFormats().map((f) => ({ label: f.label, description: f.ext, ext: f.ext })),
       { placeHolder: "Export mesh as…" }
     );
-    if (pick) meshHost.dispatchMenu({ type: "menuExport", format: pick.ext });
+    if (pick) activeMeshHost()?.dispatchMenu({ type: "menuExport", format: pick.ext });
   };
 
   const menu = Menu.buildFromTemplate([
@@ -135,7 +149,7 @@ export function installMenu(deps: MenuDeps): void {
         {
           label: "Open…",
           accelerator: "CmdOrCtrl+O",
-          click: () => (inCad() ? void cadHost.openFileDialog() : void openMesh()),
+          click: () => (inCad() ? void activeCadHost()?.openFileDialog() : void openMesh()),
         },
         {
           label: "Open in Text Editor…",
@@ -146,7 +160,9 @@ export function installMenu(deps: MenuDeps): void {
           accelerator: "CmdOrCtrl+S",
           click: () => {
             if (inEditor()) return editor.requestSave(false);
-            inCad() ? void cadHost.flushSidecars() : void meshHost.dispatchMenu({ type: "menuSave" });
+            inCad()
+              ? void activeCadHost()?.flushSidecars()
+              : void activeMeshHost()?.dispatchMenu({ type: "menuSave" });
           },
         },
         {
@@ -154,13 +170,31 @@ export function installMenu(deps: MenuDeps): void {
           accelerator: "CmdOrCtrl+Shift+S",
           click: () => {
             if (inEditor()) return editor.requestSave(true);
-            inCad() ? cadHost.export() : void meshHost.dispatchMenu({ type: "menuSaveAs" });
+            inCad() ? activeCadHost()?.export() : void activeMeshHost()?.dispatchMenu({ type: "menuSaveAs" });
           },
         },
         {
           label: "Export…",
           accelerator: "CmdOrCtrl+E",
-          click: () => (inCad() ? cadHost.export() : void meshExportPick()),
+          click: () => (inCad() ? activeCadHost()?.export() : void meshExportPick()),
+        },
+        { type: "separator" },
+        {
+          label: "New CAD Tab",
+          click: () => deps.newTab("cad"),
+        },
+        {
+          label: "New Mesh Tab",
+          click: () => deps.newTab("mesh"),
+        },
+        {
+          label: "Close Tab",
+          accelerator: "CmdOrCtrl+W",
+          click: () => {
+            const mode = main.mode();
+            const id = main.activeTabId(mode);
+            if (id) deps.closeTab(mode, id);
+          },
         },
         { type: "separator" },
         // The mesh viewer's own File menu lives in its in-flow menubar, which
@@ -170,18 +204,20 @@ export function installMenu(deps: MenuDeps): void {
         {
           label: "Save Problem…",
           accelerator: "CmdOrCtrl+Alt+S",
-          click: () => void meshHost.dispatchMenu({ type: "menuSaveProblem" }),
+          click: () => void activeMeshHost()?.dispatchMenu({ type: "menuSaveProblem" }),
         },
         {
           label: "Load Problem…",
           accelerator: "CmdOrCtrl+Alt+O",
-          click: () => void meshHost.dispatchMenu({ type: "menuLoadProblem" }),
+          click: () => void activeMeshHost()?.dispatchMenu({ type: "menuLoadProblem" }),
         },
         { type: "separator" },
         // The CAD counterpart: a .zip of the source + its sidecars. Load needs
-        // no open document, so it is never mode-gated.
-        { label: "Save Preprocess…", click: () => cadHost.savePreprocess() },
-        { label: "Load Preprocess…", click: () => cadHost.loadPreprocess() },
+        // no open document, so it is never mode-gated — both act on whichever
+        // CAD tab is currently focused (any tab will do for Load, since it
+        // hands off to the router rather than touching the tab's own document).
+        { label: "Save Preprocess…", click: () => activeCadHost()?.savePreprocess() },
+        { label: "Load Preprocess…", click: () => activeCadHost()?.loadPreprocess() },
         { type: "separator" },
         {
           // cad-preview.screenshot / kratos.mdpa.screenshot — both viewers gained
@@ -189,7 +225,7 @@ export function installMenu(deps: MenuDeps): void {
           label: "Screenshot…",
           accelerator: "CmdOrCtrl+Alt+P",
           click: () =>
-            inCad() ? cadHost.screenshot() : meshHost.postToActive({ type: "takeScreenshot" }),
+            inCad() ? activeCadHost()?.screenshot() : activeMeshHost()?.postToActive({ type: "takeScreenshot" }),
         },
         { type: "separator" },
         { role: "quit" },
@@ -250,14 +286,14 @@ export function installMenu(deps: MenuDeps): void {
           click: () => deps.toggleChat(),
         },
         { type: "separator" },
-        { label: "Reset Camera", click: () => meshHost.postToActive({ type: "resetCamera" }) },
-        { label: "Toggle Node IDs", click: () => meshHost.postToActive({ type: "toggleNodeIds" }) },
+        { label: "Reset Camera", click: () => activeMeshHost()?.postToActive({ type: "resetCamera" }) },
+        { label: "Toggle Node IDs", click: () => activeMeshHost()?.postToActive({ type: "toggleNodeIds" }) },
         { type: "separator" },
         { label: "Toggle Developer Tools", accelerator: "CmdOrCtrl+Shift+I", click: () => {
           const screen = main.screen();
           const view =
-            screen === "home" ? main.home : screen === "editor" ? main.editor : main.views[main.mode()];
-          view.webContents.toggleDevTools();
+            screen === "home" ? main.home : screen === "editor" ? main.editor : activeModeView();
+          view?.webContents.toggleDevTools();
         } },
       ],
     },

@@ -104,6 +104,87 @@ body {
   overflow: hidden;
 }
 
+/* Row of open-document tabs for the active mode screen (cad/mesh only —
+   hidden on home/editor). Painted inside this same shell page rather than a
+   separate WebContentsView; app/main/windows.ts reserves its height
+   (TAB_STRIP_HEIGHT) only while a mode screen is active. */
+#tab-strip {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 6px;
+  gap: 4px;
+  box-sizing: border-box;
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  border-bottom: 1px solid var(--vscode-panel-border);
+  overflow-x: auto;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.tab:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.tab.active {
+  background: var(--vscode-button-secondaryBackground);
+  border-color: var(--vscode-panel-border);
+}
+
+.tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-close {
+  background: transparent;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.tab-close:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+}
+
+.tab-new {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 5px 10px;
+  border-radius: 3px;
+}
+
+.tab-new:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+}
+
 .toast {
   display: flex;
   align-items: center;

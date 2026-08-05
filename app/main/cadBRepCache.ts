@@ -6,9 +6,10 @@
  * replays from a cached base shape instead of re-parsing the file. That entry
  * owns live OCCT handles, so it can never cross the worker RPC boundary —
  * hence this shim: the cache lives beside the OCCT singleton that owns it, and
- * only the structured-clone-safe `BRepResult` is returned. KKSS is
- * one-document-per-mode, so a single slot is enough; `releaseBRepCache` is the
- * counterpart of the provider's `onDidDispose` teardown.
+ * only the structured-clone-safe `BRepResult` is returned. KKSS supports N
+ * concurrently open CAD tabs (each with its own `CadHost`), so entries are
+ * keyed by a `sessionId` the host assigns per tab; `releaseBRepCache` is the
+ * counterpart of that tab's `onDidDispose`/tab-close teardown.
  */
 import {
   loadBRepCached,
@@ -20,10 +21,11 @@ import type { TessellationParams } from "../../cad/src/tessellationQuality";
 import type { CadFormat } from "../../cad/src/fileRouter";
 import type { EditOp } from "../../cad/src/editOps";
 
-let current: BRepCacheEntry | undefined;
+const entries = new Map<string, BRepCacheEntry>();
 
-/** `loadBRepCached` against the worker-held entry — see provider.handleBRep. */
+/** `loadBRepCached` against the worker-held entry for this tab's session. */
 export async function loadBRepCachedInWorker(
+  sessionId: string,
   extensionPath: string,
   bytes: Uint8Array,
   format: Extract<CadFormat, "step" | "iges" | "brep">,
@@ -31,21 +33,29 @@ export async function loadBRepCachedInWorker(
   quality: TessellationParams
 ): Promise<BRepResult> {
   try {
-    const { result, cache } = await loadBRepCached(extensionPath, bytes, format, ops, current, quality);
-    current = cache;
+    const { result, cache } = await loadBRepCached(
+      extensionPath,
+      bytes,
+      format,
+      ops,
+      entries.get(sessionId),
+      quality
+    );
+    entries.set(sessionId, cache);
     return result;
   } catch (err) {
     // Drop, never dispose — a thrown call may have left the entry
     // half-torn-down (possibly by a WASM abort), and `loadBRepCached`'s doc
     // comment is explicit that disposing it then is unsafe. The next call
     // starts from a clean parse. Same choice provider.handleBRep's catch makes.
-    current = undefined;
+    entries.delete(sessionId);
     throw err;
   }
 }
 
-/** Frees the held entry's OCCT handles (session teardown / document change). */
-export function releaseBRepCache(): void {
-  if (current) disposeBRepCache(current);
-  current = undefined;
+/** Frees this tab's held entry's OCCT handles (tab close / document change). */
+export function releaseBRepCache(sessionId: string): void {
+  const entry = entries.get(sessionId);
+  if (entry) disposeBRepCache(entry);
+  entries.delete(sessionId);
 }

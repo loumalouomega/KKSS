@@ -12,10 +12,13 @@
  * The Flowgraph problemtype's shared FlowgraphController (also mirroring
  * extension.ts activate()) forks flowgraphServer.js — it too sits next to
  * out/main.js, alongside the flowgraph/ asset tree it serves (see
- * flowgraphController.ts's __dirname-relative lookups) — and is torn down on
- * will-quit so the child process doesn't outlive the app.
+ * flowgraphController.ts's __dirname-relative lookups). It is ref-counted and
+ * genuinely shared across every open mesh tab (each tab = one MeshHost, one
+ * MdpaEditorProvider), constructed once by index.ts and injected here rather
+ * than one-per-instance — and is torn down on will-quit so the child process
+ * doesn't outlive the app.
  */
-import { app, ipcMain, WebContentsView } from "electron";
+import { ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type * as vscodeTypes from "vscode";
@@ -114,7 +117,6 @@ export interface MeshHostHooks {
 export class MeshHost {
   private readonly mdpaProvider: MdpaEditorProvider;
   private readonly vtkProvider: VtkEditorProvider;
-  private readonly flowgraph: FlowgraphController;
   private currentPanel: FakeWebviewPanel | undefined;
   private currentPath: string | undefined;
   private pendingOpen: string | undefined;
@@ -122,7 +124,9 @@ export class MeshHost {
   constructor(
     private readonly view: WebContentsView,
     outDir: string,
-    private readonly hooks: MeshHostHooks
+    private readonly hooks: MeshHostHooks,
+    /** Shared, ref-counted across every open mesh tab — see the file header. */
+    flowgraph: FlowgraphController
   ) {
     // MMG wiring, mirroring mesh/src/extension.ts activate().
     configureMmgRunner(runMmgInWorker);
@@ -142,8 +146,7 @@ export class MeshHost {
       subscriptions: [],
     } as unknown as vscodeTypes.ExtensionContext;
 
-    this.flowgraph = new FlowgraphController();
-    this.mdpaProvider = new MdpaEditorProvider(context, this.flowgraph);
+    this.mdpaProvider = new MdpaEditorProvider(context, flowgraph);
     this.vtkProvider = new VtkEditorProvider(context);
 
     ipcMain.on("mesh:toHost", (event, msg: { type?: string }) => {
@@ -151,10 +154,14 @@ export class MeshHost {
       if (process.env.KKSS_E2E) console.log(`[mesh] webview → host: ${msg?.type}`);
       this.dispatch(msg);
     });
+  }
 
-    // The Flowgraph server is a forked child process — kill it on quit
-    // rather than leaving it orphaned (same pattern as terminal/chat).
-    app.on("will-quit", () => this.flowgraph.dispose());
+  /** Tab closed — disposes this tab's panel/provider state. The shared
+   *  FlowgraphController and the WebContentsView are the caller's to tear
+   *  down (index.ts / windows.ts's closeTab). */
+  dispose(): void {
+    this.currentPanel?.dispose();
+    this.currentPanel = undefined;
   }
 
   get currentFile(): string | undefined {

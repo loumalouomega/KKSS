@@ -7,6 +7,7 @@ import { registerSchemes, installProtocolHandlers } from "./protocol";
 import { createMainWindow, MainWindow, DEFAULT_ZOOM, ZOOM_PRESETS } from "./windows";
 import { CadHost } from "./cadHost";
 import { MeshHost } from "./mesh/meshHost";
+import { FlowgraphController } from "../../mesh/src/flowgraphController";
 import { installMenu } from "./menu";
 import { modeForFile, modeForViewType } from "./router";
 import { configurePicker } from "./services/quickPick";
@@ -22,14 +23,17 @@ import { configureNotifications, handleToastButton, toast } from "./services/not
 import { stateStore } from "./services/stateStore";
 import { __configureVscodeShim } from "./vscodeShim";
 import { openMesh } from "../../mesh/src/meshExport";
-import type { HomeToHost, Mode, Screen, ShellToHost } from "./ipc";
+import type { HomeToHost, Mode, Screen, ShellTabInfo, ShellToHost } from "./ipc";
 
 // Must happen before app is ready.
 registerSchemes();
 
 let main: MainWindow | null = null;
-let cadHost: CadHost | null = null;
-let meshHost: MeshHost | null = null;
+/** One CadHost/MeshHost per open tab, keyed by that tab's id (windows.ts's Tab.id). */
+const cadHosts = new Map<string, CadHost>();
+const meshHosts = new Map<string, MeshHost>();
+/** Shared, ref-counted across every open mesh tab — see meshHost.ts's header. */
+let flowgraph: FlowgraphController | null = null;
 let terminal: TerminalService | null = null;
 let editor: EditorService | null = null;
 let chat: ChatService | null = null;
@@ -70,23 +74,126 @@ function stepUiZoom(dir: number): void {
   setUiZoom(presets[next]);
 }
 
-/** Opens a file in the mode the router picks (active mode wins on overlap). */
+/** The CadHost/MeshHost backing whichever tab is currently focused for `mode`. */
+function activeCadHost(): CadHost | undefined {
+  const id = main?.activeTabId("cad");
+  return id ? cadHosts.get(id) : undefined;
+}
+function activeMeshHost(): MeshHost | undefined {
+  const id = main?.activeTabId("mesh");
+  return id ? meshHosts.get(id) : undefined;
+}
+
+/** Resyncs one mode's whole tab strip to the shell (open/close/focus/title). */
+function syncTabs(mode: Mode): void {
+  if (!main) return;
+  const hosts = mode === "cad" ? cadHosts : meshHosts;
+  const tabs: ShellTabInfo[] = main.tabs(mode).map((t) => {
+    const file = hosts.get(t.id)?.currentFile;
+    return { id: t.id, fileName: file ? path.basename(file) : null };
+  });
+  sendShell({ type: "tabs", mode, tabs, activeTabId: main.activeTabId(mode) });
+}
+
+// Shared across every tab of a mode — none of these close over a specific
+// tab, so one object per mode is enough (see createTab()).
+const cadHostHooks = {
+  onOpenRequest: (fsPath: string) => openFile(fsPath),
+  onTitle: () => syncTabs("cad"),
+  // Pre → post sync: a mesh exported from CAD that post mode can display
+  // (.mdpa, .vtk, …) opens in a NEW mesh tab — never silently replacing
+  // whatever the user currently has focused there. The router gates this so
+  // shared formats (.stl/.obj/.ply) and CAD-only outputs never jump.
+  onMeshExported: (fsPath: string) => {
+    if (!main || modeForFile(fsPath, main.mode()) !== "mesh") return;
+    const tab = createTab("mesh");
+    meshHosts.get(tab.id)?.openPath(path.resolve(fsPath));
+    setScreen("mesh");
+  },
+};
+const meshHostHooks = { onTitle: () => syncTabs("mesh") };
+
+/** Creates a new (focused) tab for `mode`: its WebContentsView + Host. */
+function createTab(mode: Mode) {
+  if (!main) throw new Error("main window not ready");
+  const tab = main.openTab(mode);
+  if (mode === "cad") {
+    cadHosts.set(tab.id, new CadHost(tab.view, path.join(__dirname, "cad-runtime"), cadHostHooks, tab.id));
+  } else {
+    if (!flowgraph) flowgraph = new FlowgraphController();
+    meshHosts.set(tab.id, new MeshHost(tab.view, __dirname, meshHostHooks, flowgraph));
+  }
+  // Pipe webview console output through main for headless debugging/e2e.
+  tab.view.webContents.on("console-message", (details) => {
+    if (process.env.KKSS_E2E || details.level === "error" || details.level === "warning") {
+      console.log(`[${mode}:console:${details.level}] ${details.message}`);
+    }
+  });
+  main.setActiveTab(mode, tab.id);
+  syncTabs(mode);
+  return tab;
+}
+
+/** The focused tab's id for `mode`, creating a fresh (blank) tab if none is open. */
+function ensureActiveTab(mode: Mode): string {
+  const existing = main?.activeTabId(mode);
+  return existing ?? createTab(mode).id;
+}
+
+/** File ▸ New [Mode] Tab / the tab strip's "+" button. */
+function newTab(mode: Mode): void {
+  createTab(mode);
+  setScreen(mode);
+}
+
+/** ✕ on a tab. No dirty-prompt — cad/mesh sidecars autosave, same as any
+ *  other document replace/close in this app (see CLAUDE.md's tabs invariant). */
+function closeTab(mode: Mode, tabId: string): void {
+  if (!main) return;
+  const hosts = mode === "cad" ? cadHosts : meshHosts;
+  hosts.get(tabId)?.dispose();
+  hosts.delete(tabId);
+  main.closeTab(mode, tabId);
+  if (!main.activeTabId(mode)) {
+    const remaining = main.tabs(mode);
+    const sibling = remaining[remaining.length - 1];
+    if (sibling) main.setActiveTab(mode, sibling.id);
+  }
+  syncTabs(mode);
+}
+
+/** Clicking a tab in the strip. */
+function selectTab(mode: Mode, tabId: string): void {
+  if (!main) return;
+  main.setActiveTab(mode, tabId);
+  syncTabs(mode);
+}
+
+/** Opens a file in the mode the router picks (active mode wins on overlap),
+ *  replacing the focused tab's document — "+ New Tab" is the explicit way to
+ *  open a second document instead. */
 function openFile(fsPath: string, forcedMode?: Mode): void {
-  if (!main || !cadHost || !meshHost) return;
+  if (!main) return;
   const resolved = path.resolve(fsPath);
   const mode = forcedMode ?? modeForFile(resolved, main.mode());
   if (!mode) {
     sendShell({ type: "toast", id: Date.now(), kind: "warning", text: `Unsupported file type: ${path.basename(resolved)}` });
     return;
   }
-  if (mode === "cad") cadHost.openPath(resolved);
-  else meshHost.openPath(resolved);
+  const tabId = ensureActiveTab(mode);
+  const host = mode === "cad" ? cadHosts.get(tabId) : meshHosts.get(tabId);
+  host?.openPath(resolved);
   setScreen(mode);
 }
 
-/** Switches screens and keeps the shell's active-screen highlight in sync. */
+/** Switches screens and keeps the shell's active-screen highlight in sync.
+ *  Entering a mode screen guarantees it has at least one tab (creating a
+ *  blank one if the user closed all of them), so the mode's viewer is never
+ *  left literally empty. */
 function setScreen(screen: Screen): void {
-  main?.setScreen(screen);
+  if (!main) return;
+  if (screen === "cad" || screen === "mesh") ensureActiveTab(screen);
+  main.setScreen(screen);
   sendShell({ type: "screen", screen });
 }
 
@@ -188,28 +295,12 @@ app.whenReady().then(() => {
     ipcMain.on(`${mode}:initialState`, (event) => {
       event.returnValue = { mode, theme: stateStore.get("sceneTheme", "auto") };
     });
-    // Pipe webview console output through main for headless debugging/e2e.
-    main.views[mode].webContents.on("console-message", (details) => {
-      if (process.env.KKSS_E2E || details.level === "error" || details.level === "warning") {
-        console.log(`[${mode}:console:${details.level}] ${details.message}`);
-      }
-    });
   }
 
-  cadHost = new CadHost(main.views.cad, path.join(__dirname, "cad-runtime"), {
-    onOpenRequest: (fsPath) => openFile(fsPath),
-    onTitle: (fileName) => sendShell({ type: "title", view: "cad", fileName }),
-    // Pre → post sync: a mesh exported from CAD that post mode can display
-    // (.mdpa, .vtk, …) is opened straight into the mesh view. The router gates
-    // this so shared formats (.stl/.obj/.ply) and CAD-only outputs never jump.
-    onMeshExported: (fsPath) => {
-      if (main && modeForFile(fsPath, main.mode()) === "mesh") openFile(fsPath, "mesh");
-    },
-  });
-
-  meshHost = new MeshHost(main.views.mesh, __dirname, {
-    onTitle: (fileName) => sendShell({ type: "title", view: "mesh", fileName }),
-  });
+  // One starter tab per mode, mirroring the pre-tabs behavior of both mode
+  // views existing (and loading their bundle) from app launch.
+  createTab("cad");
+  createTab("mesh");
 
   editor = new EditorService({
     webContents: () => main!.editor.webContents,
@@ -228,7 +319,7 @@ app.whenReady().then(() => {
 
   terminal = new TerminalService(
     () => {
-      const current = main?.mode() === "cad" ? cadHost?.currentFile : meshHost?.currentFile;
+      const current = (main?.mode() === "cad" ? activeCadHost() : activeMeshHost())?.currentFile;
       return current ? path.dirname(current) : undefined;
     },
     () => {
@@ -249,7 +340,12 @@ app.whenReady().then(() => {
 
   chat = new ChatService({
     hub: mcpHub,
-    currentFiles: () => ({ cad: cadHost?.currentFile, mesh: meshHost?.currentFile }),
+    currentFiles: () => ({
+      cad: [...cadHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
+      mesh: [...meshHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
+      activeCad: activeCadHost()?.currentFile,
+      activeMesh: activeMeshHost()?.currentFile,
+    }),
     openSettings: openSettingsMenu,
     onHide: () => {
       if (main?.chatVisible()) toggleChat();
@@ -258,10 +354,12 @@ app.whenReady().then(() => {
 
   installMenu({
     main,
-    cadHost,
-    meshHost,
+    activeCadHost,
+    activeMeshHost,
     editor,
     setScreen,
+    newTab,
+    closeTab,
     toggleTerminal,
     toggleChat,
     zoom: {
@@ -308,10 +406,10 @@ app.whenReady().then(() => {
     switch (msg.type) {
       case "shellReady":
         // The shell page may finish loading after a CLI file-open already ran
-        // (or after a reload) — replay the current screen + titles.
+        // (or after a reload) — replay the current screen + tab strips + zoom.
         sendShell({ type: "screen", screen: main.screen() });
-        sendShell({ type: "title", view: "cad", fileName: cadHost?.currentFile ? path.basename(cadHost.currentFile) : null });
-        sendShell({ type: "title", view: "mesh", fileName: meshHost?.currentFile ? path.basename(meshHost.currentFile) : null });
+        syncTabs("cad");
+        syncTabs("mesh");
         sendShell({ type: "zoom", factor: main.zoom() });
         break;
       case "setMode":
@@ -327,20 +425,34 @@ app.whenReady().then(() => {
         toggleChat();
         break;
       case "editCurrentFile": {
-        const current = main.mode() === "cad" ? cadHost?.currentFile : meshHost?.currentFile;
-        if (current) void editor?.openPath(current);
+        const host = main.mode() === "cad" ? activeCadHost() : activeMeshHost();
+        if (host?.currentFile) void editor?.openPath(host.currentFile);
         else toast("warning", "No file open in the current mode — use Open… first.");
         break;
       }
-      case "openFile":
-        if (main.mode() === "cad") void cadHost?.openFileDialog();
-        else void openMesh(); // mesh/src/meshExport openMesh → dialog → openWith hook
+      case "openFile": {
+        if (main.mode() === "cad") {
+          const tabId = ensureActiveTab("cad");
+          void cadHosts.get(tabId)?.openFileDialog();
+        } else {
+          void openMesh(); // mesh/src/meshExport openMesh → dialog → openWith hook
+        }
         break;
+      }
       case "setZoom":
         setUiZoom(msg.factor);
         break;
       case "toastButton":
         handleToastButton(msg.id, msg.button);
+        break;
+      case "newTab":
+        newTab(msg.mode);
+        break;
+      case "closeTab":
+        closeTab(msg.mode, msg.tabId);
+        break;
+      case "selectTab":
+        selectTab(msg.mode, msg.tabId);
         break;
     }
   });
@@ -356,11 +468,12 @@ app.whenReady().then(() => {
   }
 });
 
-// Single teardown for the shared MCP manager + the HTTP meta server (the chat
-// service only aborts its in-flight turn).
+// Single teardown for the shared MCP manager + the HTTP meta server + the
+// Flowgraph child process (the chat service only aborts its in-flight turn).
 app.on("will-quit", () => {
   void metaServer?.dispose();
   void mcpHub?.dispose();
+  flowgraph?.dispose();
 });
 
 app.on("window-all-closed", () => {

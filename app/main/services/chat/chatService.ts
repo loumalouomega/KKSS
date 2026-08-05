@@ -102,11 +102,20 @@ unavailable, say so and continue with what works. Be concise; lead with the outc
 
 const MAX_ITERATIONS = 25;
 
+/** Every open document per mode (KKSS supports several concurrent tabs), plus
+ *  which one is currently focused — see the Context suffix's doc comment. */
+export interface OpenFilesInfo {
+  cad: string[];
+  mesh: string[];
+  activeCad?: string | null;
+  activeMesh?: string | null;
+}
+
 export interface ChatDeps {
   /** Shared MCP manager owner (the three servers are spawned once, app-wide). */
   hub: McpHub;
   /** Currently open files, appended as context to each request. */
-  currentFiles(): { cad?: string | null; mesh?: string | null };
+  currentFiles(): OpenFilesInfo;
   /** Pops the native Settings menu (noKey / auth error banner button). */
   openSettings(): void;
   /** Hide the sidebar (✕ button). */
@@ -195,12 +204,20 @@ export class ChatService {
   }
 
   /** Volatile context appended to the newest user message, not the system
-   *  prompt, so the cached prompt prefix stays byte-stable. */
+   *  prompt, so the cached prompt prefix stays byte-stable. Each mode can have
+   *  several open tabs — every path is listed, with the focused one marked,
+   *  so the model doesn't guess which document a bare "the file" refers to. */
   private contextSuffix(): string {
     const files = this.deps.currentFiles();
-    const parts: string[] = [];
-    if (files.cad) parts.push(`CAD (pre-processing): ${files.cad}`);
-    if (files.mesh) parts.push(`Mesh (post-processing): ${files.mesh}`);
+    const describe = (label: string, paths: string[], active?: string | null) => {
+      if (!paths.length) return undefined;
+      const list = paths.map((p) => (p === active ? `${p} (focused)` : p)).join(", ");
+      return `${label}: ${list}`;
+    };
+    const parts = [
+      describe("CAD (pre-processing) tabs", files.cad, files.activeCad),
+      describe("Mesh (post-processing) tabs", files.mesh, files.activeMesh),
+    ].filter((p): p is string => !!p);
     if (!parts.length) return "";
     return `\n\n[Context — files currently open in KKSS: ${parts.join("; ")}]`;
   }

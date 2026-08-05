@@ -181,12 +181,28 @@ export type ShellToHost =
   | { type: "editCurrentFile" }
   | { type: "openFile" }
   | { type: "setZoom"; factor: number }
-  | { type: "toastButton"; id: number; button: string };
+  | { type: "toastButton"; id: number; button: string }
+  /** "+" in the tab strip — creates an empty tab for `mode` and focuses it. */
+  | { type: "newTab"; mode: Mode }
+  /** ✕ on a tab — closes it (no dirty-prompt; see CLAUDE.md's tabs invariant). */
+  | { type: "closeTab"; mode: Mode; tabId: string }
+  /** Clicking a tab — focuses it. */
+  | { type: "selectTab"; mode: Mode; tabId: string };
+
+/** One tab's shell-visible state (tab strip row). */
+export interface ShellTabInfo {
+  id: string;
+  fileName: string | null;
+  dirty?: boolean;
+}
 
 /** Messages sent to the shell toolbar renderer. */
 export type ShellToWebview =
   | { type: "screen"; screen: Screen }
-  | { type: "title"; view: Mode | "editor"; fileName: string | null; dirty?: boolean }
+  /** Editor-only — cad/mesh report their per-tab titles via `tabs` instead. */
+  | { type: "title"; view: "editor"; fileName: string | null; dirty?: boolean }
+  /** Full resync of one mode's tab strip — sent on open/close/focus/rename. */
+  | { type: "tabs"; mode: Mode; tabs: ShellTabInfo[]; activeTabId: string | undefined }
   | { type: "zoom"; factor: number }
   | { type: "toast"; id: number; kind: "info" | "warning" | "error" | "progress"; text: string; buttons?: string[] }
   | { type: "toastUpdate"; id: number; text?: string; done?: boolean };

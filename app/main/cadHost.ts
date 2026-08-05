@@ -191,7 +191,9 @@ export class CadHost {
     private readonly view: WebContentsView,
     /** out/cad-runtime — the dist/-shaped WASM home the cad services expect. */
     private readonly runtimePath: string,
-    private readonly hooks: CadHostHooks
+    private readonly hooks: CadHostHooks,
+    /** Stable per-tab id — keys this session's slot in the worker's B-rep cache. */
+    private readonly sessionId: string
   ) {
     ipcMain.on("cad:toHost", (event, msg: WebviewToHost) => {
       if (event.sender !== view.webContents) return;
@@ -275,6 +277,13 @@ export class CadHost {
     void this.loadPreprocessDialog();
   }
 
+  /** Tab closed — tear down this session's state (timers, pending work, the
+   *  worker's cached B-rep entry). The WebContentsView itself is disposed by
+   *  the caller (windows.ts's closeTab). */
+  dispose(): void {
+    this.disposeSession();
+  }
+
   private disposeSession(): void {
     this.epoch++;
     if (this.partsSaveTimer) clearTimeout(this.partsSaveTimer);
@@ -295,7 +304,7 @@ export class CadHost {
     // The provider frees its per-document BRepCacheEntry in onDidDispose; here
     // the entry lives in the worker, so ask it to. Fire-and-forget: a failure
     // only costs the next load a fresh parse.
-    void cadCompute.releaseBRepCache().catch(() => {});
+    void cadCompute.releaseBRepCache(this.sessionId).catch(() => {});
   }
 
   /**
@@ -722,6 +731,7 @@ export class CadHost {
         stateStore.get(CAD_DEFAULT_KEYS.tessellationQuality, DEFAULT_TESSELLATION_QUALITY)
       );
       const { groups, edges, points, tree } = await cadCompute.loadBRepCachedInWorker(
+        this.sessionId,
         this.runtimePath,
         bytes,
         format,

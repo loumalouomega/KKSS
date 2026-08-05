@@ -7,25 +7,29 @@ KKSS reuses the two VS Code extensions **without modifying them**. Both are alre
 ```
 ┌────────────────────────── BaseWindow ──────────────────────────┐
 │ shell toolbar (Home · mode toggle · Open · title · toasts)     │
+│ tab strip (per mode — several open documents, one per tab)     │
 ├────────────────────────────────────────────────────────────────┤
-│ cad view                        │ mesh view                    │
+│ cad tab(s)                      │ mesh tab(s)                  │
 │ cad/media/viewer.js (unmodified)│ mesh/media/webview.js (unmod)│
 │ + acquireVsCodeApi shim         │ + acquireVsCodeApi shim      │
+│ (one WebContentsView per tab)   │ (one WebContentsView per tab)│
 └───────────────▲─────────────────┴──────────────▲───────────────┘
                 │ IPC = the extensions' own message protocols     │
 ┌───────────────▼──────────────────────────────────▼─────────────┐
 │ Electron main                                                  │
-│  cadHost.ts — port of cad/src/provider.ts                      │
-│    OCCT + Gmsh WASM → worker thread (cadCompute.worker.ts)     │
-│  meshHost.ts — runs the REAL Mdpa/VtkEditorProvider classes    │
-│    behind a `vscode` shim module + a fake WebviewPanel         │
-│    MMG → the submodule's own worker pair, unchanged            │
+│  one CadHost per open cad tab — port of cad/src/provider.ts    │
+│    OCCT + Gmsh WASM → shared worker thread (cadCompute.worker) │
+│  one MeshHost per open mesh tab — runs the REAL                │
+│    Mdpa/VtkEditorProvider classes behind a `vscode` shim       │
+│    module + a fake WebviewPanel; MMG → the submodule's own     │
+│    worker pair; Flowgraph's child process is shared, ref-      │
+│    counted across every mesh tab, unchanged                    │
 └────────────────────────────────────────────────────────────────┘
 ```
 
-A fourth, full-window `WebContentsView` — the **home screen** (`app/renderer/home/`) — is stacked on top and shown on launch (and via the toolbar's Home button, `Ctrl+0`, or **View ▸ Home**). It covers the shell and both mode views; entering a mode hides it. Screens are tracked as `Screen = "home" | Mode` in `app/main/ipc.ts` and switched with `MainWindow.setScreen()` (`app/main/windows.ts`) — mode views are only ever `setVisible()`-toggled, so their state survives trips through the home screen. The home menu's buttons are config-driven: add an entry to `app/renderer/home/homeConfig.ts`, a `HomeAction` case in `app/main/ipc.ts`, and its handler in `app/main/index.ts` (`home:toHost`/`home:toWebview` channels via `app/preload/homePreload.ts`, same contextBridge pattern as the shell).
+A fourth, full-window `WebContentsView` — the **home screen** (`app/renderer/home/`) — is stacked on top and shown on launch (and via the toolbar's Home button, `Ctrl+0`, or **View ▸ Home**). It covers the shell and every mode tab; entering a mode hides it. Screens are tracked as `Screen = "home" | "editor" | Mode` in `app/main/ipc.ts` and switched with `MainWindow.setScreen()` (`app/main/windows.ts`). Each mode screen can hold several open documents ("tabs") — `MainWindow.openTab()`/`closeTab()`/`setActiveTab()` manage a `Tab {id, view}` registry per mode, one full `WebContentsView` per tab (the same lazy-create + `setVisible()` precedent as the terminal/chat panels, just N-of-a-kind); only the focused tab of the active mode is ever visible/bounded, so switching tabs or trips through the home screen never reload or lose a tab's camera/edit-history state. `app/main/index.ts`'s `createTab(mode)` builds a tab's view and its `CadHost`/`MeshHost` together; `activeCadHost()`/`activeMeshHost()` resolve whichever tab is currently focused for callers (the native menu, the terminal's cwd, the chat context) that only ever need "the current one." The tab strip is plain DOM inside the `shell` page (`app/renderer/shell/shell.ts`), synced wholesale via a `{type:"tabs", mode, tabs, activeTabId}` message on every open/close/focus/title change — see `CLAUDE.md`'s tabs invariant for the full model, including the two genuinely-shared pieces of state (`cadBRepCache.ts`'s session-keyed worker cache and mesh's ref-counted `FlowgraphController`). The home menu's buttons are config-driven: add an entry to `app/renderer/home/homeConfig.ts`, a `HomeAction` case in `app/main/ipc.ts`, and its handler in `app/main/index.ts` (`home:toHost`/`home:toWebview` channels via `app/preload/homePreload.ts`, same contextBridge pattern as the shell).
 
-**Interface scale.** The shell toolbar's scale picker (and **View ▸ Zoom In / Zoom Out / Reset Zoom**, `Ctrl +`/`Ctrl -`/`Ctrl+Shift+0`) sets a single zoom factor via `MainWindow.setZoom()` (`app/main/windows.ts`). `setZoomFactor` scales each `WebContentsView`'s *content* but not its bounds, so `layout()` multiplies the fixed chrome constants (`SHELL_HEIGHT`, `TERMINAL_HEIGHT`, `CHAT_WIDTH`) by the factor in lockstep — otherwise the scaled toolbar would clip. Electron resets a view's zoom to 1 on every navigation, so each view re-asserts the factor on `did-finish-load` (the mode views reload on file open). The picker round-trips over the shell channel (`ShellToHost.setZoom` / `ShellToWebview.zoom`), and `app/main/index.ts` persists it under the `uiZoom` stateStore key and re-applies it on the next launch (passed into `createMainWindow`). Presets live in `ZOOM_PRESETS` — the shell renderer mirrors the same list to build the dropdown.
+**Interface scale.** The shell toolbar's scale picker (and **View ▸ Zoom In / Zoom Out / Reset Zoom**, `Ctrl +`/`Ctrl -`/`Ctrl+Shift+0`) sets a single zoom factor via `MainWindow.setZoom()` (`app/main/windows.ts`). `setZoomFactor` scales each `WebContentsView`'s *content* but not its bounds, so `layout()` multiplies the fixed chrome constants (`SHELL_HEIGHT`, `TAB_STRIP_HEIGHT`, `TERMINAL_HEIGHT`, `CHAT_WIDTH`) by the factor in lockstep — otherwise the scaled toolbar would clip. `TAB_STRIP_HEIGHT` is only ever added while a mode screen (which actually has tabs) is active. Electron resets a view's zoom to 1 on every navigation, so each tab's view re-asserts the factor on `did-finish-load` (a tab reloads when a file opens into it). The picker round-trips over the shell channel (`ShellToHost.setZoom` / `ShellToWebview.zoom`), and `app/main/index.ts` persists it under the `uiZoom` stateStore key and re-applies it on the next launch (passed into `createMainWindow`). Presets live in `ZOOM_PRESETS` — the shell renderer mirrors the same list to build the dropdown.
 
 ### Flowgraph embedding
 
