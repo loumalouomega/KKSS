@@ -5,6 +5,25 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.3.0] - 2026-08-05
+
+- feat: **both modes now support several open documents at once**, each in
+  its own tab. A new tab strip sits below the toolbar in Pre- and
+  Post-Processing, with a **+** button and **File ▸ New CAD/Mesh Tab** to
+  open a second document alongside the first — each tab keeps its own
+  camera, edit history, and (in Post-Processing) its own Flowgraph session,
+  fully independent of every other open tab. Close a tab with its **✕** or
+  `Ctrl+W`; closing needs no confirmation, since neither viewer has an
+  app-level "unsaved changes" concept (both autosave their sidecars).
+  `Ctrl+O` keeps its existing behavior — it replaces the focused tab's
+  document — so opening a *second* one is always an explicit action
+- feat: a mesh exported from a Pre-Processing tab now opens in a **new**
+  Post-Processing tab instead of replacing whatever the user currently has
+  focused there
+- chore: the AI chat sidebar's context now lists every open document per
+  mode, marking which one is currently focused, instead of only the single
+  file each mode used to have open
+
 ## [1.2.3] - 2026-08-04
 
 - fix: **the multi-arch Docker image should now actually publish.** Both
@@ -328,6 +347,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.3.0]: https://github.com/loumalouomega/KKSS/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/loumalouomega/KKSS/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/loumalouomega/KKSS/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/loumalouomega/KKSS/compare/v1.2.0...v1.2.1
