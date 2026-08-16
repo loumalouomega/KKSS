@@ -18,7 +18,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { launchApp, waitForMarkers, appWindow, sleep, root } from "./e2eShared.mjs";
+import { launchApp, waitForMarkers, appWindow, closeApp, sleep, root } from "./e2eShared.mjs";
 
 const OUT = path.join(root, "doc", "public", "screenshots");
 const IMAGES = path.join(root, "images");
@@ -147,7 +147,7 @@ async function sessionCad() {
     await shoot(await appWindow(app, "/renderer/shell/", deadline), "shell-toolbar.png");
   } finally {
     await restoreWindow(prepared);
-    await app.close().catch(() => {});
+    await closeApp(app);
   }
 }
 
@@ -176,7 +176,7 @@ async function sessionMdpa() {
     await shoot(page, "mesh-view-menu.png", "#view-popup");
   } finally {
     await restoreWindow(prepared);
-    await app.close().catch(() => {});
+    await closeApp(app);
   }
 }
 
@@ -196,7 +196,7 @@ async function sessionVtk() {
     await shootViewer(page, "mesh-vtk-timeline.png");
   } finally {
     await restoreWindow(prepared);
-    await app.close().catch(() => {});
+    await closeApp(app);
   }
 }
 
@@ -211,7 +211,7 @@ async function sessionHome() {
     await sleep(800);
     await shoot(page, "home-screen.png");
   } finally {
-    await app.close().catch(() => {});
+    await closeApp(app);
   }
 }
 

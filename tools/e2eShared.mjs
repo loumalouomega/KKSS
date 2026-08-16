@@ -4,6 +4,7 @@
  * tail its KKSS_E2E message trace, and find windows by page URL.
  */
 import { _electron } from "playwright-core";
+import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -79,3 +80,47 @@ export async function appWindow(app, urlPart, deadline, { deadGraceMs } = {}) {
 }
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Force-kills `pid` and every descendant process (best-effort; no-ops if
+ * `ps` isn't available or the tree is already gone).
+ */
+function killTree(pid) {
+  try {
+    const out = execSync("ps -eo pid,ppid --no-headers", { encoding: "utf8" });
+    const childrenOf = new Map();
+    for (const line of out.trim().split("\n")) {
+      const [p, ppid] = line.trim().split(/\s+/).map(Number);
+      if (!childrenOf.has(ppid)) childrenOf.set(ppid, []);
+      childrenOf.get(ppid).push(p);
+    }
+    const stack = [pid];
+    while (stack.length) {
+      const p = stack.pop();
+      try {
+        process.kill(p, "SIGKILL");
+      } catch {
+        // Already gone.
+      }
+      stack.push(...(childrenOf.get(p) ?? []));
+    }
+  } catch {
+    // `ps` unavailable (e.g. Windows) — nothing more we can do here.
+  }
+}
+
+/**
+ * Closes `app` and guarantees no descendant process survives it.
+ *
+ * Chromium's GPU process can wedge (the "stall on ReadPixels" case
+ * smoke.e2e.mjs works around) and outlive a graceful app.close() as an
+ * orphan that keeps burning a CPU core — starving every later launch's
+ * software renderer on CI's shared runners and turning one crashed attempt
+ * into a run of identical failures. Force-kill the tree unconditionally so
+ * a wedged process never survives past its case.
+ */
+export async function closeApp(app) {
+  const pid = app.process().pid;
+  await app.close().catch(() => {});
+  if (pid) killTree(pid);
+}

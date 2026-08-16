@@ -9,7 +9,7 @@
  *
  * Runs under xvfb in CI: xvfb-run -a node tools/smoke.e2e.mjs
  */
-import { launchApp, waitForMarkers, appWindow } from "./e2eShared.mjs";
+import { launchApp, waitForMarkers, appWindow, closeApp } from "./e2eShared.mjs";
 
 // Headless CI runners have no real GPU. Left to auto-pick, Chromium crashes the
 // mesh viewer's vtk.js renderer mid-frame — the GPU compositor fails to allocate
@@ -86,7 +86,7 @@ async function attempt(c) {
     //    which itself follows the DOM mount above.
     await waitForMarkers(output, c.expect, deadline);
   } finally {
-    await app.close().catch(() => {});
+    await closeApp(app);
   }
 }
 
