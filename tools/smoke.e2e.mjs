@@ -44,7 +44,15 @@ const CASES = [
     file: "cad/examples/STP/bull.stp",
     expect: ["[cad] host → webview: geometry", "[cad] host → webview: tree"],
     windowUrl: "/renderer/cad/",
-    timeoutMs: 90_000,
+    // CI run 32000629986: on a CPU-starved runner the app finished its full
+    // handshake (every expected marker showed up in stdout) inside all three
+    // 90s attempts, but Playwright's own electron.launch() handshake — a
+    // separate Node-inspector/CDP connection racing the OCCT worker thread
+    // and the swiftshader GPU process for the same 2-3 cores — never
+    // resolved in time. More headroom here lets the first attempt land
+    // instead of burning 3x90s of contention that then starves the mesh
+    // cases that follow.
+    timeoutMs: 150_000,
   },
   {
     name: "mesh MDPA (reused provider)",
