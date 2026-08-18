@@ -61,7 +61,8 @@
   },
   "overrides": {
     "fast-uri": "^3.1.5",
-    "@hono/node-server": "^2.0.5"
+    "@hono/node-server": "^2.0.5",
+    "js-yaml": "^4.3.1"
   },
   "allowScripts": {
     "electron@43.1.1": true,
