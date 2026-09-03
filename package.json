@@ -63,7 +63,8 @@
     "fast-uri": "^3.1.6",
     "@xmldom/xmldom": "^0.8.15",
     "@hono/node-server": "^2.0.5",
-    "js-yaml": "^4.3.1"
+    "js-yaml": "^4.3.1",
+    "qs": "^6.16.0"
   },
   "allowScripts": {
     "electron@43.1.1": true,
