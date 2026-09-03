@@ -199,8 +199,33 @@ export function installMenu(deps: MenuDeps): void {
         { type: "separator" },
         // The mesh viewer's own File menu lives in its in-flow menubar, which
         // KKSS hides (app/renderer/theme/mesh-overrides.css) in favour of this
-        // one — so its Problem-zip entries have to live here, on the same
-        // accelerators the extension contributes (kratos.problem.save/load).
+        // one — so its entries have to live here, on the same accelerators the
+        // extension contributes.
+        {
+          // mesh 3.2.0's kratos.mesh.reload. Re-reads the file and REBASES the
+          // edit history onto it (applied ops are replayed, not dropped), so
+          // this is also how you pick up an external change on purpose.
+          label: "Reload from Disk",
+          accelerator: "CmdOrCtrl+Alt+R",
+          enabled: !inCad(),
+          click: () => void activeMeshHost()?.dispatchReload(),
+        },
+        {
+          // mesh 3.7.0's kratos.mesh.exportTable — Advanced ▸ Data table…
+          // owns the in-viewport route; this is the palette-command parity.
+          label: "Export Data Table…",
+          enabled: !inCad(),
+          click: () => void activeMeshHost()?.dispatchMenu({ type: "menuExportTable" }),
+        },
+        {
+          // mesh 3.8.0's kratos.case.stop — the run manager's stop ladder
+          // (SIGINT → SIGTERM → SIGKILL). Runs outlive the tab that started
+          // them, so this is reachable whatever the focused tab shows.
+          label: "Stop Kratos Run",
+          enabled: !inCad(),
+          click: () => void activeMeshHost()?.dispatchCase("stop"),
+        },
+        { type: "separator" },
         {
           label: "Save Problem…",
           accelerator: "CmdOrCtrl+Alt+S",

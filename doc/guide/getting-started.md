@@ -133,6 +133,7 @@ Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the too
 | `Ctrl+Shift+S` | Save As |
 | `Ctrl+E` | Export |
 | `Ctrl+Alt+S` / `Ctrl+Alt+O` | Save / Load a problem archive (Post-Processing) |
+| `Ctrl+Alt+R` | Reload the focused document from disk, replaying applied edits (Post-Processing) |
 | `Ctrl+Alt+P` | Screenshot the current view to PNG |
 | `Ctrl+0` | Back to the home screen (main menu) |
 | `Ctrl+1` / `Ctrl+2` | Switch to Pre-Processing / Post-Processing |
@@ -142,3 +143,6 @@ Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the too
 On macOS use `Cmd` instead of `Ctrl`.
 
 Inside the mesh view, `1`–`6` snap the camera to ±X/±Y/±Z and `i` to an isometric view.
+
+**File ▸ Export Data Table…** and **File ▸ Stop Kratos Run** are also in the native menu: the mesh
+viewer contributes them to its own File strip, which KKSS hides in favour of the native menu bar.

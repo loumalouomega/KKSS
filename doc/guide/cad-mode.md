@@ -15,6 +15,14 @@ Pre-Processing mode embeds the full [CAD-Preview](https://loumalouomega.github.i
 - **Annotate**: freehand, line, arrow, rectangle and circle markup drawn over the 3D view, with undo/redo and an eraser, baked into screenshots.
 - **Generate FE meshes with Gmsh** (WASM): size controls, element shape (tets/hexes/hex-dominant) and order (linear/quadratic), per-part mesh sizes, physical groups from your parts, a live mesh overlay, and a **quality summary** with the worst elements highlighted through the model.
 - **Export**: STEP/IGES/BREP (via OCCT), STL/OBJ/PLY/glTF (via Three.js), and FE meshes to Kratos **MDPA**, Gmsh `.msh`, VTK, UNV, Abaqus, Nastran, SU2, MED, CGNS, XDMF, and more — each optionally **unit-converted** (mm/cm/m/in/ft) on the way out. **File ▸ Screenshot…** (`Ctrl+Alt+P`) saves the current view as a PNG.
+- **Split the view and link cameras**: 1, 2 or 4 panes each with their own camera (persisted to `<model>.view.json`), plus a **Link cameras** toggle that keeps every open CAD tab looking the same way.
+- **Preview an edit before applying it**: the drafted operation is replayed and drawn tinted by intent (green additive, red subtractive) without ever entering the op stack.
+- **Explain what's under the cursor**: a hover tooltip names the entity and which ops mention it; the inspector card reports the analytic surface type and its parameters, and right-click builds **selection groups** from a query vocabulary (by direction, planarity, area, length, largest/smallest N).
+- **Save and re-run macros**: named, parameterized scripts in a folder-level library — a macro's ops land on the normal undo stack exactly like hand-applied edits.
+- **Name construction planes**: save the current clip plane, enter one numerically, derive one from a picked face or three points, or build a midplane between two — persisted to `<model>.planes.json`.
+- **Repair and promote meshes**: the Mesh Health panel checks whether an STL/OBJ/PLY/glTF skin is healable, **Repair (robust)** makes it watertight with fTetWild, and **Promote to B-rep** turns a clean one into a STEP/IGES/BREP solid. **Region fit** grows a region from a picked point and fits a plane, cylinder or sphere to it, each with its own residual.
+- **Export 2D drawings**: silhouette **SVG** or **DXF** from any named or current view, or a full **technical drawing** with hidden-line removal — with pinned tolerance bands rendered as real dimensions.
+- **Import 2D**: SVG paths and DXF entities trace into B-rep sketch polylines.
 
 | Components tree | File menu | FE Mesh panel |
 | --- | --- | --- |
@@ -41,7 +49,9 @@ Pre-Processing mode never writes your CAD file. State lives beside it:
 | `<model>.annotations.json` | Pinned measurements |
 | `<model>.view.json` | Camera, display mode, projection, clip plane |
 | `<model>.mesh.json` | Gmsh meshing options |
+| `<model>.planes.json` | Named construction planes (resolved point + normal, never a face reference) |
 | `<model>.geo` | Generated Gmsh script (one-way; regenerated on change) |
+| `<dir>/cad-preview-macros.json` | The macro library — **per folder**, shared by every model beside it |
 
 **Save** (`Ctrl+S`) flushes all sidecars immediately; otherwise they autosave half a second after each change.
 

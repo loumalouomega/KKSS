@@ -58,6 +58,7 @@
   --vscode-list-activeSelectionBackground: #094771;
   --vscode-list-activeSelectionForeground: #ffffff;
   --vscode-list-hoverBackground: #2a2d2e;
+  --vscode-list-warningForeground: #cca700;
 
   --vscode-menu-background: #252526;
   --vscode-menu-border: #454545;
@@ -77,6 +78,8 @@
   --vscode-sideBar-border: rgba(128, 128, 128, 0.35);
   --vscode-sideBarSectionHeader-foreground: #cccccc;
 
+  --vscode-textBlockQuote-background: rgba(127, 127, 127, 0.1);
+  --vscode-textBlockQuote-border: rgba(0, 122, 204, 0.5);
   --vscode-textCodeBlock-background: rgba(10, 10, 10, 0.4);
   --vscode-textLink-foreground: #3794ff;
   --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);

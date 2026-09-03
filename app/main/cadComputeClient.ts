@@ -15,6 +15,14 @@ import type * as massProps from "../../cad/src/massProperties";
 import type * as entityFacts from "../../cad/src/entityFacts";
 import type * as meshio from "../../cad/src/meshioService";
 import type * as meshioParts from "../../cad/src/meshioRegionParts";
+import type * as hitTestService from "../../cad/src/hitTestService";
+import type * as meshHeal from "../../cad/src/meshHeal";
+import type * as primitiveReport from "../../cad/src/primitiveReport";
+import type * as meshRegionFit from "../../cad/src/meshRegionFit";
+import type * as primitiveWrite from "../../cad/src/primitiveWrite";
+import type * as svgSilhouetteHost from "../../cad/src/svgSilhouetteHost";
+import type * as modelDiffHost from "../../cad/src/modelDiffHost";
+import type * as stepPartsService from "../../cad/src/stepPartsService";
 import type * as brepCache from "./cadBRepCache";
 
 interface PendingCall {
@@ -58,56 +66,72 @@ function call<T>(method: string, args: unknown[]): Promise<T> {
   });
 }
 
-type LoadBRep = typeof occt.loadBRep;
-type ExportBRep = typeof occt.exportBRep;
-type GenerateMesh = typeof gmsh.generateMesh;
-type ExportGeoUnrolled = typeof gmsh.exportGeoUnrolled;
-type ExportMeshFormat = typeof gmsh.exportMeshFormat;
-type ExportMdpa = typeof gmsh.exportMdpa;
-type ComputeMassProperties = typeof massProps.computeMassProperties;
-type MeasureExact = typeof entityFacts.measureExact;
-type RebindPartsAcrossOps = typeof entityFacts.rebindPartsAcrossOps;
-type ConvertToStlBoundaryWithRegions = typeof meshio.convertToStlBoundaryWithRegions;
-type ReadMeshioMetadata = typeof meshio.readMeshioMetadata;
-type ReadMeshioFieldValues = typeof meshio.readMeshioFieldValues;
-type ExportViaMeshio = typeof meshio.exportViaMeshio;
-type BuildPartsFromMeshioRegions = typeof meshioParts.buildPartsFromMeshioRegions;
-type LoadBRepCachedInWorker = typeof brepCache.loadBRepCachedInWorker;
-type ReleaseBRepCache = typeof brepCache.releaseBRepCache;
+/**
+ * One RPC binding. The type parameter is the submodule function itself, so a
+ * changed signature upstream is a typecheck error here rather than a runtime
+ * surprise — the property this whole layer exists to keep.
+ */
+function rpc<F extends (...args: never[]) => unknown>(method: string) {
+  return (...args: Parameters<F>) => call<Awaited<ReturnType<F>>>(method, args as unknown[]);
+}
 
+/**
+ * Mirrors cad 1.3.0+'s `DocumentPipeline` (cad/src/kernelClient.ts). cad runs
+ * it over a forked child process; KKSS runs the same handler set in a worker
+ * thread (cadCompute.worker.ts), which is why the method names match exactly.
+ */
 export const cadCompute = {
-  loadBRep: (...args: Parameters<LoadBRep>) => call<Awaited<ReturnType<LoadBRep>>>("loadBRep", args),
-  exportBRep: (...args: Parameters<ExportBRep>) => call<Awaited<ReturnType<ExportBRep>>>("exportBRep", args),
-  generateMesh: (...args: Parameters<GenerateMesh>) =>
-    call<Awaited<ReturnType<GenerateMesh>>>("generateMesh", args),
-  exportGeoUnrolled: (...args: Parameters<ExportGeoUnrolled>) =>
-    call<Awaited<ReturnType<ExportGeoUnrolled>>>("exportGeoUnrolled", args),
-  exportMeshFormat: (...args: Parameters<ExportMeshFormat>) =>
-    call<Awaited<ReturnType<ExportMeshFormat>>>("exportMeshFormat", args),
-  exportMdpa: (...args: Parameters<ExportMdpa>) => call<Awaited<ReturnType<ExportMdpa>>>("exportMdpa", args),
-  // cad 1.2.x: mass properties, exact measurement and entity-id rebinding all
-  // replay the edit ops through OCCT, so they belong on this side of the RPC.
-  computeMassProperties: (...args: Parameters<ComputeMassProperties>) =>
-    call<Awaited<ReturnType<ComputeMassProperties>>>("computeMassProperties", args),
-  measureExact: (...args: Parameters<MeasureExact>) =>
-    call<Awaited<ReturnType<MeasureExact>>>("measureExact", args),
-  rebindPartsAcrossOps: (...args: Parameters<RebindPartsAcrossOps>) =>
-    call<Awaited<ReturnType<RebindPartsAcrossOps>>>("rebindPartsAcrossOps", args),
-  // meshio++ route (VTK/VTU/MED/CGNS/Exodus/XDMF/MDPA read, MED/CGNS/XDMF write).
-  convertToStlBoundaryWithRegions: (...args: Parameters<ConvertToStlBoundaryWithRegions>) =>
-    call<Awaited<ReturnType<ConvertToStlBoundaryWithRegions>>>("convertToStlBoundaryWithRegions", args),
-  readMeshioMetadata: (...args: Parameters<ReadMeshioMetadata>) =>
-    call<Awaited<ReturnType<ReadMeshioMetadata>>>("readMeshioMetadata", args),
-  readMeshioFieldValues: (...args: Parameters<ReadMeshioFieldValues>) =>
-    call<Awaited<ReturnType<ReadMeshioFieldValues>>>("readMeshioFieldValues", args),
-  exportViaMeshio: (...args: Parameters<ExportViaMeshio>) =>
-    call<Awaited<ReturnType<ExportViaMeshio>>>("exportViaMeshio", args),
-  buildPartsFromMeshioRegions: (...args: Parameters<BuildPartsFromMeshioRegions>) =>
-    call<Awaited<ReturnType<BuildPartsFromMeshioRegions>>>("buildPartsFromMeshioRegions", args),
+  // ---- OCCT ------------------------------------------------------------
+  loadBRep: rpc<typeof occt.loadBRep>("loadBRep"),
+  exportBRep: rpc<typeof occt.exportBRep>("exportBRep"),
   // cad 1.2.6's cached parse+replay. The cache entry itself never crosses the
   // RPC — see app/main/cadBRepCache.ts.
-  loadBRepCachedInWorker: (...args: Parameters<LoadBRepCachedInWorker>) =>
-    call<Awaited<ReturnType<LoadBRepCachedInWorker>>>("loadBRepCachedInWorker", args),
-  releaseBRepCache: (...args: Parameters<ReleaseBRepCache>) =>
-    call<Awaited<ReturnType<ReleaseBRepCache>>>("releaseBRepCache", args),
+  loadBRepCachedInWorker: rpc<typeof brepCache.loadBRepCachedInWorker>("loadBRepCachedInWorker"),
+  releaseBRepCache: rpc<typeof brepCache.releaseBRepCache>("releaseBRepCache"),
+
+  // ---- Gmsh ------------------------------------------------------------
+  generateMesh: rpc<typeof gmsh.generateMesh>("generateMesh"),
+  exportGeoUnrolled: rpc<typeof gmsh.exportGeoUnrolled>("exportGeoUnrolled"),
+  exportMeshFormat: rpc<typeof gmsh.exportMeshFormat>("exportMeshFormat"),
+  exportMdpa: rpc<typeof gmsh.exportMdpa>("exportMdpa"),
+  // cad 1.5.0: fTetWild-backed watertight repair.
+  repairMesh: rpc<typeof gmsh.repairMesh>("repairMesh"),
+
+  // ---- Facts, measurement, interference --------------------------------
+  computeMassProperties: rpc<typeof massProps.computeMassProperties>("computeMassProperties"),
+  computeBom: rpc<typeof massProps.computeBom>("computeBom"),
+  getEntityFacts: rpc<typeof entityFacts.getEntityFacts>("getEntityFacts"),
+  measureEntities: rpc<typeof entityFacts.measureEntities>("measureEntities"),
+  measureExact: rpc<typeof entityFacts.measureExact>("measureExact"),
+  checkInterference: rpc<typeof entityFacts.checkInterference>("checkInterference"),
+  checkInterferenceAll: rpc<typeof entityFacts.checkInterferenceAll>("checkInterferenceAll"),
+  rebindPartsAcrossOps: rpc<typeof entityFacts.rebindPartsAcrossOps>("rebindPartsAcrossOps"),
+  hitTest: rpc<typeof hitTestService.hitTest>("hitTest"),
+
+  // ---- Mesh health, primitives, region fitting --------------------------
+  checkMeshHealth: rpc<typeof meshHeal.checkMeshHealth>("checkMeshHealth"),
+  promoteMeshToBrep: rpc<typeof meshHeal.promoteMeshToBrep>("promoteMeshToBrep"),
+  recognizePrimitives: rpc<typeof primitiveReport.recognizePrimitives>("recognizePrimitives"),
+  fitMeshRegion: rpc<typeof meshRegionFit.fitMeshRegion>("fitMeshRegion"),
+  buildPrimitivesFile: rpc<typeof primitiveWrite.buildPrimitivesFile>("buildPrimitivesFile"),
+
+  // ---- Drawings, diffing, rendering, catalog ---------------------------
+  exportSvgSilhouette: rpc<typeof svgSilhouetteHost.exportSvgSilhouette>("exportSvgSilhouette"),
+  compareModels: rpc<typeof modelDiffHost.compareModels>("compareModels"),
+  searchStandardParts: rpc<typeof stepPartsService.searchStandardParts>("searchStandardParts"),
+  downloadStandardPart: rpc<typeof stepPartsService.downloadStandardPart>("downloadStandardPart"),
+
+  // ---- meshio++ route (VTK/VTU/MED/CGNS/Exodus/XDMF/MDPA, OpenFOAM) -----
+  convertToStlBoundary: rpc<typeof meshio.convertToStlBoundary>("convertToStlBoundary"),
+  convertToStlBoundaryWithRegions:
+    rpc<typeof meshio.convertToStlBoundaryWithRegions>("convertToStlBoundaryWithRegions"),
+  convertFoamCaseToStlBoundary:
+    rpc<typeof meshio.convertFoamCaseToStlBoundary>("convertFoamCaseToStlBoundary"),
+  readMeshioMetadata: rpc<typeof meshio.readMeshioMetadata>("readMeshioMetadata"),
+  readMeshioDataInfo: rpc<typeof meshio.readMeshioDataInfo>("readMeshioDataInfo"),
+  readMeshioFieldValues: rpc<typeof meshio.readMeshioFieldValues>("readMeshioFieldValues"),
+  runMeshioOps: rpc<typeof meshio.runMeshioOps>("runMeshioOps"),
+  exportViaMeshio: rpc<typeof meshio.exportViaMeshio>("exportViaMeshio"),
+  buildPartsFromMeshioRegions:
+    rpc<typeof meshioParts.buildPartsFromMeshioRegions>("buildPartsFromMeshioRegions"),
 };

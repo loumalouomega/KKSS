@@ -69,13 +69,21 @@ mass, moments of inertia), inspect and measure (bounding-box facts), measure_exa
 edge length, radius), check_interference (clash detection between solids or Parts), compare_models (a \
 geometric diff of two models, optionally with rendered images), render_snapshot (headless multi-view PNGs), \
 and search_standard_parts / download_standard_part (fasteners and other standard parts from step.parts, \
-the one tool family that reaches the network). Call cad__describe_capabilities before your first \
-cad__apply_edit_ops to learn the operation catalog.
+the one tool family that reaches the network). It also reads .foam OpenFOAM cases and .msh/.inp/.unv/.su2/\
+.mesh/.post.msh, which KKSS opens in CAD mode only when post mode cannot read them. Beyond geometry it \
+reports and repairs: recognize_primitives and fit_mesh_region name the analytic surface under a face or a \
+grown mesh region (each with its own residual), check_mesh_health then promote_mesh_to_brep turns a clean \
+skin mesh into a solid, repair_mesh makes a broken one watertight with fTetWild first, generate_bom and \
+check_tolerance answer part-count and fit questions, hit_test resolves a ray to an entity without a browser, \
+and export_svg_silhouette / export_technical_drawing produce 2D SVG or DXF (the latter with hidden-line \
+removal). set_plane persists a named construction plane beside the model; save_parametric_script / \
+list_parametric_scripts / run_saved_script are the macro library the viewer's Macros panel shares. Call \
+cad__describe_capabilities before your first cad__apply_edit_ops to learn the operation catalog.
 - mesh__* (kratos-mdpa): mesh inspection and transformation — info, quality metrics, and mesh size \
 (nodal Kratos NODAL_H + element edge length with box-whisker stats, std, and IQR small/large outlier ids) for MDPA, \
-VTK, STL/OBJ/PLY and 39 extended formats read through meshio++ (Gmsh .msh, Abaqus .inp, Nastran, UNV, Medit, \
-Netgen, SU2, XDMF, Exodus .e/.exo/.ex2, CGNS, MOAB .h5m, Salome .med, tetgen, EnSight Gold, Triangle, …), \
-36 of them writable, format conversion (pass inputFormat/outputFormat to force a meshio++ reader/writer when \
+VTK, STL/OBJ/PLY and 43 extended formats read through meshio++ (Gmsh .msh, Abaqus .inp, Nastran, UNV, Medit, \
+Netgen, SU2, XDMF, Exodus .e/.exo/.ex2, CGNS, MOAB .h5m, Salome .med, tetgen, EnSight Gold, Triangle, GiD \
+postprocess .post.msh/.post.res/.post.bin/.post.h5, OpenFOAM .foam on export, …), 37 of them writable, format conversion (pass inputFormat/outputFormat to force a meshio++ reader/writer when \
 the extension is ambiguous; pass timeStep to pick a step of a multi-step file — Exodus and Salome MED, but \
 only Exodus reports its available times as mesh__mesh_info's timeValues, so a MED step count is discoverable \
 only by asking for one), boundary-skin extraction, and Kratos case setup \
@@ -83,10 +91,18 @@ only by asking for one), boundary-skin extraction, and Kratos case setup \
 (incl. mode "expr", a formula over the nodal size h, the whole-mesh size statistics and the coordinates, with \
 optional per-SubModelPart overrides) and level-set splitting, smoothing, RCM/Morton/Hilbert renumbering, \
 space-filling-curve partitioning, uniform refinement, linear↔quadratic conversion, simplexification, box/plane \
-cropping, a field calculator and nodal↔elemental averaging, mesh merging, and the RADIUS of SPHERE/particle \
-elements (mesh__mesh_info's spheres section tells you whether a particle file carries one). SubModelParts \
-survive an export to .mdpa, .vtu, .med (as MED families), .inp (as *NSET/*ELSET) and — block names only — \
-.exo; a .msh export carries no groups.
+cropping, a field calculator and nodal↔elemental averaging, mesh merging (N files in one op), id renumbering, \
+the five SubModelPart-tree ops (create/move/merge/add/remove entities), field gradient, Hessian, \
+Zienkiewicz-Zhu error estimation, signed distance to an external surface, mass-preserving field transfer, \
+and the RADIUS of SPHERE/particle elements (mesh__mesh_info's spheres section tells you whether a particle \
+file carries one; its beams section does the same for CROSS_AREA-carrying line elements, and its \
+constraints section for multi-point constraints, which every op now maintains rather than drops). \
+mesh_field_integrate gives cell-measure-weighted totals and means per region, mesh_export_table writes the \
+whole entity table as CSV/XLSX, and mesh_field_series samples one entity across every step of a time \
+series. case_run starts a solve detached (logging to <stem>.kratosrun.log), case_status reports on it from \
+the <stem>.kratosrun.json sidecar the app's own run manager shares, and case_stop walks SIGINT → SIGTERM → \
+SIGKILL. SubModelParts survive an export to .mdpa, .vtu, .med (as MED families), .inp (as *NSET/*ELSET) \
+and — block names only — .exo; a .msh export carries no groups.
 - kratos__* (kratos-mcp-server): the Kratos Multiphysics engine and its knowledge layer — \
 single- and multi-stage project scaffolding, running simulations as background jobs, post-processing \
 and probing results, introspecting process/solver defaults, material and linear-solver presets, \

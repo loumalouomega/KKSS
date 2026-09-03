@@ -38,23 +38,39 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-const dsUsed = new Set(
-  [...fs.readFileSync(path.join(root, dsConsumer), "utf8").matchAll(/var\((--ds-[a-zA-Z0-9-]+)/g)].map(
-    (m) => m[1]
-  )
-);
+// A token written as var(--ds-x, <fallback>) still renders when design-system.css
+// never defines it, so only the bare var(--ds-x) form is a hard failure. mesh
+// 3.12.0's style.css uses var(--ds-border, var(--vscode-widget-border)) that way.
+// Fallback-only misses are still reported, since they usually mean the two
+// stylesheets have drifted and upstream should define the token.
+const dsConsumerCss = fs.readFileSync(path.join(root, dsConsumer), "utf8");
+const dsUsed = new Set();
+const dsRequired = new Set();
+for (const m of dsConsumerCss.matchAll(/var\(\s*(--ds-[a-zA-Z0-9-]+)\s*([,)])/g)) {
+  dsUsed.add(m[1]);
+  if (m[2] === ")") dsRequired.add(m[1]);
+}
 const dsDefined = new Set(
   [...fs.readFileSync(path.join(root, dsDefiner), "utf8").matchAll(/(--ds-[a-zA-Z0-9-]+)\s*:/g)].map(
     (m) => m[1]
   )
 );
-const dsMissing = [...dsUsed].filter((v) => !dsDefined.has(v)).sort();
+const dsMissing = [...dsRequired].filter((v) => !dsDefined.has(v)).sort();
 if (dsMissing.length > 0) {
   console.error(
-    `check-theme-vars: ${dsMissing.length} --ds-* token(s) used by ${dsConsumer} are not ` +
-      `defined in ${dsDefiner}:\n  ${dsMissing.join("\n  ")}`
+    `check-theme-vars: ${dsMissing.length} --ds-* token(s) used by ${dsConsumer} without a ` +
+      `fallback are not defined in ${dsDefiner}:\n  ${dsMissing.join("\n  ")}`
   );
   process.exit(1);
+}
+
+const dsFallbackOnly = [...dsUsed].filter((v) => !dsDefined.has(v) && !dsRequired.has(v)).sort();
+if (dsFallbackOnly.length > 0) {
+  console.warn(
+    `check-theme-vars: ${dsFallbackOnly.length} --ds-* token(s) used by ${dsConsumer} are ` +
+      `undefined in ${dsDefiner} but supply a fallback (rendering is unaffected):\n  ` +
+      dsFallbackOnly.join("\n  ")
+  );
 }
 
 console.log(
