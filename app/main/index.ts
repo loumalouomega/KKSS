@@ -6,8 +6,9 @@ import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
 import { createMainWindow, MainWindow, DEFAULT_ZOOM, ZOOM_PRESETS } from "./windows";
 import { CadHost } from "./cadHost";
-import { MeshHost } from "./mesh/meshHost";
+import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
 import { FlowgraphController } from "../../mesh/src/flowgraphController";
+import { RunManager } from "../../mesh/src/runManager";
 import { installMenu } from "./menu";
 import { modeForFile, modeForViewType } from "./router";
 import { configurePicker } from "./services/quickPick";
@@ -23,6 +24,9 @@ import { configureNotifications, handleToastButton, toast } from "./services/not
 import { stateStore } from "./services/stateStore";
 import { __configureVscodeShim } from "./vscodeShim";
 import { openMesh } from "../../mesh/src/meshExport";
+import { latestResultFile } from "../../mesh/src/problemtype/runCore";
+import { groupVtkFiles, findGroupForFile } from "../../mesh/src/parser/vtkFileGroup";
+import { TIMELINE_EXTENSIONS } from "../../mesh/src/parser/meshFormats";
 import type { HomeToHost, Mode, Screen, ShellTabInfo, ShellToHost } from "./ipc";
 
 // Must happen before app is ready.
@@ -34,6 +38,9 @@ const cadHosts = new Map<string, CadHost>();
 const meshHosts = new Map<string, MeshHost>();
 /** Shared, ref-counted across every open mesh tab — see meshHost.ts's header. */
 let flowgraph: FlowgraphController | null = null;
+/** Shared across every open mesh tab — a solve outlives the tab that started
+ *  it, so this is one registry for the app, disposed on will-quit. */
+let runs: RunManager | null = null;
 let terminal: TerminalService | null = null;
 let editor: EditorService | null = null;
 let chat: ChatService | null = null;
@@ -95,8 +102,8 @@ function syncTabs(mode: Mode): void {
   sendShell({ type: "tabs", mode, tabs, activeTabId: main.activeTabId(mode) });
 }
 
-// Shared across every tab of a mode — none of these close over a specific
-// tab, so one object per mode is enough (see createTab()).
+// cadHostHooks closes over no specific tab, so one object serves every cad tab.
+// meshHostHooks does (onReveal has to focus *this* tab), so it is a factory.
 const cadHostHooks = {
   onOpenRequest: (fsPath: string) => openFile(fsPath),
   onTitle: () => syncTabs("cad"),
@@ -111,7 +118,18 @@ const cadHostHooks = {
     setScreen("mesh");
   },
 };
-const meshHostHooks = { onTitle: () => syncTabs("mesh") };
+const meshHostHooks = (tabId: string) => ({
+  onTitle: () => syncTabs("mesh"),
+  // A provider called WebviewPanel.reveal() — mesh 3.8.0's "open latest
+  // results" jumps an already-open preview to the newest step rather than
+  // opening a duplicate, so bring that tab to the front.
+  onReveal: () => {
+    if (!main) return;
+    main.setActiveTab("mesh", tabId);
+    setScreen("mesh");
+    syncTabs("mesh");
+  },
+});
 
 /** Creates a new (focused) tab for `mode`: its WebContentsView + Host. */
 function createTab(mode: Mode) {
@@ -121,7 +139,16 @@ function createTab(mode: Mode) {
     cadHosts.set(tab.id, new CadHost(tab.view, path.join(__dirname, "cad-runtime"), cadHostHooks, tab.id));
   } else {
     if (!flowgraph) flowgraph = new FlowgraphController();
-    meshHosts.set(tab.id, new MeshHost(tab.view, __dirname, meshHostHooks, flowgraph));
+    if (!runs) {
+      // Mirrors extension.ts activate(): construct once, restore adopted run
+      // sidecars, dispose on quit.
+      runs = new RunManager(createMeshExtensionContext(__dirname));
+      runs.restore();
+    }
+    meshHosts.set(
+      tab.id,
+      new MeshHost(tab.view, __dirname, meshHostHooks(tab.id), flowgraph, runs)
+    );
   }
   // Pipe webview console output through main for headless debugging/e2e.
   tab.view.webContents.on("console-message", (details) => {
@@ -132,6 +159,45 @@ function createTab(mode: Mode) {
   main.setActiveTab(mode, tab.id);
   syncTabs(mode);
   return tab;
+}
+
+/**
+ * "kratos.vtk.openLatestResults" — the only path behind mesh's
+ * PtController.openResults() since 3.8.0. Ports extension.ts's handler: if any
+ * open mesh tab is already showing this case's series, jump *that* tab to the
+ * newest step rather than opening a duplicate; otherwise open the latest file
+ * in a new tab. `excludeNewest` is set for a run that did not finish cleanly,
+ * whose final step may be truncated (the vtk writer has no atomic rename).
+ */
+function openLatestResults(caseDir: string, options?: { excludeNewest?: boolean }): void {
+  const outDir = path.join(caseDir, "vtk_output");
+  let names: string[] = [];
+  try {
+    names = fsSync.readdirSync(outDir);
+  } catch {
+    /* reported below */
+  }
+  const latest = latestResultFile(names, { excludeNewest: options?.excludeNewest });
+  if (!latest) {
+    toast(
+      "info",
+      "No results in vtk_output/ yet — run the case first (results appear as the solver writes steps)."
+    );
+    return;
+  }
+  const groups = groupVtkFiles(names, TIMELINE_EXTENSIONS);
+  for (const host of meshHosts.values()) {
+    for (const open of host.openPanelPaths()) {
+      if (path.dirname(open) !== outDir) continue;
+      if (!findGroupForFile(groups, path.basename(open))) continue;
+      if (host.revealLatestFrame(open)) return;
+    }
+  }
+  // No tab is showing it — open in a NEW mesh tab, matching the pre → post
+  // sync rule that results never replace what the user has focused.
+  const tab = createTab("mesh");
+  meshHosts.get(tab.id)?.openPath(path.join(outDir, latest.fileName));
+  setScreen("mesh");
 }
 
 /** The focused tab's id for `mode`, creating a fresh (blank) tab if none is open. */
@@ -289,6 +355,7 @@ app.whenReady().then(() => {
   __configureVscodeShim({
     openWith: (fsPath, viewType) => openFile(fsPath, modeForViewType(viewType)),
     openTextDocument: (fsPath) => void editor?.openPath(fsPath),
+    openLatestResults,
   });
 
   for (const mode of ["cad", "mesh"] as Mode[]) {
@@ -474,6 +541,9 @@ app.on("will-quit", () => {
   void metaServer?.dispose();
   void mcpHub?.dispose();
   flowgraph?.dispose();
+  // Stops live solves (or detaches them, per kratos.run.stopOnWindowClose) so
+  // a spawned child isn't re-parented to init with a broken stdout pipe.
+  runs?.dispose();
 });
 
 app.on("window-all-closed", () => {

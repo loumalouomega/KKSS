@@ -16,12 +16,23 @@
  *                                  URIs), env.asExternalUri (identity — no
  *                                  Remote-SSH/tunnel in KKSS)
  *   mesh/src/ptController.ts     — workspace.openTextDocument + window.showTextDocument
- *                                  (routed to the app's own text-editor screen)
+ *                                  (routed to the app's own text-editor screen),
+ *                                  workspace.workspaceFolders,
+ *                                  commands.executeCommand("kratos.vtk.openLatestResults")
+ *   mesh/src/runManager.ts       — EventEmitter, Disposable, window.createOutputChannel,
+ *                                  context.workspaceState (see mesh/meshHost.ts),
+ *                                  commands.executeCommand("setContext")
+ *
+ * mesh/src/runTreeView.ts is deliberately NOT served: it is reachable only from
+ * the submodule's own activate(), which KKSS never calls (meshHost.ts constructs
+ * the providers directly), so createTreeView/TreeItem/ThemeIcon/MarkdownString
+ * stay out of the bundle. KKSS surfaces runs through its native menu instead.
  *
  * Anything else throws loudly so a submodule update that starts using a new
  * API fails visibly instead of silently misbehaving.
  */
-import { dialog } from "electron";
+import { app, dialog, shell } from "electron";
+import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { showOpenDialog as electronOpen, showSaveDialog as electronSave, FileFilter } from "./services/dialogs";
 import { showQuickPick as electronQuickPick, QuickPickItem } from "./services/quickPick";
@@ -35,6 +46,11 @@ export interface VscodeShimHooks {
   openWith(fsPath: string, viewType: string): void;
   /** Implements the openTextDocument/showTextDocument "reveal a file" flow. */
   openTextDocument(fsPath: string): void;
+  /**
+   * Implements "kratos.vtk.openLatestResults" — since mesh 3.8.0 this command
+   * is the *only* path behind PtController.openResults(), so it cannot throw.
+   */
+  openLatestResults(caseDir: string, options?: { excludeNewest?: boolean }): void;
 }
 
 let hooks: VscodeShimHooks = {
@@ -42,6 +58,9 @@ let hooks: VscodeShimHooks = {
     throw new Error("vscodeShim: hooks not configured");
   },
   openTextDocument: () => {
+    throw new Error("vscodeShim: hooks not configured");
+  },
+  openLatestResults: () => {
     throw new Error("vscodeShim: hooks not configured");
   },
 };
@@ -100,6 +119,49 @@ export class Uri {
 
 export class TextDocument {
   constructor(public readonly uri: Uri) {}
+}
+
+// ---- EventEmitter / Disposable ------------------------------------------------
+
+export interface Disposable {
+  dispose(): void;
+}
+
+export const Disposable = {
+  from(...items: Disposable[]): Disposable {
+    return {
+      dispose() {
+        for (const item of items) item.dispose();
+      },
+    };
+  },
+};
+
+/**
+ * vscode.EventEmitter. mesh 3.8.0's RunManager exposes its registry changes
+ * this way (`onDidChange`), and PtController subscribes to drive its status
+ * line, so the listener list has to be real — not a no-op.
+ */
+export class EventEmitter<T> {
+  private readonly listeners = new Set<(value: T) => void>();
+
+  readonly event = (listener: (value: T) => void): Disposable => {
+    this.listeners.add(listener);
+    return {
+      dispose: () => {
+        this.listeners.delete(listener);
+      },
+    };
+  };
+
+  fire(value: T): void {
+    // Copied first: a listener may dispose itself (or a sibling) while firing.
+    for (const listener of [...this.listeners]) listener(value);
+  }
+
+  dispose(): void {
+    this.listeners.clear();
+  }
 }
 
 export class RelativePattern {
@@ -173,6 +235,8 @@ interface CancellationTokenLike {
 export const window = {
   showOpenDialog: async (options: {
     canSelectMany?: boolean;
+    canSelectFiles?: boolean;
+    canSelectFolders?: boolean;
     filters?: Record<string, string[]>;
     title?: string;
     openLabel?: string;
@@ -183,8 +247,12 @@ export const window = {
       openLabel: options.openLabel,
       filters: convertFilters(options.filters),
       defaultPath: options.defaultUri?.fsPath,
+      // mesh 3.4.0's Merge mesh takes N files; 3.8.0's PNG frame-sequence
+      // export picks a folder.
+      canSelectMany: options.canSelectMany,
+      canSelectFolders: options.canSelectFolders,
     });
-    return picked ? [Uri.file(picked)] : undefined;
+    return picked ? picked.map((p) => Uri.file(p)) : undefined;
   },
 
   showSaveDialog: async (options: {
@@ -244,7 +312,78 @@ export const window = {
       prog.done();
     }
   },
+
+  /**
+   * Where a spawned solver's stdout goes (mesh 3.8.0's RunManager, which is on
+   * the default `kratos.run.launchMode: "output"` path). KKSS has no Output
+   * panel, so the channel keeps a capped buffer and mirrors to the host
+   * console; `show()` writes the buffer to a file and opens it in the app's own
+   * text editor, which is the closest equivalent the app has.
+   */
+  createOutputChannel: (name: string) => new OutputChannel(name),
+
+  /**
+   * Only reachable via `kratos.run.launchMode: "terminal"`, and
+   * `workspace.getConfiguration` always resolves to the schema default
+   * ("output"), so this is dead code in KKSS today. It throws rather than
+   * no-oping so that changing the default surfaces here instead of silently
+   * starting a solver nothing is watching.
+   */
+  createTerminal: (_options: unknown): never => {
+    throw new Error(
+      'vscodeShim: window.createTerminal is not supported — KKSS runs solvers via kratos.run.launchMode "output"'
+    );
+  },
 };
+
+/** Backing type for `window.createOutputChannel`. */
+class OutputChannel {
+  private static readonly MAX_LINES = 5000;
+  private readonly lines: string[] = [];
+
+  constructor(readonly name: string) {}
+
+  append(value: string): void {
+    this.push(value, false);
+  }
+
+  appendLine(value: string): void {
+    this.push(value, true);
+  }
+
+  private push(value: string, newline: boolean): void {
+    console.log(`[${this.name}] ${value}`);
+    if (!newline && this.lines.length > 0) this.lines[this.lines.length - 1] += value;
+    else this.lines.push(value);
+    if (this.lines.length > OutputChannel.MAX_LINES) {
+      this.lines.splice(0, this.lines.length - OutputChannel.MAX_LINES);
+    }
+  }
+
+  clear(): void {
+    this.lines.length = 0;
+  }
+
+  show(_preserveFocus?: boolean): void {
+    const file = nodePath.join(
+      app.getPath("logs"),
+      `${this.name.replace(/[^A-Za-z0-9._-]+/g, "_")}.log`
+    );
+    try {
+      fs.mkdirSync(nodePath.dirname(file), { recursive: true });
+      fs.writeFileSync(file, this.lines.join("\n"), "utf8");
+      hooks.openTextDocument(file);
+    } catch (err) {
+      toast("error", `Could not open ${this.name} output: ${String(err)}`);
+    }
+  }
+
+  hide(): void {}
+
+  dispose(): void {
+    this.lines.length = 0;
+  }
+}
 
 // ---- workspace -----------------------------------------------------------------
 
@@ -254,10 +393,25 @@ export const workspace = {
     return {
       onDidChange: (cb: (uri: Uri) => void) => watcher.onDidChange((p) => cb(Uri.file(p))),
       onDidCreate: (cb: (uri: Uri) => void) => watcher.onDidCreate((p) => cb(Uri.file(p))),
-      onDidDelete: (_cb: (uri: Uri) => void) => ({ dispose() {} }),
+      onDidDelete: (cb: (uri: Uri) => void) => watcher.onDidDelete((p) => cb(Uri.file(p))),
       dispose: () => watcher.dispose(),
     };
   },
+
+  /**
+   * KKSS opens files, not folders — ptController reads this only to resolve
+   * `kratos.problemtypes.extraPaths` relative to a workspace, and treats
+   * undefined as "none". mesh's own `?? []` handles it.
+   */
+  workspaceFolders: undefined as undefined | { uri: Uri }[],
+
+  /**
+   * mesh 3.2.0's mdpa provider re-parses when the file is saved in a text
+   * editor. KKSS's editor writes through the filesystem, so the chokidar
+   * watcher above already fires onDidChange for exactly that case — this stays
+   * a no-op rather than double-triggering a re-parse for every save.
+   */
+  onDidSaveTextDocument: (_cb: (doc: TextDocument) => void): Disposable => ({ dispose() {} }),
 
   /**
    * KKSS has no settings.json equivalent for extension contribution points,
@@ -284,11 +438,31 @@ export const env = {
 
 export const commands = {
   executeCommand: async (command: string, ...args: unknown[]): Promise<void> => {
-    if (command === "vscode.openWith") {
-      const uri = args[0] as Uri;
-      hooks.openWith(uri.fsPath, String(args[1] ?? ""));
-      return;
+    switch (command) {
+      case "vscode.openWith": {
+        const uri = args[0] as Uri;
+        hooks.openWith(uri.fsPath, String(args[1] ?? ""));
+        return;
+      }
+      // RunManager.changed() fires this on every registry mutation to gate the
+      // "Kratos Runs" view's `when` clause. KKSS has no such view, so the
+      // context key has nothing to drive — but it must not throw on a hot path.
+      case "setContext":
+        return;
+      case "revealInExplorer": {
+        const uri = args[0] as Uri;
+        shell.showItemInFolder(uri.fsPath);
+        return;
+      }
+      // Since mesh 3.8.0 this is the only path behind PtController.openResults().
+      case "kratos.vtk.openLatestResults": {
+        const caseDir = String(args[0] ?? "");
+        const options = args[1] as { excludeNewest?: boolean } | undefined;
+        hooks.openLatestResults(caseDir, options);
+        return;
+      }
+      default:
+        throw new Error(`vscodeShim: unsupported command "${command}"`);
     }
-    throw new Error(`vscodeShim: unsupported command "${command}"`);
   },
 };

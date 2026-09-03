@@ -33,6 +33,14 @@ const required = [
   ["mesh/dist/flowgraph", "npm run package --prefix mesh"],
   // meshio++ WASM tree backing the extended mesh formats (meshio.ts).
   ["mesh/dist/meshio/src/index.mjs", "npm run package --prefix mesh"],
+  // fTetWild, cad 1.5.0's fourth WASM kernel (ftetwildService.ts). Not staged
+  // into cad/dist by its own build — copied straight from cad's node_modules.
+  ["cad/node_modules/float-tetwild-wasm/index.js", "npm ci --prefix cad"],
+  // cad 1.3.0 moved OCCT/Gmsh/meshio++/fTetWild into a forked child process;
+  // dist/mcp-server.js reaches them only through it (kernelClient.ts forks
+  // `<extensionPath>/dist/kernel-worker.js`, and extensionPath for the chat
+  // sidebar's copy is out/cad-runtime — see services/chat/mcpManager.ts).
+  ["cad/dist/kernel-worker.js", "npm run build --prefix cad"],
 ];
 for (const [rel, fix] of required) {
   if (!fs.existsSync(path.join(__dirname, rel))) {
@@ -101,6 +109,15 @@ const meshioAlias = {
   "@meshioplusplus/wasm": path.join(__dirname, "app/main/cadMeshioLoader.ts"),
 };
 
+// cad 1.5.0's fourth WASM kernel (ftetwildService.ts, behind mesh repair and
+// mesh→B-rep promotion). ESM-only with a top-level await in its threaded glue,
+// which esbuild cannot emit into a cjs bundle at all — so unlike meshio++ this
+// is a hard build error, not just a packaged-install one. Same fix:
+// app/main/cadFtetwildLoader.ts resolves the copied out/ftetwild/ tree.
+const ftetwildAlias = {
+  "float-tetwild-wasm": path.join(__dirname, "app/main/cadFtetwildLoader.ts"),
+};
+
 /** @type {import('esbuild').BuildOptions} */
 const mainConfig = {
   entryPoints: ["app/main/index.ts"],
@@ -140,9 +157,10 @@ const cadWorkerConfig = {
   plugins: [wasmPathPlugin],
   // gmshService.ts (bundled into this worker) imports gmsh-wasm — force its
   // CJS build so the top-level await in the ESM entry never reaches this CJS
-  // bundle. meshioService.ts's bare @meshioplusplus/wasm import is redirected
-  // to the out/meshio/ resolver shim (see meshioAlias above).
-  alias: { ...gmshAlias, ...meshioAlias },
+  // bundle. meshioService.ts's bare @meshioplusplus/wasm import and
+  // ftetwildService.ts's float-tetwild-wasm import are redirected to the
+  // out/meshio/ and out/ftetwild/ resolver shims (see the aliases above).
+  alias: { ...gmshAlias, ...meshioAlias, ...ftetwildAlias },
   // gmsh-core.cjs's emscripten runtime has a `require("ws")` in its Node
   // WebSocket-socket branch — dead code for mesh generation (no networking) and
   // ws isn't even a declared dep. Keep it external so it never has to resolve.
@@ -235,6 +253,10 @@ function copyArtifacts() {
     // its extensionPath (= dirname/..) resolves to out/cad-runtime; mesh's
     // sits beside out/mmg-core.wasm (it reads __dirname/mmg-core.wasm).
     ["cad/dist/mcp-server.js", out("cad-runtime/dist/mcp-server.js")],
+    // Since cad 1.3.0 every OCCT/Gmsh/meshio++/fTetWild call from that server
+    // goes through a forked child, which kernelClient.ts looks up as
+    // `<extensionPath>/dist/kernel-worker.js` — i.e. right here.
+    ["cad/dist/kernel-worker.js", out("cad-runtime/dist/kernel-worker.js")],
     ["mesh/dist/mcpServer.js", out("mcpServer.js")],
     // Flowgraph static server must sit next to out/main.js (flowgraphController
     // resolves both it and out/flowgraph/ via __dirname); its served assets
@@ -277,6 +299,14 @@ function copyArtifacts() {
   // pointing at out/meshio/dist/*.wasm (its packageDir() __dirname fallback).
   // One copy beside out/main.js serves both the mesh host and out/mcpServer.js.
   fs.cpSync(path.join(__dirname, "mesh/dist/meshio"), out("meshio"), { recursive: true });
+  // float-tetwild-wasm, cad's fourth WASM kernel. Unlike the two trees above,
+  // the submodule's own build does not stage it into dist/ (it stays a plain
+  // node_modules dependency there), so it is copied straight from cad's
+  // node_modules — index.js + dist/, i.e. the package's own `files` list.
+  // Resolved at runtime by app/main/cadFtetwildLoader.ts's `__dirname/ftetwild`.
+  fs.cpSync(path.join(__dirname, "cad/node_modules/float-tetwild-wasm"), out("ftetwild"), {
+    recursive: true,
+  });
   console.log(`Copied ${copies.length} artifacts into out/`);
 }
 

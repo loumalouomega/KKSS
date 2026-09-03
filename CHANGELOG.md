@@ -5,6 +5,45 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.4.0] - 2026-09-03
+
+- feat: **both engines updated** — Pre-Processing to CAD-Preview 1.8.0 (from
+  1.2.6) and Post-Processing to VSCode-MDPA-Preview 3.12.0 (from 3.0.0),
+  twenty releases of viewer work between them
+- feat: Post-Processing gains **split view** (1, 2 or 4 viewports, each with
+  its own camera, field settings and clip plane), a **run manager** that
+  starts a Kratos solve as a tracked process with a real exit code and live
+  progress read from `vtk_output/`, **viewport recording** to WebM or a
+  numbered PNG sequence, **beam rendering** (line elements drawn at their real
+  cross-section from `Properties` `CROSS_AREA`), a **data table** with CSV and
+  XLSX export, **field-value plots over time**, **field integrals**,
+  watertightness reporting, an **operation queue**, and multi-point
+  **constraints parsed as real entities** that every edit operation now
+  maintains instead of dropping
+- feat: Pre-Processing gains **split view with linked cameras across tabs**,
+  **live operation preview** before Apply, a **macro library** of named
+  parameterized scripts, **named construction planes**, **hover-explain** and
+  query-based **selection groups**, **mesh repair** (fTetWild) and
+  **promote-to-B-rep**, **primitive recognition** and **region fitting**,
+  **2D drawing export** (silhouette SVG/DXF and hidden-line-removal technical
+  drawings), **SVG/DXF import**, and **tolerance bands** on pinned measurements
+- feat: **new native menu entries** for the mesh viewer's hidden File strip —
+  *Reload from Disk* (`Ctrl+Alt+R`, which replays applied edits onto the
+  re-read file rather than discarding them), *Export Data Table…* and
+  *Stop Kratos Run*
+- feat: solver runs are now **shared across every Post-Processing tab** and
+  outlive the tab that started them; finished results open in a **new** tab
+  jumped to the latest complete step
+- feat: more importable formats — Pre-Processing reads OpenFOAM `.foam` cases
+  and `.msh`/`.msh2`/`.inp`/`.unv`/`.su2`/`.mesh`, and both engines read GiD
+  postprocess (`.post.msh`/`.post.res`/`.post.bin`/`.post.h5`) via meshio++
+  10.20.2. File routing now resolves **compound extensions by longest suffix**,
+  so `case.post.msh` is recognised as GiD rather than as a Gmsh `.msh`
+- fix: colour-by-field in Pre-Processing now reports the actual reason a field
+  cannot be used instead of guessing between three possible causes
+- chore: the AI chat sidebar's tool descriptions cover the new surfaces —
+  cad-preview grew from 23 to 44 tools and kratos-mdpa from 15 to 21
+
 ## [1.3.0] - 2026-08-05
 
 - feat: **both modes now support several open documents at once**, each in
@@ -347,6 +386,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.4.0]: https://github.com/loumalouomega/KKSS/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/loumalouomega/KKSS/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/loumalouomega/KKSS/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/loumalouomega/KKSS/compare/v1.2.1...v1.2.2

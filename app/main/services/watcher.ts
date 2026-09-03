@@ -10,6 +10,7 @@ import * as path from "node:path";
 export interface FileWatcher {
   onDidChange(cb: (fsPath: string) => void): { dispose(): void };
   onDidCreate(cb: (fsPath: string) => void): { dispose(): void };
+  onDidDelete(cb: (fsPath: string) => void): { dispose(): void };
   dispose(): void;
 }
 
@@ -32,6 +33,7 @@ export function createFileSystemWatcher(base: string, pattern: string): FileWatc
   const matches = matcherFor(pattern);
   const changeCbs: Array<(p: string) => void> = [];
   const createCbs: Array<(p: string) => void> = [];
+  const deleteCbs: Array<(p: string) => void> = [];
 
   const watcher = chokidar.watch(base, { ignoreInitial: true, depth: 0 });
   watcher.on("add", (fsPath) => {
@@ -39,6 +41,11 @@ export function createFileSystemWatcher(base: string, pattern: string): FileWatc
   });
   watcher.on("change", (fsPath) => {
     if (matches(path.basename(fsPath))) for (const cb of changeCbs) cb(fsPath);
+  });
+  // mesh 3.2.0's mdpa provider pairs this with onDidCreate to survive the
+  // atomic delete-then-create save pattern some editors use.
+  watcher.on("unlink", (fsPath) => {
+    if (matches(path.basename(fsPath))) for (const cb of deleteCbs) cb(fsPath);
   });
   watcher.on("error", () => {
     /* a vanished directory is not fatal for a preview */
@@ -57,6 +64,7 @@ export function createFileSystemWatcher(base: string, pattern: string): FileWatc
   return {
     onDidChange: sub(changeCbs),
     onDidCreate: sub(createCbs),
+    onDidDelete: sub(deleteCbs),
     dispose: () => void watcher.close(),
   };
 }

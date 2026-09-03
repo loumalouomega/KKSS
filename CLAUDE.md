@@ -199,6 +199,34 @@ Concretely:
   in `cadWorkerConfig` and resolves the copied `out/meshio/` tree. It must not
   use `require.resolve("@meshioplusplus/wasm/package.json")`: the alias catches
   that subpath too and esbuild fails at build time on it.
+- **fTetWild needs the same treatment, and harder.** cad 1.5.0 added
+  `float-tetwild-wasm` (MPL-2.0 — the first non-permissive runtime dep; keep it
+  in the third-party notices) as a fourth WASM kernel behind mesh repair and
+  mesh→B-rep promotion. It is ESM-only *and* its threaded glue has a
+  **top-level await**, which esbuild refuses to emit into a `cjs` bundle — so
+  unlike meshio++ this is a hard **build** failure, not just a packaged-install
+  one. `app/main/cadFtetwildLoader.ts` is aliased in its place in
+  `cadWorkerConfig` and resolves an `out/ftetwild/` tree copied straight from
+  `cad/node_modules` (the submodule's own build does not stage it into `dist/`).
+- **The cad MCP server needs `kernel-worker.js` beside it.** Since cad 1.3.0
+  every OCCT/Gmsh/meshio++/fTetWild call from `dist/mcp-server.js` goes through
+  a forked child that `kernelClient.ts` looks up as
+  `<extensionPath>/dist/kernel-worker.js` — i.e. `out/cad-runtime/dist/`. Copy
+  it or the chat sidebar's cad tools die on their first call.
+- **`renderService.ts` must stay OUT of the cad compute worker.** It imports
+  playwright, which drags `playwright-core`'s unresolvable `chromium-bidi`
+  requires into the bundle. `render_snapshot` is an MCP-only tool and the chat's
+  cad server has its own kernel worker for it, so KKSS's worker deliberately
+  omits that module — the flat namespace-spread map in
+  `app/main/cadCompute.worker.ts` throws on a duplicate export name, so anything
+  added there is checked at startup rather than silently shadowed.
+- **Compound extensions are resolved by longest suffix, not by the last dot.**
+  Both submodules moved to this (mesh 3.6.0, cad 1.5.1) because `case.post.msh`
+  (GiD postprocess), `case.msh` (Gmsh) and `case.post` (permas) are three
+  different formats sharing a last dot. `app/main/router.ts` therefore uses
+  mesh's `meshExtname`, never `path.extname`. Note two formats route to **CAD**
+  mode outright because post mode cannot read them: `.foam` (mesh writes an
+  OpenFOAM case but cannot read one back) and `.msh2`.
 - **Tabs: one `WebContentsView` + one `CadHost`/`MeshHost` instance per open
   document, per mode.** Opening a document into a tab disposes only *that
   tab's* session (`CadHost.dispose()`/`MeshHost.dispose()`) and reloads only
@@ -225,7 +253,16 @@ Concretely:
   `FlowgraphController` (forks one shared child process) is constructed once
   in `index.ts` and injected into every `MeshHost` — it was already built
   ref-counted for exactly this multi-panel scenario, so it needed no
-  rework. **Open (Ctrl+O) replaces the focused tab's document**, matching
+  rework. mesh 3.8.0's **`RunManager`** is the third such shared object and
+  follows the identical rule (its own header says so): a solve outlives the tab
+  that started it, so `index.ts` constructs one, calls `restore()` to re-adopt
+  `<stem>.kratosrun.json` sidecars, injects it into every `MeshHost`
+  (`new MdpaEditorProvider(context, flowgraph, runs)`), and disposes it on
+  `will-quit`. It is also the only thing needing `context.workspaceState`,
+  which is why `createMeshExtensionContext()` supplies two mementos.
+  `cad 1.5.0`'s **linked cameras** are the mirror image: the extension keeps
+  the flag and session list on its single provider, so KKSS keeps them in a
+  module-level `liveHosts` registry in `cadHost.ts` instead. **Open (Ctrl+O) replaces the focused tab's document**, matching
   pre-tabs muscle memory exactly; **File ▸ New CAD/Mesh Tab** (or the tab
   strip's `+`) is the explicit way to open a second document instead. Closing
   a tab has no dirty-prompt — cad/mesh have no app-level "unsaved changes"

@@ -19,7 +19,16 @@
 import { ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { routeFile, type CadFormat, type FileRoute } from "../../cad/src/fileRouter";
+import {
+  routeFile,
+  COMPARABLE_MESH_FORMATS,
+  type CadFormat,
+  type FileRoute,
+  type MeshParseFormat,
+} from "../../cad/src/fileRouter";
+import { SVG_VIEWS } from "../../cad/src/svgSilhouette";
+import type { CompareSource } from "../../cad/src/modelDiffHost";
+import { resolveExternalBuffers, type GltfExternalBuffers } from "../../cad/src/gltfParser";
 import {
   encodeBuffer,
   type HostToWebview,
@@ -57,14 +66,29 @@ import { detectStepLengthUnit } from "../../cad/src/stepUnits";
 import { detectIgesLengthUnit } from "../../cad/src/igesUnits";
 import { scaleStlBytes } from "../../cad/src/stlParser";
 import { normalizeViewerDefaults } from "../../cad/src/viewerDefaults";
-import type { EditOp } from "../../cad/src/editOps";
+import { validateEditOp, type EditOp } from "../../cad/src/editOps";
+import { resolvePlaneRefs } from "../../cad/src/planeRefs";
 import type { ParamVariable } from "../../cad/src/editVariables";
-import type { Annotation, ViewState } from "../../cad/src/protocol";
+import type { Annotation, ViewState, ConstructionPlane } from "../../cad/src/protocol";
+import { parsePlanesJson, serializePlanesJson } from "../../cad/src/planesSidecar";
+import {
+  parseScriptLibraryJson,
+  serializeScriptLibraryJson,
+  mergeScriptOverrides,
+  scriptParameters,
+  type ScriptLibrary,
+} from "../../cad/src/scriptLibrary";
+import { compileParametricScript } from "../../cad/src/parametricScript";
+import { evaluateVariables } from "../../cad/src/editVariables";
 import type { MeshGenerationInput } from "../../cad/src/gmshService";
+import {
+  isMeshioFieldFailure,
+  describeMeshioFieldFailure,
+} from "../../cad/src/meshioService";
 import { cadCompute } from "./cadComputeClient";
 import { toKkssUrl, allowRoot } from "./protocol";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
-import { showQuickPick } from "./services/quickPick";
+import { showQuickPick, showInputBox } from "./services/quickPick";
 import { stateStore } from "./services/stateStore";
 
 /**
@@ -100,6 +124,15 @@ interface PendingExport {
   resolve: (result: { data: string; binary: boolean }) => void;
   reject: (err: Error) => void;
 }
+
+/**
+ * cad 1.5.0's linked cameras relay. In the extension one provider owns every
+ * panel, so both the flag and the session registry are instance state; here a
+ * tab is its own CadHost, so "every other open CAD view" is this module-level
+ * registry instead. Entries are added on construction and removed on dispose.
+ */
+const liveHosts = new Set<CadHost>();
+let camerasLinked = false;
 
 // ---- The three cad *Store.ts files, re-implemented on node:fs --------------
 
@@ -147,6 +180,36 @@ const readViewState = async (modelPath: string): Promise<ViewState | null> => {
 const writeViewState = (modelPath: string, view: ViewState): Promise<void> =>
   fs.writeFile(`${modelPath}.view.json`, serializeViewStateJson(path.basename(modelPath), view), "utf8");
 
+// cad 1.7.0's named construction planes. Stores resolved point+normal vectors,
+// never a face reference, so it is deliberately outside entity rebinding and
+// is never renumbered by an op replay.
+const readPlanes = async (modelPath: string): Promise<ConstructionPlane[]> => {
+  try {
+    return parsePlanesJson(await fs.readFile(`${modelPath}.planes.json`, "utf8"));
+  } catch {
+    return [];
+  }
+};
+const writePlanes = (modelPath: string, planes: ConstructionPlane[]): Promise<void> =>
+  fs.writeFile(`${modelPath}.planes.json`, serializePlanesJson(path.basename(modelPath), planes), "utf8");
+
+/**
+ * cad 1.7.0's macro library. Unlike every other sidecar this is **per folder**,
+ * not per model — one library is shared by every model beside it.
+ */
+const macroLibraryPath = (modelPath: string): string =>
+  path.join(path.dirname(modelPath), "cad-preview-macros.json");
+
+const readMacros = async (modelPath: string): Promise<ScriptLibrary> => {
+  try {
+    return parseScriptLibraryJson(await fs.readFile(macroLibraryPath(modelPath), "utf8"));
+  } catch {
+    return {};
+  }
+};
+const writeMacros = (modelPath: string, library: ScriptLibrary): Promise<void> =>
+  fs.writeFile(macroLibraryPath(modelPath), serializeScriptLibraryJson(library), "utf8");
+
 const readMeshOptions = async (modelPath: string): Promise<MeshOptions> => {
   try {
     return parseMeshJson(await fs.readFile(`${modelPath}.mesh.json`, "utf8"));
@@ -178,6 +241,8 @@ export class CadHost {
   private meshSaveTimer: ReturnType<typeof setTimeout> | undefined;
   private annotationsSaveTimer: ReturnType<typeof setTimeout> | undefined;
   private viewSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  private planesSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  private currentPlanes: ConstructionPlane[] = [];
   private currentEdits: EditOp[] = [];
   private currentVariables: ParamVariable[] = [];
   private currentParts: Part[] = [];
@@ -195,6 +260,7 @@ export class CadHost {
     /** Stable per-tab id — keys this session's slot in the worker's B-rep cache. */
     private readonly sessionId: string
   ) {
+    liveHosts.add(this);
     ipcMain.on("cad:toHost", (event, msg: WebviewToHost) => {
       if (event.sender !== view.webContents) return;
       void this.onMessage(msg);
@@ -227,7 +293,7 @@ export class CadHost {
       openLabel: "Open in CAD Preview",
       filters: [CAD_OPEN_FILTER],
     });
-    if (picked) this.hooks.onOpenRequest(picked);
+    if (picked) this.hooks.onOpenRequest(picked[0]);
   }
 
   /** File ▸ Save — immediately flushes all sidecars (provider flushSidecars). */
@@ -238,9 +304,11 @@ export class CadHost {
     if (this.meshSaveTimer) clearTimeout(this.meshSaveTimer);
     if (this.annotationsSaveTimer) clearTimeout(this.annotationsSaveTimer);
     if (this.viewSaveTimer) clearTimeout(this.viewSaveTimer);
+    if (this.planesSaveTimer) clearTimeout(this.planesSaveTimer);
     try {
       await Promise.all([
         writeParts(this.doc.path, this.currentParts),
+        writePlanes(this.doc.path, this.currentPlanes),
         writeEdits(this.doc.path, this.currentEdits, this.currentVariables),
         writeAnnotations(this.doc.path, this.currentAnnotations),
         ...(this.currentViewState ? [writeViewState(this.doc.path, this.currentViewState)] : []),
@@ -281,6 +349,7 @@ export class CadHost {
    *  worker's cached B-rep entry). The WebContentsView itself is disposed by
    *  the caller (windows.ts's closeTab). */
   dispose(): void {
+    liveHosts.delete(this);
     this.disposeSession();
   }
 
@@ -291,20 +360,24 @@ export class CadHost {
     if (this.meshSaveTimer) clearTimeout(this.meshSaveTimer);
     if (this.annotationsSaveTimer) clearTimeout(this.annotationsSaveTimer);
     if (this.viewSaveTimer) clearTimeout(this.viewSaveTimer);
+    if (this.planesSaveTimer) clearTimeout(this.planesSaveTimer);
     this.partsSaveTimer = this.editsSaveTimer = this.meshSaveTimer = undefined;
-    this.annotationsSaveTimer = this.viewSaveTimer = undefined;
+    this.annotationsSaveTimer = this.viewSaveTimer = this.planesSaveTimer = undefined;
     for (const p of this.pending.values()) p.reject(new Error("Document closed"));
     this.pending.clear();
     this.currentEdits = [];
     this.currentVariables = [];
     this.currentParts = [];
     this.currentAnnotations = [];
+    this.currentPlanes = [];
     this.currentViewState = undefined;
     this.currentMeshOptions = undefined;
     // The provider frees its per-document BRepCacheEntry in onDidDispose; here
     // the entry lives in the worker, so ask it to. Fire-and-forget: a failure
-    // only costs the next load a fresh parse.
+    // only costs the next load a fresh parse. TWO keys since cad 1.7.0 — the
+    // live op preview replays under its own `::oppreview` slot.
     void cadCompute.releaseBRepCache(this.sessionId).catch(() => {});
+    void cadCompute.releaseBRepCache(`${this.sessionId}::oppreview`).catch(() => {});
   }
 
   /**
@@ -403,6 +476,13 @@ export class CadHost {
         this.currentViewState = view ?? undefined;
         this.post({ type: "viewState", view });
       });
+      void readPlanes(this.doc.path).then((planes) => {
+        this.currentPlanes = planes;
+        this.post({ type: "planes", planes });
+      });
+      void this.sendMacros();
+      // A view opened while linking is on must learn about it (provider.ready).
+      if (camerasLinked) this.post({ type: "camerasLinked", enabled: true });
       this.sendViewerDefaults();
       return;
     }
@@ -697,8 +777,13 @@ export class CadHost {
         }
         const bytes = await fs.readFile(doc.path);
         const result = await cadCompute.readMeshioFieldValues(bytes, doc.route.format, msg.field, msg.kind);
+        // cad 1.7.0 replaced the null return with a typed failure, so the
+        // three reasons the old message had to guess between are now named.
         if (!result) {
           throw new Error(`Field "${msg.field}" not found, not a plain scalar, or the boundary isn't pure triangles.`);
+        }
+        if (isMeshioFieldFailure(result)) {
+          throw new Error(describeMeshioFieldFailure(result.reason, msg.field));
         }
         this.post({
           type: "colorFieldResult",
@@ -712,6 +797,346 @@ export class CadHost {
       }
       return;
     }
+
+    // ---- cad 1.7.0 / 1.8.0 ------------------------------------------------
+
+    if (msg.type === "planesChanged") {
+      // Debounced autosave with its own timer — mirrors partsChanged.
+      this.currentPlanes = msg.planes;
+      if (this.planesSaveTimer) clearTimeout(this.planesSaveTimer);
+      this.planesSaveTimer = setTimeout(() => {
+        void writePlanes(doc.path, this.currentPlanes).catch((err: Error) =>
+          this.post({ type: "error", message: `Could not save construction planes: ${err.message}` })
+        );
+      }, PARTS_SAVE_DEBOUNCE_MS);
+      return;
+    }
+
+    if (msg.type === "setCamerasLinked") {
+      // Provider-level in cad (one provider, many panels); here each tab is
+      // its own CadHost, so the flag and the relay live in a module-level
+      // registry of live hosts — see `liveHosts` above.
+      camerasLinked = msg.enabled;
+      for (const host of liveHosts) host.post({ type: "camerasLinked", enabled: msg.enabled });
+      return;
+    }
+
+    if (msg.type === "entityFactsRequest") {
+      try {
+        const format = this.requireBRep(
+          "Geometry classification requires a B-rep source; a mesh has no analytic surface type."
+        );
+        const facts = await cadCompute.getEntityFacts(
+          this.runtimePath,
+          await fs.readFile(doc.path),
+          format,
+          this.currentEdits,
+          msg.entityId
+        );
+        this.post({ type: "entityFactsResult", requestId: msg.requestId, facts });
+      } catch (err) {
+        this.post({ type: "entityFactsError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "meshHealRequest") {
+      try {
+        const format = this.requireMesh("Mesh healability check requires an STL/OBJ/PLY/glTF source.");
+        const bytes = await fs.readFile(doc.path);
+        const report = await cadCompute.checkMeshHealth(
+          this.runtimePath,
+          bytes,
+          format,
+          await this.gltfBuffers(format, bytes)
+        );
+        this.post({ type: "meshHealResult", requestId: msg.requestId, report });
+      } catch (err) {
+        this.post({ type: "meshHealError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "fitRegionRequest") {
+      try {
+        const format = this.requireMesh("Region fitting requires an STL/OBJ/PLY/glTF source.");
+        const bytes = await fs.readFile(doc.path);
+        const fit = await cadCompute.fitMeshRegion(
+          bytes,
+          format,
+          msg.point,
+          {},
+          await this.gltfBuffers(format, bytes)
+        );
+        this.post({ type: "fitRegionResult", requestId: msg.requestId, fit });
+      } catch (err) {
+        this.post({ type: "fitRegionError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "standardPartsSearchRequest") {
+      try {
+        const result = await cadCompute.searchStandardParts({ q: msg.q, page: msg.page, pageSize: 20 });
+        if (!result.available) throw new Error(result.reason);
+        this.post({
+          type: "standardPartsSearchResult",
+          requestId: msg.requestId,
+          items: result.value.items,
+          page: result.value.page,
+          totalPages: result.value.totalPages,
+          total: result.value.total,
+        });
+      } catch (err) {
+        this.post({
+          type: "standardPartsSearchError",
+          requestId: msg.requestId,
+          message: (err as Error).message,
+        });
+      }
+      return;
+    }
+
+    if (msg.type === "standardPartsInsertRequest") {
+      try {
+        const downloaded = await cadCompute.downloadStandardPart(msg.id);
+        if (!downloaded.available) throw new Error(downloaded.reason);
+        const savePath = await showSaveDialog({
+          defaultPath: path.join(path.dirname(doc.path), msg.suggestedName),
+          filters: [{ name: "STEP files", extensions: ["step", "stp"] }],
+        });
+        if (!savePath) {
+          this.post({ type: "standardPartsInsertResult", requestId: msg.requestId, path: null });
+          return;
+        }
+        await fs.writeFile(savePath, downloaded.value.bytes);
+        this.post({ type: "standardPartsInsertResult", requestId: msg.requestId, path: savePath });
+        this.hooks.onOpenRequest(savePath);
+      } catch (err) {
+        this.post({
+          type: "standardPartsInsertError",
+          requestId: msg.requestId,
+          message: (err as Error).message,
+        });
+      }
+      return;
+    }
+
+    if (msg.type === "importSvgRequest" || msg.type === "importDxfRequest") {
+      const isSvg = msg.type === "importSvgRequest";
+      const kind = isSvg ? "SVG" : "DXF";
+      try {
+        const picked = await showOpenDialog({
+          openLabel: `Import ${kind}`,
+          filters: [{ name: `${kind} files`, extensions: [isSvg ? "svg" : "dxf"] }],
+        });
+        if (!picked) return; // dialog dismissed — a quiet no-op, not an error
+        const text = await fs.readFile(picked[0], "utf8");
+        this.post(isSvg ? { type: "importSvgResult", text } : { type: "importDxfResult", text });
+      } catch (err) {
+        const message = (err as Error).message;
+        this.post(isSvg ? { type: "importSvgError", message } : { type: "importDxfError", message });
+      }
+      return;
+    }
+
+    if (
+      msg.type === "exportSvgRequest" ||
+      msg.type === "exportDxfRequest" ||
+      msg.type === "exportDrawingRequest"
+    ) {
+      await this.handleExportSilhouette(
+        msg.type === "exportDxfRequest" ? "dxf" : "svg",
+        msg.type === "exportDrawingRequest"
+      );
+      return;
+    }
+
+    if (msg.type === "opPreviewRequest") {
+      // Live preview of an in-progress edit: replays [...ops, draft] under a
+      // SECOND cache key so the document's own cached B-rep is untouched, and
+      // persists nothing. disposeSession() releases both keys.
+      try {
+        const format = this.requireBRep(
+          "Live preview requires a B-rep source; mesh sources preview client-side and never send this request."
+        );
+        const clean = validateEditOp(msg.op);
+        if (!clean) throw new Error("The drafted operation is invalid and cannot be previewed.");
+        const planes = await readPlanes(doc.path).catch(() => [] as ConstructionPlane[]);
+        const resolvedDraft = resolvePlaneRefs([clean], planes).ops[0] ?? clean;
+        const resolvedOps = resolvePlaneRefs(this.currentEdits, planes).ops;
+        const result = await cadCompute.loadBRepCachedInWorker(
+          `${this.sessionId}::oppreview`,
+          this.runtimePath,
+          await fs.readFile(doc.path),
+          format,
+          [...resolvedOps, resolvedDraft],
+          tessellationParamsFor(this.tessellationQuality())
+        );
+        this.post({
+          type: "opPreviewResult",
+          requestId: msg.requestId,
+          meshes: result.groups.flatMap((g) =>
+            g.faces.map((f) => ({
+              positions: encodeBuffer(f.buffers.positions),
+              indices: encodeBuffer(f.buffers.indices),
+              groupId: g.id,
+              faceId: f.faceId,
+            }))
+          ),
+          edges: result.edges.map((e) => ({
+            positions: encodeBuffer(e.positions),
+            edgeId: e.edgeId,
+            smooth: e.smooth,
+          })),
+          points: result.points.map((p) => ({
+            position: encodeBuffer(new Float32Array(p.position)),
+            pointId: p.pointId,
+          })),
+          opOutcomes: result.opOutcomes,
+        });
+      } catch (err) {
+        this.post({ type: "opPreviewError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "macroRun") {
+      try {
+        const entry = (await readMacros(doc.path))[msg.name];
+        if (!entry) throw new Error(`No saved macro named "${msg.name}".`);
+        const { script, unknownNames } = mergeScriptOverrides(entry.script, msg.parameters);
+        const { values } = evaluateVariables(this.currentVariables);
+        const compiled = compileParametricScript(script, values);
+        if (compiled.ops.length === 0) {
+          throw new Error(compiled.issues[0] ?? `"${msg.name}" compiled to no ops.`);
+        }
+        // Straight onto the webview's own op stack, so a macro is undoable and
+        // removable op-by-op exactly like a hand-applied edit.
+        this.post({ type: "macroApplyOps", ops: compiled.ops });
+        const skipped =
+          unknownNames.length > 0 ? ` (ignored unknown parameter(s): ${unknownNames.join(", ")})` : "";
+        this.post({ type: "status", text: `Ran "${msg.name}" — ${compiled.ops.length} op(s)${skipped}.` });
+      } catch (err) {
+        this.post({ type: "error", message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "macroSaveCurrent") {
+      try {
+        if (this.currentEdits.length === 0) {
+          throw new Error("Nothing to save — apply some edits first.");
+        }
+        const name = await showInputBox({
+          title: "Save macro",
+          prompt: `Name for this macro (${this.currentEdits.length} op(s))`,
+          placeHolder: "bolt-circle",
+        });
+        if (name === undefined || name.trim() === "") return; // dismissed — a quiet no-op
+        const library = await readMacros(doc.path);
+        // The op list IS the recording: "record" is a selection over edits
+        // already applied, not a live capture session.
+        library[name.trim()] = {
+          name: name.trim(),
+          description: `Recorded from ${this.currentEdits.length} op(s)`,
+          script: {
+            variables: this.currentVariables.map((v) => ({ name: v.name, expr: v.expr })),
+            steps: this.currentEdits.map((op) => ({ op })),
+          },
+        };
+        await writeMacros(doc.path, library);
+        await this.sendMacros();
+        this.post({ type: "status", text: `Saved macro "${name.trim()}".` });
+      } catch (err) {
+        this.post({ type: "error", message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "macroDelete") {
+      try {
+        const library = await readMacros(doc.path);
+        delete library[msg.name];
+        await writeMacros(doc.path, library);
+        await this.sendMacros();
+        this.post({ type: "status", text: `Deleted macro "${msg.name}".` });
+      } catch (err) {
+        this.post({ type: "error", message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "promoteToBrepButtonClicked") {
+      await this.handlePromoteToBrep();
+      return;
+    }
+
+    if (msg.type === "repairMeshButtonClicked") {
+      await this.handleRepairMesh();
+      return;
+    }
+  }
+
+  /**
+   * The configured tessellation quality, re-read on every use rather than
+   * cached at open time — a Settings change takes effect on the next load,
+   * matching the provider's own "always re-read" convention.
+   */
+  private tessellationQuality(): TessellationQuality {
+    return normalizeTessellationQuality(
+      stateStore.get(CAD_DEFAULT_KEYS.tessellationQuality, DEFAULT_TESSELLATION_QUALITY)
+    );
+  }
+
+  /** Posts the folder-level macro library to the webview (provider.sendMacros). */
+  private async sendMacros(): Promise<void> {
+    if (!this.doc) return;
+    const library = await readMacros(this.doc.path);
+    const macros = Object.values(library)
+      .map((entry) => ({
+        name: entry.name,
+        description: entry.description ?? null,
+        parameters: scriptParameters(entry.script),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    this.post({ type: "macros", macros });
+  }
+
+  /** The document's B-rep format, or a thrown explanation for a mesh source. */
+  private requireBRep(why: string): Extract<CadFormat, "step" | "iges" | "brep"> {
+    const route = this.doc?.route;
+    if (!route || route.strategy !== "occt") throw new Error(why);
+    return route.format as Extract<CadFormat, "step" | "iges" | "brep">;
+  }
+
+  /** The document's mesh format, or a thrown explanation for a B-rep source. */
+  private requireMesh(why: string): MeshParseFormat {
+    const route = this.doc?.route;
+    if (!route || route.strategy !== "three") throw new Error(why);
+    return route.format as MeshParseFormat;
+  }
+
+  /**
+   * A `.gltf` references its vertex data from sibling `.bin` files, so those
+   * have to be read and handed alongside the document's own bytes (the
+   * provider's `resolveGltfBuffersFor`). Returns undefined for every other
+   * format, and skips a buffer that cannot be read — the parser reports the
+   * gap far better than a failed open would.
+   */
+  private async gltfBuffers(
+    format: MeshParseFormat,
+    bytes: Uint8Array
+  ): Promise<GltfExternalBuffers | undefined> {
+    if (!this.doc || format !== "gltf") return undefined;
+    const dir = path.dirname(this.doc.path);
+    return resolveExternalBuffers(bytes, async (relative) => {
+      try {
+        return new Uint8Array(await fs.readFile(path.join(dir, relative)));
+      } catch {
+        return undefined;
+      }
+    });
   }
 
   private async handleBRep(
@@ -1053,11 +1478,12 @@ export class CadHost {
    * restoring a STEP archive to `restored.stl` used to succeed silently.
    */
   private async loadPreprocessDialog(): Promise<void> {
-    const zipPath = await showOpenDialog({
+    const picked = await showOpenDialog({
       openLabel: "Load Preprocess Archive",
       filters: [{ name: "Preprocess Archive", extensions: ["zip"] }],
     });
-    if (!zipPath) return;
+    if (!picked) return;
+    const zipPath = picked[0];
 
     try {
       const contents = readPreprocessZip(await fs.readFile(zipPath));
@@ -1123,6 +1549,155 @@ export class CadHost {
    * Port of provider.promptSaveAndWrite. Returns the written path on success,
    * or undefined when the user cancels the dialog or the write fails.
    */
+  /**
+   * File ▾ ▸ Export Silhouette SVG/DXF… and Export Technical Drawing…
+   * (provider.handleExportSvg). The drawing variant shares this whole
+   * view/unit/save flow deliberately — the only difference is that the
+   * pipeline solves hidden-line removal rather than tracing an outline.
+   */
+  private async handleExportSilhouette(format: "svg" | "dxf", hiddenLines: boolean): Promise<void> {
+    const doc = this.doc;
+    if (!doc?.route) return;
+    const route = doc.route;
+    if (route.strategy !== "occt" && !COMPARABLE_MESH_FORMATS.has(route.format)) {
+      this.post({
+        type: "error",
+        message: `Silhouette ${format.toUpperCase()} export requires a STEP/IGES/BREP or STL/OBJ/PLY/glTF source.`,
+      });
+      return;
+    }
+
+    type ViewChoice = {
+      label: string;
+      description?: string;
+      direction: [number, number, number];
+      up?: [number, number, number];
+    };
+    const choices: ViewChoice[] = [];
+    if (this.currentViewState) {
+      choices.push({
+        label: "Current view",
+        description: "as shown in the 3D view",
+        direction: this.currentViewState.viewDirection,
+        up: this.currentViewState.cameraUp,
+      });
+    }
+    for (const [name, view] of Object.entries(SVG_VIEWS)) {
+      choices.push({
+        label: name.charAt(0) + name.slice(1).toLowerCase(),
+        description: `[${view.direction.join(", ")}]`,
+        ...view,
+      });
+    }
+
+    const picked = await showQuickPick(choices, { placeHolder: "Silhouette view…" });
+    if (!picked) return; // the primary choice — Escape cancels the export
+    const unit = await this.pickExportUnit();
+
+    await this.promptSaveAndWrite(
+      doc.path,
+      format,
+      format === "dxf" ? "DXF Drawing" : "SVG Drawing",
+      async () => {
+        const bytes = await fs.readFile(doc.path);
+        const source: CompareSource =
+          route.strategy === "occt"
+            ? {
+                kind: "brep",
+                bytes,
+                format: route.format as Extract<CadFormat, "step" | "iges" | "brep">,
+                ops: this.currentEdits,
+              }
+            : route.format === "gltf"
+              ? {
+                  kind: "gltf",
+                  bytes,
+                  externalBuffers: await this.gltfBuffers("gltf", bytes),
+                }
+              : { kind: route.format as "stl" | "obj" | "ply", bytes };
+        const result = await cadCompute.exportSvgSilhouette(this.runtimePath, source, {
+          direction: picked.direction,
+          up: picked.up,
+          unit,
+          title: `${path.basename(doc.path)} — ${picked.label}`,
+          format,
+          annotations: this.currentAnnotations,
+          hiddenLines,
+        });
+        for (const warning of result.warnings) this.post({ type: "status", text: warning });
+        return Buffer.from(format === "dxf" ? (result.dxf ?? result.svg) : result.svg, "utf8");
+      }
+    );
+  }
+
+  /** Mesh Health ▸ Promote to B-rep (provider.handlePromoteToBrep). */
+  private async handlePromoteToBrep(): Promise<void> {
+    const doc = this.doc;
+    if (!doc?.route) return;
+    if (doc.route.strategy !== "three") {
+      this.post({ type: "error", message: "Promote to B-rep requires an STL/OBJ/PLY/glTF source." });
+      return;
+    }
+    const meshFormat = doc.route.format as MeshParseFormat;
+
+    const picked = await showQuickPick(
+      [...BREP_FORMATS].map((format) => ({
+        label: EXPORT_LABEL[format],
+        description: `.${EXPORT_EXTENSION[format]}`,
+        format: format as Extract<CadFormat, "step" | "iges" | "brep">,
+      })),
+      { placeHolder: "Promote to B-rep as…" }
+    );
+    if (!picked) return;
+    const unit = await this.pickExportUnit();
+
+    await this.promptSaveAndWrite(
+      doc.path,
+      EXPORT_EXTENSION[picked.format],
+      EXPORT_LABEL[picked.format],
+      async () => {
+        const bytes = await fs.readFile(doc.path);
+        const result = await cadCompute.promoteMeshToBrep(
+          this.runtimePath,
+          bytes,
+          meshFormat,
+          picked.format,
+          unit,
+          await this.gltfBuffers(meshFormat, bytes)
+        );
+        return result.bytes;
+      }
+    );
+  }
+
+  /**
+   * Mesh Health ▸ Repair (robust) (provider.handleRepairMesh). Writes a NEW
+   * watertight STL by tetrahedralizing with fTetWild and taking the volume
+   * mesh's own boundary — watertight by construction however broken the input
+   * was. The user reviews the result and re-runs Check Healability themselves;
+   * chaining it automatically is deliberately not done.
+   */
+  private async handleRepairMesh(): Promise<void> {
+    const doc = this.doc;
+    if (!doc?.route) return;
+    if (doc.route.strategy !== "three") {
+      this.post({ type: "error", message: "Repair (robust) requires an STL/OBJ/PLY/glTF source." });
+      return;
+    }
+    const meshFormat = doc.route.format as MeshParseFormat;
+
+    await this.promptSaveAndWrite(doc.path, "stl", "STL", async () => {
+      const bytes = await fs.readFile(doc.path);
+      const result = await cadCompute.repairMesh(
+        this.runtimePath,
+        bytes,
+        meshFormat,
+        await this.gltfBuffers(meshFormat, bytes)
+      );
+      return result.stlBytes;
+    });
+  }
+
   private async promptSaveAndWrite(
     modelPath: string,
     ext: string,
