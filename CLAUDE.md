@@ -99,7 +99,15 @@ Concretely:
   main bundle only) and `app/main/mesh/meshHost.ts` supplies a fake
   ExtensionContext + WebviewPanel. **If a mesh submodule update starts using a
   vscode API the shim lacks, extend the shim — never patch the submodule.**
-  The shim throws loudly on unsupported commands by design.
+  The shim throws loudly on unsupported commands by design. Three mesh modules
+  are deliberately **out of reach** rather than shimmed, because each is only
+  ever constructed from the submodule's own `activate()`, which KKSS never
+  calls: `runTreeView.ts`, `sidebarViews.ts` and `emptyPreview.ts` (the last two
+  arrived with mesh 3.15.0's Kratos activity-bar panel). That is what keeps
+  `createTreeView`/`TreeItem`/`registerCommand`/`createWebviewPanel` out of both
+  the bundle and the shim; KKSS covers the same ground natively — runs via
+  **File ▸ Stop Kratos Run**, recent meshes via **File ▸ Open Recent**, and the
+  empty-preview shell via the tab model itself.
 - **Heavy WASM stays off the UI thread.** OCCT + Gmsh run in
   `app/main/cadCompute.worker.ts` (RPC via `cadComputeClient.ts`); MMG runs in
   the mesh submodule's own worker pair. Path contracts of the unmodified
@@ -112,7 +120,7 @@ Concretely:
   The mesh submodule reads 39 (writes ~35) formats it has no native parser for
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (9.3.0, which adds the field-only
+  `@meshioplusplus/wasm` package (10.20.2, which adds the field-only
   `.dex`/`.ip`/`.mff` formats — point fields, no geometry — the write-only
   SVG/TikZ figure formats exposed in the export menu's "Figures" group, and,
   since it statically links HDF5/netCDF, the Exodus/CGNS/H5M/HMF/MED family
@@ -161,10 +169,18 @@ Concretely:
   from the submodules' own markup modules (`cad/src/viewerDom.ts`,
   `mesh/src/webviewChrome.ts` + `toolbarIcons.ts`), so the DOM always matches
   what the bundles expect. The shim script must load **before** the bundle.
-  `tools/webviewMarkup.ts`'s `meshBody()` is a hand-kept replica of
-  `mdpaEditorProvider.getHtml`'s body — mirror it element for element on every
-  mesh bump, and consume `webviewChrome.ts`'s exports rather than inlining
-  markup. Mesh links **three** stylesheets in order: `design-system.css` (the
+  `tools/webviewMarkup.ts`'s `meshBody()` is a hand-kept replica of the mesh
+  page's body — mirror it element for element on every mesh bump, and consume
+  `webviewChrome.ts`'s exports rather than inlining markup. **Since mesh 3.15.0
+  the upstream original is `webviewChrome.buildPreviewHtml`**, not
+  `mdpaEditorProvider.getHtml`: both editor providers and the standalone empty
+  panel now reach it through `previewHtml.ts`, so there is one skeleton to track
+  instead of two. It cannot simply be called — it bakes in one `<script>` and
+  exactly two `<link>`s, while KKSS also links `vscode-vars.css` and
+  `mesh-overrides.css` and must load `shim.js` *before* the bundle. Its
+  `startEmpty` branch (`data-start-empty` + the `#empty-hint` overlay) is
+  deliberately never emitted here: KKSS has no such state, since a mode screen
+  always holds at least one tab. Mesh links **three** stylesheets in order: `design-system.css` (the
   `--ds-*` token layer `style.css` builds on — copy it in `esbuild.mjs` too),
   `style.css`, then `app/renderer/theme/mesh-overrides.css`.
 - **The mesh menubar is emitted, then hidden.** mesh 3.0.0 put the viewer's
@@ -213,6 +229,31 @@ Concretely:
   a forked child that `kernelClient.ts` looks up as
   `<extensionPath>/dist/kernel-worker.js` — i.e. `out/cad-runtime/dist/`. Copy
   it or the chat sidebar's cad tools die on their first call.
+- **Two cad 1.12.0 features are deliberately NOT ported, and must stay that
+  way unless the trade-off is revisited.** *SpaceMouse* (the provider's
+  `spaceMouseConnect`/`Disconnect` commands and the `spacemouse` motion relay)
+  needs `node-hid`, a **second** native N-API module — see the node-pty
+  invariant below, which is what makes the release matrix simple. `spaceMouse.ts`
+  `require()`s it lazily inside `connect()` and reports a clear "HID layer not
+  installed" message, so leaving it out costs nothing else in the submodule; it
+  is also why `node-hid` appears in cad's `external` list but nowhere in KKSS's.
+  The *Models activity-bar view* (`cad/src/modelsView.ts`) is a VS Code TreeView
+  over the workspace folders, which KKSS has no analogue of and whose job the
+  home screen and the Open dialog already do; its one parent-side-useful export
+  is `ROUTED_EXTENSIONS` (every routed key including the compound `post.msh`),
+  if a file watcher ever wants it. `app/main/cadHost.ts`'s header records both.
+- **`.scad` shells out; `.csg` does not.** cad 1.12.0 added OpenSCAD as an
+  import route: `.csg` (the evaluated form) is parsed and built kernel-side like
+  any other B-rep source, but `.scad` is first converted to `.csg` by a
+  **user-installed `openscad` binary**, which is why `cad/src/scadService.ts` is
+  host-side and `CadHost.readOcctSource` — not the compute worker — is what
+  calls it: a `.scad`'s `use`/`include`/`import` resolve relative to the source
+  file, and the worker only ever receives marshalled bytes. Every OCCT path in
+  `cadHost.ts` goes through `readOcctSource`, so nothing downstream ever sees
+  format `"scad"`. The binary is configurable via the `cadOpenscadBinary`
+  stateStore key (**Settings ▸ CAD Viewer Defaults ▸ OpenSCAD Binary…**), since
+  the shim's `getConfiguration` always resolves to the caller's default;
+  `OPENSCAD_BINARY` remains the headless escape hatch for the MCP child.
 - **`renderService.ts` must stay OUT of the cad compute worker.** It imports
   playwright, which drags `playwright-core`'s unresolvable `chromium-bidi`
   requires into the bundle. `render_snapshot` is an MCP-only tool and the chat's
@@ -256,10 +297,18 @@ Concretely:
   rework. mesh 3.8.0's **`RunManager`** is the third such shared object and
   follows the identical rule (its own header says so): a solve outlives the tab
   that started it, so `index.ts` constructs one, calls `restore()` to re-adopt
-  `<stem>.kratosrun.json` sidecars, injects it into every `MeshHost`
-  (`new MdpaEditorProvider(context, flowgraph, runs)`), and disposes it on
-  `will-quit`. It is also the only thing needing `context.workspaceState`,
-  which is why `createMeshExtensionContext()` supplies two mementos.
+  `<stem>.kratosrun.json` sidecars, injects it into every `MeshHost`, and
+  disposes it on `will-quit`. It is also the only thing needing
+  `context.workspaceState`, which is why `createMeshExtensionContext()` supplies
+  two mementos. mesh 3.15.0's **`RecentMeshStore`** is the fourth, and the
+  reasoning is subtler: it is backed *only* by `globalState` (= the app-wide
+  `stateStore`), so per-tab instances would share the underlying list yet each
+  keep their own `EventEmitter` and fire redundant `setContext` calls — one
+  instance is the correct reading, not merely the cheaper one. Both providers
+  now require it (`new MdpaEditorProvider(context, flowgraph, runs, recents)`,
+  `new VtkEditorProvider(context, recents)`) and `record()` on every resolve.
+  KKSS surfaces it as **File ▸ Open Recent**, rebuilt from `onDidChange` because
+  an Electron menu is static once built.
   `cad 1.5.0`'s **linked cameras** are the mirror image: the extension keeps
   the flag and session list on its single provider, so KKSS keeps them in a
   module-level `liveHosts` registry in `cadHost.ts` instead. **Open (Ctrl+O) replaces the focused tab's document**, matching
@@ -275,7 +324,9 @@ Concretely:
   `.mdpa/.vtk/.vtu/.med/.cgns/.exo/.e/.xdmf` via meshio++, but those keep
   routing to **mesh** mode (`routeFile(...)?.strategy === "meshio"`), which
   reads them natively; CAD's geometry-only importer stays reachable from its
-  own Open dialog. **Pre → post is one-way synced:** a mesh exported from
+  own Open dialog. cad 1.12.0's `.csg`/`.scad` are plain `occt`-strategy
+  formats, so they route to **cad** with no `router.ts` change at all. **Pre →
+  post is one-way synced:** a mesh exported from
   CAD/pre that post mode can display (`.mdpa`, `.vtk`, …) auto-opens in a
   **new** mesh tab (`CadHost.onMeshExported` → `createTab("mesh")` +
   `openPath(...)` in `app/main/index.ts`, gated by `modeForFile` so

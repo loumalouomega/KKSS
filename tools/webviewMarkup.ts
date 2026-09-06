@@ -4,9 +4,11 @@
  * the exact DOM the extensions ship — never a hand-copied snapshot.
  *
  * cad page body   = viewerBodyHtml() from cad/src/viewerDom.ts
- * mesh page body  = the provider HTML skeleton (mdpaEditorProvider.getHtml /
- *                   vtkEditorProvider.getHtml emit byte-identical bodies)
- *                   assembled from mesh/src/webviewChrome.ts + toolbarIcons.ts.
+ * mesh page body  = the shared preview skeleton, which since mesh 3.15.0 lives
+ *                   in webviewChrome.buildPreviewHtml (both editor providers and
+ *                   the standalone empty panel go through previewHtml.ts to
+ *                   reach it), assembled here from mesh/src/webviewChrome.ts +
+ *                   toolbarIcons.ts.
  *
  * This file is bundled by tools/gen-webview-html.mjs and run under Node; it
  * must not import `vscode` (the modules above are vscode-free by design).
@@ -27,9 +29,9 @@ import {
 import { TOOLBAR_ICONS } from "../mesh/src/toolbarIcons";
 
 /**
- * Same helper the mesh providers define (mdpaEditorProvider.ts). The toolbar
- * and both popups embed their own icons via `webviewChrome.ts`, so this is only
- * needed for the find bar's close button, which the providers still inline.
+ * The same helper `webviewChrome.ts` calls `ic()`. The toolbar and both popups
+ * embed their own icons, so this is only needed for the find bar's close
+ * button, which `buildPreviewHtml` inlines rather than exporting.
  */
 function icon(id: keyof typeof TOOLBAR_ICONS): string {
   return `<span class="toolbar-icon">${TOOLBAR_ICONS[id]}</span>`;
@@ -38,8 +40,8 @@ function icon(id: keyof typeof TOOLBAR_ICONS): string {
 /**
  * `css` is an ordered list because mesh needs two sheets: design-system.css
  * defines the `--ds-*` tokens style.css resolves, so it must be linked first
- * (mdpaEditorProvider.getHtml does the same), and the KKSS-only overrides come
- * last so they win.
+ * (`buildPreviewHtml` does the same), and the KKSS-only overrides come last so
+ * they win.
  */
 function page(opts: {
   title: string;
@@ -68,8 +70,9 @@ ${opts.body}
 }
 
 // CSP mirrors each provider's directives (cad/src/provider.ts getHtml,
-// mesh/src/*EditorProvider.ts getHtml), with the kkss: app scheme in place of
-// webview.cspSource and kkss-file: allowed for cad's loadUrl fetch pipeline.
+// mesh/src/webviewChrome.ts buildPreviewHtml), with the kkss: app scheme in
+// place of webview.cspSource and kkss-file: allowed for cad's loadUrl fetch
+// pipeline.
 const CAD_CSP = [
   `default-src 'none'`,
   `img-src kkss: blob: data:`,
@@ -94,15 +97,23 @@ const MESH_CSP = [
 ].join("; ");
 
 /**
- * Replica of the shared provider skeleton (mdpa/vtk getHtml bodies are
- * identical) — mirrors mesh/src/mdpaEditorProvider.ts's getHtml body element
- * for element. Everything that can come from `webviewChrome.ts` does; the only
- * markup written out here is what the providers themselves inline.
+ * Replica of `webviewChrome.buildPreviewHtml`'s body — mirror it element for
+ * element on every mesh bump. `buildPreviewHtml` cannot be called directly: it
+ * bakes in one `<script>` and exactly two `<link>`s, while KKSS additionally
+ * links `vscode-vars.css` and `mesh-overrides.css` and must load `shim.js`
+ * BEFORE the bundle. Everything that can come from `webviewChrome.ts` does; the
+ * only markup written out here is what that module inlines rather than exports.
  *
  * `MENUBAR_HTML` is emitted even though KKSS hides it (mesh-overrides.css):
  * `webview/main.ts` looks its nodes up by id — including `#theme-select`, which
  * the shared `sceneTheme` setting drives through `initialState` — so dropping
  * it would leave those lookups null.
+ *
+ * Deliberately NOT mirrored: `buildPreviewHtml`'s `startEmpty` branch (the
+ * `data-start-empty` body attribute and the `#empty-hint` overlay, added in
+ * mesh 3.15.0 for its standalone empty panel). KKSS has no such state — a mode
+ * screen always holds at least one tab — and `webview/main.ts` guards the whole
+ * branch on `document.body.dataset.startEmpty`, so omitting it is inert.
  */
 function meshBody(): string {
   return `  ${LOADING_HTML}

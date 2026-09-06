@@ -22,11 +22,27 @@
  *   mesh/src/runManager.ts       — EventEmitter, Disposable, window.createOutputChannel,
  *                                  context.workspaceState (see mesh/meshHost.ts),
  *                                  commands.executeCommand("setContext")
+ *   mesh/src/recentMeshes.ts     — EventEmitter, context.globalState, and
+ *                                  commands.executeCommand("setContext") again;
+ *                                  it fires on EVERY file open (both providers
+ *                                  record there), so that case must stay a
+ *                                  cheap no-op rather than a throw
+ *   mesh/src/previewHtml.ts      — Uri.joinPath, webview.asWebviewUri (identity,
+ *                                  via meshHost.ts's fake panel),
+ *                                  workspace.getConfiguration("kratos.flowgraph")
  *
- * mesh/src/runTreeView.ts is deliberately NOT served: it is reachable only from
- * the submodule's own activate(), which KKSS never calls (meshHost.ts constructs
- * the providers directly), so createTreeView/TreeItem/ThemeIcon/MarkdownString
- * stay out of the bundle. KKSS surfaces runs through its native menu instead.
+ * Three modules are deliberately NOT served, because each is reachable only
+ * from the submodule's own activate(), which KKSS never calls (meshHost.ts
+ * constructs the providers directly):
+ *   mesh/src/runTreeView.ts   — createTreeView, TreeItem, ThemeIcon, MarkdownString
+ *   mesh/src/sidebarViews.ts  — createTreeView, TreeItem, commands.registerCommand
+ *                               (mesh 3.15.0's Kratos activity-bar panel)
+ *   mesh/src/emptyPreview.ts  — window.createWebviewPanel
+ * That is what keeps all of the above out of both the bundle and this shim.
+ * KKSS covers the same ground natively: runs via File ▸ Stop Kratos Run, recent
+ * meshes via File ▸ Open Recent, and the empty-preview shell via its own tab
+ * model (a mode screen always has at least one tab, so KKSS structurally cannot
+ * be in the "no editor open" state that panel exists for).
  *
  * Anything else throws loudly so a submodule update that starts using a new
  * API fails visibly instead of silently misbehaving.

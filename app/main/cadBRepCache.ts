@@ -28,7 +28,9 @@ export async function loadBRepCachedInWorker(
   sessionId: string,
   extensionPath: string,
   bytes: Uint8Array,
-  format: Extract<CadFormat, "step" | "iges" | "brep">,
+  // `.csg` joined the OCCT source formats in cad 1.12.0 (`.scad` converts to
+  // it host-side before ever reaching here) — see cadHost.ts's OcctSourceFormat.
+  format: Extract<CadFormat, "step" | "iges" | "brep" | "csg">,
   ops: EditOp[],
   quality: TessellationParams
 ): Promise<BRepResult> {

@@ -5,6 +5,49 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.5.0] - 2026-09-06
+
+- feat: **both engines updated** — Pre-Processing to CAD-Preview 1.12.0 (from
+  1.8.0) and Post-Processing to VSCode-MDPA-Preview 3.15.1 (from 3.12.0)
+- feat: Pre-Processing can **start from nothing** — **File ▸ New Blank Model…**
+  creates an empty `.brep` and opens it, so the Edits panel's whole creation
+  vocabulary (primitives, sketch profiles, wireframe modeling, booleans,
+  fillets, patterns) works from scratch; it refuses to overwrite an existing
+  model rather than leaving its edit history replaying against nothing
+- feat: Pre-Processing reads **OpenSCAD** models — `.csg` directly, and `.scad`
+  through a user-installed `openscad` binary configurable at **Settings ▸ CAD
+  Viewer Defaults ▸ OpenSCAD Binary…**; both are import-only, and anything the
+  importer approximates or skips is reported rather than silently dropped
+- feat: an edit operand can be **pinned as a query** instead of a positional
+  entity id — re-matched geometrically on every replay, so an op keeps naming
+  the right face after the op list is spliced. Parts carry the same mechanism
+  and are re-resolved when a document opens; a query that no longer derives
+  freezes on its cached ids with a warning rather than resolving to the wrong
+  entity
+- feat: **collapsible sidebar sections** in Pre-Processing — all nine panels
+  collapse to their header independently, remembered per document
+- feat: new Pre-Processing edit ops — `rib` and `drill`, an `upToFace`
+  terminator for extrude, region `pick` on extrude/revolve/sweep, and loft
+  `smoothing`
+- feat: Post-Processing remeshing gains an **anisotropic** mode (adapts the mesh
+  to the curvature of a scalar field via its Hessian), **frozen** EntityBlocks
+  and SubModelParts MMG must leave bit-identical, and per-block/per-part
+  `hmin`/`hmax`/`hausd` **local size bounds**
+- feat: a global **Edges** toggle in Post-Processing's View ▾ menu — faces and
+  cell edges share one alpha, so a transparent mesh no longer has to read as a
+  wire cage; and **isolated nodes** are now reported and drawn per SubModelPart,
+  not only per whole model
+- feat: **File ▸ Open Recent** lists the last ten meshes you opened, newest
+  first, with Clear Recent; entries that have moved or been deleted drop off by
+  themselves
+- feat: the AI assistant learned the new surface — `resolve_selector` /
+  `synthesize_selector`, the OpenSCAD routes, anisotropic/frozen/local-size
+  remeshing, and `mesh_info`'s header-only `metadataOnly` fast path and
+  `isolatedNodes` section
+- note: SpaceMouse 6DOF input, added upstream in CAD-Preview 1.12.0, is
+  deliberately **not** included — it needs a second native module (`node-hid`)
+  and `node-pty` is intentionally the only one KKSS ships
+
 ## [1.4.0] - 2026-09-03
 
 - feat: **both engines updated** — Pre-Processing to CAD-Preview 1.8.0 (from
@@ -386,6 +429,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.5.0]: https://github.com/loumalouomega/KKSS/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/loumalouomega/KKSS/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/loumalouomega/KKSS/compare/v1.2.3...v1.3.0
 [1.2.3]: https://github.com/loumalouomega/KKSS/compare/v1.2.2...v1.2.3

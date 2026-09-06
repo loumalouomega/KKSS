@@ -28,7 +28,7 @@ The toolbar at the top of the window holds the mode toggle:
 
 ![The shell toolbar: mode toggle, Open button, and the current file](/screenshots/shell-toolbar.png)
 
-- **🔷 Pre-Processing** — CAD geometry and model preparation ([details](/guide/cad-mode)). Opens STEP, IGES, BREP, STL, OBJ, PLY, and glTF.
+- **🔷 Pre-Processing** — CAD geometry and model preparation ([details](/guide/cad-mode)). Opens STEP, IGES, BREP, STL, OBJ, PLY, glTF, and OpenSCAD `.csg`/`.scad` (a `.scad` needs a local `openscad` binary). **File ▸ New Blank Model…** starts an empty one instead.
 - **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 39 extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, Exodus, CGNS, MED, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and an **Advanced** toolbar menu holds the Mesh Size panel (nodal/element size statistics), sphere glyphs for particle meshes, face normals for spotting inverted elements, and boundary-skin export.
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved.
@@ -128,6 +128,8 @@ Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the too
 | Shortcut | Action |
 | --- | --- |
 | `Ctrl+O` | Open a file into the focused tab of the active mode |
+| — | **File ▸ Open Recent** reopens one of the last ten meshes (Post-Processing) |
+| — | **File ▸ New Blank Model…** creates an empty `.brep` to build from scratch (Pre-Processing) |
 | `Ctrl+W` | Close the focused tab |
 | `Ctrl+S` | Save (CAD: flush sidecars · Mesh: overwrite the source file) |
 | `Ctrl+Shift+S` | Save As |

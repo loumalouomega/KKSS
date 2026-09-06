@@ -69,6 +69,20 @@ describe("modeForFile", () => {
     }
   });
 
+  it("routes the OpenSCAD formats to cad mode, on the occt strategy", () => {
+    // cad 1.12.0. `.csg` is OpenSCAD's fully evaluated form, built kernel-side
+    // into an opaque base shape; `.scad` is converted to it on open by a
+    // user-installed openscad binary. The strategy matters as much as the mode:
+    // "meshio" would send them to post mode, which cannot read either.
+    for (const f of ["a.csg", "a.scad", "A.CSG", "A.SCAD"]) {
+      expect(routeFile(f)?.strategy).toBe("occt");
+      expect(modeForFile(f, "cad")).toBe("cad");
+      expect(modeForFile(f, "mesh")).toBe("cad");
+    }
+    expect(routeFile("a.csg")?.format).toBe("csg");
+    expect(routeFile("a.scad")?.format).toBe("scad");
+  });
+
   it("resolves compound extensions by longest suffix, not by the last dot", () => {
     // GiD postprocess (mesh 3.6.0 / cad 1.5.1). `path.extname` sees ".msh" for
     // all three of these, which maps to Gmsh — a different reader entirely. The

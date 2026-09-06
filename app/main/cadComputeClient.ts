@@ -106,6 +106,12 @@ export const cadCompute = {
   checkInterference: rpc<typeof entityFacts.checkInterference>("checkInterference"),
   checkInterferenceAll: rpc<typeof entityFacts.checkInterferenceAll>("checkInterferenceAll"),
   rebindPartsAcrossOps: rpc<typeof entityFacts.rebindPartsAcrossOps>("rebindPartsAcrossOps"),
+  // cad 1.9.0's selector synthesis — all three live in entityFacts.ts, which the
+  // worker already spreads, so only these bindings were missing (they mirror
+  // cad/src/kernelClient.ts's own additions).
+  resolveBucketSelector: rpc<typeof entityFacts.resolveBucketSelector>("resolveBucketSelector"),
+  synthesizeSelector: rpc<typeof entityFacts.synthesizeSelector>("synthesizeSelector"),
+  resolvePartSelectors: rpc<typeof entityFacts.resolvePartSelectors>("resolvePartSelectors"),
   hitTest: rpc<typeof hitTestService.hitTest>("hitTest"),
 
   // ---- Mesh health, primitives, region fitting --------------------------

@@ -9,6 +9,7 @@ import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
 import { FlowgraphController } from "../../mesh/src/flowgraphController";
 import { RunManager } from "../../mesh/src/runManager";
+import { RecentMeshStore } from "../../mesh/src/recentMeshes";
 import { installMenu } from "./menu";
 import { modeForFile, modeForViewType } from "./router";
 import { configurePicker } from "./services/quickPick";
@@ -41,6 +42,11 @@ let flowgraph: FlowgraphController | null = null;
 /** Shared across every open mesh tab — a solve outlives the tab that started
  *  it, so this is one registry for the app, disposed on will-quit. */
 let runs: RunManager | null = null;
+/** Shared across every open mesh tab (mesh 3.15.0). Backed only by globalState,
+ *  so per-tab instances would share the list but each fire their own change
+ *  events — one instance is the correct reading. Surfaced as File ▸ Open
+ *  Recent, since the activity-bar view upstream reads it from is unreachable. */
+let recents: RecentMeshStore | null = null;
 let terminal: TerminalService | null = null;
 let editor: EditorService | null = null;
 let chat: ChatService | null = null;
@@ -145,9 +151,15 @@ function createTab(mode: Mode) {
       runs = new RunManager(createMeshExtensionContext(__dirname));
       runs.restore();
     }
+    if (!recents) {
+      // Same rule, and the same mirror of extension.ts activate(): construct
+      // once, sync the context key, dispose on quit.
+      recents = new RecentMeshStore(createMeshExtensionContext(__dirname));
+      recents.syncContext();
+    }
     meshHosts.set(
       tab.id,
-      new MeshHost(tab.view, __dirname, meshHostHooks(tab.id), flowgraph, runs)
+      new MeshHost(tab.view, __dirname, meshHostHooks(tab.id), flowgraph, runs, recents)
     );
   }
   // Pipe webview console output through main for headless debugging/e2e.
@@ -419,7 +431,7 @@ app.whenReady().then(() => {
     },
   });
 
-  installMenu({
+  const menuDeps: Parameters<typeof installMenu>[0] = {
     main,
     activeCadHost,
     activeMeshHost,
@@ -434,13 +446,23 @@ app.whenReady().then(() => {
       stepOut: () => stepUiZoom(-1),
       reset: () => setUiZoom(DEFAULT_ZOOM),
     },
+    recentMeshes: {
+      list: () => recents?.list() ?? [],
+      open: (fsPath) => openFile(fsPath, "mesh"),
+      clear: () => recents?.clear(),
+    },
     metaServer: {
       enabled: () => stateStore.get(META_SERVER_KEYS.enabled, false) ?? false,
       setEnabled: (enabled) => void setMetaServerEnabled(enabled),
       copyConfig: () => void copyMetaServerConfig(),
       regenerateToken: () => void regenerateMetaServerToken(),
     },
-  });
+  };
+  installMenu(menuDeps);
+  // An Electron menu is static once built, so the Open Recent submenu only
+  // tracks the store by rebuilding the whole template. `record()` fires once
+  // per file open and `clear()` once per click, so this is not a hot path.
+  recents?.onDidChange(() => installMenu(menuDeps));
 
   // Honor the persisted opt-in on startup.
   if (stateStore.get(META_SERVER_KEYS.enabled, false)) void setMetaServerEnabled(true);
@@ -544,6 +566,7 @@ app.on("will-quit", () => {
   // Stops live solves (or detaches them, per kratos.run.stopOnWindowClose) so
   // a spawned child isn't re-parented to init with a broken stdout pipe.
   runs?.dispose();
+  recents?.dispose();
 });
 
 app.on("window-all-closed", () => {

@@ -23,6 +23,21 @@
  * by index.ts, injected into every MeshHost, and disposed on will-quit. It is
  * the one thing here that needs `context.workspaceState`, which is why the fake
  * ExtensionContext below has two mementos rather than one.
+ *
+ * mesh 3.15.0's RecentMeshStore is the fourth object under that rule. Both
+ * providers now take it and call `record()` as they resolve an editor, so every
+ * tab must see the SAME list — and since it is backed only by `globalState`
+ * (= the app-wide stateStore), per-tab instances would share the underlying
+ * list yet each keep their own EventEmitter and fire redundant `setContext`
+ * calls. index.ts constructs one, injects it here, and disposes it on
+ * will-quit; KKSS surfaces it as File ▸ Open Recent, since the activity-bar
+ * view upstream reads it from is not reachable here.
+ *
+ * Page skeleton note: since mesh 3.15.0 both providers build their HTML through
+ * mesh/src/previewHtml.ts → `webviewChrome.buildPreviewHtml`, which is now the
+ * upstream source of truth tools/webviewMarkup.ts must track (it used to be
+ * `mdpaEditorProvider.getHtml`). The output still lands on the fake webview's
+ * inert `html` setter below — our page is generated at build time.
  */
 import { ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs";
@@ -32,6 +47,7 @@ import { MdpaEditorProvider } from "../../../mesh/src/mdpaEditorProvider";
 import { VtkEditorProvider } from "../../../mesh/src/vtkEditorProvider";
 import { FlowgraphController } from "../../../mesh/src/flowgraphController";
 import type { RunManager } from "../../../mesh/src/runManager";
+import type { RecentMeshStore } from "../../../mesh/src/recentMeshes";
 import type { MenuMessage } from "../../../mesh/src/meshExport";
 import { configureMmg } from "../../../mesh/src/parser/remesh";
 import { configureMmgRunner } from "../../../mesh/src/parser/operations";
@@ -180,7 +196,9 @@ export class MeshHost {
     /** Shared, ref-counted across every open mesh tab — see the file header. */
     flowgraph: FlowgraphController,
     /** Shared across every open mesh tab — a run outlives its tab. */
-    runs: RunManager
+    runs: RunManager,
+    /** Shared across every open mesh tab — one globalState-backed list. */
+    recents: RecentMeshStore
   ) {
     // MMG wiring, mirroring mesh/src/extension.ts activate().
     configureMmgRunner(runMmgInWorker);
@@ -192,8 +210,8 @@ export class MeshHost {
 
     const context = createMeshExtensionContext(outDir);
 
-    this.mdpaProvider = new MdpaEditorProvider(context, flowgraph, runs);
-    this.vtkProvider = new VtkEditorProvider(context);
+    this.mdpaProvider = new MdpaEditorProvider(context, flowgraph, runs, recents);
+    this.vtkProvider = new VtkEditorProvider(context, recents);
 
     ipcMain.on("mesh:toHost", (event, msg: { type?: string }) => {
       if (event.sender !== view.webContents) return;

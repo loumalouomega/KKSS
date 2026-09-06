@@ -31,6 +31,11 @@ describe.skipIf(!built)("generated webview pages", () => {
     for (const anchor of ['id="app"', 'id="layout"', 'id="file-menu"', 'id="edits-panel"']) {
       expect(html).toContain(anchor);
     }
+    // cad 1.10.0: New Blank Model in the File ▾ dropdown, and a collapse
+    // chevron on every sidebar section header (setupCollapsiblePanels wires
+    // them by class, so a stale page would leave all nine inert).
+    expect(html).toContain('id="menu-new"');
+    expect(html).toContain('class="panel-chevron"');
   });
 
   it("carries the mesh provider skeleton", () => {
@@ -61,7 +66,10 @@ describe.skipIf(!built)("generated webview pages", () => {
     for (const action of ["viewMenu", "advanced", "inspect"]) {
       expect(html).toContain(`data-action="${action}"`);
     }
-    for (const action of ["nodeIds", "grid", "screenshot", "meshSize", "spheres", "normals", "exportSkin", "lighting", "bookmarks"]) {
+    // "edges" is mesh 3.14.4's global edge-line toggle — it lives in the
+    // visible #view-popup, not the hidden #menubar, so it is KKSS's only route
+    // to it and there is no native-menu fallback if the markup goes stale.
+    for (const action of ["nodeIds", "grid", "edges", "screenshot", "meshSize", "spheres", "normals", "exportSkin", "lighting", "bookmarks"]) {
       expect(html).toContain(`data-action="${action}"`);
     }
   });

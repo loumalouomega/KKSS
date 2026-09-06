@@ -5,6 +5,7 @@
 | Extension | Mode | Notes |
 | --- | --- | --- |
 | `.step` `.stp` `.iges` `.igs` `.brep` | 🔷 Pre-Processing | B-rep, tessellated by OpenCascade |
+| `.csg` `.scad` | 🔷 Pre-Processing | OpenSCAD. `.csg` (the fully evaluated form) is parsed and built kernel-side into a solid; `.scad` is converted to `.csg` first by a **user-installed `openscad` binary** (**Settings ▸ CAD Viewer Defaults ▸ OpenSCAD Binary…**, or `openscad` on `PATH`) — without one, opening a `.scad` reports that rather than failing silently. Import-only: export goes to STEP/IGES/BREP or a mesh target, never back. Anything the importer approximates or skips (a `hull()`, a faceted cylinder) is reported on the status line |
 | `.gltf` `.glb` | 🔷 Pre-Processing | Loaded natively by Three.js |
 | `.mdpa` | 🔶 Post-Processing | Kratos model part |
 | `.vtk` `.vtu` `.vtp` `.vti` `.vts` `.vtr` `.vtm` | 🔶 Post-Processing | Legacy + XML VTK, multiblock, time-series |

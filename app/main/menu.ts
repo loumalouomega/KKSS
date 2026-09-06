@@ -5,7 +5,7 @@
  *         toggleNodeIds/computeQuality/fieldVisualization/findEntity
  * File actions dispatch to whichever mode is active at click time.
  */
-import { Menu, shell } from "electron";
+import { app, Menu, shell } from "electron";
 import type { MainWindow } from "./windows";
 import { CAD_DEFAULT_KEYS, type CadHost } from "./cadHost";
 import {
@@ -30,6 +30,11 @@ import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./services/chat/p
 import { DEFAULT_META_SERVER_PORT, META_SERVER_KEYS } from "./services/metaServer/metaServer";
 import type { EditorService } from "./services/editor";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
+import {
+  recentDescription,
+  recentLabel,
+  type RecentMesh,
+} from "../../mesh/src/recentMeshesCore";
 import { DOCS_URL } from "./urls";
 
 export interface MenuDeps {
@@ -52,6 +57,17 @@ export interface MenuDeps {
     stepIn(): void;
     stepOut(): void;
     reset(): void;
+  };
+  /**
+   * mesh 3.15.0's shared RecentMeshStore (see index.ts). Upstream surfaces this
+   * in its Kratos activity-bar view, which KKSS has no equivalent of — so the
+   * list lands in File ▸ Open Recent instead. `list()` prunes vanished files on
+   * read, so the submenu never offers a path that no longer exists.
+   */
+  recentMeshes: {
+    list(): RecentMesh[];
+    open(fsPath: string): void;
+    clear(): void;
   };
   /** HTTP meta MCP server controls (see index.ts). */
   metaServer: {
@@ -142,6 +158,30 @@ export function installMenu(deps: MenuDeps): void {
     if (pick) activeMeshHost()?.dispatchMenu({ type: "menuExport", format: pick.ext });
   };
 
+  /**
+   * File ▸ Open Recent — mesh 3.15.0's RecentMeshStore, which upstream shows in
+   * its Kratos activity-bar view. `list()` prunes vanished files as it reads,
+   * so an entry here always still exists; an empty list shows one disabled row
+   * rather than an empty (and on some platforms unopenable) submenu. Electron
+   * menus are static once built, so index.ts re-installs the menu on the
+   * store's onDidChange — this whole template is rebuilt each time.
+   */
+  const recentMeshesSubmenu = (): Electron.MenuItemConstructorOptions[] => {
+    const entries = deps.recentMeshes.list();
+    if (entries.length === 0) return [{ label: "No Recent Meshes", enabled: false }];
+    return [
+      ...entries.map((entry) => ({
+        label: recentLabel(entry.path),
+        // The dimmed folder column the activity-bar view shows; a native menu
+        // has no second column, so it rides in the tooltip instead.
+        toolTip: recentDescription(entry.path, app.getPath("home")),
+        click: () => deps.recentMeshes.open(entry.path),
+      })),
+      { type: "separator" as const },
+      { label: "Clear Recent", click: () => deps.recentMeshes.clear() },
+    ];
+  };
+
   const menu = Menu.buildFromTemplate([
     {
       label: "&File",
@@ -150,6 +190,10 @@ export function installMenu(deps: MenuDeps): void {
           label: "Open…",
           accelerator: "CmdOrCtrl+O",
           click: () => (inCad() ? void activeCadHost()?.openFileDialog() : void openMesh()),
+        },
+        {
+          label: "Open Recent",
+          submenu: recentMeshesSubmenu(),
         },
         {
           label: "Open in Text Editor…",
@@ -177,6 +221,15 @@ export function installMenu(deps: MenuDeps): void {
           label: "Export…",
           accelerator: "CmdOrCtrl+E",
           click: () => (inCad() ? activeCadHost()?.export() : void meshExportPick()),
+        },
+        { type: "separator" },
+        {
+          // cad 1.10.0's cad-preview.new. Deliberately session-free upstream
+          // ("must work with no CAD tab focused"), and it CREATES a document —
+          // so it routes through onOpenRequest like the Open dialog rather than
+          // needing a tab of its own first.
+          label: "New Blank Model…",
+          click: () => activeCadHost()?.newBlankModel(),
         },
         { type: "separator" },
         {
@@ -380,6 +433,17 @@ export function installMenu(deps: MenuDeps): void {
                   q.value,
                 click: () => void stateStore.update(CAD_DEFAULT_KEYS.tessellationQuality, q.value),
               })),
+            },
+            {
+              // cad 1.12.0's cadPreview.openscadBinary. Only consulted when a
+              // .scad is opened; unset resolves `openscad` on PATH.
+              label: "OpenSCAD Binary…",
+              click: () =>
+                void promptValue(
+                  CAD_DEFAULT_KEYS.openscadBinary,
+                  "OpenSCAD binary used to convert .scad sources to .csg on open (bare name = resolved on PATH)",
+                  "openscad"
+                ),
             },
             {
               label: "Show Grid && Axes on Open",
