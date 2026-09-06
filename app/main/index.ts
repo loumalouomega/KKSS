@@ -23,12 +23,17 @@ import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
 import { configureNotifications, handleToastButton, toast } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
+import { recentFiles } from "./services/recentFiles";
+import { loadSession, restoreEnabled, saveSession } from "./services/session";
+import { captureSession } from "./services/sessionCore";
+import { HOME_RECENT_LIMIT } from "./services/recentFilesCore";
+import { recentDescription, recentLabel } from "../../mesh/src/recentMeshesCore";
 import { __configureVscodeShim } from "./vscodeShim";
 import { openMesh } from "../../mesh/src/meshExport";
 import { latestResultFile } from "../../mesh/src/problemtype/runCore";
 import { groupVtkFiles, findGroupForFile } from "../../mesh/src/parser/vtkFileGroup";
 import { TIMELINE_EXTENSIONS } from "../../mesh/src/parser/meshFormats";
-import type { HomeToHost, Mode, Screen, ShellTabInfo, ShellToHost } from "./ipc";
+import type { HomeToHost, HomeToWebview, Mode, Screen, ShellTabInfo, ShellToHost } from "./ipc";
 
 // Must happen before app is ready.
 registerSchemes();
@@ -140,6 +145,28 @@ function sendShell(message: unknown): void {
   main?.shell.webContents.send("shell:toWebview", message);
 }
 
+function sendHome(message: HomeToWebview): void {
+  main?.home.webContents.send("home:toWebview", message);
+}
+
+/** Pushes the recents list to the home screen. Label and folder are formatted
+ *  here because that renderer is a browser bundle and cannot import node:path. */
+function pushRecents(): void {
+  const home = app.getPath("home");
+  sendHome({
+    type: "recents",
+    entries: recentFiles
+      .list()
+      .slice(0, HOME_RECENT_LIMIT)
+      .map((entry) => ({
+        path: entry.path,
+        mode: entry.mode,
+        label: recentLabel(entry.path),
+        description: recentDescription(entry.path, home),
+      })),
+  });
+}
+
 /** Persisted interface-scale (shared across launches). */
 const UI_ZOOM_KEY = "uiZoom";
 
@@ -193,8 +220,19 @@ const RECOVERY_WINDOW_MS = 5 * 60_000;
 const recoveries = new Map<string, { count: number; last: number }>();
 /** Set once the app is on its way out — a teardown crash is not worth reviving. */
 let quitting = false;
-/** A toast for the shell itself has to wait for the shell to come back. */
-let deferredShellToast: string | undefined;
+/** A toast the shell cannot show yet — because it is reloading after a crash,
+ *  or because it has not finished its first load during launch. Replayed from
+ *  the shellReady handshake. */
+let deferredShellToast: { kind: "info" | "warning" | "error"; text: string } | undefined;
+/** Whether the shell page is up. `toast()` is a silent no-op before its first
+ *  load and while it reloads after a crash, so anything sent then must wait. */
+let shellUp = false;
+
+/** Toasts now if the shell can show it, otherwise on its next shellReady. */
+function shellToast(kind: "info" | "warning" | "error", text: string): void {
+  if (shellUp) toast(kind, text);
+  else deferredShellToast = { kind, text };
+}
 
 function onViewCrash(crash: ViewCrash): void {
   if (quitting || !main) return;
@@ -238,7 +276,8 @@ function recoverView(crash: ViewCrash, label: string): void {
     case "shell":
       // The toast renderer *is* the shell, so hold the message until it is back
       // (replayed from the shellReady handshake below).
-      deferredShellToast = "Toolbar reloaded after a crash.";
+      shellUp = false;
+      deferredShellToast = { kind: "warning", text: "Toolbar reloaded after a crash." };
       break;
     case "editor":
       if (editor?.notifyRendererGone()) {
@@ -259,6 +298,46 @@ function recoverView(crash: ViewCrash, label: string): void {
   }
 }
 
+/** What a relaunch would reopen: each mode's documents in tab order, which was
+ *  focused, the screen, and the two panels. */
+function currentSession() {
+  const snapshot = (mode: Mode) => {
+    const hosts = mode === "cad" ? cadHosts : meshHosts;
+    const activeId = main!.activeTabId(mode);
+    return {
+      files: main!.tabs(mode).map((t) => hosts.get(t.id)?.currentFile),
+      activeFile: activeId ? hosts.get(activeId)?.currentFile : undefined,
+    };
+  };
+  return captureSession({
+    cad: snapshot("cad"),
+    mesh: snapshot("mesh"),
+    screen: main!.screen(),
+    terminal: main!.terminalVisible(),
+    chat: main!.chatVisible(),
+  });
+}
+
+const SESSION_SAVE_DEBOUNCE_MS = 1_000;
+let sessionSaveTimer: NodeJS.Timeout | undefined;
+/** True while restoreSession() is opening tabs — its own churn must not be
+ *  captured half-finished. */
+let restoring = false;
+
+/**
+ * Records the session as the user works, rather than only on quit: a SIGKILL
+ * (or a crash) never runs `will-quit`, and the e2e harness kills the tree
+ * outright. Debounced because it rides on every tab/screen/panel change.
+ */
+function saveSessionSoon(): void {
+  if (!main || restoring) return;
+  if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(() => {
+    sessionSaveTimer = undefined;
+    if (main) saveSession(currentSession());
+  }, SESSION_SAVE_DEBOUNCE_MS);
+}
+
 /** Resyncs one mode's whole tab strip to the shell (open/close/focus/title). */
 function syncTabs(mode: Mode): void {
   if (!main) return;
@@ -268,6 +347,8 @@ function syncTabs(mode: Mode): void {
     return { id: t.id, fileName: file ? path.basename(file) : null };
   });
   sendShell({ type: "tabs", mode, tabs, activeTabId: main.activeTabId(mode) });
+  // The choke point for every open/close/focus/title change in a mode.
+  saveSessionSoon();
 }
 
 // cadHostHooks closes over no specific tab, so one object serves every cad tab.
@@ -423,6 +504,14 @@ function openFile(fsPath: string, forcedMode?: Mode): void {
   const tabId = ensureActiveTab(mode);
   const host = mode === "cad" ? cadHosts.get(tabId) : meshHosts.get(tabId);
   host?.openPath(resolved);
+  // The ONE place recents are recorded, which is why every user-facing open is
+  // routed through this function. Deliberately NOT recorded: the three
+  // host.openPath() callers that bypass it — crash replay (recoverView), a
+  // solver step from openLatestResults, and onMeshExported's export product —
+  // plus session restore. None of those is "the user opened this file":
+  // replaying a crash would silently reorder the list, and a derived artifact
+  // would outrank the model actually opened.
+  recentFiles.record(resolved, mode);
   setScreen(mode);
 }
 
@@ -435,6 +524,78 @@ function setScreen(screen: Screen): void {
   if (screen === "cad" || screen === "mesh") ensureActiveTab(screen);
   main.setScreen(screen);
   sendShell({ type: "screen", screen });
+  saveSessionSoon();
+}
+
+/**
+ * Reopens the last run's documents, screen and panels. Returns whether anything
+ * was restored (the launch-file path below needs to know).
+ *
+ * Ordering matters, and is why this is called late in the ready block: the
+ * panels can only be shown once their services exist, and toasts go nowhere
+ * before configureNotifications().
+ */
+function restoreSession(hasLaunchFile: boolean): boolean {
+  if (!main || !restoreEnabled()) return false;
+  // Missing files are dropped BEFORE anything opens. Both hosts' openPath() is
+  // synchronous and never stats the file — it titles the tab and reloads the
+  // view — so a vanished path would otherwise become a ghost tab whose error
+  // only ever appears as an in-pane banner, never a toast.
+  const loaded = loadSession();
+  if (!loaded) return false;
+  const { state, missing } = loaded;
+
+  restoring = true;
+  try {
+    for (const mode of ["cad", "mesh"] as Mode[]) {
+      const { files, activeFile } = state[mode];
+      if (files.length === 0) continue;
+      // The blank starter tab this mode was seeded with; without closing it,
+      // every launch would leave a leading empty tab behind.
+      const starter = main.activeTabId(mode);
+      const hosts = mode === "cad" ? cadHosts : meshHosts;
+      let focusId: string | undefined;
+      for (const file of files) {
+        const tab = createTab(mode);
+        // openPath, not openFile: the mode is already known (re-routing a
+        // restored .stl through modeForFile could flip it), tabs must be
+        // appended rather than replaced, and a restore is not a user open, so
+        // it must not touch the recents list.
+        hosts.get(tab.id)?.openPath(file);
+        if (file === activeFile) focusId = tab.id;
+      }
+      if (starter) closeTab(mode, starter);
+      if (focusId) main.setActiveTab(mode, focusId);
+      syncTabs(mode);
+    }
+
+    // A launch-time file wins and takes the screen (see the deferred open).
+    if (!hasLaunchFile) setScreen(state.screen);
+
+    // These are toggles with no setVisible(bool), hence the guards.
+    if (state.terminal && !main.terminalVisible()) toggleTerminal();
+    if (state.chat && !main.chatVisible()) toggleChat();
+    // Both panels focus themselves when shown, so the document the user was
+    // last working in gets the focus back.
+    if (!hasLaunchFile && (state.screen === "cad" || state.screen === "mesh")) {
+      const activeId = main.activeTabId(state.screen);
+      const tab = activeId ? main.tabs(state.screen).find((t) => t.id === activeId) : undefined;
+      tab?.view.webContents.focus();
+    }
+  } finally {
+    restoring = false;
+  }
+
+  if (missing > 0) {
+    // The shell page may still be mid-first-load at this point in the launch,
+    // and toast() silently drops anything sent before it is up.
+    shellToast(
+      "warning",
+      `Restored your last session — ${missing} file${missing === 1 ? "" : "s"} could not be found.`
+    );
+  }
+  saveSessionSoon();
+  return true;
 }
 
 /** Shows/hides the shared terminal panel, attaching the pty session on first use. */
@@ -442,6 +603,7 @@ function toggleTerminal(): void {
   if (!main || !terminal) return;
   const { view } = main.toggleTerminal();
   terminal.attach(view.webContents);
+  saveSessionSoon();
 }
 
 /** Shows/hides the AI chat sidebar, attaching the chat service on first use. */
@@ -450,6 +612,7 @@ function toggleChat(): void {
   const { view, visible } = main.toggleChat();
   chat.attach(view.webContents);
   if (visible) chat.ensureStarted();
+  saveSessionSoon();
 }
 
 /** Configured meta-server port (falls back to the default on an invalid value). */
@@ -613,10 +776,12 @@ app.whenReady().then(() => {
       stepOut: () => stepUiZoom(-1),
       reset: () => setUiZoom(DEFAULT_ZOOM),
     },
-    recentMeshes: {
-      list: () => recents?.list() ?? [],
-      open: (fsPath) => openFile(fsPath, "mesh"),
-      clear: () => recents?.clear(),
+    recentFiles: {
+      list: () => recentFiles.list(),
+      // Each entry reopens in the mode it was recorded under, rather than the
+      // old mesh-only hardcoding.
+      open: (fsPath, mode) => openFile(fsPath, mode),
+      clear: () => recentFiles.clear(),
     },
     metaServer: {
       enabled: () => stateStore.get(META_SERVER_KEYS.enabled, false) ?? false,
@@ -629,14 +794,39 @@ app.whenReady().then(() => {
   // An Electron menu is static once built, so the Open Recent submenu only
   // tracks the store by rebuilding the whole template. `record()` fires once
   // per file open and `clear()` once per click, so this is not a hot path.
-  recents?.onDidChange(() => installMenu(menuDeps));
+  recentFiles.onDidChange(() => {
+    installMenu(menuDeps);
+    pushRecents();
+  });
 
   // Honor the persisted opt-in on startup.
   if (stateStore.get(META_SERVER_KEYS.enabled, false)) void setMetaServerEnabled(true);
 
+  // Reopen the last session (same "honor what was persisted" shape as above).
+  // The launch file is resolved first because a restore must yield the screen
+  // to it — but it is still opened by the single deferred open at the end.
+  const launchFile = cliFileArg() ?? pendingOpen;
+  pendingOpen = undefined;
+  const restored = restoreSession(launchFile !== undefined);
+
   ipcMain.on("home:toHost", (_event, raw) => {
     const msg = raw as HomeToHost;
-    if (!main || msg.type !== "action") return;
+    if (!main) return;
+    if (msg.type === "homeReady") {
+      // The home page may finish loading long after a recents change (or after
+      // a crash reload) — replay it, the same way shellReady replays below.
+      pushRecents();
+      return;
+    }
+    if (msg.type === "openRecent") {
+      openFile(msg.path, msg.mode);
+      return;
+    }
+    if (msg.type === "clearRecents") {
+      recentFiles.clear();
+      return;
+    }
+    if (msg.type !== "action") return;
     switch (msg.action) {
       case "preprocessing":
         setScreen("cad");
@@ -661,6 +851,7 @@ app.whenReady().then(() => {
     if (!main) return;
     switch (msg.type) {
       case "shellReady":
+        shellUp = true;
         // The shell page may finish loading after a CLI file-open already ran
         // (or after a reload) — replay the current screen + tab strips + zoom.
         sendShell({ type: "screen", screen: main.screen() });
@@ -668,7 +859,7 @@ app.whenReady().then(() => {
         syncTabs("mesh");
         sendShell({ type: "zoom", factor: main.zoom() });
         if (deferredShellToast) {
-          toast("warning", deferredShellToast);
+          toast(deferredShellToast.kind, deferredShellToast.text);
           deferredShellToast = undefined;
         }
         break;
@@ -722,12 +913,20 @@ app.whenReady().then(() => {
   checkForNewVersion();
 
   // One deferred-open path for both sources: the command line, and any macOS
-  // `open-file` that landed before the window existed.
-  const fileArg = cliFileArg() ?? pendingOpen;
-  pendingOpen = undefined;
-  if (fileArg) {
+  // `open-file` that landed before the window existed. (Resolved above, since
+  // the restore needs to know whether one is coming.)
+  if (launchFile) {
     // Give the views a beat to finish their first load; openPath reloads anyway.
-    setTimeout(() => openFile(fileArg), 300);
+    setTimeout(() => {
+      // openFile replaces the focused tab's document, which after a restore
+      // holds a restored one — so give the launch file a tab of its own first.
+      // Without a restore this is skipped, leaving launch behavior unchanged.
+      if (restored) {
+        const mode = modeForFile(path.resolve(launchFile), main!.mode());
+        if (mode) createTab(mode);
+      }
+      openFile(launchFile);
+    }, 300);
   }
 });
 
@@ -740,8 +939,12 @@ app.on("before-quit", () => {
 
 app.on("will-quit", () => {
   quitting = true;
-  // First, because `will-quit` cannot await: the store's last-chance
-  // synchronous write, so a setting changed a moment ago survives the quit.
+  // Capture the final session BEFORE flushSync(): that call marks the store
+  // stopped, after which every queued write returns early — saving afterwards
+  // would be silently dropped on every quit.
+  if (main) saveSession(currentSession());
+  // Then the store's last-chance synchronous write, since `will-quit` cannot
+  // await: a setting changed a moment ago must survive the quit.
   stateStore.flushSync();
   void metaServer?.dispose();
   void mcpHub?.dispose();

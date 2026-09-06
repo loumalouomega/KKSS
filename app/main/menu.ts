@@ -30,11 +30,11 @@ import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./services/chat/p
 import { DEFAULT_META_SERVER_PORT, META_SERVER_KEYS } from "./services/metaServer/metaServer";
 import type { EditorService } from "./services/editor";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
-import {
-  recentDescription,
-  recentLabel,
-  type RecentMesh,
-} from "../../mesh/src/recentMeshesCore";
+// The mesh submodule's recents core is vscode-free, so its label/folder
+// formatting is reused verbatim for KKSS's own app-wide list.
+import { recentDescription, recentLabel } from "../../mesh/src/recentMeshesCore";
+import type { RecentFile } from "./services/recentFilesCore";
+import { RESTORE_SESSION_KEY } from "./services/session";
 import { DOCS_URL } from "./urls";
 
 export interface MenuDeps {
@@ -59,14 +59,17 @@ export interface MenuDeps {
     reset(): void;
   };
   /**
-   * mesh 3.15.0's shared RecentMeshStore (see index.ts). Upstream surfaces this
-   * in its Kratos activity-bar view, which KKSS has no equivalent of — so the
-   * list lands in File ▸ Open Recent instead. `list()` prunes vanished files on
-   * read, so the submenu never offers a path that no longer exists.
+   * KKSS's app-wide recents (services/recentFiles.ts) — both modes, recorded at
+   * openFile(). Supersedes mesh's own RecentMeshStore here: that one records
+   * only what the mesh providers resolve, so it never saw a CAD document (it
+   * still runs, since both providers require it, but drives no UI). Each entry
+   * carries the mode it was opened in, so it reopens where it belongs.
+   * `list()` prunes vanished files on read, so the submenu never offers a path
+   * that no longer exists.
    */
-  recentMeshes: {
-    list(): RecentMesh[];
-    open(fsPath: string): void;
+  recentFiles: {
+    list(): RecentFile[];
+    open(fsPath: string, mode: Mode): void;
     clear(): void;
   };
   /** HTTP meta MCP server controls (see index.ts). */
@@ -159,26 +162,27 @@ export function installMenu(deps: MenuDeps): void {
   };
 
   /**
-   * File ▸ Open Recent — mesh 3.15.0's RecentMeshStore, which upstream shows in
-   * its Kratos activity-bar view. `list()` prunes vanished files as it reads,
-   * so an entry here always still exists; an empty list shows one disabled row
-   * rather than an empty (and on some platforms unopenable) submenu. Electron
-   * menus are static once built, so index.ts re-installs the menu on the
-   * store's onDidChange — this whole template is rebuilt each time.
+   * File ▸ Open Recent — KKSS's app-wide list, covering both modes, with each
+   * entry reopening in the mode it was recorded under. `list()` prunes vanished
+   * files as it reads, so an entry here always still exists; an empty list
+   * shows one disabled row rather than an empty (and on some platforms
+   * unopenable) submenu. Electron menus are static once built, so index.ts
+   * re-installs the menu on the store's onDidChange — this whole template is
+   * rebuilt each time.
    */
-  const recentMeshesSubmenu = (): Electron.MenuItemConstructorOptions[] => {
-    const entries = deps.recentMeshes.list();
-    if (entries.length === 0) return [{ label: "No Recent Meshes", enabled: false }];
+  const recentFilesSubmenu = (): Electron.MenuItemConstructorOptions[] => {
+    const entries = deps.recentFiles.list();
+    if (entries.length === 0) return [{ label: "No Recent Files", enabled: false }];
     return [
       ...entries.map((entry) => ({
         label: recentLabel(entry.path),
-        // The dimmed folder column the activity-bar view shows; a native menu
-        // has no second column, so it rides in the tooltip instead.
+        // A native menu has no second column, so the folder rides in the
+        // tooltip (the same shape mesh's own activity-bar view shows).
         toolTip: recentDescription(entry.path, app.getPath("home")),
-        click: () => deps.recentMeshes.open(entry.path),
+        click: () => deps.recentFiles.open(entry.path, entry.mode),
       })),
       { type: "separator" as const },
-      { label: "Clear Recent", click: () => deps.recentMeshes.clear() },
+      { label: "Clear Recent", click: () => deps.recentFiles.clear() },
     ];
   };
 
@@ -193,7 +197,7 @@ export function installMenu(deps: MenuDeps): void {
         },
         {
           label: "Open Recent",
-          submenu: recentMeshesSubmenu(),
+          submenu: recentFilesSubmenu(),
         },
         {
           label: "Open in Text Editor…",
@@ -455,6 +459,15 @@ export function installMenu(deps: MenuDeps): void {
               click: (item) => void stateStore.update(CAD_DEFAULT_KEYS.showGridAndAxes, item.checked),
             },
           ],
+        },
+        {
+          // Reopens the last run's documents, screen and panels at launch.
+          // Also skipped by KKSS_E2E (the harness launches the real app) and by
+          // KKSS_NO_RESTORE=1 — see services/session.ts.
+          label: "Restore Last Session",
+          type: "checkbox" as const,
+          checked: stateStore.get<boolean>(RESTORE_SESSION_KEY, true) !== false,
+          click: (item) => void stateStore.update(RESTORE_SESSION_KEY, item.checked),
         },
         {
           label: "Terminal Shell",

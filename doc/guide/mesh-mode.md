@@ -29,7 +29,7 @@ Post-Processing mode embeds the full [VSCode-MDPA-Preview](https://loumalouomega
 - **Screenshots**: save the current view as a PNG (**View ▾ ▸ Screenshot…**, or `Ctrl+Alt+P`).
 - **Turn the edge lines off**: faces and cell edges share one alpha, so a transparent mesh otherwise reads as a wire cage. A global **Edges** switch (**View ▾**, and the nav card's Display group) hides the darkened edges on every layer; point-only layers stay edge-free regardless.
 - **See the strays**: nodes no cell references are reported in `mesh_info` and highlighted, and a SubModelPart isolated with the main mesh hidden now draws the nodes that are isolated *within that part* — previously invisible, because the global highlight only sees whole-model connectivity.
-- **Reopen what you had**: **File ▸ Open Recent** lists the last ten meshes you opened, newest first, with **Clear Recent** at the bottom. Files that have since moved or been deleted drop off by themselves.
+- **Reopen what you had**: **File ▸ Open Recent** lists the last ten files you opened — meshes *and* CAD models, newest first — with **Clear Recent** at the bottom. Each entry reopens in the mode it belongs to, and files that have since moved or been deleted drop off by themselves. The home screen shows the same list.
 
 | Outline & edit sidebar | View menu |
 | --- | --- |

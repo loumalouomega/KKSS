@@ -106,7 +106,8 @@ Concretely:
   arrived with mesh 3.15.0's Kratos activity-bar panel). That is what keeps
   `createTreeView`/`TreeItem`/`registerCommand`/`createWebviewPanel` out of both
   the bundle and the shim; KKSS covers the same ground natively — runs via
-  **File ▸ Stop Kratos Run**, recent meshes via **File ▸ Open Recent**, and the
+  **File ▸ Stop Kratos Run**, recent files via **File ▸ Open Recent** (KKSS's
+  own app-wide store, not the submodule's), and the
   empty-preview shell via the tab model itself.
 - **Heavy WASM stays off the UI thread.** OCCT + Gmsh run in
   `app/main/cadCompute.worker.ts` (RPC via `cadComputeClient.ts`); MMG runs in
@@ -307,8 +308,10 @@ Concretely:
   instance is the correct reading, not merely the cheaper one. Both providers
   now require it (`new MdpaEditorProvider(context, flowgraph, runs, recents)`,
   `new VtkEditorProvider(context, recents)`) and `record()` on every resolve.
-  KKSS surfaces it as **File ▸ Open Recent**, rebuilt from `onDidChange` because
-  an Electron menu is static once built.
+  It no longer drives any UI: **File ▸ Open Recent** and the home
+  screen both read KKSS's own app-wide `services/recentFiles.ts` (see the
+  recents invariant below), rebuilt from `onDidChange` because an Electron menu
+  is static once built.
   `cad 1.5.0`'s **linked cameras** are the mirror image: the extension keeps
   the flag and session list on its single provider, so KKSS keeps them in a
   module-level `liveHosts` registry in `cadHost.ts` instead. **Open (Ctrl+O) replaces the focused tab's document**, matching
@@ -428,6 +431,45 @@ Concretely:
   mode), and **`unresponsive` is deliberately not wired to it** — that fires on
   any long synchronous parse, exactly what both viewers do on a large mesh, so
   reloading on it would destroy a working session mid-load.
+- **Recents are recorded at exactly one choke point.** `openFile()` in
+  `index.ts`, which is why every user-facing open is routed through it. The
+  three `host.openPath()` callers that bypass it — crash replay in
+  `recoverView`, `openLatestResults`' new-tab branch, and `onMeshExported` —
+  and session restore all deliberately record **nothing**: none is "the user
+  opened this file", and recording them would let a crash silently reorder the
+  list or a derived artifact outrank the model actually opened. De-duplication
+  is by path with the `mode` refreshed, so a format both modes read
+  (`.stl`/`.obj`/`.ply`) is one row remembering where it was last opened, not
+  two rows one of which reopens in the wrong mode. `services/recentFilesCore.ts`
+  reuses `recentKey`/`recentLabel`/`recentDescription` from the submodule's
+  vscode-free `mesh/src/recentMeshesCore.ts`, but **not** its
+  `recordRecent`/`parseRecentList`, which construct a bare `{path, openedAt}`
+  and would drop `mode`. mesh's own `RecentMeshStore` still runs (both providers
+  take it as a constructor arg) but drives no UI.
+- **The mesh extension's `globalState` is unprefixed, so its keys are reserved
+  app-wide.** `mesh/meshHost.ts` maps `globalState` straight onto `stateStore`
+  with no namespace (only `workspaceState` gets a `workspace.` prefix), so
+  `recentMeshes`, `sceneTheme` and every other key the submodule writes share
+  one flat space with KKSS's own — and a mesh bump can claim a new one. **Check
+  a new key against the submodule tree before using it**; `recentFiles`,
+  `session` and `restoreSession` were chosen that way.
+- **Session restore is opt-out, prunes first, and never records.** Gated by
+  `KKSS_E2E` (the e2e harnesses launch the real app, so a restore would perturb
+  every case and screenshot), `KKSS_NO_RESTORE=1`, and **Settings ▸ Restore Last
+  Session**; the gate covers restoring only — recording and saving stay live, or
+  the docs' home-screen shot would have an empty recents list. It persists each
+  mode's files plus the focused **path** (tab ids are a per-process counter; an
+  index shifts when pruning drops an earlier file) and degrades a stored
+  `"editor"` screen to `"home"` at capture time, since that buffer is
+  `EditorService`-owned and unpersisted. Missing paths are pruned **before**
+  anything opens: both hosts' `openPath()` is synchronous and never stats the
+  file, so a vanished path becomes a ghost tab whose error only ever appears as
+  an in-pane banner. Restore opens with `openPath()` (append, mode already
+  known, no recording) and closes the blank starter tab. `saveSession()` must
+  run **before** `stateStore.flushSync()` in `will-quit` — that call sets the
+  store `stopped`, after which queued writes return early. A launch-time file
+  wins, taking the screen and its own tab so it never overwrites a restored
+  document, and it still flows through the single deferred-open mechanism.
 - **Menu bar holds app-level items only.** Viewer actions (quality, fields,
   find entity…) live in the submodules' own toolbars — don't duplicate them
   in the native menu. App preferences go in the Settings menu, persisted via
@@ -510,6 +552,13 @@ generated webview pages, or visible viewer behavior means re-running it** —
 don't hand-edit the PNGs. Prereq: one full `npm run build`; run headless with
 `env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots`. Shared
 launch helpers live in `tools/e2eShared.mjs` (used by the smoke test too).
+**Both harnesses launch with an isolated `--user-data-dir`** (`launchApp`'s
+`userDataDir`): the home screen renders the recent-files list, so the real
+profile would put whoever regenerated the PNGs into a committed image, and a
+fresh profile also pins theme/zoom/viewer defaults so the shots are
+reproducible. screenshots.mjs shares **one** temp profile across its four
+sessions *in order* — that is what makes the home shot deterministic, since the
+first three sessions are what populate its recents list.
 
 ## Icons — TikZ pipeline (never hand-edit generated files)
 

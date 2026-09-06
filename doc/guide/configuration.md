@@ -29,7 +29,7 @@ Changes apply to the next chat message — no restart. API keys are encrypted wi
 
 | State | Location |
 | --- | --- |
-| App state (theme, interface scale, one-time warnings) | `state.json` in the platform's user-data dir (`~/.config/KKSS` on Linux, `%APPDATA%/KKSS` on Windows, `~/Library/Application Support/KKSS` on macOS) |
+| App state (theme, interface scale, recent files, last session, one-time warnings) | `state.json` in the platform's user-data dir (`~/.config/KKSS` on Linux, `%APPDATA%/KKSS` on Windows, `~/Library/Application Support/KKSS` on macOS) |
 | CAD parts / edits / mesh options | JSON sidecars next to the opened model — see [Pre-Processing mode](/guide/cad-mode#sidecar-files) |
 | Mesh operation recipes | Saved explicitly via the Edit sidebar's Save/Load buttons |
 

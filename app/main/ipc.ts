@@ -166,10 +166,28 @@ export type WhatsNewToHost = { type: "close" };
 /** Actions of the home-screen menu buttons (see app/renderer/home/homeConfig.ts). */
 export type HomeAction = "preprocessing" | "postprocessing" | "editor" | "settings" | "help";
 
+/**
+ * One recents row. Label and folder are formatted in main: the home renderer is
+ * a browser bundle and cannot import node:path.
+ */
+export interface RecentEntry {
+  path: string;
+  mode: Mode;
+  /** File name. */
+  label: string;
+  /** Containing folder, with $HOME abbreviated — shown as the row's tooltip. */
+  description: string;
+}
+
 /** Messages posted by the home-screen renderer. */
 export type HomeToHost =
   | { type: "homeReady" }
-  | { type: "action"; action: HomeAction };
+  | { type: "action"; action: HomeAction }
+  | { type: "openRecent"; path: string; mode: Mode }
+  | { type: "clearRecents" };
+
+/** Messages pushed to the home-screen renderer. */
+export type HomeToWebview = { type: "recents"; entries: RecentEntry[] };
 
 /** Messages posted by the shell toolbar renderer. */
 export type ShellToHost =

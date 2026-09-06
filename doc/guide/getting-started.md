@@ -20,6 +20,8 @@ Release builds are currently unsigned. On macOS, right-click the app and choose 
 
 KKSS opens on a main menu with one button per task — **Pre-Processing**, **Post-Processing**, and **Help**. Pick a mode to enter it; the **Home** button in the toolbar (or `Ctrl+0` / **View ▸ Home**) brings the menu back at any time without losing what's loaded in either mode.
 
+Below the buttons, **Recent files** lists what you opened last — CAD models and meshes together, newest first. Clicking one reopens it in the mode it belongs to, so a `.stp` goes to Pre-Processing and an `.mdpa` to Post-Processing without you choosing. Files that have moved or been deleted drop off the list by themselves, and **Clear** forgets all of them. The same list is in **File ▸ Open Recent** (ten entries there, five here).
+
 ![The home screen](/screenshots/home-screen.png)
 
 ## The two modes
@@ -32,6 +34,12 @@ The toolbar at the top of the window holds the mode toggle:
 - **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 39 extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, Exodus, CGNS, MED, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and an **Advanced** toolbar menu holds the Mesh Size panel (nodal/element size statistics), sphere glyphs for particle meshes, face normals for spotting inverted elements, and boundary-skin export.
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved.
+
+### Picking up where you left off
+
+KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there.
+
+Turn it off with **Settings ▸ Restore Last Session** to start clean every time. (Setting `KKSS_NO_RESTORE=1` in the environment does the same for one launch, which is handy if a particular document is giving the viewer trouble.) Opening a file from the command line always wins: it takes the screen and gets its own tab, leaving the restored documents untouched.
 
 The toolbar also has an **interface-scale** picker on the right (75 %–150 %) for adjusting how large the whole app appears — useful on high-DPI or low-resolution displays. It scales every part of the window (toolbar, viewers, terminal, chat) together, is remembered across launches, and can also be driven from the keyboard: `Ctrl +` / `Ctrl -` step through the sizes and `Ctrl+Shift+0` resets to 100 % (also under **View ▸ Zoom In / Zoom Out / Reset Zoom**).
 
@@ -102,7 +110,7 @@ The **Edit** toolbar button opens the file currently loaded in the active mode (
 
 ## Settings
 
-The **Settings** menu (also reachable from the home screen's Settings button) holds app-level preferences, persisted across runs:
+The **Settings** menu (also reachable from the home screen's Settings button) holds app-level preferences, persisted across runs (including **Restore Last Session**, above):
 
 - **Color Theme** — Auto / Dark / Light / Scientific. The same scene theme the mesh viewer's own picker controls; viewers apply it when they next load a file.
 - **CAD Viewer Defaults** — up axis, default mesh-size preset, B-rep tessellation quality, and whether the grid and axes show on open. These seed a newly opened CAD document; a per-document sidecar value or a runtime toggle wins once set.
@@ -128,7 +136,7 @@ Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the too
 | Shortcut | Action |
 | --- | --- |
 | `Ctrl+O` | Open a file into the focused tab of the active mode |
-| — | **File ▸ Open Recent** reopens one of the last ten meshes (Post-Processing) |
+| — | **File ▸ Open Recent** reopens one of the last ten files, in the mode it was opened in |
 | — | **File ▸ New Blank Model…** creates an empty `.brep` to build from scratch (Pre-Processing) |
 | `Ctrl+W` | Close the focused tab |
 | `Ctrl+S` | Save (CAD: flush sidecars · Mesh: overwrite the source file) |
