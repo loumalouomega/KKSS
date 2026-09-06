@@ -255,6 +255,10 @@ export interface ShellTabInfo {
   id: string;
   fileName: string | null;
   dirty?: boolean;
+  /** Set when the tab's document is a staging copy of a cloud file. The strip
+   *  marks it, so a path under the cache directory is not mistaken for a file
+   *  the user can find in their own folders. */
+  cloud?: { provider: string; name: string };
 }
 
 /** Messages sent to the shell toolbar renderer. */

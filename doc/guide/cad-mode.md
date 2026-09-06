@@ -57,6 +57,6 @@ Pre-Processing mode never writes your CAD file. State lives beside it:
 | `<model>.geo` | Generated Gmsh script (one-way; regenerated on change) |
 | `<dir>/cad-preview-macros.json` | The macro library — **per folder**, shared by every model beside it |
 
-**Save** (`Ctrl+S`) flushes all sidecars immediately; otherwise they autosave half a second after each change.
+**Save** (`Ctrl+S`) flushes all sidecars immediately; otherwise they autosave half a second after each change. Every sidecar write is atomic — a temp file, then a rename — so a reader can never see a half-written one. That matters most when the model lives in a folder a desktop sync client is watching (Drive, Dropbox, OneDrive): it can no longer upload a truncated sidecar or raise a spurious "conflicted copy".
 
 **File ▸ Save Preprocess…** bundles the CAD source and whichever sidecars exist into a single `.zip`, and **Load Preprocess…** restores one next to a destination you pick and opens it. The archive carries a manifest with a SHA-256 per entry, so a tampered or truncated file is rejected rather than half-restored; the reader also refuses entries that decompress far beyond their stored size. The `.geo` script is deliberately not packed — it is regenerated from the restored mesh options.

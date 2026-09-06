@@ -106,6 +106,8 @@ import { projectRoot } from "./services/projectRoot";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
 import { showQuickPick, showInputBox } from "./services/quickPick";
 import { stateStore } from "./services/stateStore";
+import { writeFileAtomic } from "./services/atomicWrite";
+import { CAD_SIDECAR, MACRO_LIBRARY_NAME } from "./services/sidecarSuffixes";
 
 /**
  * stateStore keys backing the viewer defaults the extension gets from its
@@ -176,67 +178,79 @@ let camerasLinked = false;
 
 const readParts = async (modelPath: string): Promise<Part[]> => {
   try {
-    return parsePartsJson(await fs.readFile(`${modelPath}.parts.json`, "utf8"));
+    return parsePartsJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.parts}`, "utf8"));
   } catch {
     return [];
   }
 };
 const writeParts = (modelPath: string, parts: Part[]): Promise<void> =>
-  fs.writeFile(`${modelPath}.parts.json`, serializePartsJson(path.basename(modelPath), parts), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.parts}`,
+    serializePartsJson(path.basename(modelPath), parts)
+  );
 
 const readEdits = async (modelPath: string): Promise<ParsedEdits> => {
   try {
-    return parseEditsJson(await fs.readFile(`${modelPath}.edits.json`, "utf8"));
+    return parseEditsJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.edits}`, "utf8"));
   } catch {
     return { ops: [], variables: [] };
   }
 };
 const writeEdits = (modelPath: string, ops: EditOp[], variables: ParamVariable[]): Promise<void> =>
-  fs.writeFile(`${modelPath}.edits.json`, serializeEditsJson(path.basename(modelPath), ops, variables), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.edits}`,
+    serializeEditsJson(path.basename(modelPath), ops, variables)
+  );
 
 const readAnnotations = async (modelPath: string): Promise<Annotation[]> => {
   try {
-    return parseAnnotationsJson(await fs.readFile(`${modelPath}.annotations.json`, "utf8"));
+    return parseAnnotationsJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.annotations}`, "utf8"));
   } catch {
     return [];
   }
 };
 const writeAnnotations = (modelPath: string, annotations: Annotation[]): Promise<void> =>
-  fs.writeFile(
-    `${modelPath}.annotations.json`,
-    serializeAnnotationsJson(path.basename(modelPath), annotations),
-    "utf8"
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.annotations}`,
+    serializeAnnotationsJson(path.basename(modelPath), annotations)
   );
 
 const readViewState = async (modelPath: string): Promise<ViewState | null> => {
   try {
-    return parseViewStateJson(await fs.readFile(`${modelPath}.view.json`, "utf8"));
+    return parseViewStateJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.view}`, "utf8"));
   } catch {
     return null;
   }
 };
 const writeViewState = (modelPath: string, view: ViewState): Promise<void> =>
-  fs.writeFile(`${modelPath}.view.json`, serializeViewStateJson(path.basename(modelPath), view), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.view}`,
+    serializeViewStateJson(path.basename(modelPath), view)
+  );
 
 // cad 1.7.0's named construction planes. Stores resolved point+normal vectors,
 // never a face reference, so it is deliberately outside entity rebinding and
 // is never renumbered by an op replay.
 const readPlanes = async (modelPath: string): Promise<ConstructionPlane[]> => {
   try {
-    return parsePlanesJson(await fs.readFile(`${modelPath}.planes.json`, "utf8"));
+    return parsePlanesJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.planes}`, "utf8"));
   } catch {
     return [];
   }
 };
 const writePlanes = (modelPath: string, planes: ConstructionPlane[]): Promise<void> =>
-  fs.writeFile(`${modelPath}.planes.json`, serializePlanesJson(path.basename(modelPath), planes), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.planes}`,
+    serializePlanesJson(path.basename(modelPath), planes)
+  );
 
 /**
- * cad 1.7.0's macro library. Unlike every other sidecar this is **per folder**,
- * not per model — one library is shared by every model beside it.
+ * cad 1.7.0's macro library — per folder, not per model, which is why two tabs
+ * on models in one directory write the same path. writeFileAtomic serializes
+ * them; a bare writeFile would have let them interleave.
  */
 const macroLibraryPath = (modelPath: string): string =>
-  path.join(path.dirname(modelPath), "cad-preview-macros.json");
+  path.join(path.dirname(modelPath), MACRO_LIBRARY_NAME);
 
 const readMacros = async (modelPath: string): Promise<ScriptLibrary> => {
   try {
@@ -246,19 +260,25 @@ const readMacros = async (modelPath: string): Promise<ScriptLibrary> => {
   }
 };
 const writeMacros = (modelPath: string, library: ScriptLibrary): Promise<void> =>
-  fs.writeFile(macroLibraryPath(modelPath), serializeScriptLibraryJson(library), "utf8");
+  writeFileAtomic(macroLibraryPath(modelPath), serializeScriptLibraryJson(library));
 
 const readMeshOptions = async (modelPath: string): Promise<MeshOptions> => {
   try {
-    return parseMeshJson(await fs.readFile(`${modelPath}.mesh.json`, "utf8"));
+    return parseMeshJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.meshOptions}`, "utf8"));
   } catch {
     return DEFAULT_MESH_OPTIONS;
   }
 };
 const writeMeshOptions = (modelPath: string, options: MeshOptions): Promise<void> =>
-  fs.writeFile(`${modelPath}.mesh.json`, serializeMeshJson(path.basename(modelPath), options), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.meshOptions}`,
+    serializeMeshJson(path.basename(modelPath), options)
+  );
 const writeGeoScript = (modelPath: string, options: MeshOptions): Promise<void> =>
-  fs.writeFile(`${modelPath}.geo`, generateGeoScript(path.basename(modelPath), options), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.geoScript}`,
+    generateGeoScript(path.basename(modelPath), options)
+  );
 
 // -----------------------------------------------------------------------------
 
@@ -1782,10 +1802,10 @@ export class CadHost {
       };
       const [source, parts, annotations, edits, meshOptions] = await Promise.all([
         fs.readFile(modelPath),
-        readOptional(".parts.json"),
-        readOptional(".annotations.json"),
-        readOptional(".edits.json"),
-        readOptional(".mesh.json"),
+        readOptional(CAD_SIDECAR.parts),
+        readOptional(CAD_SIDECAR.annotations),
+        readOptional(CAD_SIDECAR.edits),
+        readOptional(CAD_SIDECAR.meshOptions),
       ]);
       const zipBytes = buildPreprocessZip({ sourceName, source, parts, annotations, edits, meshOptions });
       await fs.writeFile(savePath, zipBytes);

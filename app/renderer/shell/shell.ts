@@ -98,12 +98,17 @@ function renderTabStrip(): void {
     const row = document.createElement("div");
     row.className = tab.id === activeTabId ? "tab active" : "tab";
     row.setAttribute("role", "tab");
-    row.title = tab.fileName ?? "Untitled";
+    // A cloud document's real home is the remote folder, not the staging path,
+    // so that is what the tooltip says.
+    row.title = tab.cloud
+      ? `${tab.cloud.provider} · ${tab.cloud.name}`
+      : (tab.fileName ?? "Untitled");
     row.addEventListener("click", () => api.post({ type: "selectTab", mode, tabId: tab.id }));
 
     const label = document.createElement("span");
     label.className = "tab-label";
-    label.textContent = `${tab.fileName ?? "Untitled"}${tab.dirty ? " ●" : ""}`;
+    const cloudMark = tab.cloud ? "☁ " : "";
+    label.textContent = `${cloudMark}${tab.fileName ?? "Untitled"}${tab.dirty ? " ●" : ""}`;
     row.appendChild(label);
 
     const close = document.createElement("button");

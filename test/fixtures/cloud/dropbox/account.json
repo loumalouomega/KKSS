@@ -1,0 +1,6 @@
+{
+  "account_id": "dbid:AABBCC",
+  "name": { "given_name": "Ada", "display_name": "Ada Lovelace" },
+  "email": "ada@example.com",
+  "email_verified": true
+}

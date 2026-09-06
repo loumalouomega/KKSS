@@ -66,6 +66,7 @@ describe("addRecentFile", () => {
       "C:\\Mesh.mdpa",
       "mesh",
       2,
+      undefined,
       RECENT_CAP,
       "win32"
     );
@@ -76,6 +77,7 @@ describe("addRecentFile", () => {
       "/tmp/mesh.mdpa",
       "mesh",
       2,
+      undefined,
       RECENT_CAP,
       "linux"
     );
@@ -131,5 +133,48 @@ describe("pruneRecentFiles", () => {
 describe("HOME_RECENT_LIMIT", () => {
   it("is shorter than the menu's cap, so the home screen cannot overflow", () => {
     expect(HOME_RECENT_LIMIT).toBeLessThan(RECENT_CAP);
+  });
+});
+
+describe("cloud-backed recents", () => {
+  const ref = {
+    provider: "dropbox",
+    accountId: "acct",
+    itemId: "/kkss/bull.stp",
+    name: "bull.stp",
+    folder: "Dropbox / KKSS",
+  };
+
+  it("records the ref alongside the staging path", () => {
+    const list = addRecentFile([], abs("/cache/dropbox/ab/bull.stp"), "cad", 1, ref);
+    expect(list[0].cloud).toEqual(ref);
+    // A plain local open must not grow the field.
+    expect(addRecentFile([], abs("/tmp/local.stp"), "cad", 1)[0].cloud).toBeUndefined();
+  });
+
+  it("keeps a cloud row after the staging cache evicted its local copy", () => {
+    // The remote file is still there; pruning the row would hide exactly the
+    // documents that are hardest to find again.
+    const list = [
+      { path: abs("/cache/gone.stp"), mode: "cad" as const, openedAt: 2, cloud: ref },
+      { path: abs("/tmp/gone-local.stp"), mode: "cad" as const, openedAt: 1 },
+    ];
+    const pruned = pruneRecentFiles(list, () => false);
+    expect(pruned.map((e) => e.path)).toEqual([abs("/cache/gone.stp")]);
+  });
+
+  it("round-trips the ref through the store", () => {
+    const list = addRecentFile([], abs("/cache/bull.stp"), "cad", 1, ref);
+    expect(parseRecentFiles(JSON.parse(JSON.stringify(list)))[0].cloud).toEqual(ref);
+  });
+
+  it("drops a malformed cloud blob without discarding the entry", () => {
+    const parsed = parseRecentFiles([
+      { path: abs("/cache/bull.stp"), mode: "cad", openedAt: 1, cloud: { provider: "dropbox" } },
+      { path: abs("/cache/other.stp"), mode: "cad", openedAt: 2, cloud: "nonsense" },
+    ]);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].cloud).toBeUndefined();
+    expect(parsed[1].cloud).toBeUndefined();
   });
 });

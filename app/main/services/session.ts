@@ -51,6 +51,19 @@ export function loadSession(): LoadedSession | undefined {
   return { state, missing: sessionFileCount(stored) - sessionFileCount(state) };
 }
 
+/**
+ * Every document path the stored session would reopen, unpruned.
+ *
+ * Used as the cloud cache's eviction `keep` set: the pruned view from
+ * `loadSession()` is the wrong input there, because a path it already dropped
+ * is exactly the one eviction must not have taken.
+ */
+export function sessionPaths(): string[] {
+  const stored = parseSession(stateStore.get(SESSION_KEY));
+  if (!stored) return [];
+  return [...stored.cad.files, ...stored.mesh.files];
+}
+
 export function saveSession(state: SessionState): void {
   void stateStore.update(SESSION_KEY, state);
 }

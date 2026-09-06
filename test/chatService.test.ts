@@ -48,9 +48,13 @@ interface PendingTurn {
 class FakeProvider {
   private pending: PendingTurn | null = null;
   turns = 0;
+  /** The entries the last turn was actually sent — where the context suffix
+   *  lands, since it rides the newest user message and not the system prompt. */
+  lastEntries: any[] = [];
 
   streamTurn = (options: any): Promise<any> => {
     this.turns++;
+    this.lastEntries = options.entries ?? [];
     return new Promise((resolve, reject) => {
       this.pending = { onTextDelta: options.onTextDelta, resolve };
       options.signal.addEventListener("abort", () => reject(new Error("aborted by the user")));
@@ -111,7 +115,7 @@ const settle = async (ticks = 12) => {
   for (let i = 0; i < ticks; i++) await new Promise((resolve) => setTimeout(resolve, 1));
 };
 
-function makeService() {
+function makeService(currentFiles?: () => any) {
   const provider = new FakeProvider();
   const mcp = new FakeMcp();
   const { contents, messages } = fakeWebContents<ChatToWebview>();
@@ -126,7 +130,7 @@ function makeService() {
   const service: Service = new ChatService({
     hub: hub as never,
     chatsDir: dir,
-    currentFiles: () => ({ cad: [], mesh: [] }),
+    currentFiles: currentFiles ?? (() => ({ cad: [], mesh: [] })),
     openSettings: () => undefined,
     onHide: () => undefined,
     provider: () => provider as never,
@@ -406,5 +410,53 @@ describe("ChatService conversations", () => {
     ]);
     post({ type: "stop" });
     await settle();
+  });
+});
+
+describe("workspace context suffix", () => {
+  /** The suffix rides the newest user entry; the system prompt must stay
+   *  byte-stable for prompt caching, so nothing here may reach it. */
+  const suffixOf = (provider: { lastEntries: any[] }): string => {
+    const last = [...provider.lastEntries].reverse().find((e) => e.kind === "user");
+    return String(last?.text ?? "");
+  };
+
+  it("lists open tabs and marks the focused one", async () => {
+    const { provider, post } = makeService(() => ({
+      cad: ["/tmp/bull.stp", "/tmp/other.stp"],
+      mesh: [],
+      activeCad: "/tmp/bull.stp",
+      projectRoot: "/tmp/project",
+    }));
+    post({ type: "send", text: "hello" });
+    await settle();
+    const text = suffixOf(provider);
+    expect(text).toContain("Project root: /tmp/project");
+    expect(text).toContain("/tmp/bull.stp (focused)");
+    expect(text).toContain("/tmp/other.stp");
+  });
+
+  it("marks a cloud-backed path and warns that it is not stable", async () => {
+    const staged = "/home/u/.config/kkss/cloud-cache/dropbox/ab/bull.stp";
+    const { provider, post } = makeService(() => ({
+      cad: [staged],
+      mesh: [],
+      activeCad: staged,
+      cloud: { [staged]: { provider: "Dropbox", name: "bull.stp", folder: "/KKSS" } },
+    }));
+    post({ type: "send", text: "hello" });
+    await settle();
+    const text = suffixOf(provider);
+    expect(text).toContain("(focused, Dropbox staging copy)");
+    expect(text).toContain("not stable across sessions");
+  });
+
+  it("says nothing about staging when no document is cloud-backed", async () => {
+    const { provider, post } = makeService(() => ({ cad: ["/tmp/bull.stp"], mesh: [], cloud: {} }));
+    post({ type: "send", text: "hello" });
+    await settle();
+    const text = suffixOf(provider);
+    expect(text).toContain("/tmp/bull.stp");
+    expect(text).not.toContain("staging copy");
   });
 });

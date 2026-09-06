@@ -23,6 +23,8 @@ import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
 import { showChangelog } from "./services/whatsNew";
 import { stateStore } from "./services/stateStore";
+import type { CloudStatus } from "./services/cloud/cloudService";
+import { PROVIDER_LABELS, type ProviderId } from "./services/cloud/cloudCore";
 import { hasSecret, setSecret } from "./services/chat/secrets";
 import { LLM_KEYS } from "./services/chat/chatService";
 import { DEFAULT_ANTHROPIC_MODEL } from "./services/chat/providers/anthropic";
@@ -85,6 +87,23 @@ export interface MenuDeps {
     list(): RecentFile[];
     open(fsPath: string, mode: Mode): void;
     clear(): void;
+  };
+  /** Cloud storage accounts and the staging cache (see services/cloud). */
+  cloud: {
+    statuses(): CloudStatus[];
+    isConnected(): boolean;
+    /** The exact loopback redirect URI the provider's console needs. */
+    redirectHint(id: ProviderId): string;
+    setClientId(id: ProviderId, value: string | undefined): void;
+    setClientSecret(id: ProviderId, value: string): void;
+    connect(id: ProviderId): void;
+    disconnect(id: ProviderId): void;
+    openFromCloud(): void;
+    /** File ▸ Save also pushes any staged document that changed. */
+    saveNow(): void;
+    cacheLimitMb(): number;
+    setCacheLimitMb(value: number | undefined): void;
+    clearCache(): void;
   };
   /** HTTP meta MCP server controls (see index.ts). */
   metaServer: {
@@ -154,6 +173,89 @@ async function promptValue(key: string, title: string, defaultValue: string): Pr
   await stateStore.update(key, value.trim() || undefined);
 }
 
+/** One block per provider, plus the shared cache controls. */
+function cloudAccountsSubmenu(deps: MenuDeps): Electron.MenuItemConstructorOptions[] {
+  const items: Electron.MenuItemConstructorOptions[] = [];
+  for (const status of deps.cloud.statuses()) {
+    items.push({
+      label: status.label,
+      submenu: [
+        {
+          // A disabled row is the whole status display: connected as whom, or
+          // exactly which step is still missing.
+          label: status.connected
+            ? `Connected as ${status.account?.label ?? "?"}`
+            : status.hasClientId
+              ? "Not connected"
+              : "Client ID not set",
+          enabled: false,
+        },
+        { type: "separator" },
+        {
+          label: "Client ID…",
+          click: () => void promptCloudClientId(deps, status),
+        },
+        {
+          label: status.needsClientSecret ? "Client Secret…" : "Client Secret… (optional)",
+          click: () => void promptCloudSecret(deps, status),
+        },
+        { type: "separator" },
+        {
+          label: status.connected ? "Reconnect…" : "Connect…",
+          enabled: status.hasClientId,
+          click: () => deps.cloud.connect(status.id),
+        },
+        {
+          label: "Disconnect…",
+          enabled: status.connected,
+          click: () => deps.cloud.disconnect(status.id),
+        },
+      ],
+    });
+  }
+  items.push(
+    { type: "separator" },
+    {
+      label: `Cache Size Limit… (${deps.cloud.cacheLimitMb()} MB)`,
+      click: () => void promptCacheLimit(deps),
+    },
+    { label: "Clear Cloud Cache…", click: () => deps.cloud.clearCache() }
+  );
+  return items;
+}
+
+async function promptCloudClientId(deps: MenuDeps, status: CloudStatus): Promise<void> {
+  const value = await showInputBox({
+    title: `${status.label} Client ID`,
+    // The redirect URI is the single most common setup mistake, so it is stated
+    // here rather than left to the docs.
+    prompt: `Create a desktop/installed-app OAuth client in your ${status.label} console with redirect URI ${deps.cloud.redirectHint(status.id)}, then paste its client ID. Leave empty to clear.`,
+  });
+  if (value === undefined) return; // cancelled
+  deps.cloud.setClientId(status.id, value.trim() || undefined);
+}
+
+async function promptCloudSecret(deps: MenuDeps, status: CloudStatus): Promise<void> {
+  const value = await showInputBox({
+    title: `${status.label} Client Secret`,
+    prompt: status.needsClientSecret
+      ? "Required for this provider's desktop clients. Stored encrypted. Leave empty to clear."
+      : "Not needed for this provider (PKCE public client). Leave empty to clear.",
+  });
+  if (value === undefined) return; // cancelled
+  deps.cloud.setClientSecret(status.id, value.trim());
+}
+
+async function promptCacheLimit(deps: MenuDeps): Promise<void> {
+  const value = await showInputBox({
+    title: "Cloud Cache Size Limit (MB)",
+    value: String(deps.cloud.cacheLimitMb()),
+  });
+  if (value === undefined) return; // cancelled
+  const parsed = Number(value.trim());
+  deps.cloud.setCacheLimitMb(Number.isFinite(parsed) && parsed > 0 ? parsed : undefined);
+}
+
 export function installMenu(deps: MenuDeps): void {
   const { main, activeCadHost, activeMeshHost, editor } = deps;
   const inCad = () => main.mode() === "cad";
@@ -192,7 +294,11 @@ export function installMenu(deps: MenuDeps): void {
         label: recentLabel(entry.path),
         // A native menu has no second column, so the folder rides in the
         // tooltip (the same shape mesh's own activity-bar view shows).
-        toolTip: describeWithin(deps.projectRoot.current(), entry.path, app.getPath("home")),
+        // A cloud row's local path is a cache directory nobody would recognise,
+        // so it names its provider and remote folder instead.
+        toolTip: entry.cloud
+          ? `${PROVIDER_LABELS[entry.cloud.provider as ProviderId] ?? entry.cloud.provider} · ${entry.cloud.folder ?? entry.cloud.name}`
+          : describeWithin(deps.projectRoot.current(), entry.path, app.getPath("home")),
         click: () => deps.recentFiles.open(entry.path, entry.mode),
       })),
       { type: "separator" as const },
@@ -231,6 +337,15 @@ export function installMenu(deps: MenuDeps): void {
           submenu: recentFilesSubmenu(),
         },
         {
+          // Degrades honestly rather than opening an empty picker: the label
+          // itself says why it is unavailable.
+          label: deps.cloud.isConnected()
+            ? "Open from Cloud…"
+            : "Open from Cloud… (no account connected)",
+          enabled: deps.cloud.isConnected(),
+          click: () => deps.cloud.openFromCloud(),
+        },
+        {
           label: "Open in Text Editor…",
           click: () => void editor.open(),
         },
@@ -238,10 +353,17 @@ export function installMenu(deps: MenuDeps): void {
           label: "Save",
           accelerator: "CmdOrCtrl+S",
           click: () => {
-            if (inEditor()) return editor.requestSave(false);
-            inCad()
-              ? void activeCadHost()?.flushSidecars()
-              : void activeMeshHost()?.dispatchMenu({ type: "menuSave" });
+            if (inEditor()) {
+              editor.requestSave(false);
+            } else if (inCad()) {
+              void activeCadHost()?.flushSidecars();
+            } else {
+              void activeMeshHost()?.dispatchMenu({ type: "menuSave" });
+            }
+            // A staged document's save has to reach the provider too. Harmless
+            // when nothing is cloud-backed: the sync engine tracks no
+            // directories and this resolves immediately.
+            deps.cloud.saveNow();
           },
         },
         {
@@ -579,6 +701,13 @@ export function installMenu(deps: MenuDeps): void {
               click: () => deps.metaServer.regenerateToken(),
             },
           ],
+        },
+        {
+          // Bring-your-own OAuth client: no KKSS-owned credentials are baked
+          // in, so every provider starts at "set a client ID" rather than at a
+          // confusing failure inside the consent flow.
+          label: "Cloud Accounts",
+          submenu: cloudAccountsSubmenu(deps),
         },
       ],
     },

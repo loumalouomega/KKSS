@@ -407,7 +407,20 @@ Concretely:
   `app/main/services/jsonStore.ts` (the Electron-free half of `stateStore.ts`,
   split out to be testable — same shape as `chat/secretCodec.ts` under
   `chat/secrets.ts`) writes a sibling temp file, fsyncs it, and renames it over
-  the target behind a single-writer chain. Both properties are load-bearing:
+  the target behind a single-writer chain — now via the shared
+  **`services/atomicWrite.ts`** helper, which also backs cadHost's eight sidecar
+  writers and keys its own chain by **resolved path**. That per-path chain is
+  not optional once a temp name is involved: two overlapping writes would share
+  `<file>.<pid>.tmp` and the second `rename` would fail with ENOENT, and two
+  such overlaps exist (`flushSidecars()` clears the six debounce timers but
+  cannot cancel one that has *already fired*, and `cad-preview-macros.json` is
+  a per-*folder* library two tabs in one directory both write). The sync variant
+  skips the fsync and the Windows rename retry on purpose — it runs on the quit
+  path — and uses a **distinct temp name** (`.sync.tmp`): it bypasses the chain,
+  so a shared name would let an async write that is mid-`open()` end up holding a
+  handle to the file the sync write has just renamed into place, and its stale
+  snapshot would land in `state.json` after all. `services/sidecarSuffixes.ts` is the single owner of the sidecar names,
+  imported by `cadHost.ts` and the cloud layer so the two cannot drift. Both properties are load-bearing:
   the safeStorage-encrypted LLM key and the meta server's bearer token live in
   that same file, so a torn or interleaved write loses every setting *and* both
   credentials, and the store's silent corrupt-file fallback then boots the app
@@ -418,6 +431,61 @@ Concretely:
   `stopped` before its own rename, so it can never overwrite the final state.
   `JsonStore` is instantiated **per file** — `state.json` plus one per chat
   conversation and one for their index — so each file owns its own chain.
+- **Cloud documents are staged locally, and the staging path is the only path
+  the rest of the app ever sees.** `services/cloud/` downloads a remote file into
+  `<userData>/cloud-cache/<provider>/<opaque-id>/<original filename>` and hands
+  *that* path to `openFile()`, so routing (`router.ts`'s longest-suffix rule),
+  `allowRoot()`, both hosts' `fs` calls and the submodules' own MCP servers keep
+  working unmodified — nothing below the staging layer knows a file is remote.
+  It had to be this shape: every consumer of an opened path assumes a real file
+  on disk, and the zero-modification rule forbids teaching the submodules'
+  `node:fs` calls a provider API. The filename is preserved byte-for-byte
+  (routing is extension-driven, so `case.post.msh` must survive) and **one
+  directory holds exactly one document plus its sidecars**, which is what makes
+  cad's `${modelPath}.parts.json` siblings work with no cadHost change and makes
+  "every other non-artifact file here is a sidecar" safe rather than a guess.
+  `allowRoot()` is still called per-document on that directory by
+  `CadHost.openPath` — **never** on `cloud-cache/` itself, which would make every
+  cached document from every account fetchable by any webview. Write-back is
+  **watcher-driven, not host-driven**: `mesh/src/meshExport.ts`'s `saveMesh()`
+  overwrites `ctx.fsPath` with a bare `fs.promises.writeFile` inside the
+  submodule and never reports the path back, so a save can be *observed* but
+  never *intercepted* — hence one chokidar watch per staging directory (the bare
+  `"*"` pattern added to `services/watcher.ts`), coalesced on a 3 s debounce that
+  swallows cadHost's 500 ms one. Its `depth: 0` is a real limit: XDMF's sibling
+  `.h5` is uploaded, OpenFOAM's nested `constant/polyMesh/` tree deliberately is
+  not. Conflicts are detected by stored remote revision — Drive
+  `headRevisionId`, Dropbox `rev`, Graph **`cTag`, never `eTag`** (which also
+  moves on metadata-only edits and would manufacture a conflict copy every time
+  OneDrive touched the file) — with the wire-level precondition carried
+  separately, since Graph's `if-match` accepts only `eTag`; a missing baseline
+  counts as a conflict, because a spurious copy is tidy-up and a clobbered
+  remote edit is lost work. On conflict the local file is untouched and uploaded
+  beside the remote one, named with `meshExtname`'s longest-suffix split so
+  `case.post.msh` stays routable, after which the remote's revision is adopted as
+  the new baseline or every tick would conflict forever.
+  `cad-preview-macros.json` is deliberately **not** synced: per-*folder* library,
+  per-*file* cache, so uploading it would let two models from one remote folder
+  overwrite each other's macros. `before-quit` gets one flag-guarded
+  `preventDefault()` to drain in-flight uploads (10 s cap) because `will-quit`
+  cannot await an HTTPS upload; anything still pending stays `dirty: true` in the
+  manifest and is reported on the next launch. Recents carrying a `cloud` ref are
+  **exempt from the existence prune** and re-download on click; **session restore
+  deliberately does not re-download**, since it is synchronous and never stats by
+  design — an evicted path falls into the existing "files could not be found"
+  toast, and eviction's `keep` set (open tabs + `sessionPaths()`) makes that
+  rare. OAuth is **bring-your-own client** — the user pastes their own client ID
+  (+ secret where the provider issues one; a Google "Desktop app" secret is
+  explicitly not confidential) — with PKCE + `state` over a one-shot 127.0.0.1
+  loopback redirect built on `metaServer.ts`'s listen/error/Host-check handling;
+  tokens go through `chat/secrets.ts`. **No KKSS-owned client id is ever baked
+  in.** Zero new dependencies: all three providers are plain REST over
+  `net.fetch`, `node:crypto`, `node:http`, `node:stream` and the already-shipped
+  `chokidar`. Both Drive and Graph take a **simple-upload path below ~4 MB**
+  (Drive `uploadType=media`/`multipart`, Graph `PUT .../content`): a sidecar is a
+  couple of KB, so a resumable session would be three round trips for nothing —
+  and neither provider can finalise a *zero-byte* resumable session at all, so
+  this is a correctness path, not just an optimisation.
 - **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
   which owns both zoom re-assertion on `did-finish-load` and renderer-crash
   reporting — adding a view without it silently opts that view out of both.

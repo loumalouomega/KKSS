@@ -29,14 +29,31 @@ export const HOME_RECENT_LIMIT = 5;
 
 export { RECENT_CAP };
 
+/** What a recent entry needs to re-fetch a cloud document in a later session. */
+export interface RecentCloudRef {
+  provider: string;
+  accountId: string;
+  itemId: string;
+  name: string;
+  parentId?: string;
+  folder?: string;
+}
+
 /** One remembered document. Plain JSON — it round-trips through stateStore. */
 export interface RecentFile {
-  /** Absolute path, as resolved when it was recorded. */
+  /** Absolute path, as resolved when it was recorded. For a cloud document
+   *  this is the staging copy, which is why `cloud` exists. */
   path: string;
   /** Which mode opened it — the mode it reopens in. */
   mode: Mode;
   /** Epoch ms of the most recent open, which is also the sort key. */
   openedAt: number;
+  /**
+   * Set when `path` is a staging copy of a remote file. Two consequences: the
+   * row survives a cache eviction (see `pruneRecentFiles`), and clicking it
+   * re-downloads instead of reporting a missing file.
+   */
+  cloud?: RecentCloudRef;
 }
 
 const isMode = (value: unknown): value is Mode => value === "cad" || value === "mesh";
@@ -56,13 +73,28 @@ export function addRecentFile(
   fsPath: string,
   mode: Mode,
   now: number,
+  cloud?: RecentCloudRef,
   cap: number = RECENT_CAP,
   platform: string = process.platform
 ): RecentFile[] {
   const resolved = path.resolve(fsPath);
   const key = recentKey(resolved, platform);
   const kept = list.filter((e) => recentKey(e.path, platform) !== key);
-  return [{ path: resolved, mode, openedAt: now }, ...kept].slice(0, Math.max(0, cap));
+  const entry: RecentFile = { path: resolved, mode, openedAt: now };
+  if (cloud) entry.cloud = cloud;
+  return [entry, ...kept].slice(0, Math.max(0, cap));
+}
+
+function parseCloudRef(raw: unknown): RecentCloudRef | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const v = raw as Record<string, unknown>;
+  const str = (x: unknown) => (typeof x === "string" && x ? x : undefined);
+  const provider = str(v.provider);
+  const accountId = str(v.accountId);
+  const itemId = str(v.itemId);
+  const name = str(v.name);
+  if (!provider || !accountId || !itemId || !name) return undefined;
+  return { provider, accountId, itemId, name, parentId: str(v.parentId), folder: str(v.folder) };
 }
 
 /**
@@ -73,20 +105,36 @@ export function addRecentFile(
 export function parseRecentFiles(raw: unknown): RecentFile[] {
   if (!Array.isArray(raw)) return [];
   const out: RecentFile[] = [];
-  for (const entry of raw) {
-    if (!entry || typeof entry !== "object") continue;
-    const { path: p, mode, openedAt } = entry as Record<string, unknown>;
+  for (const stored of raw) {
+    if (!stored || typeof stored !== "object") continue;
+    const { path: p, mode, openedAt, cloud } = stored as Record<string, unknown>;
     if (typeof p !== "string" || p.length === 0 || !isMode(mode)) continue;
-    out.push({ path: p, mode, openedAt: typeof openedAt === "number" ? openedAt : 0 });
+    const entry: RecentFile = {
+      path: p,
+      mode,
+      openedAt: typeof openedAt === "number" ? openedAt : 0,
+    };
+    // A malformed cloud blob costs the re-download, not the whole entry: the
+    // local copy may still be there, and the row is still worth offering.
+    const ref = parseCloudRef(cloud);
+    if (ref) entry.cloud = ref;
+    out.push(entry);
   }
   return out;
 }
 
-/** Drops entries whose file is gone. `exists` is injected so this is testable
- *  without touching a filesystem. */
+/**
+ * Drops entries whose file is gone. `exists` is injected so this is testable
+ * without touching a filesystem.
+ *
+ * A **cloud entry is kept even when its local copy is gone**: the staging cache
+ * evicts on an LRU budget, and the remote file is still there. Clicking such a
+ * row re-downloads it. Pruning them would silently empty the recents list of
+ * exactly the documents that are hardest to find again.
+ */
 export function pruneRecentFiles(
   list: readonly RecentFile[],
   exists: (fsPath: string) => boolean
 ): RecentFile[] {
-  return list.filter((e) => exists(e.path));
+  return list.filter((e) => e.cloud !== undefined || exists(e.path));
 }

@@ -1,8 +1,11 @@
 /**
  * chokidar-backed replacement for vscode.workspace.createFileSystemWatcher
  * over a RelativePattern(base, pattern). Supports the two pattern shapes the
- * mesh providers actually use: an exact filename (mdpa reparse watcher) and
- * a brace extension glob like `*.{vtk,vtu,vtm}` (vtk timeline discovery).
+ * mesh providers actually use — an exact filename (mdpa reparse watcher) and a
+ * brace extension glob like `*.{vtk,vtu,vtm}` (vtk timeline discovery) — plus
+ * a bare `*`, which no submodule asks for but the cloud staging layer does: it
+ * has to notice *any* write into a staged document's directory, because a mesh
+ * save happens inside the submodule and is never reported back.
  */
 import * as chokidar from "chokidar";
 import * as path from "node:path";
@@ -16,6 +19,7 @@ export interface FileWatcher {
 
 /** Exported for unit tests. */
 export function matcherFor(pattern: string): (name: string) => boolean {
+  if (pattern === "*") return () => true;
   const brace = pattern.match(/^\*\.\{([^}]+)\}$/);
   if (brace) {
     const exts = new Set(brace[1].split(",").map((e) => `.${e.trim().toLowerCase()}`));

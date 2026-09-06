@@ -6,9 +6,10 @@
  * Two properties the naive "mutate an object, then writeFile the whole thing"
  * version lacked, both of which cost real user data:
  *
- * - **Atomic.** Every flush writes a sibling temp file, fsyncs it, and
- *   renames it over the target (atomic on POSIX and NTFS; a sibling so the
- *   rename never crosses a filesystem). A crash or a full disk can no longer
+ * - **Atomic.** Every flush goes through services/atomicWrite.ts, which writes
+ *   a sibling temp file, fsyncs it, and renames it over the target (atomic on
+ *   POSIX and NTFS; a sibling so the rename never crosses a filesystem, and
+ *   serialized per path). A crash or a full disk can no longer
  *   truncate the store — which mattered because the app's secrets (LLM API
  *   key, MCP meta-server bearer token) live in this same file, so one torn
  *   write used to lose every setting *and* both credentials at once, after
@@ -20,8 +21,7 @@
  *   (every Settings menu click, the zoom picker, the mesh Memento).
  */
 import * as fs from "node:fs";
-import * as path from "node:path";
-import type { FileHandle } from "node:fs/promises";
+import { writeFileAtomic, writeFileAtomicSync } from "./atomicWrite";
 
 export class JsonStore {
   private data: Record<string, unknown> | undefined;
@@ -91,46 +91,13 @@ export class JsonStore {
     if (this.stopped) return; // flushSync() already wrote the final state
     const snapshot = JSON.stringify(this.load(), null, 2);
     this.dirty = false;
-    await fs.promises.mkdir(path.dirname(this.file), { recursive: true });
-    // The pid keeps two processes from colliding on the temp name — the
-    // single-instance lock makes that unlikely, but it is not free (the e2e
-    // harness deliberately runs without the lock).
-    const tmp = `${this.file}.${process.pid}.tmp`;
-    let handle: FileHandle | undefined;
     try {
-      handle = await fs.promises.open(tmp, "w");
-      await handle.writeFile(snapshot, "utf8");
-      // Durable before the rename, so a power loss cannot swap in an empty file.
-      await handle.sync();
-      await handle.close();
-      handle = undefined;
-      if (this.stopped) {
-        // flushSync() ran while this write was awaiting — its snapshot is newer.
-        await fs.promises.rm(tmp, { force: true }).catch(() => undefined);
-        return;
-      }
-      await this.rename(tmp);
+      // The beforeRename veto is this store's `stopped` re-check: flushSync()
+      // may have run while this write was awaiting, and its snapshot is newer.
+      await writeFileAtomic(this.file, snapshot, { beforeRename: () => !this.stopped });
     } catch (err) {
-      await handle?.close().catch(() => undefined);
-      await fs.promises.rm(tmp, { force: true }).catch(() => undefined);
       this.dirty = true; // the mutation never reached disk — let a later flush retry
       throw err;
-    }
-  }
-
-  /** On Windows an AV scanner or the search indexer can hold the target open for
-   *  a moment; POSIX never hits this path. */
-  private async rename(tmp: string): Promise<void> {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        await fs.promises.rename(tmp, this.file);
-        return;
-      } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code;
-        const transient = code === "EPERM" || code === "EBUSY" || code === "EACCES";
-        if (attempt >= 3 || !transient) throw err;
-        await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)));
-      }
     }
   }
 
@@ -144,18 +111,11 @@ export class JsonStore {
   flushSync(): void {
     this.stopped = true;
     if (!this.data || !this.dirty) return;
-    const tmp = `${this.file}.${process.pid}.tmp`;
     try {
-      fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), "utf8");
-      fs.renameSync(tmp, this.file);
+      writeFileAtomicSync(this.file, JSON.stringify(this.data, null, 2));
       this.dirty = false;
     } catch {
-      try {
-        fs.rmSync(tmp, { force: true });
-      } catch {
-        /* nothing left to do on the way out */
-      }
+      /* nothing left to do on the way out */
     }
   }
 }

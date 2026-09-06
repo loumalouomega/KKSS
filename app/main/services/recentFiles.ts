@@ -18,6 +18,7 @@ import {
   parseRecentFiles,
   pruneRecentFiles,
   RECENT_FILES_KEY,
+  type RecentCloudRef,
   type RecentFile,
 } from "./recentFilesCore";
 
@@ -41,8 +42,8 @@ export const recentFiles = {
     return pruned;
   },
 
-  record(fsPath: string, mode: Mode): void {
-    write(addRecentFile(this.list(), fsPath, mode, Date.now()));
+  record(fsPath: string, mode: Mode, cloud?: RecentCloudRef): void {
+    write(addRecentFile(this.list(), fsPath, mode, Date.now(), cloud));
   },
 
   clear(): void {

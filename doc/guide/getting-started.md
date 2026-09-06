@@ -48,6 +48,48 @@ It is a **default, not a restriction**. Nothing is refused for living outside it
 
 **File ▸ Clear Project Root** goes back to that inferred behavior. Note the terminal reads its directory once, when its shell starts, so changing the folder applies to the *next* shell rather than the one already running.
 
+A folder kept in sync by a desktop client — `~/Google Drive`, `~/Dropbox`, a OneDrive folder — is a
+perfectly good project folder, and always has been: to KKSS it is an ordinary directory. Every
+sidecar KKSS writes beside your model now lands through a temp file that is renamed into place, so
+a sync daemon can never pick up a half-written one or raise a spurious "conflicted copy". The only
+visible trace is a `.tmp` file that exists for a few milliseconds during each save.
+
+### Working from cloud storage
+
+If you would rather not run a sync client at all, **Settings ▸ Cloud Accounts** connects KKSS
+directly to Google Drive, Dropbox or OneDrive, and **File ▸ Open from Cloud…** browses it. You
+bring your own OAuth client — see [Configuration ▸ Cloud accounts](/guide/configuration#cloud-accounts)
+for the one-time setup.
+
+Opening a cloud file **downloads it into a local staging cache**, along with any of its sidecars
+that exist beside it, and everything after that behaves exactly like a local document: the same
+viewers, the same tools, the same assistant. Cloud tabs are marked with a ☁ in the tab strip.
+
+Saving pushes it back. That happens on **File ▸ Save**, and also a few seconds after any automatic
+save — the CAD viewer writes your parts, edits, camera and meshing options continuously, and those
+ride along too. A burst of edits is coalesced into a single upload.
+
+What to expect in the awkward cases:
+
+- **Someone else changed the file while you had it open.** KKSS never overwrites their version and
+  never discards yours. Your copy is uploaded beside theirs as `model (conflict 2026-09-06 14-03-11).stp`
+  and a warning tells you so. Nothing on your disk is touched.
+- **You quit with an upload still running.** KKSS holds the quit open for up to ten seconds to
+  finish. If that is not enough — or the machine loses power — the local copy is still there and
+  is flagged; the next launch tells you which files have changes that never reached the provider.
+- **Recent files.** A cloud document stays in **File ▸ Open Recent** even after the cache trims its
+  local copy; clicking it downloads again. Restoring the previous session on launch does not
+  re-download, because that would mean network access before the window appears — anything trimmed
+  is reported in the usual "files could not be found" notice instead.
+- **The macro library is not synced.** `cad-preview-macros.json` belongs to a whole folder while
+  the cache holds one document per directory, so uploading it would let two models from the same
+  remote folder overwrite each other's macros. It stays local.
+- **Nested export trees stay local too.** A sibling companion file (XDMF's `.h5`) is uploaded; an
+  OpenFOAM case, which writes a whole `constant/polyMesh/` subdirectory, is not.
+
+The cache is trimmed on an LRU budget (**Settings ▸ Cloud Accounts ▸ Cache Size Limit…**, 2 GB by
+default). A document that is open, or that holds an unsent change, is never trimmed.
+
 ### Picking up where you left off
 
 KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing — and the chat sidebar comes back on the conversation you were last in. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there.

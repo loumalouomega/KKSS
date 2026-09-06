@@ -113,17 +113,99 @@ The same aggregated toolset can be re-exposed as a single MCP **server** so an *
 
 `app/main/services/metaServer/` holds the server: `buildServer.ts` wires `McpManager` behind the low-level MCP `Server` (raw JSON-Schema tools forwarded verbatim via `callToolRaw`, resources & prompts re-exposed natively), and `metaServer.ts` (`MetaMcpServer`) runs a bare `http.createServer` bound to `127.0.0.1` with the SDK's `StreamableHTTPServerTransport` (stateful sessions keyed by `Mcp-Session-Id`; late server readiness emits `list_changed`). It is **off by default**, requires an `Authorization: Bearer <token>` (generated on first enable, safeStorage-encrypted like the API keys), and validates the `Host` header — these tools touch the filesystem and run simulations. The SDK server subpaths bundle into `out/main.js`; nothing new ships in `node_modules`. Enable it and copy the `http://127.0.0.1:<port>/mcp` address + token from **Settings ▸ MCP Server**. stateStore keys: `metaServerEnabled`, `metaServerPort` (default `7391`); secret: `metaServerToken`.
 
+### Cloud staging layer
+
+`app/main/services/cloud/` opens a Google Drive / Dropbox / OneDrive file by **downloading it into
+a local staging cache and handing that local path to `openFile()`**. Nothing below the staging
+layer knows a document is remote: routing (`router.ts`'s longest-suffix rule), `allowRoot()`, both
+hosts' `fs` calls and the submodules' own MCP servers all keep working unmodified. That is the only
+shape that was available — every consumer of an opened path assumes a real file already on disk,
+and the zero-modification invariant rules out teaching the submodules' `node:fs` calls to speak a
+provider API.
+
+The pure/glue split is the usual one, so `test/` can drive the interesting parts without Electron:
+`cloudCore.ts` (types, `CLOUD_KEYS`), `cachePathCore.ts` (path derivation, sidecar rules),
+`manifestCore.ts`, `conflictCore.ts`, `oauthCore.ts`, `uploadChunkCore.ts` and the three
+`providerCore/*.ts` parsers are pure; `oauth.ts`, `providers/*.ts`, `stagingCache.ts`,
+`cloudSync.ts` and the `cloudService.ts` façade are the glue. Tests:
+`cloudCachePath`, `cloudManifest`, `cloudConflict`, `cloudOauth`, `cloudProviders`,
+`cloudUploadChunks` and `cloudSync` — the last drives the whole write-back engine against a real
+temp directory, real chokidar and a fake provider.
+
+Decisions worth knowing before changing any of it:
+
+- **Layout.** `<userData>/cloud-cache/<provider>/<sha256(account,item)[0:16]>/<original filename>`.
+  Deterministic so sidecars survive across sessions, opaque so a Dropbox path or Drive id cannot
+  escape the cache root, and the filename is preserved byte-for-byte because routing is
+  extension-driven (`case.post.msh` must not become `case.msh`). **One directory holds exactly one
+  document plus its sidecars** — that is what makes cad's `${modelPath}.parts.json` siblings land
+  correctly with no `cadHost.ts` change, and makes "every other non-artifact file here is a
+  sidecar" a safe rule rather than a guess.
+- **`allowRoot()` is untouched.** `CadHost.openPath` already allow-lists `path.dirname(fsPath)`,
+  which for a staged file *is* its staging directory. Allow-listing `cloud-cache/` itself would
+  make every cached document from every account fetchable by any webview — the mistake the
+  project-folder invariant exists to avoid.
+- **Write-back is watcher-driven, not host-driven, and that is forced.**
+  `mesh/src/meshExport.ts`'s `saveMesh()` overwrites the document in place with a bare
+  `fs.promises.writeFile` inside the submodule and never reports the path back, so a save can be
+  observed but never intercepted. One `depth: 0` chokidar watch per staging directory (the bare
+  `*` pattern added to `services/watcher.ts`) covers cad's eight sidecar writers, mesh's in-place
+  save, an export aimed back into the directory and `EditorService` at once. Its `depth: 0` is also
+  a real limit: XDMF's sibling `.h5` is uploaded, OpenFOAM's nested `constant/polyMesh/` tree is
+  deliberately not.
+- **Revisions.** Drive `headRevisionId`, Dropbox `rev`, Graph **`cTag` — never `eTag`**, which also
+  moves on metadata-only edits and would manufacture a conflict copy every time OneDrive touched
+  the file for its own reasons. The wire-level precondition is carried separately (`precondition`
+  on `CloudFile`) because Graph's `if-match` accepts only `eTag`. Only Dropbox enforces the
+  conditional server-side; Drive has no conditional media overwrite at all, so its guard is
+  check-then-upload with a residual race, which its module header states plainly.
+- **Conflicts** keep the local file untouched and upload it beside the remote one, named with
+  `meshExtname`'s longest-suffix split so `case.post.msh` stays routable. The remote's current
+  revision is then adopted as the new baseline, or every subsequent tick would conflict forever.
+- **`cad-preview-macros.json` is never synced** — it is a per-*folder* library while the cache is
+  per-*file*, so uploading it would let two models from one remote folder overwrite each other's.
+- **Quit.** `will-quit` cannot await an HTTPS upload, so `before-quit` calls `preventDefault()`
+  **once** (guarded by a flag, so it can never loop), drains for up to 10 s, then re-quits.
+  Anything still unsent stays `dirty: true` in the manifest and is reported on the next launch.
+  `will-quit` only calls `cloud.flushSync()`, the manifest `JsonStore`'s last synchronous write.
+- **OAuth is bring-your-own-client.** No KKSS client id is baked in. `oauth.ts` reuses
+  `metaServer.ts`'s listen/error/Host-check shape for a one-shot `127.0.0.1` listener, with PKCE
+  S256 and a `state` check; tokens go through `chat/secrets.ts`. Dropbox pins port 53682 because
+  its console requires an exact redirect URI; Google and Microsoft take an ephemeral one.
+- **Uploads take a simple path below ~4 MB** (Drive `uploadType=media`/`multipart`, Graph
+  `PUT .../content`, Dropbox `files/upload`) and a chunked one above it. That is not only about
+  cost — a sidecar is a couple of KB and a session would be three round trips for nothing —
+  neither Drive nor Graph can finalise a *zero-byte* resumable session, so `uploadChunked` rejects
+  `size === 0` outright rather than spinning on a chunk it can never produce.
+- **No new dependencies.** All three providers are plain REST over `net.fetch`, `node:crypto`,
+  `node:http` and `node:stream`, plus the `chokidar` KKSS already ships. The official SDKs are
+  license-compatible but each drags a large tree into `out/main.js` for three endpoints.
+
+#### Verifying a provider by hand
+
+The consent round trip, the live endpoint shapes and resumable uploads cannot be unit-tested — they
+need a real registration. Per provider, once per release that touches this area:
+
+1. Register a desktop/installed-app OAuth client (see [Configuration ▸ Cloud accounts](/guide/configuration#cloud-accounts) for redirect URIs and scopes) and paste the client ID under **Settings ▸ Cloud Accounts**.
+2. **Connect…** — the browser opens, consent returns to the loopback listener, and the status row shows the account.
+3. **File ▸ Open from Cloud…** → open a `.stp`. Confirm the tab shows ☁ and the model renders.
+4. Edit something, wait ~5 s, and confirm the sidecars appear beside the model remotely.
+5. Change the file from the provider's web UI, edit locally again, and confirm a `(conflict …)` copy appears and the local file is untouched.
+6. Upload something over 4 MB (Graph) / 150 MB (Dropbox) to exercise the chunked path.
+7. Quit mid-upload and confirm the next launch reports the unsynced file.
+
 ## Settings menu
 
-The **Settings** native menu (`app/main/menu.ts`) holds app-level preferences persisted in `app/main/services/stateStore.ts`: **Color Theme** (`sceneTheme` — the same key the mesh viewer's own theme toggle persists; served to the mode views via their synchronous `initialState`, so it applies when a view next loads a file), **Terminal Shell** (`terminalShell`), and **LLM Assistant** (provider, API keys, models, base URL — see the chat sidebar section above), and **MCP Server** (enable/port/copy-address-&-token/ regenerate-token — the meta MCP server, see above). Viewer-level actions are deliberately absent from the menu bar — the submodules' own toolbars provide them.
+The **Settings** native menu (`app/main/menu.ts`) holds app-level preferences persisted in `app/main/services/stateStore.ts`: **Color Theme** (`sceneTheme` — the same key the mesh viewer's own theme toggle persists; served to the mode views via their synchronous `initialState`, so it applies when a view next loads a file), **Terminal Shell** (`terminalShell`), and **LLM Assistant** (provider, API keys, models, base URL — see the chat sidebar section above), **MCP Server** (enable/port/copy-address-&-token/ regenerate-token — the meta MCP server, see above), and **Cloud Accounts** (per provider: client ID, client secret, connect, disconnect; plus the shared cache size limit and Clear Cloud Cache — see the cloud staging layer above). Viewer-level actions are deliberately absent from the menu bar — the submodules' own toolbars provide them.
 
 Key pieces (all under `app/`):
 
 - **`app/preload/viewPreload.ts` + `app/renderer/view/shim.ts`** — the entire VS Code compatibility layer: `acquireVsCodeApi().postMessage` → IPC, and inbound IPC → a normal window `message` event.
 - **`app/main/vscodeShim.ts`** — a minimal `vscode` module. Its `workspace.workspaceFolders` is a **getter** backed by the *explicit* project folder (via the `__configureVscodeShim` hooks object): that is what makes `ptController.discoverExternal()` scan `<root>/.kratos/problemtypes`, so a project-local problemtype appears in the Problemtype list — impossible while this was permanently `undefined`. Explicit-only is a safety decision, not a style one: `discoverExternal` *executes* what it finds (sandboxed in a `node:vm` with no `require`/`process`/`fs`, no codegen and a 2 s timeout), so merely opening a mesh that happens to sit beside a `.kratos/problemtypes/` must never run it. Python problemtypes stay unavailable in KKSS (pyodide is not copied into `out/`) and surface as a per-file error row rather than a crash. The rest of the shim (dialogs, messages, file watcher, progress, `openWith`, `getConfiguration` — always resolving to the caller's default, since KKSS has no settings.json equivalent — `openTextDocument`/`showTextDocument` routed to the app's own text-editor screen, and `env.asExternalUri` as an identity passthrough since there is no Remote-SSH/Codespaces tunnel) that esbuild aliases in place of the real API, letting `mesh/src/{mdpaEditorProvider,vtkEditorProvider,meshExport, opHistory,flowgraphController,ptController,runManager,recentMeshes,previewHtml}.ts` run verbatim. Three modules are deliberately left *unreachable* rather than shimmed — `runTreeView.ts`, `sidebarViews.ts` and `emptyPreview.ts`, each constructed only from the submodule's own `activate()`, which KKSS never calls — which is what keeps `createTreeView`/`TreeItem`/`registerCommand`/`createWebviewPanel` out of both the bundle and the shim.
 - **`app/main/cadHost.ts`** — a 1:1 port of `cad/src/provider.ts`'s editor session (the cad provider imports OCCT directly, which must live in a worker here, so the cad side is ported rather than shimmed). Its `readOcctSource` is the single choke point every OCCT path reads through, so a `.scad` is converted to `.csg` by the user-installed `openscad` binary once and nothing downstream ever sees format `"scad"`. Deliberately *not* ported: SpaceMouse (it needs `node-hid`, a second native module — see the node-pty section) and the Models activity-bar view (a VS Code TreeView with no KKSS analogue); nor the provider's `getHtml`/`getNonce` (KKSS generates its page with `tools/gen-webview-html.mjs`, whose CSP allow-lists the `kkss:` scheme instead of a nonce) and its `registerCommands` (KKSS's command surface is `app/main/menu.ts`, and its What's New lives in `app/main/services/whatsNew.ts`). Its `CadHostHooks.onMeshExported` fires after a meshing-panel export writes a file; `app/main/index.ts` wires it to `openFile(path, "mesh")` (gated by `modeForFile`) so a mesh exported in pre mode that post mode can display (`.mdpa`, `.vtk`, …) opens straight into the mesh view — a one-way pre → post sync.
-- **`app/main/services/jsonStore.ts`** — the Electron-free half of `stateStore.ts` (the same split as `chat/secretCodec.ts` under `chat/secrets.ts`, and unit-tested by `test/stateStore.test.ts`). It is instantiated **per file** — `state.json` plus one instance per chat conversation and one for their index — so each file gets its own writer chain and `will-quit` flushes each of them. Every write goes to a sibling temp file, is fsynced, and is renamed over the target — atomic on POSIX and NTFS — behind a single-writer chain, so concurrent `update()` calls cannot interleave or tear the file. This is not incidental: the LLM API key and the MCP meta-server's bearer token live in that same `state.json`, so one torn write used to lose every setting *and* both credentials at once, after which the store's silent corrupt-file fallback booted the app looking factory-fresh. A write that is still queued absorbs later mutations rather than making them wait, which is what the many fire-and-forget `void stateStore.update(...)` callers (every Settings menu click, the zoom picker, the mesh Memento) want. `will-quit` cannot await, so it calls `flushSync()` — an in-flight async write can only resume after that returns, and re-checks a stopped flag before its own rename, so it can never land a stale snapshot on top.
-- **`app/main/services/recentFiles.ts`** (+ the pure `recentFilesCore.ts`, tested by `test/recentFiles.test.ts`) — the app-wide recents list, covering both modes. Recorded at exactly one choke point, `openFile()`, which is why every user-facing open routes through that function; the three `host.openPath()` callers that bypass it (crash replay, `openLatestResults`, `onMeshExported`) and session restore deliberately record nothing. De-duplication is by path with the mode refreshed, so a format both modes can read is one row that remembers where it was last opened. The mesh submodule's own `RecentMeshStore` keeps running — both providers require it — but no longer drives any UI. `recentKey`/`recentLabel`/`recentDescription` are reused from `mesh/src/recentMeshesCore.ts`, which is vscode-free; its `recordRecent`/`parseRecentList` are not, because they would silently drop the `mode` field.
+- **`app/main/services/jsonStore.ts`** — the Electron-free half of `stateStore.ts` (the same split as `chat/secretCodec.ts` under `chat/secrets.ts`, and unit-tested by `test/stateStore.test.ts`). It is instantiated **per file** — `state.json` plus one instance per chat conversation and one for their index — so each file gets its own writer chain and `will-quit` flushes each of them. Every write goes through **`app/main/services/atomicWrite.ts`** — a sibling temp file, fsynced, then renamed over the target (atomic on POSIX and NTFS) — behind a single-writer chain, so concurrent `update()` calls cannot interleave or tear the file. This is not incidental: the LLM API key and the MCP meta-server's bearer token live in that same `state.json`, so one torn write used to lose every setting *and* both credentials at once, after which the store's silent corrupt-file fallback booted the app looking factory-fresh. A write that is still queued absorbs later mutations rather than making them wait, which is what the many fire-and-forget `void stateStore.update(...)` callers (every Settings menu click, the zoom picker, the mesh Memento) want. `will-quit` cannot await, so it calls `flushSync()` — an in-flight async write can only resume after that returns, and re-checks a stopped flag before its own rename, so it can never land a stale snapshot on top.
+- **`app/main/services/atomicWrite.ts`** (tested by `test/atomicWrite.test.ts`) — the temp-file + fsync + rename primitive, extracted from `jsonStore.ts` so cadHost's eight sidecar writers get the same guarantee. It also **serializes writes per resolved path**, which is not optional once a temp name is involved: two overlapping writes to one path would share `<file>.<pid>.tmp` and the second `rename` would fail with ENOENT. Two such overlaps exist in `cadHost.ts` — `flushSidecars()` clears the six debounce timers but cannot cancel one that has *already fired*, and `cad-preview-macros.json` is a per-*folder* library that two tabs on models in one directory both write. The sync variant deliberately skips the fsync and the Windows rename retry (it runs on the quit path, where being fast matters more than being durable) and uses a distinct `.sync.tmp` name — it bypasses the chain, so sharing the async temp name would let a write that is mid-`open()` end up holding a handle to the file the sync write has just renamed into place. Sidecar suffixes live in `app/main/services/sidecarSuffixes.ts`, imported by both `cadHost.ts` and the cloud layer so the two lists cannot drift.
+- **`app/main/services/recentFiles.ts`** (+ the pure `recentFilesCore.ts`, tested by `test/recentFiles.test.ts`) — the app-wide recents list, covering both modes. Recorded at exactly one choke point, `openFile()`, which is why every user-facing open routes through that function; the three `host.openPath()` callers that bypass it (crash replay, `openLatestResults`, `onMeshExported`) and session restore deliberately record nothing. De-duplication is by path with the mode refreshed, so a format both modes can read is one row that remembers where it was last opened. An entry carrying a `cloud` ref is **exempt from the existence prune**: its local copy is a staging copy the cache may have evicted, while the remote file is still there, so the row survives and clicking it re-downloads. The mesh submodule's own `RecentMeshStore` keeps running — both providers require it — but no longer drives any UI. `recentKey`/`recentLabel`/`recentDescription` are reused from `mesh/src/recentMeshesCore.ts`, which is vscode-free; its `recordRecent`/`parseRecentList` are not, because they would silently drop the `mode` field.
 - **`app/main/services/projectRoot.ts`** (+ the pure `projectRootCore.ts`, tested by `test/projectRoot.test.ts`) — the project folder. Two levels: **explicit** (chosen via File ▸ Open Folder…, persisted under `projectRoot`) and **effective** (explicit, else the focused document's directory). Consumers use `effective()`, so with no explicit root every one of them behaves exactly as it did before the concept existed. Only `explicit()` is ever *displayed* or handed to the shim — an inferred root would change with the focused tab, and would put a developer's absolute path into the committed docs screenshots. A stored root that has been deleted or unmounted degrades to "none" on read but is deliberately not erased. `describeWithin()` is what makes Open Recent read as "this project": entries inside the root show their folder relative to it, everything else keeps the `~`-abbreviated form — no re-sectioning, which would fight the list's newest-first order.
 - **`app/main/services/session.ts`** (+ the pure `sessionCore.ts`, tested by `test/session.test.ts`) — session restore. Persists each mode's open documents in tab order plus the focused *path* (tab ids are a per-process counter, and an index shifts when pruning drops an earlier file), the screen, and panel visibility. Captured debounced from `syncTabs()`/`setScreen()`/the panel toggles — so a SIGKILL still leaves a usable session — and once more on `will-quit` **before** `stateStore.flushSync()`, since that call stops the store and would swallow a later write. Restoring prunes vanished paths *first*, opens each file with `openPath()` (append, no re-routing, no recording), closes the blank starter tab, then restores screen and panels. Gated by `KKSS_E2E`, `KKSS_NO_RESTORE=1`, and **Settings ▸ Restore Last Session**.
 - **`kkss://` and `kkss-file://`** schemes — replacements for `asWebviewUri`/`localResourceRoots` (app assets and allow-listed user files respectively).

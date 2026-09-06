@@ -7,6 +7,22 @@ full auto-generated compare links.
 
 ## [1.5.0] - 2026-09-06
 
+- feat: **open and save files directly from Google Drive, Dropbox and
+  OneDrive** — **File ▸ Open from Cloud…** browses a connected account and
+  downloads the model (and its sidecars) into a local staging cache, from which
+  it behaves exactly like a local document; edits upload back on **File ▸ Save**
+  and a few seconds after each autosave. Bring your own OAuth client under
+  **Settings ▸ Cloud Accounts** — no KKSS-owned credentials are baked in. A file
+  changed on the provider since KKSS last synced is never overwritten: your copy
+  is kept and uploaded beside it as a `(conflict …)` copy. Quitting mid-upload
+  holds the quit briefly to finish, and anything still unsent is reported on the
+  next launch rather than lost
+- fix: **CAD sidecars are written atomically** — `.parts.json`, `.edits.json`,
+  `.annotations.json`, `.view.json`, `.planes.json`, `.mesh.json`, `.geo` and
+  the macro library now use the same temp-file + fsync + rename path
+  `state.json` already used, so a desktop sync client (Drive, Dropbox, OneDrive)
+  watching your project folder can no longer upload a half-written sidecar or
+  raise a spurious "conflicted copy"
 - feat: **both engines updated** — Pre-Processing to CAD-Preview 1.12.0 (from
   1.8.0) and Post-Processing to VSCode-MDPA-Preview 3.15.1 (from 3.12.0)
 - feat: Pre-Processing can **start from nothing** — **File ▸ New Blank Model…**

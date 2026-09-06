@@ -1,0 +1,24 @@
+{
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=ABC",
+  "value": [
+    {
+      "id": "01FOLDER",
+      "name": "models",
+      "folder": { "childCount": 3 },
+      "eTag": "\"{GUID},1\"",
+      "cTag": "\"c:{GUID},0\"",
+      "parentReference": { "id": "01ROOT", "driveId": "b!x" }
+    },
+    {
+      "id": "01FILE",
+      "name": "bull.stp",
+      "size": 482913,
+      "eTag": "\"{GUID2},7\"",
+      "cTag": "\"c:{GUID2},3\"",
+      "file": { "mimeType": "application/octet-stream", "hashes": { "quickXorHash": "QXH123" } },
+      "lastModifiedDateTime": "2026-09-01T10:15:00Z",
+      "parentReference": { "id": "01ROOT" },
+      "@microsoft.graph.downloadUrl": "https://cdn.example.test/preauth/bull.stp?token=xyz"
+    }
+  ]
+}

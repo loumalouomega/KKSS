@@ -22,12 +22,19 @@ import { ChatService } from "./services/chat/chatService";
 import { McpHub } from "./services/chat/mcpHub";
 import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
-import { configureNotifications, handleToastButton, toast } from "./services/notifications";
+import { configureNotifications, handleToastButton, progressToast, toast } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { recentFiles } from "./services/recentFiles";
+import { CloudService } from "./services/cloud/cloudService";
+import { PROVIDER_LABELS, type CloudRef, type ProviderId } from "./services/cloud/cloudCore";
 import { configureProjectRoot, projectRoot } from "./services/projectRoot";
 import { abbreviateHome, describeWithin, rootLabel } from "./services/projectRootCore";
-import { loadSession, restoreEnabled, saveSession } from "./services/session";
+import {
+  loadSession,
+  restoreEnabled,
+  saveSession,
+  sessionPaths,
+} from "./services/session";
 import { captureSession } from "./services/sessionCore";
 import { HOME_RECENT_LIMIT } from "./services/recentFilesCore";
 import { recentDescription, recentLabel } from "../../mesh/src/recentMeshesCore";
@@ -120,6 +127,9 @@ let editor: EditorService | null = null;
 let chat: ChatService | null = null;
 let mcpHub: McpHub | null = null;
 let metaServer: MetaMcpServer | null = null;
+let cloud: CloudService | null = null;
+/** `before-quit` may hold the quit open exactly once to drain uploads. */
+let cloudDrainAttempted = false;
 
 /**
  * The first real file path in an argv array — our own launch arguments, or the
@@ -167,8 +177,12 @@ function pushRecents(): void {
       .map((entry) => ({
         path: entry.path,
         mode: entry.mode,
-        label: recentLabel(entry.path),
-        description: describeWithin(root, entry.path, home),
+        label: entry.cloud ? entry.cloud.name : recentLabel(entry.path),
+        // The renderer has no node:path, so both shapes are formatted here. A
+        // staging path would read as gibberish, hence the provider and folder.
+        description: entry.cloud
+          ? `${providerLabel(entry.cloud.provider)} · ${entry.cloud.folder ?? "cloud"}`
+          : describeWithin(root, entry.path, home),
       })),
   });
 }
@@ -358,6 +372,12 @@ function currentSession() {
 }
 
 const SESSION_SAVE_DEBOUNCE_MS = 1_000;
+/** How long `before-quit` may hold the quit open to finish uploads. */
+const CLOUD_DRAIN_TIMEOUT_MS = 10_000;
+/** Keeps the cache housekeeping off the launch critical path. */
+const CLOUD_STARTUP_DELAY_MS = 5_000;
+/** Floor between transfer-progress toast updates. */
+const PROGRESS_REPORT_MS = 250;
 let sessionSaveTimer: NodeJS.Timeout | undefined;
 /** True while restoreSession() is opening tabs — its own churn must not be
  *  captured half-finished. */
@@ -383,7 +403,14 @@ function syncTabs(mode: Mode): void {
   const hosts = mode === "cad" ? cadHosts : meshHosts;
   const tabs: ShellTabInfo[] = main.tabs(mode).map((t) => {
     const file = hosts.get(t.id)?.currentFile;
-    return { id: t.id, fileName: file ? path.basename(file) : null };
+    const origin = file ? cloud?.describe(file) : undefined;
+    return {
+      id: t.id,
+      // A staged file keeps its own name — the sanitized local name and the
+      // remote one are the same except where the OS forced a substitution.
+      fileName: file ? path.basename(file) : null,
+      cloud: origin ? { provider: origin.providerLabel, name: origin.name } : undefined,
+    };
   });
   sendShell({ type: "tabs", mode, tabs, activeTabId: main.activeTabId(mode) });
   // The choke point for every open/close/focus/title change in a mode.
@@ -511,9 +538,14 @@ function newTab(mode: Mode): void {
 function closeTab(mode: Mode, tabId: string): void {
   if (!main) return;
   const hosts = mode === "cad" ? cadHosts : meshHosts;
+  const closing = hosts.get(tabId)?.currentFile;
   hosts.get(tabId)?.dispose();
   hosts.delete(tabId);
   main.closeTab(mode, tabId);
+  // Stop watching the staging directory once no tab holds the document any
+  // more. A pending upload still finishes — closing a tab must not discard a
+  // change the user already made.
+  if (closing && !openInAnyTab(closing)) cloud?.untrackPath(closing);
   if (!main.activeTabId(mode)) {
     const remaining = main.tabs(mode);
     const sibling = remaining[remaining.length - 1];
@@ -527,6 +559,158 @@ function selectTab(mode: Mode, tabId: string): void {
   if (!main) return;
   main.setActiveTab(mode, tabId);
   syncTabs(mode);
+}
+
+/** File ▸ Open from Cloud… — pick a provider, drill down, stage, open. */
+async function openFromCloud(): Promise<void> {
+  if (!cloud?.isConnected()) {
+    toast("info", "Connect a cloud account first: Settings ▸ Cloud Accounts.");
+    return;
+  }
+  const ref = await cloud.browse();
+  if (ref) await openCloudFile(ref);
+}
+
+/** A recents row: local path when it is an ordinary file, staging layer when
+ *  the entry remembers a cloud origin. */
+function openRecentEntry(fsPath: string, mode: Mode): void {
+  const entry = recentFiles.list().find((e) => e.path === fsPath);
+  const ref = entry?.cloud;
+  if (!ref) {
+    openFile(fsPath, mode);
+    return;
+  }
+  // The mode the entry was recorded under wins, exactly as it does for a local
+  // recent — a shared-surface format (.stl/.obj/.ply) must not reopen in
+  // whichever mode happens to be active.
+  void openCloudFile(
+    {
+      provider: ref.provider as CloudRef["provider"],
+      accountId: ref.accountId,
+      itemId: ref.itemId,
+      name: ref.name,
+      parentId: ref.parentId,
+      folder: ref.folder,
+    },
+    mode
+  );
+}
+
+/** Disconnecting is destructive for the cached copies, so it asks first. */
+async function disconnectCloud(id: ProviderId): Promise<void> {
+  if (!cloud || !main) return;
+  const label = cloud.statuses().find((s) => s.id === id)?.label ?? id;
+  const { response } = await dialog.showMessageBox(main.win, {
+    type: "question",
+    buttons: ["Disconnect", "Disconnect and delete cached copies", "Cancel"],
+    defaultId: 0,
+    cancelId: 2,
+    message: `Disconnect from ${label}?`,
+    detail:
+      `KKSS will forget the sign-in. Files already downloaded stay in the staging ` +
+      `cache unless you delete them — any that still hold unsynced changes would ` +
+      `be lost with them.`,
+  });
+  if (response === 2) return;
+  await cloud.disconnect(id, response === 1);
+}
+
+async function clearCloudCache(): Promise<void> {
+  if (!cloud || !main) return;
+  const { response } = await dialog.showMessageBox(main.win, {
+    type: "warning",
+    buttons: ["Delete cached copies", "Cancel"],
+    defaultId: 1,
+    cancelId: 1,
+    message: "Delete every locally cached cloud file?",
+    detail:
+      "Anything that has not finished uploading will be lost. Files already on " +
+      "the provider are untouched and can be opened again.",
+  });
+  if (response !== 0) return;
+  await cloud.clearCache();
+  toast("info", "Cloud cache cleared.");
+}
+
+/**
+ * File ▸ Open from Cloud…, and a cloud recent whose staged copy was evicted.
+ *
+ * Downloads with a cancellable progress toast and then hands the **local**
+ * staging path to `openFile()` — routing, tab selection, recents and the screen
+ * switch are all untouched, which is the whole point of the staging layer.
+ * `openFile` stays synchronous and remains the one recents choke point; the
+ * `cloud` ref is recorded through the same call so the row can re-download in a
+ * later session.
+ */
+async function openCloudFile(ref: CloudRef, forcedMode?: Mode): Promise<void> {
+  if (!cloud) return;
+  // Already on disk from an earlier session: reopen without a round trip.
+  const cached = cloud.stagedPath(ref);
+  if (cached) {
+    openFile(cached, forcedMode);
+    recordCloudRecent(cached, ref, forcedMode);
+    return;
+  }
+  const progress = progressToast(`Downloading ${ref.name}…`, true);
+  const abort = new AbortController();
+  progress.onCancel(() => abort.abort());
+  // One IPC message per network chunk would be ~8 000 for a 500 MB .vtu, all
+  // of them repainting a toast nobody can read that fast.
+  let lastReport = 0;
+  try {
+    const staged = await cloud.stage(ref, {
+      signal: abort.signal,
+      onProgress: (done, total) => {
+        const now = Date.now();
+        if (now - lastReport < PROGRESS_REPORT_MS && done !== total) return;
+        lastReport = now;
+        progress.report(transferLabel(ref.name, done, total));
+      },
+    });
+    openFile(staged, forcedMode);
+    recordCloudRecent(staged, ref, forcedMode);
+  } catch (err) {
+    if (!abort.signal.aborted) {
+      toast("error", `Could not open ${ref.name}: ${err instanceof Error ? err.message : err}`);
+    }
+  } finally {
+    progress.done();
+  }
+}
+
+/** Re-records the entry `openFile` just wrote, now carrying its cloud origin. */
+function recordCloudRecent(localPath: string, ref: CloudRef, forcedMode?: Mode): void {
+  const mode = forcedMode ?? modeForFile(localPath, main?.mode() ?? "cad");
+  if (!mode) return;
+  recentFiles.record(localPath, mode, {
+    provider: ref.provider,
+    accountId: ref.accountId,
+    itemId: ref.itemId,
+    name: ref.name,
+    parentId: ref.parentId,
+    folder: ref.folder,
+  });
+}
+
+function transferLabel(name: string, done: number, total?: number): string {
+  const mb = (n: number) => (n / (1024 * 1024)).toFixed(1);
+  return total
+    ? `Downloading ${name}… ${mb(done)} / ${mb(total)} MB`
+    : `Downloading ${name}… ${mb(done)} MB`;
+}
+
+/** A stored provider id rendered for a human. Falls back to the raw id, since
+ *  a persisted entry can outlive the provider it names. */
+function providerLabel(id: string): string {
+  return PROVIDER_LABELS[id as ProviderId] ?? id;
+}
+
+/** Whether any tab, in either mode, currently holds this document. */
+function openInAnyTab(fsPath: string): boolean {
+  for (const host of [...cadHosts.values(), ...meshHosts.values()]) {
+    if (host.currentFile === fsPath) return true;
+  }
+  return false;
 }
 
 /** Opens a file in the mode the router picks (active mode wins on overlap),
@@ -601,6 +785,10 @@ function restoreSession(hasLaunchFile: boolean): boolean {
         // appended rather than replaced, and a restore is not a user open, so
         // it must not touch the recents list.
         hosts.get(tab.id)?.openPath(file);
+      // Restore bypasses stage()/stagedPath(), the only other places a staging
+      // directory starts being watched — without this a restored cloud tab
+      // would show the ☁ mark and silently never upload an edit again.
+      cloud?.trackIfStaged(file);
         if (file === activeFile) focusId = tab.id;
       }
       if (starter) closeTab(mode, starter);
@@ -797,6 +985,12 @@ app.whenReady().then(() => {
     token: () => getSecret(META_SERVER_KEYS.token),
   });
 
+  // One CloudService for the whole app: it owns the three providers, the
+  // staging cache (whose manifest is a JsonStore, flushed on will-quit) and the
+  // sync engine's directory watchers. Per-tab instances would each keep their
+  // own watcher over the same directory and upload the same bytes N times.
+  cloud = new CloudService();
+
   chat = new ChatService({
     hub: mcpHub,
     chatsDir: path.join(app.getPath("userData"), "chats"),
@@ -806,6 +1000,13 @@ app.whenReady().then(() => {
       activeCad: activeCadHost()?.currentFile,
       activeMesh: activeMeshHost()?.currentFile,
       projectRoot: projectRoot.explicit(),
+      // A staged path is valid for this session but not stable across them, so
+      // the assistant is told which documents are cloud-backed rather than
+      // being left to assume every path it sees is durable.
+      cloud: cloud?.describeAll([
+        ...[...cadHosts.values()].map((h) => h.currentFile),
+        ...[...meshHosts.values()].map((h) => h.currentFile),
+      ].filter((f): f is string => !!f)),
     }),
     openSettings: openSettingsMenu,
     onHide: () => {
@@ -837,9 +1038,25 @@ app.whenReady().then(() => {
     recentFiles: {
       list: () => recentFiles.list(),
       // Each entry reopens in the mode it was recorded under, rather than the
-      // old mesh-only hardcoding.
-      open: (fsPath, mode) => openFile(fsPath, mode),
+      // old mesh-only hardcoding. A cloud row goes through the staging layer,
+      // which reuses the local copy when it survived and re-downloads when the
+      // cache evicted it.
+      open: (fsPath, mode) => openRecentEntry(fsPath, mode),
       clear: () => recentFiles.clear(),
+    },
+    cloud: {
+      statuses: () => cloud?.statuses() ?? [],
+      isConnected: () => cloud?.isConnected() ?? false,
+      redirectHint: (id) => cloud?.redirectHint(id) ?? "",
+      setClientId: (id, value) => void cloud?.setClientId(id, value),
+      setClientSecret: (id, value) => void cloud?.setClientSecret(id, value),
+      connect: (id) => void cloud?.connect(id),
+      disconnect: (id) => void disconnectCloud(id),
+      openFromCloud: () => void openFromCloud(),
+      saveNow: () => void cloud?.saveNow(),
+      cacheLimitMb: () => cloud?.cacheLimitMb() ?? 0,
+      setCacheLimitMb: (value) => void cloud?.setCacheLimitMb(value),
+      clearCache: () => void clearCloudCache(),
     },
     metaServer: {
       enabled: () => stateStore.get(META_SERVER_KEYS.enabled, false) ?? false,
@@ -856,6 +1073,9 @@ app.whenReady().then(() => {
     installMenu(menuDeps);
     pushRecents();
   });
+  // Connect/disconnect changes the Cloud Accounts status rows and whether
+  // File ▸ Open from Cloud… is enabled — same static-menu reason as above.
+  cloud?.onDidChange(() => installMenu(menuDeps));
   // The root shows in the File menu's label, and changes how recents describe
   // their folders, so both surfaces are rebuilt with it.
   projectRoot.onDidChange(() => {
@@ -874,6 +1094,20 @@ app.whenReady().then(() => {
   pendingOpen = undefined;
   const restored = restoreSession(launchFile !== undefined);
 
+  // Off the launch critical path: report anything a crash or a timed-out drain
+  // left unsynced, then trim the staging cache. Eviction must never take a file
+  // that is open in a tab or named by the stored session, or a later restore
+  // would find its documents gone.
+  setTimeout(() => {
+    cloud?.reportUnsynced();
+    const keep = [
+      ...[...cadHosts.values()].map((h) => h.currentFile),
+      ...[...meshHosts.values()].map((h) => h.currentFile),
+      ...sessionPaths(),
+    ].filter((f): f is string => !!f);
+    void cloud?.evict(keep);
+  }, CLOUD_STARTUP_DELAY_MS);
+
   ipcMain.on("home:toHost", (_event, raw) => {
     const msg = raw as HomeToHost;
     if (!main) return;
@@ -885,7 +1119,7 @@ app.whenReady().then(() => {
       return;
     }
     if (msg.type === "openRecent") {
-      openFile(msg.path, msg.mode);
+      openRecentEntry(msg.path, msg.mode);
       return;
     }
     if (msg.type === "clearRecents") {
@@ -1011,8 +1245,26 @@ app.whenReady().then(() => {
 // Single teardown for the shared MCP manager + the HTTP meta server + the
 // Flowgraph child process (the chat service only aborts its in-flight turn).
 // A renderer dying during teardown is not worth reviving.
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
   quitting = true;
+  // `will-quit` cannot await and an HTTPS upload cannot finish synchronously,
+  // so this is the only window Electron gives an async task at shutdown. Held
+  // open exactly once — the flag makes a repeated preventDefault impossible, so
+  // a stuck upload can delay the quit by the cap and never block it.
+  if (!cloudDrainAttempted && cloud?.hasPending()) {
+    cloudDrainAttempted = true;
+    event.preventDefault();
+    const progress = progressToast("Finishing cloud uploads…", false);
+    void Promise.race([
+      cloud.flushPending(),
+      new Promise((resolve) => setTimeout(resolve, CLOUD_DRAIN_TIMEOUT_MS)),
+    ]).finally(() => {
+      progress.done();
+      // Anything still unsent stays `dirty: true` in the manifest and is
+      // offered again on the next launch, rather than vanishing silently.
+      app.quit();
+    });
+  }
 });
 
 app.on("will-quit", () => {
@@ -1028,6 +1280,9 @@ app.on("will-quit", () => {
   // depends on nor blocks the stateStore flush — but it must run while the
   // transcript is still coherent, i.e. before the MCP teardown below.
   chat?.flushSync();
+  // The staging manifest is its own JsonStore file, so like the transcripts
+  // this neither depends on nor blocks the stateStore flush.
+  cloud?.flushSync();
   void metaServer?.dispose();
   void mcpHub?.dispose();
   flowgraph?.dispose();

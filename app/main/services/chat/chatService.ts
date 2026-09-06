@@ -160,6 +160,13 @@ export interface OpenFilesInfo {
   /** The project root the user is working in, when one is set. A default the
    *  assistant should prefer for new files — not a restriction. */
   projectRoot?: string;
+  /**
+   * Documents whose local path is a staging copy of a remote file, keyed by the
+   * same absolute path that appears in `cad`/`mesh`. The MCP servers only ever
+   * see the staging path, so no tool changes — but the assistant must not
+   * assume such a path is stable the way a plain local one is.
+   */
+  cloud?: Record<string, { provider: string; name: string; folder?: string }>;
 }
 
 export interface ChatDeps {
@@ -399,12 +406,25 @@ export class ChatService {
    *  so the model doesn't guess which document a bare "the file" refers to.
    *  The project root leads when one is set: it is where the user is working,
    *  so it is the sensible default for a file the assistant creates. It is a
-   *  default and not a boundary — nothing refuses a path outside it. */
+   *  default and not a boundary — nothing refuses a path outside it.
+   *
+   *  A cloud-backed document is marked here rather than in the system prompt:
+   *  it is context the assistant reads, not an ability it can invoke (there is
+   *  no cloud tool), and the prompt has to stay byte-stable. */
   private contextSuffix(): string {
     const files = this.deps.currentFiles();
     const describe = (label: string, paths: string[], active?: string | null) => {
       if (!paths.length) return undefined;
-      const list = paths.map((p) => (p === active ? `${p} (focused)` : p)).join(", ");
+      const list = paths
+        .map((p) => {
+          const origin = files.cloud?.[p];
+          const marks = [
+            p === active ? "focused" : undefined,
+            origin ? `${origin.provider} staging copy` : undefined,
+          ].filter((m): m is string => !!m);
+          return marks.length ? `${p} (${marks.join(", ")})` : p;
+        })
+        .join(", ");
       return `${label}: ${list}`;
     };
     const parts = [
@@ -412,6 +432,13 @@ export class ChatService {
       describe("CAD (pre-processing) tabs", files.cad, files.activeCad),
       describe("Mesh (post-processing) tabs", files.mesh, files.activeMesh),
     ].filter((p): p is string => !!p);
+    if (files.cloud && Object.keys(files.cloud).length > 0) {
+      parts.push(
+        "a staging copy lives in a local cache — the path is valid for this session " +
+          "but not stable across sessions, so read it from this context each turn " +
+          "rather than remembering it"
+      );
+    }
     if (!parts.length) return "";
     return `\n\n[Context — KKSS workspace: ${parts.join("; ")}]`;
   }
