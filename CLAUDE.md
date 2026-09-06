@@ -382,6 +382,52 @@ Concretely:
     (`ghcr.io/loumalouomega/kkss`, built-in `GITHUB_TOKEN`) and **Docker Hub**
     (`vmataix/kkss`, `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets).
     User docs live in `doc/guide/web-deployment.md`.
+- **One instance, and one queue for "open this path".** `app/main/index.ts`
+  takes `app.requestSingleInstanceLock()` at module load; the loser prints a
+  diagnostic and quits, and its argv reaches the winner via `second-instance`
+  (focus the window, then `openFile`). This is a data-integrity invariant, not
+  a nicety: two instances share one `userData/state.json`, and since the store
+  rewrites it whole, the loser's first write would discard everything the
+  winner changed — including the encrypted API key and MCP bearer token.
+  macOS `open-file` fires **before** `app.whenReady()`, so it is queued in
+  `pendingOpen` and flushed at the end of the ready block through the *same*
+  path the CLI argument uses — never add a second deferred-open mechanism. A
+  forwarded relative path resolves against the *other* process's
+  `workingDirectory`, which is why `fileArgFrom()` takes a cwd. The
+  count-based argv slice is deliberate (`electron out/main.js` must not open
+  `out/main.js` as a document). `KKSS_ALLOW_MULTIPLE_INSTANCES=1` opts out and
+  **`tools/e2eShared.mjs` sets it** — the harness relaunches repeatedly and
+  SIGKILLs the tree between runs, so a leftover lock would make every later
+  launch quit on startup; that also makes lock acquisition the one startup
+  path e2e never covers.
+- **`state.json` is written atomically, and never with a bare `writeFile`.**
+  `app/main/services/jsonStore.ts` (the Electron-free half of `stateStore.ts`,
+  split out to be testable — same shape as `chat/secretCodec.ts` under
+  `chat/secrets.ts`) writes a sibling temp file, fsyncs it, and renames it over
+  the target behind a single-writer chain. Both properties are load-bearing:
+  the safeStorage-encrypted LLM key and the meta server's bearer token live in
+  that same file, so a torn or interleaved write loses every setting *and* both
+  credentials, and the store's silent corrupt-file fallback then boots the app
+  looking factory-fresh. A still-queued write absorbs later mutations (the many
+  fire-and-forget `void stateStore.update(...)` callers depend on that
+  coalescing). `will-quit` cannot await, so it calls `flushSync()` **first**;
+  an async write in flight can only resume after that returns and re-checks
+  `stopped` before its own rename, so it can never overwrite the final state.
+- **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
+  which owns both zoom re-assertion on `did-finish-load` and renderer-crash
+  reporting — adding a view without it silently opts that view out of both.
+  windows.ts only *reports* (`MainWindowHooks.onViewCrash`); the recovery
+  policy lives in `index.ts`, which owns the host maps. Recovery is a reload,
+  plus replaying a mode tab's file through `openPath()` — never both for a tab,
+  since `openPath` already reloads and `MainWindow.reloadView` would race it.
+  It leans entirely on the ready-handshakes that already exist (`shellReady`,
+  `editorReady`, `termReady` reusing the live pty, the chat's main-side
+  transcript, a provider's `ready`), which is why it needs nothing from the
+  submodules. It is bounded per view inside a time window so a reproducible
+  crash cannot loop, honors the per-tab rule (recover one tab, never a whole
+  mode), and **`unresponsive` is deliberately not wired to it** — that fires on
+  any long synchronous parse, exactly what both viewers do on a large mesh, so
+  reloading on it would destroy a working session mid-load.
 - **Menu bar holds app-level items only.** Viewer actions (quality, fields,
   find entity…) live in the submodules' own toolbars — don't duplicate them
   in the native menu. App preferences go in the Settings menu, persisted via

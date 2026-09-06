@@ -77,6 +77,19 @@ export class EditorService {
     });
   }
 
+  /**
+   * The editor's renderer died. Its unsaved buffer lived only there, so it is
+   * gone — clear the flag so the window-close guard (index.ts) does not prompt
+   * about a buffer that no longer exists. The reloaded page replays `lastDoc`
+   * (the on-disk content) through the `editorReady` handshake.
+   */
+  notifyRendererGone(): boolean {
+    const wasDirty = this.dirty;
+    this.dirty = false;
+    this.title();
+    return wasDirty;
+  }
+
   isDirty(): boolean {
     return this.dirty;
   }

@@ -26,7 +26,15 @@ export async function launchApp(file, { extraArgs = [], timeout = 60_000 } = {})
     executablePath: electronPath,
     args: [".", "--no-sandbox", "--enable-unsafe-swiftshader", "--disable-gpu-sandbox", ...extraArgs, ...(file ? [file] : [])],
     cwd: root,
-    env: { ...process.env, KKSS_E2E: "1", ELECTRON_RUN_AS_NODE: undefined },
+    // KKSS_ALLOW_MULTIPLE_INSTANCES: the harness relaunches the app many times
+    // and SIGKILLs the tree between runs (killTree below), so a lock left over
+    // from a killed run would make every later launch quit on startup.
+    env: {
+      ...process.env,
+      KKSS_E2E: "1",
+      KKSS_ALLOW_MULTIPLE_INSTANCES: "1",
+      ELECTRON_RUN_AS_NODE: undefined,
+    },
     timeout,
   });
   let captured = "";
