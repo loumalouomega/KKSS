@@ -90,12 +90,30 @@ export type ChatWireEntry =
   | { kind: "toolResult"; callId: string; ok: boolean; preview: string }
   | { kind: "error"; message: string; errorKind: ChatErrorKind };
 
+/**
+ * One stored conversation, as listed in the sidebar's history popover.
+ * `updatedAt` is epoch ms rather than a formatted string: the renderer formats
+ * the relative time itself, so a popover left open does not go stale.
+ */
+export interface ChatConversationInfo {
+  id: string;
+  title: string;
+  updatedAt: number;
+  entryCount: number;
+}
+
 /** Messages posted by the chat-sidebar renderer. */
 export type ChatToHost =
   | { type: "chatReady" }
   | { type: "send"; text: string }
   | { type: "stop" }
+  /** Archives the current conversation and starts an empty one — nothing lost. */
   | { type: "newChat" }
+  /** Refresh the history list (the popover was opened). */
+  | { type: "listConversations" }
+  | { type: "selectConversation"; id: string }
+  | { type: "renameConversation"; id: string; title: string }
+  | { type: "deleteConversation"; id: string }
   | { type: "openSettings" }
   | { type: "hide" };
 
@@ -108,13 +126,20 @@ export type ChatToWebview =
       servers: ChatServerStatus[];
       /** e.g. "Anthropic · claude-opus-4-8" — shown in the header tooltip. */
       providerLabel: string;
+      /** The conversation `entries` belong to. */
+      conversationId: string;
+      conversationTitle: string;
+      conversations: ChatConversationInfo[];
     }
   | { type: "entry"; entry: ChatWireEntry }
   | { type: "assistantStart" }
   | { type: "assistantDelta"; text: string }
   | { type: "assistantDone"; entry: ChatWireEntry }
   | { type: "busy"; busy: boolean }
-  | { type: "servers"; servers: ChatServerStatus[] };
+  | { type: "servers"; servers: ChatServerStatus[] }
+  /** History changed without the transcript changing (rename, delete, a title
+   *  derived mid-turn, an eviction) — `state` carries the list otherwise. */
+  | { type: "conversations"; conversations: ChatConversationInfo[]; activeId: string };
 
 /** Static facts sent to the About window once its page has loaded. */
 export interface AboutInit {

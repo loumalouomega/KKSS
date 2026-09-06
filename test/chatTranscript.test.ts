@@ -7,6 +7,7 @@ import {
   truncate,
   PREVIEW_CHARS,
 } from "../app/main/services/chat/transcript";
+import { parseConversation, newConversation, appendEntry } from "../app/main/services/chat/transcriptStoreCore";
 
 const name = (server: string, tool: string) => `${server}__${tool}`;
 
@@ -107,5 +108,26 @@ describe("wire form", () => {
 
   it("truncate keeps short strings untouched", () => {
     expect(truncate("short", 100)).toBe("short");
+  });
+});
+
+describe("a conversation that came back off disk", () => {
+  it("converts identically — persistence is not a second truncation point", () => {
+    const long = "n".repeat(PREVIEW_CHARS * 3);
+    const entries: ChatEntry[] = [
+      ...toolTurn.slice(0, 3),
+      { kind: "toolResult", callId: "c1", ok: true, text: long },
+      { kind: "assistant", text: "Done." },
+    ];
+    const convo = newConversation("c1", 0);
+    for (const entry of entries) appendEntry(convo, entry, 1);
+
+    const restored = parseConversation(JSON.parse(JSON.stringify(convo)))!.entries;
+
+    expect(toAnthropicMessages(restored, name)).toEqual(toAnthropicMessages(entries, name));
+    expect(toOpenAiMessages(restored, name)).toEqual(toOpenAiMessages(entries, name));
+    // The wire form is still the only place anything is shortened.
+    const wire = toWire(restored[3]);
+    expect(wire.kind === "toolResult" && wire.preview).toContain("[truncated");
   });
 });

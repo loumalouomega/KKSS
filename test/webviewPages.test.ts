@@ -103,3 +103,34 @@ describe.skipIf(!built)("generated webview pages", () => {
     expect(read("cad")).toMatch(/connect-src[^;]*kkss-file:/);
   });
 });
+
+/**
+ * The chat page is hand-written rather than generated, but it grew DOM the
+ * renderer looks up by id, and its CSP is the strictest in the app — worth the
+ * same guard now that both can drift.
+ */
+describe.skipIf(!fs.existsSync(path.join(outDir, "chat", "index.html")))("chat sidebar page", () => {
+  const html = () => fs.readFileSync(path.join(outDir, "chat", "index.html"), "utf8");
+
+  it("keeps the strict CSP (no new source is needed for the history popover)", () => {
+    expect(html()).toContain(
+      `content="default-src 'none'; style-src kkss:; script-src kkss:; img-src kkss: data:"`
+    );
+  });
+
+  it("carries the nodes chat.ts looks up by id", () => {
+    for (const anchor of [
+      'id="messages"',
+      'id="chat-title"',
+      'id="servers"',
+      'id="history"',
+      'id="history-btn"',
+      'id="new-btn"',
+      'id="hide-btn"',
+      'id="input"',
+      'id="send-btn"',
+    ]) {
+      expect(html()).toContain(anchor);
+    }
+  });
+});

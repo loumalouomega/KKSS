@@ -28,7 +28,7 @@ features:
     details: Switch instantly between modes; each keeps its loaded file, camera, and edit history. Both engines are the unmodified VS Code extensions, embedded as git submodules — upstream improvements arrive by bumping a submodule pointer.
   - icon: 🤖
     title: AI assistant
-    details: A chat sidebar where an LLM (Anthropic Claude or any OpenAI-compatible backend) drives CAD editing, meshing, case setup, and Kratos simulations through the engines' MCP tool servers and the kratos-mcp-server.
+    details: A chat sidebar where an LLM (Anthropic Claude or any OpenAI-compatible backend) drives CAD editing, meshing, case setup, and Kratos simulations through the engines' MCP tool servers and the kratos-mcp-server. Conversations are saved and listed, so nothing is lost on quit.
   - icon: 🧰
     title: Built-in workbench
     details: An embedded terminal (node-pty + xterm.js) for launching Kratos runs, a CodeMirror text editor for input files and scripts, and in-app update checks against GitHub Releases.

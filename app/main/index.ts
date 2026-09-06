@@ -799,6 +799,7 @@ app.whenReady().then(() => {
 
   chat = new ChatService({
     hub: mcpHub,
+    chatsDir: path.join(app.getPath("userData"), "chats"),
     currentFiles: () => ({
       cad: [...cadHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
       mesh: [...meshHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
@@ -1023,6 +1024,10 @@ app.on("will-quit", () => {
   // Then the store's last-chance synchronous write, since `will-quit` cannot
   // await: a setting changed a moment ago must survive the quit.
   stateStore.flushSync();
+  // Conversations live in their own files under userData/chats, so this neither
+  // depends on nor blocks the stateStore flush — but it must run while the
+  // transcript is still coherent, i.e. before the MCP teardown below.
+  chat?.flushSync();
   void metaServer?.dispose();
   void mcpHub?.dispose();
   flowgraph?.dispose();

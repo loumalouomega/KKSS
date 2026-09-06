@@ -50,7 +50,7 @@ It is a **default, not a restriction**. Nothing is refused for living outside it
 
 ### Picking up where you left off
 
-KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there.
+KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing — and the chat sidebar comes back on the conversation you were last in. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there.
 
 Turn it off with **Settings ▸ Restore Last Session** to start clean every time. (Setting `KKSS_NO_RESTORE=1` in the environment does the same for one launch, which is handy if a particular document is giving the viewer trouble.) Opening a file from the command line always wins: it takes the screen and gets its own tab, leaving the restored documents untouched.
 
@@ -79,7 +79,19 @@ Before first use, pick a provider and set an API key under **Settings ▸ LLM As
 - **Anthropic (Claude)** — the default; set *Anthropic API Key* (and optionally the model, default `claude-opus-4-8`).
 - **OpenAI-compatible** — any `chat/completions` backend: set the *Base URL* (e.g. `https://api.openai.com/v1` or `http://localhost:11434/v1` for Ollama), the model name, and a key if the backend needs one.
 
-Keys are stored encrypted with your OS keychain when available. Edits made by the assistant land in the same sidecar files the viewers use — reload the file to see them. Send with `Enter`, stop a running response with the same button, and start over with **⟳ New**.
+Keys are stored encrypted with your OS keychain when available. Edits made by the assistant land in the same sidecar files the viewers use — reload the file to see them. Send with `Enter` and stop a running response with the same button.
+
+### Conversations
+
+Conversations are saved as you go and survive quitting the app — including the tool calls that record what the assistant actually did to your files, which is often the only account of it. **⟳ New** starts a fresh one and keeps the current one; nothing is discarded, so there is nothing to confirm.
+
+The **☰** button in the sidebar header lists your saved conversations, newest first, each named after its first message and showing when you last used it:
+
+- click a row to switch to it — the full transcript comes back;
+- **✎** renames it (`Enter` to confirm, `Esc` to cancel);
+- **🗑** deletes it, and asks once (the button turns into *Delete?*) because that is the one thing here you cannot undo.
+
+The 50 most recently used conversations are kept; older ones are dropped, except the one you currently have open. Switching away from a conversation while the assistant is still working stops that response first and records how far it got, so the transcript you come back to reads honestly.
 
 ### Use your own MCP client
 

@@ -416,6 +416,8 @@ Concretely:
   coalescing). `will-quit` cannot await, so it calls `flushSync()` **first**;
   an async write in flight can only resume after that returns and re-checks
   `stopped` before its own rename, so it can never overwrite the final state.
+  `JsonStore` is instantiated **per file** — `state.json` plus one per chat
+  conversation and one for their index — so each file owns its own chain.
 - **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
   which owns both zoom re-assertion on `did-finish-load` and renderer-crash
   reporting — adding a view without it silently opts that view out of both.
@@ -426,7 +428,8 @@ Concretely:
   It leans entirely on the ready-handshakes that already exist (`shellReady`,
   `editorReady`, `termReady` reusing the live pty, the chat's main-side
   transcript, a provider's `ready`), which is why it needs nothing from the
-  submodules. It is bounded per view inside a time window so a reproducible
+  submodules. (The chat's transcript is now on disk too, so a crash mid-turn
+  costs at most the debounce window.) It is bounded per view inside a time window so a reproducible
   crash cannot loop, honors the per-tab rule (recover one tab, never a whole
   mode), and **`unresponsive` is deliberately not wired to it** — that fires on
   any long synchronous parse, exactly what both viewers do on a large mesh, so
@@ -534,6 +537,31 @@ Concretely:
   `chatTools()`). API keys go through `services/chat/secrets.ts`
   (safeStorage-encrypted in the stateStore) — never store them
   plaintext-by-design or ship them to a renderer.
+- **Chat transcripts are durable, per conversation, and a turn is bound to the
+  one it started in.** `<userData>/chats/` holds one `<id>.json` per
+  conversation plus an `index.json` of the sidebar's history rows; each file is
+  its own `JsonStore` (atomic write, own writer chain, `flushSync()` from
+  `will-quit` via `ChatService.flushSync()`), and only the active conversation
+  is resident — `TranscriptStore.close()` flushes and drops the rest.
+  `transcriptStoreCore.ts` is the pure half (versioned blobs, repair-on-parse,
+  title derivation, caps), `transcriptStore.ts` the fs glue — the
+  `sessionCore.ts`/`session.ts` split. `CHAT_STORE_VERSION` is ignored wholesale
+  on mismatch and an index row whose file is gone (or unreadable) is pruned at
+  read time; there is deliberately **no transaction across the two files**.
+  Entries are written on append boundaries with a 1 s debounce — never per
+  stream delta, since a tool result is `RESULT_CHARS` = 50 000 chars — plus
+  undebounced on each user message and at the end of a turn; `flushSync()`
+  **lands** a still-pending debounced save rather than cancelling it. **Stored entries
+  keep the full tool-result text; `toWire()`/`PREVIEW_CHARS` in `transcript.ts`
+  stays the single truncation point**, so a persisted transcript never becomes a
+  second one. The binding rule is the correctness core: `run()` captures the
+  active conversation once, every append targets that object, and every message
+  is gated on it still being on screen — switching or deleting the *active*
+  conversation aborts the turn and awaits its unwind first (recorded as an
+  appended `stopped` assistant entry carrying the streamed partial, **never** a
+  flag set on the previous entry, which would mislabel a finished turn), while
+  deleting a *background* one leaves the running turn alone. An untouched
+  conversation is never written or listed, so **New** archives at no cost.
 - **One shared McpManager, two front-ends.** `McpHub`
   (`services/chat/mcpHub.ts`) owns the single `McpManager`; both the chat loop
   and the optional **HTTP meta MCP server** (`services/metaServer/`) call
