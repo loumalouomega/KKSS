@@ -12,6 +12,7 @@ import { RunManager } from "../../mesh/src/runManager";
 import { RecentMeshStore } from "../../mesh/src/recentMeshes";
 import { installMenu } from "./menu";
 import { modeForFile, modeForViewType } from "./router";
+import { showOpenDialog } from "./services/dialogs";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
 import { configureWhatsNew, checkForNewVersion } from "./services/whatsNew";
@@ -24,6 +25,8 @@ import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./ser
 import { configureNotifications, handleToastButton, toast } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { recentFiles } from "./services/recentFiles";
+import { configureProjectRoot, projectRoot } from "./services/projectRoot";
+import { abbreviateHome, describeWithin, rootLabel } from "./services/projectRootCore";
 import { loadSession, restoreEnabled, saveSession } from "./services/session";
 import { captureSession } from "./services/sessionCore";
 import { HOME_RECENT_LIMIT } from "./services/recentFilesCore";
@@ -150,9 +153,12 @@ function sendHome(message: HomeToWebview): void {
 }
 
 /** Pushes the recents list to the home screen. Label and folder are formatted
- *  here because that renderer is a browser bundle and cannot import node:path. */
+ *  here because that renderer is a browser bundle and cannot import node:path.
+ *  A file inside the project root shows its folder relative to the root, which
+ *  is what makes the list read as "this project's files". */
 function pushRecents(): void {
   const home = app.getPath("home");
+  const root = projectRoot.explicit();
   sendHome({
     type: "recents",
     entries: recentFiles
@@ -162,9 +168,42 @@ function pushRecents(): void {
         path: entry.path,
         mode: entry.mode,
         label: recentLabel(entry.path),
-        description: recentDescription(entry.path, home),
+        description: describeWithin(root, entry.path, home),
       })),
   });
+}
+
+/** Pushes the project root to the shell chip and the home screen. Only an
+ *  *explicit* root is ever shown — an inferred one would change as the user
+ *  switched tabs (and would put a developer's absolute path into the committed
+ *  docs screenshots, which run the real app). */
+function pushProjectRoot(): void {
+  const root = projectRoot.explicit();
+  const payload = {
+    type: "projectRoot" as const,
+    path: root ?? null,
+    label: root ? rootLabel(root) : null,
+    display: root ? abbreviateHome(root, app.getPath("home")) : null,
+  };
+  sendShell(payload);
+  sendHome(payload);
+}
+
+/** File ▸ Open Folder… / the toolbar chip / the home screen's Change. */
+async function chooseProjectRoot(): Promise<void> {
+  const picked = await showOpenDialog({
+    title: "Choose Project Root",
+    openLabel: "Use as project root",
+    canSelectFolders: true,
+    defaultPath: projectRoot.effective(),
+  });
+  if (!picked?.[0]) return;
+  projectRoot.set(picked[0]);
+  // The pty reads its cwd once, at spawn, and cannot be redirected afterwards —
+  // so say what actually happens instead of letting it look ignored.
+  if (main?.terminalVisible()) {
+    toast("info", "Project root set — the terminal picks it up on its next shell.");
+  }
 }
 
 /** Persisted interface-scale (shared across launches). */
@@ -661,7 +700,10 @@ async function copyMetaServerConfig(): Promise<void> {
     detail:
       `URL: ${url}\nHeader: Authorization: Bearer ${token}\n\n` +
       "These tools read and write files on disk and can run simulations. Only share this " +
-      "address and token with a client you trust.",
+      "address and token with a client you trust.\n\n" +
+      (projectRoot.explicit()
+        ? `Project root: ${projectRoot.explicit()} — note this is a default, not a sandbox: the tools can reach any path the app can.`
+        : "No project root is set; the tools can reach any path the app can."),
   });
 }
 
@@ -694,10 +736,20 @@ app.whenReady().then(() => {
     onViewCrash,
   });
   configureNotifications(sendShell);
+  // The inferred half of the root: the focused document's folder, which is what
+  // every consumer used before this concept existed — so with no explicit root
+  // nothing changes.
+  configureProjectRoot(() => {
+    const current = (main?.mode() === "cad" ? activeCadHost() : activeMeshHost())?.currentFile;
+    return current ? path.dirname(current) : undefined;
+  });
+
   __configureVscodeShim({
     openWith: (fsPath, viewType) => openFile(fsPath, modeForViewType(viewType)),
     openTextDocument: (fsPath) => void editor?.openPath(fsPath),
     openLatestResults,
+    // Only the explicit root becomes a workspace folder — see the shim.
+    projectRoot: () => projectRoot.explicit(),
   });
 
   for (const mode of ["cad", "mesh"] as Mode[]) {
@@ -727,10 +779,8 @@ app.whenReady().then(() => {
   });
 
   terminal = new TerminalService(
-    () => {
-      const current = (main?.mode() === "cad" ? activeCadHost() : activeMeshHost())?.currentFile;
-      return current ? path.dirname(current) : undefined;
-    },
+    // Read once per shell, at spawn (a running pty cannot be redirected).
+    () => projectRoot.effective(),
     () => {
       if (main?.terminalVisible()) toggleTerminal();
     }
@@ -754,6 +804,7 @@ app.whenReady().then(() => {
       mesh: [...meshHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
       activeCad: activeCadHost()?.currentFile,
       activeMesh: activeMeshHost()?.currentFile,
+      projectRoot: projectRoot.explicit(),
     }),
     openSettings: openSettingsMenu,
     onHide: () => {
@@ -775,6 +826,12 @@ app.whenReady().then(() => {
       stepIn: () => stepUiZoom(1),
       stepOut: () => stepUiZoom(-1),
       reset: () => setUiZoom(DEFAULT_ZOOM),
+    },
+    projectRoot: {
+      current: () => projectRoot.explicit(),
+      isSet: () => projectRoot.isSet(),
+      choose: () => void chooseProjectRoot(),
+      clear: () => projectRoot.clear(),
     },
     recentFiles: {
       list: () => recentFiles.list(),
@@ -798,6 +855,13 @@ app.whenReady().then(() => {
     installMenu(menuDeps);
     pushRecents();
   });
+  // The root shows in the File menu's label, and changes how recents describe
+  // their folders, so both surfaces are rebuilt with it.
+  projectRoot.onDidChange(() => {
+    installMenu(menuDeps);
+    pushProjectRoot();
+    pushRecents();
+  });
 
   // Honor the persisted opt-in on startup.
   if (stateStore.get(META_SERVER_KEYS.enabled, false)) void setMetaServerEnabled(true);
@@ -816,6 +880,7 @@ app.whenReady().then(() => {
       // The home page may finish loading long after a recents change (or after
       // a crash reload) — replay it, the same way shellReady replays below.
       pushRecents();
+      pushProjectRoot();
       return;
     }
     if (msg.type === "openRecent") {
@@ -824,6 +889,14 @@ app.whenReady().then(() => {
     }
     if (msg.type === "clearRecents") {
       recentFiles.clear();
+      return;
+    }
+    if (msg.type === "chooseProjectRoot") {
+      void chooseProjectRoot();
+      return;
+    }
+    if (msg.type === "clearProjectRoot") {
+      projectRoot.clear();
       return;
     }
     if (msg.type !== "action") return;
@@ -858,6 +931,7 @@ app.whenReady().then(() => {
         syncTabs("cad");
         syncTabs("mesh");
         sendShell({ type: "zoom", factor: main.zoom() });
+        pushProjectRoot();
         if (deferredShellToast) {
           toast(deferredShellToast.kind, deferredShellToast.text);
           deferredShellToast = undefined;
@@ -904,6 +978,9 @@ app.whenReady().then(() => {
         break;
       case "selectTab":
         selectTab(msg.mode, msg.tabId);
+        break;
+      case "chooseProjectRoot":
+        void chooseProjectRoot();
         break;
     }
   });

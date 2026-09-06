@@ -32,7 +32,8 @@ import type { EditorService } from "./services/editor";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
 // The mesh submodule's recents core is vscode-free, so its label/folder
 // formatting is reused verbatim for KKSS's own app-wide list.
-import { recentDescription, recentLabel } from "../../mesh/src/recentMeshesCore";
+import { recentLabel } from "../../mesh/src/recentMeshesCore";
+import { describeWithin, rootLabel } from "./services/projectRootCore";
 import type { RecentFile } from "./services/recentFilesCore";
 import { RESTORE_SESSION_KEY } from "./services/session";
 import { DOCS_URL } from "./urls";
@@ -67,6 +68,19 @@ export interface MenuDeps {
    * `list()` prunes vanished files on read, so the submenu never offers a path
    * that no longer exists.
    */
+  /**
+   * The project root — a default for the terminal's cwd, file dialogs and the
+   * assistant's context, never a restriction. `current()` is the *explicit*
+   * root only, so the menu label reflects what the user actually chose.
+   */
+  projectRoot: {
+    /** The explicit root, if it still exists — drives the labels. */
+    current(): string | undefined;
+    /** Whether one is stored at all (a stale root stays clearable). */
+    isSet(): boolean;
+    choose(): void;
+    clear(): void;
+  };
   recentFiles: {
     list(): RecentFile[];
     open(fsPath: string, mode: Mode): void;
@@ -178,7 +192,7 @@ export function installMenu(deps: MenuDeps): void {
         label: recentLabel(entry.path),
         // A native menu has no second column, so the folder rides in the
         // tooltip (the same shape mesh's own activity-bar view shows).
-        toolTip: recentDescription(entry.path, app.getPath("home")),
+        toolTip: describeWithin(deps.projectRoot.current(), entry.path, app.getPath("home")),
         click: () => deps.recentFiles.open(entry.path, entry.mode),
       })),
       { type: "separator" as const },
@@ -190,6 +204,23 @@ export function installMenu(deps: MenuDeps): void {
     {
       label: "&File",
       submenu: [
+        {
+          // Scope, not a document — so it leads the File menu, above the
+          // document group, and the label names the current root.
+          label: deps.projectRoot.current()
+            ? `Project Root: ${rootLabel(deps.projectRoot.current()!)}…`
+            : "Open Folder…",
+          toolTip: deps.projectRoot.current(),
+          click: () => deps.projectRoot.choose(),
+        },
+        {
+          label: "Clear Project Root",
+          // Stays available for a stored-but-missing root (deleted or unmounted),
+          // which `current()` hides but the user still needs to be able to drop.
+          enabled: deps.projectRoot.isSet(),
+          click: () => deps.projectRoot.clear(),
+        },
+        { type: "separator" },
         {
           label: "Open…",
           accelerator: "CmdOrCtrl+O",

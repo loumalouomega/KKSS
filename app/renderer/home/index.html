@@ -14,8 +14,19 @@
     <h1 id="title">KKSS</h1>
     <p id="subtitle">Keep Kratos Simple Stupid</p>
     <div id="menu" role="menu" aria-label="Main menu"></div>
-    <!-- Populated from main over home:toWebview; hidden until there is
-         something to show, so a fresh install looks exactly as it always has. -->
+    <!-- Both sections are populated from main over home:toWebview and stay
+         hidden until there is something to show, so a fresh install looks
+         exactly as it always has. -->
+    <section id="project-root" hidden>
+      <div id="project-root-head">
+        <h2 id="project-root-title">Project root</h2>
+        <span id="project-root-actions">
+          <button id="project-root-change" type="button">Change</button>
+          <button id="project-root-clear" type="button" title="Go back to using the open document's folder">Clear</button>
+        </span>
+      </div>
+      <div id="project-root-path"></div>
+    </section>
     <section id="recents" hidden>
       <div id="recents-head">
         <h2 id="recents-title">Recent files</h2>

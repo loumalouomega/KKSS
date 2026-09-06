@@ -140,6 +140,9 @@ export interface OpenFilesInfo {
   mesh: string[];
   activeCad?: string | null;
   activeMesh?: string | null;
+  /** The project root the user is working in, when one is set. A default the
+   *  assistant should prefer for new files — not a restriction. */
+  projectRoot?: string;
 }
 
 export interface ChatDeps {
@@ -237,7 +240,10 @@ export class ChatService {
   /** Volatile context appended to the newest user message, not the system
    *  prompt, so the cached prompt prefix stays byte-stable. Each mode can have
    *  several open tabs — every path is listed, with the focused one marked,
-   *  so the model doesn't guess which document a bare "the file" refers to. */
+   *  so the model doesn't guess which document a bare "the file" refers to.
+   *  The project root leads when one is set: it is where the user is working,
+   *  so it is the sensible default for a file the assistant creates. It is a
+   *  default and not a boundary — nothing refuses a path outside it. */
   private contextSuffix(): string {
     const files = this.deps.currentFiles();
     const describe = (label: string, paths: string[], active?: string | null) => {
@@ -246,11 +252,12 @@ export class ChatService {
       return `${label}: ${list}`;
     };
     const parts = [
+      files.projectRoot ? `Project root: ${files.projectRoot}` : undefined,
       describe("CAD (pre-processing) tabs", files.cad, files.activeCad),
       describe("Mesh (post-processing) tabs", files.mesh, files.activeMesh),
     ].filter((p): p is string => !!p);
     if (!parts.length) return "";
-    return `\n\n[Context — files currently open in KKSS: ${parts.join("; ")}]`;
+    return `\n\n[Context — KKSS workspace: ${parts.join("; ")}]`;
   }
 
   async run(text: string): Promise<void> {

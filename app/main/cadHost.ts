@@ -102,6 +102,7 @@ import {
 } from "../../cad/src/meshioService";
 import { cadCompute } from "./cadComputeClient";
 import { toKkssUrl, allowRoot } from "./protocol";
+import { projectRoot } from "./services/projectRoot";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
 import { showQuickPick, showInputBox } from "./services/quickPick";
 import { stateStore } from "./services/stateStore";
@@ -1650,7 +1651,10 @@ export class CadHost {
    */
   private async newBlankModelDialog(): Promise<void> {
     try {
-      const defaultDir = this.doc ? path.dirname(this.doc.path) : undefined;
+      // With no open document, fall back to the project root rather than a bare
+      // relative name — that would resolve against the process cwd, which is
+      // arbitrary in a packaged app.
+      const defaultDir = this.doc ? path.dirname(this.doc.path) : projectRoot.effective();
       const destPath = await showSaveDialog({
         defaultPath: defaultDir ? path.join(defaultDir, "untitled.brep") : "untitled.brep",
         filters: [{ name: "CAD (B-rep)", extensions: ["brep"] }],

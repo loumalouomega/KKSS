@@ -2,14 +2,14 @@
  * Home screen: the config-driven main menu shown on launch (see homeConfig.ts),
  * plus the recent-files list.
  *
- * The buttons are static config; the recents block is pushed from main over
- * home:toWebview (this is the only inbound message this page takes) and is
- * re-pushed on `homeReady`, so a reload replays it. Rows arrive pre-formatted
- * because this is a browser bundle with no node:path.
+ * The buttons are static config; the recents list and the project-root line are
+ * pushed from main over home:toWebview and re-pushed on `homeReady`, so a
+ * reload replays them. Both arrive pre-formatted because this is a browser
+ * bundle with no node:path.
  */
 import { HOME_BUTTONS } from "./homeConfig";
 import { TOOLBAR_ICONS } from "../shell/shellIcons";
-import type { HomeToWebview, RecentEntry } from "../../main/ipc";
+import type { HomeToWebview, ProjectRootInfo, RecentEntry } from "../../main/ipc";
 
 declare global {
   interface Window {
@@ -78,9 +78,28 @@ function renderRecents(entries: RecentEntry[]): void {
   recents.hidden = entries.length === 0;
 }
 
+const projectRootSection = document.getElementById("project-root") as HTMLElement;
+const projectRootPath = document.getElementById("project-root-path") as HTMLElement;
+
+document
+  .getElementById("project-root-change")!
+  .addEventListener("click", () => api.post({ type: "chooseProjectRoot" }));
+document
+  .getElementById("project-root-clear")!
+  .addEventListener("click", () => api.post({ type: "clearProjectRoot" }));
+
+function renderProjectRoot(info: ProjectRootInfo): void {
+  // Only an explicitly chosen root is shown; an inferred one would change every
+  // time the focused document did.
+  projectRootPath.textContent = info.display ?? "";
+  projectRootPath.title = info.path ?? "";
+  projectRootSection.hidden = !info.path;
+}
+
 api.onMessage((raw) => {
   const message = raw as HomeToWebview;
   if (message?.type === "recents") renderRecents(message.entries);
+  else if (message?.type === "projectRoot") renderProjectRoot(message);
 });
 
 api.post({ type: "homeReady" });

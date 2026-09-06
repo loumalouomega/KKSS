@@ -24,6 +24,7 @@ The app opens on a **home screen** with one button per task; a toolbar toggle (a
 - **Embedded terminal** (``Ctrl+` ``) — a real PowerShell/`$SHELL` panel below the viewer for launching Kratos runs, powered by node-pty + xterm.js.
 - **Text editor** — a lightweight CodeMirror 6 editor for input files and scripts (JSON/Python highlighting, dirty-state guards).
 - **About & updates** — Help ▸ About checks GitHub for new releases and can download + install them in place (Windows installer and Linux AppImage).
+- **Project folder** — **File ▸ Open Folder…** picks the directory you're working in; it seeds the terminal's cwd, every file dialog, the assistant's context, and makes `.kratos/problemtypes/*.js` in that folder available in Post-Processing. A default, not a sandbox — nothing outside it is refused.
 - **Picks up where you left off** — recent files on the home screen and in **File ▸ Open Recent** (both modes, each reopening in the mode it belongs to), and an on-by-default session restore that reopens your last tabs, screen and panels; deleted files are pruned rather than reopened as dead tabs.
 - **Settings menu** — color theme (shared with the mesh viewer), terminal shell, session restore, and LLM assistant provider/keys, persisted across runs.
 

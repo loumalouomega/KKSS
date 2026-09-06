@@ -431,6 +431,45 @@ Concretely:
   mode), and **`unresponsive` is deliberately not wired to it** — that fires on
   any long synchronous parse, exactly what both viewers do on a large mesh, so
   reloading on it would destroy a working session mid-load.
+- **The project folder is a default, never a fence.** `services/projectRoot.ts`
+  seeds the terminal's cwd, file-dialog start folders, the chat context suffix
+  and the shim's `workspaceFolders` — and refuses nothing. It is deliberately
+  **not** wired to `protocol.ts`'s `allowRoot`, which stays per-document:
+  widening that allow-list to the root would silently make every file under it
+  fetchable by a webview, i.e. build a fence out of the thing that was decided
+  not to be one. Path scoping for the MCP toolset is a separate, later decision.
+  Two levels: `explicit()` (chosen, persisted under `projectRoot`) and
+  `effective()` (explicit, else the focused document's directory). **Consumers
+  use `effective()`, so with no explicit root behavior is byte-identical to
+  before the concept existed**; only `explicit()` is ever *displayed* or given
+  to the shim, because an inferred root changes with the focused tab and would
+  also bake a developer's absolute path into the committed docs screenshots. A
+  stored root that is gone degrades to "none" on read but is never erased (an
+  unmounted share must not silently forget the setting), which is why the menu's
+  Clear uses `isSet()` rather than `current()`.
+- **`workspaceFolders` is populated for an explicit root only, and that is a
+  safety decision.** `ptController.discoverExternal()` does not merely *locate*
+  `<root>/.kratos/problemtypes` — it **executes** what it finds (sandboxed: a
+  `node:vm` context with no `require`/`process`/`fs`, `codeGeneration` off, 2 s
+  timeout). Gating on the explicit root means opening a mesh that happens to sit
+  beside such a directory never runs it; only a deliberate File ▸ Open Folder…
+  does. It must also stay a **getter** on the shim's `workspace` object — the
+  old static property was evaluated once at import and could never track a
+  changing root — and it reaches the shim through `__configureVscodeShim`'s
+  hooks, whose default returns `undefined` rather than throwing like the other
+  hooks, since this is a passive read submodule code makes at any time.
+- **`services/dialogs.ts` is the one place the dialog default is injected.** A
+  `defaultPath ?? projectRoot.effective()` there covers cadHost *and* every mesh
+  dialog, because esbuild aliases `vscode` to the shim and the shim funnels
+  `defaultUri` through it — so this needs no submodule edit. `??` and not `||`:
+  a caller that knows better always wins, which is what keeps mesh's
+  document-relative save/export defaults intact. **`services/editor.ts` is the
+  one bypass** — it calls Electron's `dialog` directly, parented to the window
+  for its dirty-buffer modality, so it applies the same default itself.
+- **The terminal picks up a root change on its next shell, never the running
+  one.** node-pty has no chdir and the cwd is read once at spawn, so a change
+  toasts what actually happened instead of appearing ignored — the same contract
+  the neighbouring `terminalShell` setting already states.
 - **Recents are recorded at exactly one choke point.** `openFile()` in
   `index.ts`, which is why every user-facing open is routed through it. The
   three `host.openPath()` callers that bypass it — crash replay in

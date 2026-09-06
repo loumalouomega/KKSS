@@ -94,6 +94,10 @@ body {
 
 /* Recent files — pushed from main, hidden entirely when the list is empty so a
    fresh install's home screen is unchanged. */
+#recents[hidden] {
+  display: none;
+}
+
 #recents {
   display: flex;
   flex-direction: column;
@@ -169,6 +173,62 @@ body {
 }
 
 .recent-btn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Project root — same 320px column and head/text-link pattern as #recents. */
+/* Same [hidden] precedence caveat as the shell's root chip. */
+#project-root[hidden] {
+  display: none;
+}
+
+#project-root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 320px;
+  margin-top: 18px;
+}
+
+#project-root-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#project-root-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+
+#project-root-actions {
+  display: flex;
+  gap: 10px;
+}
+
+#project-root-actions button {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 11px;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+}
+
+#project-root-actions button:hover {
+  text-decoration: underline;
+}
+
+#project-root-path {
+  font-size: 12px;
+  color: var(--vscode-foreground);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

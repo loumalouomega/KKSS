@@ -67,6 +67,13 @@ export interface VscodeShimHooks {
    * is the *only* path behind PtController.openResults(), so it cannot throw.
    */
   openLatestResults(caseDir: string, options?: { excludeNewest?: boolean }): void;
+  /**
+   * The explicit project root, or undefined when the user has not chosen one.
+   * Backs `workspace.workspaceFolders` — unlike the hooks above this is a
+   * passive read that submodule code can make at any time, so its unconfigured
+   * default returns undefined rather than throwing.
+   */
+  projectRoot(): string | undefined;
 }
 
 let hooks: VscodeShimHooks = {
@@ -79,6 +86,7 @@ let hooks: VscodeShimHooks = {
   openLatestResults: () => {
     throw new Error("vscodeShim: hooks not configured");
   },
+  projectRoot: () => undefined,
 };
 
 export function __configureVscodeShim(h: VscodeShimHooks): void {
@@ -415,11 +423,22 @@ export const workspace = {
   },
 
   /**
-   * KKSS opens files, not folders — ptController reads this only to resolve
-   * `kratos.problemtypes.extraPaths` relative to a workspace, and treats
-   * undefined as "none". mesh's own `?? []` handles it.
+   * The explicit project root, as a one-folder workspace.
+   *
+   * ptController reads this only to resolve `kratos.problemtypes.extraPaths`
+   * (`<root>/.kratos/problemtypes` by default), so setting a root is what makes
+   * project-local problemtypes discoverable — impossible while this was always
+   * undefined. It is the *explicit* root deliberately: an inferred one would
+   * change every time the user focused another tab, so the catalog would flap.
+   * Undefined when no root is set, which mesh's own `?? []` already handles.
+   *
+   * A getter, not a value: the root changes at runtime, and the shim's exports
+   * are read once at import time by the submodule modules.
    */
-  workspaceFolders: undefined as undefined | { uri: Uri }[],
+  get workspaceFolders(): { uri: Uri }[] | undefined {
+    const root = hooks.projectRoot();
+    return root ? [{ uri: Uri.file(root) }] : undefined;
+  },
 
   /**
    * mesh 3.2.0's mdpa provider re-parses when the file is saved in a text

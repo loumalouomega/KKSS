@@ -60,7 +60,9 @@ body {
 #home-btn,
 #open-btn,
 #edit-btn,
-#terminal-btn {
+#terminal-btn,
+#chat-btn,
+#root-btn {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
   border: none;
@@ -73,7 +75,9 @@ body {
 #home-btn:hover,
 #open-btn:hover,
 #edit-btn:hover,
-#terminal-btn:hover {
+#terminal-btn:hover,
+#chat-btn:hover,
+#root-btn:hover {
   background: var(--vscode-button-secondaryHoverBackground);
 }
 
@@ -232,4 +236,32 @@ body {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Project-root chip. Hidden entirely unless a root is explicitly set, so the
+   toolbar is unchanged for anyone who never picks one. */
+/* `hidden` must win over the display below — an explicit `display` in a later
+   rule beats the UA stylesheet's [hidden] { display: none }. */
+#root-btn[hidden] {
+  display: none;
+}
+
+#root-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+}
+
+#root-btn .toolbar-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+
+#root-btn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

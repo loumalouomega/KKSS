@@ -179,15 +179,31 @@ export interface RecentEntry {
   description: string;
 }
 
+/**
+ * The project root, pre-formatted for the renderers (neither can import
+ * node:path). `path` is null when no root is explicitly set — an inferred root
+ * still drives defaults but is never displayed.
+ */
+export interface ProjectRootInfo {
+  type: "projectRoot";
+  path: string | null;
+  /** The folder's own name — the toolbar chip and home-screen line. */
+  label: string | null;
+  /** $HOME-abbreviated full path — the tooltip. */
+  display: string | null;
+}
+
 /** Messages posted by the home-screen renderer. */
 export type HomeToHost =
   | { type: "homeReady" }
   | { type: "action"; action: HomeAction }
   | { type: "openRecent"; path: string; mode: Mode }
-  | { type: "clearRecents" };
+  | { type: "clearRecents" }
+  | { type: "chooseProjectRoot" }
+  | { type: "clearProjectRoot" };
 
 /** Messages pushed to the home-screen renderer. */
-export type HomeToWebview = { type: "recents"; entries: RecentEntry[] };
+export type HomeToWebview = { type: "recents"; entries: RecentEntry[] } | ProjectRootInfo;
 
 /** Messages posted by the shell toolbar renderer. */
 export type ShellToHost =
@@ -205,7 +221,9 @@ export type ShellToHost =
   /** ✕ on a tab — closes it (no dirty-prompt; see CLAUDE.md's tabs invariant). */
   | { type: "closeTab"; mode: Mode; tabId: string }
   /** Clicking a tab — focuses it. */
-  | { type: "selectTab"; mode: Mode; tabId: string };
+  | { type: "selectTab"; mode: Mode; tabId: string }
+  /** The toolbar's project-root chip — opens the folder picker. */
+  | { type: "chooseProjectRoot" };
 
 /** One tab's shell-visible state (tab strip row). */
 export interface ShellTabInfo {
@@ -223,4 +241,5 @@ export type ShellToWebview =
   | { type: "tabs"; mode: Mode; tabs: ShellTabInfo[]; activeTabId: string | undefined }
   | { type: "zoom"; factor: number }
   | { type: "toast"; id: number; kind: "info" | "warning" | "error" | "progress"; text: string; buttons?: string[] }
-  | { type: "toastUpdate"; id: number; text?: string; done?: boolean };
+  | { type: "toastUpdate"; id: number; text?: string; done?: boolean }
+  | ProjectRootInfo;

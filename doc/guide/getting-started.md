@@ -35,6 +35,19 @@ The toolbar at the top of the window holds the mode toggle:
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved.
 
+### The project folder
+
+**File ▸ Open Folder…** sets a project folder — the one place KKSS treats as "where you are working". It is remembered across launches, shown in the toolbar (hover for the full path, click to change) and on the home screen, and it seeds:
+
+- the **terminal**'s working directory,
+- the starting folder of **every file dialog** — Open, Save As, exports, the text editor,
+- the **AI assistant**'s context, so it knows where to put files it creates,
+- **project-local problemtypes**: a `.kratos/problemtypes/*.js` file inside the folder shows up in the Post-Processing Problemtype list alongside the built-ins. This only happens for a folder you chose explicitly — opening a mesh that merely sits next to one never runs it.
+
+It is a **default, not a restriction**. Nothing is refused for living outside it: you can open, save and export anywhere as always, and the MCP tools are not sandboxed to it. Until you set one, KKSS infers the folder from the document you are working on — exactly what it did before — so everything works with no setup.
+
+**File ▸ Clear Project Root** goes back to that inferred behavior. Note the terminal reads its directory once, when its shell starts, so changing the folder applies to the *next* shell rather than the one already running.
+
 ### Picking up where you left off
 
 KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there.
@@ -136,6 +149,7 @@ Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the too
 | Shortcut | Action |
 | --- | --- |
 | `Ctrl+O` | Open a file into the focused tab of the active mode |
+| — | **File ▸ Open Folder…** sets the project folder; **Clear Project Root** reverts to inferring it |
 | — | **File ▸ Open Recent** reopens one of the last ten files, in the mode it was opened in |
 | — | **File ▸ New Blank Model…** creates an empty `.brep` to build from scratch (Pre-Processing) |
 | `Ctrl+W` | Close the focused tab |
