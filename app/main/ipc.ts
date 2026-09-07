@@ -102,6 +102,29 @@ export interface ChatPendingApproval {
   argsJson: string;
   /** Why it is being asked — drives the prompt's explanation line. */
   access: "write" | "unknown";
+  /** The tool declares a dry-run parameter, so the prompt offers Validate.
+   *  Computed by the main process: the renderer must not carry toolPolicy's
+   *  table, and a client-side guess would offer a button that cannot work. */
+  dryRunnable: boolean;
+  /** A validation already run for this call. Replayed alongside the prompt for
+   *  the same reason the prompt itself is: a renderer reload must not silently
+   *  discard the answer the user is still looking at. Text only — images would
+   *  re-inflate every `state` message. */
+  dryRunPreview?: { ok: boolean; text: string };
+}
+
+/**
+ * One image block from a tool result, forwarded to the sidebar for display.
+ *
+ * Session-only, and never part of `ChatWireEntry`: the transcript store holds
+ * what the *model* was given, and the model only ever sees the `[image content]`
+ * placeholder `flattenContent` writes. These ride their own `toolImages`
+ * message so a `state` replay — which fires on far more than a reload — does
+ * not structured-clone megabytes of base64 on the main thread.
+ */
+export interface ChatImage {
+  mimeType: string;
+  dataBase64: string;
 }
 
 export type ChatWireEntry =
@@ -136,6 +159,10 @@ export type ChatToHost =
   | { type: "send"; text: string }
   | { type: "stop" }
   | { type: "approveTool"; callId: string; decision: "allow" | "allowAlways" | "deny" }
+  /** Re-runs the blocked call in validate-only mode. Deliberately NOT an
+   *  `approveTool` decision: it leaves the gate open so the user answers it
+   *  with the report in front of them. */
+  | { type: "dryRunTool"; callId: string }
   /** Archives the current conversation and starts an empty one — nothing lost. */
   | { type: "newChat" }
   /** Refresh the history list (the popover was opened). */
@@ -167,6 +194,13 @@ export type ChatToWebview =
   | { type: "entry"; entry: ChatWireEntry }
   | { type: "approvalRequest"; pending: ChatPendingApproval }
   | { type: "approvalResolved"; callId: string; approval: ChatToolApproval }
+  /** Images from a tool result, sent right after its entry (and replayed after
+   *  `state`) rather than carried on the entry itself — see ChatImage.
+   *  `live` marks a result that has just arrived, which the sidebar expands;
+   *  a replay must stay collapsed or a long transcript decodes everything at
+   *  once. Main knows which this is — the renderer must not infer it. */
+  | { type: "toolImages"; callId: string; images: ChatImage[]; live: boolean }
+  | { type: "dryRunResult"; callId: string; ok: boolean; text: string }
   | { type: "assistantStart" }
   | { type: "assistantDelta"; text: string }
   | { type: "assistantDone"; entry: ChatWireEntry }

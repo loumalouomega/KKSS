@@ -315,6 +315,17 @@ body {
   word-break: break-word;
 }
 
+/* A rendered image block from a tool result. max-height keeps an eight-view
+   comparison from burying the rest of the transcript. */
+.tool img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-top: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editor-background);
+}
+
 /* ---- tool approval --------------------------------------------------- */
 
 .tool .tool-status.ask {
@@ -357,9 +368,32 @@ body {
   color: var(--vscode-button-foreground);
 }
 
+.tool .tool-approval button.dryrun {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-foreground);
+}
+
+.tool .tool-approval button.dryrun:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .tool .tool-approval button.deny {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-errorForeground, #f85149);
+}
+
+/* Not a result: a validation run at the user's request while the prompt is
+   still open. Styled like the decided row so it cannot read as one. */
+.tool .dry-run-report {
+  border-top: 1px solid var(--vscode-panel-border);
+  font-size: 11px;
+}
+
+.tool .dry-run-report .dry-run-heading {
+  padding: 6px 8px 0;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
 }
 
 /* A decision already taken: history, not a control. */

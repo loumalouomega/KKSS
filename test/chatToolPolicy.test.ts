@@ -14,11 +14,12 @@ import {
   classifyTool,
   DEFAULT_APPROVAL_MODE,
   DRY_RUN_PARAM,
+  dryRunArgs,
   gateFor,
   isApprovalMode,
   TOOL_ACCESS,
-  unclassifiedTools,
   type ApprovalMode,
+  unclassifiedTools,
 } from "../app/main/services/chat/toolPolicy";
 
 const none = new Set<string>();
@@ -213,8 +214,8 @@ describe("the table itself", () => {
   });
 
   it("only names dry-run parameters for tools that actually declare one", () => {
-    // Unused today (the prompt offers no Dry run button) — kept so that work is
-    // an isolated change. Every entry must still be a real, classified tool.
+    // Drives the prompt's Validate button, so a row here must be a real tool
+    // that really takes the parameter — a wrong one offers a button that fails.
     for (const name of Object.keys(DRY_RUN_PARAM)) {
       expect(classifyTool(name)).not.toBe("unknown");
     }
@@ -223,5 +224,49 @@ describe("the table itself", () => {
       "cad__run_parametric_script",
       "cad__run_saved_script",
     ]);
+  });
+});
+
+describe("dryRunArgs", () => {
+  const CALL = "cad__apply_edit_ops";
+
+  it("asks for validation while leaving the model's other arguments intact", () => {
+    for (const name of Object.keys(DRY_RUN_PARAM)) {
+      const rewritten = dryRunArgs(name, '{"path":"/a.stp","ops":[1]}');
+      expect(rewritten && JSON.parse(rewritten)).toEqual({ path: "/a.stp", ops: [1], dryRun: true });
+    }
+  });
+
+  it("does not mutate the arguments the user was shown", () => {
+    const argsJson = '{"path":"/a.stp"}';
+    dryRunArgs(CALL, argsJson);
+    expect(argsJson).toBe('{"path":"/a.stp"}');
+  });
+
+  it("declines a tool that has no dry-run parameter", () => {
+    expect(dryRunArgs("mesh__mesh_transform", '{"path":"/a.mdpa"}')).toBeNull();
+    expect(dryRunArgs("kratos__run_simulation", "{}")).toBeNull();
+  });
+
+  it("declines arguments that are not a JSON object", () => {
+    // A property set on an array or a number would be silently lost, and the
+    // button would report on a call the server never saw the way we meant it.
+    expect(dryRunArgs(CALL, "not json")).toBeNull();
+    expect(dryRunArgs(CALL, "[]")).toBeNull();
+    expect(dryRunArgs(CALL, "3")).toBeNull();
+    expect(dryRunArgs(CALL, "null")).toBeNull();
+  });
+
+  it("declines a call the model already marked as a dry run", () => {
+    expect(dryRunArgs(CALL, '{"path":"/a.stp","dryRun":true}')).toBeNull();
+  });
+
+  it("overrides an explicit false — asking to validate outranks the default", () => {
+    const rewritten = dryRunArgs(CALL, '{"path":"/a.stp","dryRun":false}');
+    expect(rewritten && JSON.parse(rewritten)).toEqual({ path: "/a.stp", dryRun: true });
+  });
+
+  it("treats empty arguments as an empty object", () => {
+    expect(dryRunArgs(CALL, "")).toBe('{"dryRun":true}');
   });
 });

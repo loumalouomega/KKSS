@@ -667,6 +667,52 @@ Concretely:
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
   `test/chatToolPolicy.test.ts` pins the exact 71-name key set.
+- **A dry run is a check for the human, and is the one chat message that
+  deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
+  call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
+  the single decision point — it also declines a tool with no row, unparseable
+  or non-object args, and a call the model already marked `dryRun: true`, and
+  that same null check is what decides whether the button is offered at all).
+  Three properties make it safe next to the "must always settle" rule above:
+  it never touches `awaitApproval`'s promise, so all five `settleTurn()` paths
+  are unchanged; `run()` **never awaits it**, so it cannot delay an abort; and
+  it **never calls `append()`**, so the model is never handed a result for a
+  call that did not happen — which is what removes the semantics problem the
+  roadmap item was blocked on, and why no `contextSuffix()` or system-prompt
+  change was needed. Its result is gated twice, because the handler runs outside
+  `run()` and has neither value in scope: the turn's `convo` and `signal` are
+  carried on the `pendingApproval` record and re-read on completion, so a Stop,
+  a conversation switch or a delete drops the report instead of painting it into
+  whatever is on screen. `awaitApproval`'s `finish()` nulls that record, which is
+  also what makes an in-flight dry run stale — one line covering Deny, Allow (a
+  late report would otherwise race the real call's own writes), abort and
+  `flushSync()`. Re-entrancy is guarded on **main**, not by disabling the button:
+  a `state` replay rebuilds the prompt with a fresh enabled one. The report is
+  worded narrowly on purpose — cad gates its OCCT replay on the same flag it
+  gates its writes on, so it says which ops parse and are legal, never what the
+  geometry would become. Hence **Validate (dry run)**, not "Preview".
+- **Tool-result images are session-only, and never ride a `ChatWireEntry`.**
+  `mcpManager.extractImages()` forwards `{type:"image"}` blocks for display;
+  `flattenContent()` is deliberately untouched, so the model keeps seeing its
+  `[image content]` placeholder and the two views cannot drift (a routing test
+  pins the pairing). That is also why they are not stored:
+  `transcriptStoreCore.ts` holds "the full tool-result text **the model was
+  given**", and the model is not given the bytes — so `ChatEntry`, `parseEntry`
+  and `CHAT_STORE_VERSION` are all unchanged, and `<id>.json` never carries
+  megabytes of base64 through the whole-file atomic rewrite. They travel as their
+  own `toolImages` message, sent after the entry and replayed after `state`,
+  because `sendState()` fires on far more than a reload (`chatReady`, an empty
+  New chat, re-selecting the active conversation, rename, every switch) and
+  `webContents.send` structured-clones synchronously on the main thread. The
+  cache is one `Map<callId, ChatImage[]>` for the **active conversation only** —
+  not keyed by conversation, since `sendState()` only ever replays the active one
+  — cleared in `switchTo()`, which makes `IMAGE_BUDGET_BYTES` the global bound by
+  construction. The per-image byte cap is small because it bounds the *transfer*,
+  not the decoded bitmap (a 2 MB PNG can be 20000² pixels); the renderer creating
+  its `<img>` lazily on the chip's `toggle`, and `live` on the wire so a replay
+  never force-opens a chip, are the other half of that bound. SVG is excluded
+  from the mime allow-list and `dataBase64` is shape-validated: it is
+  interpolated into a `data:` URL by a page with no `'unsafe-inline'`.
 - **One shared McpManager, two front-ends.** `McpHub`
   (`services/chat/mcpHub.ts`) owns the single `McpManager`; both the chat loop
   and the optional **HTTP meta MCP server** (`services/metaServer/`) call

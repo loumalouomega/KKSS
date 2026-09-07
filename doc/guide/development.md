@@ -123,6 +123,24 @@ The gate sits in `chatService.ts`'s tool loop, between appending the `toolCall` 
 
 `unclassifiedTools()` is the submodule-bump seam: `ChatService` logs the unclassified names once per process, and `test/chatToolPolicy.test.ts` pins the exact 71-name key set, so a bump that adds a tool is a visible edit rather than a silent slide into "ask about everything".
 
+#### Validate (dry run)
+
+Three cad tools take a `dryRun` parameter (`cad__apply_edit_ops`, `cad__run_parametric_script`, `cad__run_saved_script`), listed in `toolPolicy.ts`'s `DRY_RUN_PARAM`. When the blocked call is one of them the prompt grows a fourth button, **Validate (dry run)**, which re-issues it with that flag set so the user can answer the prompt with a report in front of them.
+
+It is deliberately **not** a fourth decision. `dryRunTool` (renderer → main, `callId`-correlated like `approveTool`) leaves the gate open, and the report is pushed back as `dryRunResult` and **never appended to the transcript** — so the model is never handed a result for a call that did not happen, which is the semantics problem that kept this unbuilt, and no `contextSuffix()` or system-prompt change was needed. `dryRunArgs()` in `toolPolicy.ts` is the single decision point: it rewrites the arguments without mutating them, and returns `null` (which is also what hides the button) for a tool with no row, unparseable or non-object arguments, or a call the model already marked `dryRun: true`.
+
+Because the handler runs outside `run()`, the turn's conversation and abort signal are carried on the `pendingApproval` record and re-read when the call returns — a Stop, a conversation switch or a delete drops the report rather than painting it into whatever is on screen. `awaitApproval`'s `finish()` nulls that record, which is what makes an in-flight dry run stale on Deny, Allow, abort and `flushSync()` alike. Re-entrancy is guarded on main rather than by disabling the button, since a `state` replay rebuilds the prompt with a fresh one. A completed report rides `pendingApproval.dryRunPreview` so a reload keeps it.
+
+The wording is narrow on purpose: cad gates its OCCT replay on the same flag it gates its writes on, so the report says which operations parse and are legal — not what the geometry would become.
+
+#### Images in tool results
+
+`mcpManager.extractImages()` forwards an MCP tool result's `{type:"image"}` blocks to the sidebar, which is how `cad__render_snapshot` and `cad__compare_models` become visible. `flattenContent()` is untouched, so the *model* still reads its `[image content]` placeholder and the two views cannot drift apart (a test in `test/chatMcpRouting.test.ts` pins the pairing).
+
+They are **session-only**. The transcript store holds the full tool-result text *the model was given*, and the model is not given the bytes — so `ChatEntry`, `parseEntry` and `CHAT_STORE_VERSION` are unchanged, and no conversation file carries megabytes of base64 through its whole-file atomic rewrite. They also never ride a `ChatWireEntry`: they travel as their own `toolImages` message, sent after the entry and replayed after `state`, because `sendState()` fires on far more than a reload and `webContents.send` structured-clones synchronously on the main thread. The cache is one `Map<callId, ChatImage[]>` for the active conversation, cleared in `switchTo()`, so `IMAGE_BUDGET_BYTES` is the global bound by construction (oldest-first eviction).
+
+Caps are set for the renderer's benefit, not the wire's: a byte cap bounds the transfer but not the decoded bitmap, so the per-image cap is small, the message carries `live` (a replay never force-opens a chip), and the `<img>` is created lazily when the chip is actually expanded. SVG is excluded from the mime allow-list and the base64 is shape-validated — it is interpolated into a `data:` URL by a page with no `'unsafe-inline'`. `app/renderer/chat/index.html`'s CSP already allowed `img-src kkss: data:`, so it needed no change.
+
 ### Meta MCP server (expose the toolset over HTTP)
 
 The same aggregated toolset can be re-exposed as a single MCP **server** so an *external* LLM client (Claude Desktop, another agent) drives KKSS — the inverse of the sidebar (which makes KKSS an MCP client). One `McpManager` is shared between both front-ends via **`McpHub`** (`app/main/services/chat/mcpHub.ts`), constructed once in `index.ts` and disposed on `will-quit`; whichever of {chat opened, external client connected} happens first spawns the three children, the other reuses them — never a double spawn.

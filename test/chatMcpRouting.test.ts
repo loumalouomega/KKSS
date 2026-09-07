@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildServerSpecs, flattenContent, KRATOS_MCP_VERSION, namespaceTool, splitToolName } from "../app/main/services/chat/mcpManager";
+import {
+  buildServerSpecs,
+  extractImages,
+  flattenContent,
+  KRATOS_MCP_VERSION,
+  namespaceTool,
+  splitToolName,
+} from "../app/main/services/chat/mcpManager";
 
 const KEYS = ["cad", "mesh", "kratos"];
 
@@ -33,6 +40,61 @@ describe("flattenContent", () => {
 
   it("tolerates non-array content", () => {
     expect(flattenContent(undefined)).toBe("");
+  });
+});
+
+describe("extractImages", () => {
+  const png = (data = "aXNv") => ({ type: "image", mimeType: "image/png", data });
+
+  it("keeps the raster formats a data: URL can display", () => {
+    const images = extractImages([
+      { type: "image", mimeType: "image/png", data: "AA==" },
+      { type: "image", mimeType: "image/jpeg", data: "AQ==" },
+      { type: "image", mimeType: "image/webp", data: "Ag==" },
+      { type: "image", mimeType: "image/gif", data: "Aw==" },
+    ]);
+    expect(images.map((i) => i.mimeType)).toEqual(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+  });
+
+  it("drops SVG and unknown types", () => {
+    // SVG is markup, and it would be handed a data: URL in the sidebar.
+    expect(extractImages([{ type: "image", mimeType: "image/svg+xml", data: "AA==" }])).toEqual([]);
+    expect(extractImages([{ type: "image", mimeType: "application/pdf", data: "AA==" }])).toEqual([]);
+  });
+
+  it("drops a payload that is not plain base64", () => {
+    expect(extractImages([{ type: "image", mimeType: "image/png", data: "not*base64" }])).toEqual([]);
+    expect(extractImages([{ type: "image", mimeType: "image/png", data: "" }])).toEqual([]);
+    expect(extractImages([{ type: "image", mimeType: "image/png", data: 42 }])).toEqual([]);
+  });
+
+  it("caps the number of images at one comparison's worth", () => {
+    expect(extractImages(Array.from({ length: 20 }, () => png()))).toHaveLength(8);
+  });
+
+  it("drops an image over the per-image cap but keeps its neighbours", () => {
+    const huge = { type: "image", mimeType: "image/png", data: "A".repeat(600 * 1024) };
+    const images = extractImages([png("AA=="), huge, png("Ag==")]);
+    expect(images.map((i) => i.dataBase64)).toEqual(["AA==", "Ag=="]);
+  });
+
+  it("stops at the per-result budget", () => {
+    // Five 500 KB images exceed the 2 MB total; only the first four fit.
+    const big = () => ({ type: "image", mimeType: "image/png", data: "A".repeat(500 * 1024) });
+    expect(extractImages(Array.from({ length: 5 }, big))).toHaveLength(4);
+  });
+
+  it("ignores text blocks and tolerates malformed content", () => {
+    expect(extractImages([{ type: "text", text: "hi" }, null, "nope", png()])).toHaveLength(1);
+    expect(extractImages(undefined)).toEqual([]);
+  });
+
+  it("leaves the model's view of the same result unchanged", () => {
+    // The two must not drift: the model reads the placeholder, the user sees
+    // the picture, and both come from one content array.
+    const content = [{ type: "text", text: "line one" }, png(), { type: "text", text: "line two" }];
+    expect(flattenContent(content)).toBe("line one\n[image content]\nline two");
+    expect(extractImages(content)).toHaveLength(1);
   });
 });
 

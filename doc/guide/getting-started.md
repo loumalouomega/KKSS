@@ -137,6 +137,16 @@ Read-only tools — inspect, measure, mesh info, render — run without asking, 
 
 Note this covers the built-in sidebar only. If you expose the toolset to an external MCP client (below), that path is protected by its bearer token alone — there is nobody at the keyboard to ask.
 
+For a few CAD tools — applying edit operations, and running a parametric or saved script — a fourth button appears: **Validate (dry run)**. It runs the same call in a mode that writes nothing and executes nothing, and shows you the result right there in the prompt. The prompt stays open, so you read the report and *then* choose Allow or Deny.
+
+What it checks is narrower than a preview: it tells you which operations parse and are legal, not what the geometry would look like afterwards. The report is for you only — the assistant is not told about it, and is not told a call happened when it did not.
+
+### Seeing what the assistant sees
+
+Some tools return pictures — a rendered snapshot of a model, or a side-by-side comparison of two. Those appear in the tool's entry in the transcript, so when the assistant says a part looks wrong you can look at the same image it did. A result that has just arrived opens by itself; older ones in a long conversation stay folded away until you click them.
+
+Images live for as long as the app is running. They are not written into the saved conversation, so reopening it later shows the tool call and its text, without the pictures.
+
 ### Conversations
 
 Conversations are saved as you go and survive quitting the app — including the tool calls that record what the assistant actually did to your files, which is often the only account of it. **⟳ New** starts a fresh one and keeps the current one; nothing is discarded, so there is nothing to confirm.

@@ -21,6 +21,7 @@ import { app, ipcMain, WebContents } from "electron";
 import type {
   ChatConversationInfo,
   ChatErrorKind,
+  ChatImage,
   ChatPendingApproval,
   ChatToHost,
   ChatToolApproval,
@@ -29,6 +30,7 @@ import type {
 import {
   classifyTool,
   DEFAULT_APPROVAL_MODE,
+  dryRunArgs,
   gateFor,
   isApprovalMode,
   unclassifiedTools,
@@ -178,6 +180,27 @@ unavailable, say so and continue with what works. Be concise; lead with the outc
 
 const MAX_ITERATIONS = 25;
 
+/**
+ * Total base64 bytes of tool-result images held for the active conversation.
+ *
+ * Generous enough that a working session keeps every snapshot it produced, and
+ * bounded so a long one cannot grow without limit. Eviction is oldest-first
+ * (Map insertion order); an evicted image degrades to "no image", exactly as a
+ * restarted app does.
+ */
+export const IMAGE_BUDGET_BYTES = 24 * 1024 * 1024;
+
+/** Drops oldest entries until the map is within budget. Mutates in place. */
+export function evictImages(images: Map<string, ChatImage[]>, budget = IMAGE_BUDGET_BYTES): void {
+  let total = 0;
+  for (const blocks of images.values()) for (const image of blocks) total += image.dataBase64.length;
+  for (const [callId, blocks] of images) {
+    if (total <= budget) break;
+    for (const image of blocks) total -= image.dataBase64.length;
+    images.delete(callId);
+  }
+}
+
 /** Shared empty set, so the common (no grants) path allocates nothing. */
 const EMPTY_ALLOW_SET: ReadonlySet<string> = new Set<string>();
 
@@ -255,6 +278,18 @@ export class ChatService {
   private pendingApproval: {
     pending: ChatPendingApproval;
     settle(decision: ApprovalDecision): void;
+    /** The turn's conversation and abort signal, carried here because a dry run
+     *  is fired from the ipcMain handler, which has neither in scope. Without
+     *  them its result could paint into whatever conversation is on screen when
+     *  it finally lands — the one thing sendTo() exists to prevent. */
+    convo: LiveConversation;
+    signal: AbortSignal;
+    /** Namespaced tool name, so the handler never has to re-join server/tool. */
+    namespaced: string;
+    /** A dry run is in flight. Guarded here rather than by disabling the button:
+     *  a `state` replay rebuilds the prompt with a fresh enabled one, and a
+     *  second renderer never sees the DOM at all. */
+    dryRunInFlight: boolean;
   } | null = null;
   /**
    * "Always allow this tool in this conversation", conversationId → tool names.
@@ -267,6 +302,18 @@ export class ChatService {
    * history popover — which reads as the feature being broken.
    */
   private readonly alwaysAllow = new Map<string, Set<string>>();
+  /**
+   * Images from tool results, callId → blocks, for the **active conversation
+   * only**. Never persisted: the transcript store holds what the model was
+   * given, and the model is given `flattenContent`'s `[image content]`
+   * placeholder, not the bytes.
+   *
+   * Not keyed by conversation, unlike alwaysAllow: sendState() only ever replays
+   * the active conversation, so images for a background one could never be shown
+   * again and would just be retained for the process lifetime. One map also
+   * makes IMAGE_BUDGET_BYTES the global bound by construction.
+   */
+  private toolImages = new Map<string, ChatImage[]>();
   /** Unclassified tool names are logged once per process, not once per turn. */
   private loggedUnclassified = false;
 
@@ -296,6 +343,12 @@ export class ChatService {
           if (this.pendingApproval?.pending.callId === msg.callId) {
             this.pendingApproval.settle(msg.decision);
           }
+          break;
+        case "dryRunTool":
+          // Same callId correlation as approveTool, for a stronger reason: this
+          // one makes the main process issue a tool call, so a stale or
+          // second-renderer message must never pick the target.
+          if (this.pendingApproval?.pending.callId === msg.callId) void this.runDryRun();
           break;
         case "newChat":
           this.enqueue(() => this.startNew());
@@ -371,6 +424,11 @@ export class ChatService {
     const prev = this.active;
     if (prev && prev !== next) await this.store.close(prev); // flush, then drop from memory
     this.active = next;
+    // The cache holds the active conversation's images only, and this is the
+    // one place that changes. remove() needs no clear of its own: deleting a
+    // background conversation leaves the active one's images correct, and
+    // deleting the active one lands here.
+    this.toolImages.clear();
     this.store.setActive(next.id);
     this.sendState();
   }
@@ -454,6 +512,12 @@ export class ChatService {
       // and back) would leave a blocked turn with no prompt to answer it.
       pendingApproval: this.pendingApproval?.pending,
     });
+    // After the transcript, so the chips they attach to exist — and as separate
+    // messages, so `state` itself stays small. sendState() fires on far more
+    // than a reload (chatReady, an empty New chat, re-selecting the active
+    // conversation, rename, every switch), and webContents.send structured-
+    // clones synchronously on the main thread.
+    for (const [callId, images] of this.toolImages) this.send({ type: "toolImages", callId, images, live: false });
   }
 
   private sendConversations(): void {
@@ -477,6 +541,7 @@ export class ChatService {
   private awaitApproval(
     convo: LiveConversation,
     pending: ChatPendingApproval,
+    namespaced: string,
     signal: AbortSignal
   ): Promise<ApprovalDecision> {
     return new Promise<ApprovalDecision>((resolve) => {
@@ -485,15 +550,55 @@ export class ChatService {
         if (done) return; // a click that lands after the abort is a no-op
         done = true;
         signal.removeEventListener("abort", onAbort);
+        // Dropping the record is also what makes an in-flight dry run stale:
+        // its completion path re-reads this field and finds the approval it
+        // belonged to gone. One line covers Deny, Allow, abort and flushSync,
+        // because this is the single settle point — including Allow, where a
+        // late dry run would otherwise race the real call's own writes.
         if (this.pendingApproval?.pending.callId === pending.callId) this.pendingApproval = null;
         resolve(decision);
       };
       const onAbort = () => finish("deny");
       if (signal.aborted) return finish("deny");
       signal.addEventListener("abort", onAbort, { once: true });
-      this.pendingApproval = { pending, settle: finish };
+      this.pendingApproval = { pending, settle: finish, convo, signal, namespaced, dryRunInFlight: false };
       this.sendTo(convo, { type: "approvalRequest", pending });
     });
+  }
+
+  /**
+   * Re-runs the blocked call in validate-only mode, for the user's eyes only.
+   *
+   * Three properties make this safe to fire while the gate is still open:
+   * it never settles the approval (so the five settleTurn() paths are
+   * untouched), it is never awaited by run() (so it cannot delay an abort), and
+   * it never calls append() (so the model's transcript is unchanged and it can
+   * never be handed a result for a call that did not happen).
+   *
+   * The dry run itself is not gated by the approval policy: the user explicitly
+   * asked for it, and cad gates every write — sidecar, parts rebind and the
+   * OCCT replay — on the same flag, so nothing is persisted or executed.
+   */
+  private async runDryRun(): Promise<void> {
+    const record = this.pendingApproval;
+    if (!record || record.dryRunInFlight) return;
+    const args = dryRunArgs(record.namespaced, record.pending.argsJson);
+    if (args === null) return;
+    // The servers are already up: a dry run only exists while a turn is blocked
+    // on an approval, and run() started them before it could get there.
+    const mcp = this.mcp;
+    if (!mcp) return;
+    record.dryRunInFlight = true;
+
+    const outcome = await mcp.callTool(record.namespaced, args);
+    record.dryRunInFlight = false;
+
+    // The approval may have been answered, aborted or switched away from while
+    // the call was out. Re-read rather than trusting the captured record.
+    if (this.pendingApproval !== record || record.signal.aborted) return;
+    const preview = { ok: outcome.ok, text: outcome.text };
+    record.pending.dryRunPreview = preview;
+    this.sendTo(record.convo, { type: "dryRunResult", callId: record.pending.callId, ...preview });
   }
 
   /**
@@ -536,6 +641,17 @@ export class ChatService {
     appendEntry(convo, entry, Date.now());
     this.store.saveSoon(convo);
     this.sendTo(convo, { type: "entry", entry: toWire(entry) });
+  }
+
+  /** Caches a result's images for the sidebar and paints them. Mirrors append()'s
+   *  `alive` gate: a conversation deleted mid-turn must not be painted into. */
+  private rememberImages(convo: LiveConversation, callId: string, images: ChatImage[]): void {
+    if (!convo.alive) return;
+    this.toolImages.set(callId, images);
+    evictImages(this.toolImages);
+    // A single result larger than the whole budget evicts itself; sending it
+    // anyway would show an image no replay could ever reproduce.
+    if (this.toolImages.has(callId)) this.sendTo(convo, { type: "toolImages", callId, images, live: true });
   }
 
   private pushError(convo: LiveConversation, message: string, errorKind: ChatErrorKind): void {
@@ -698,7 +814,15 @@ export class ChatService {
             const access = classifyTool(call.name) === "write" ? "write" : "unknown";
             const decision = await this.awaitApproval(
               convo,
-              { callId: call.id, server, tool, argsJson: call.argsJson, access },
+              {
+                callId: call.id,
+                server,
+                tool,
+                argsJson: call.argsJson,
+                access,
+                dryRunnable: dryRunArgs(call.name, call.argsJson) !== null,
+              },
+              call.name,
               signal
             );
             if (signal.aborted) return; // aborted rather than decided — drop it, as an aborted call always was
@@ -718,6 +842,9 @@ export class ChatService {
           const outcome = await mcp.callTool(call.name, call.argsJson);
           if (signal.aborted) return; // drop the result: the dangling call is pruned on the next request
           this.append(convo, { kind: "toolResult", callId: call.id, ok: outcome.ok, text: outcome.text });
+          // After the entry, and deliberately not on it: images are never
+          // stored, so they cannot ride a ChatEntry through the transcript.
+          if (outcome.images?.length) this.rememberImages(convo, call.id, outcome.images);
         }
       }
       this.pushError(convo, `Stopped after ${MAX_ITERATIONS} tool iterations — ask me to continue if needed.`, "other");

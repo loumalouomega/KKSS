@@ -7,6 +7,7 @@
  */
 import type {
   ChatConversationInfo,
+  ChatImage,
   ChatPendingApproval,
   ChatServerStatus,
   ChatToHost,
@@ -187,6 +188,40 @@ function chipFor(callId: string): HTMLDetailsElement | undefined {
 }
 
 /**
+ * Images from a tool result, attached to its chip.
+ *
+ * The <img> elements are created only when the chip is actually open. A byte
+ * cap bounds the transfer, not the decoded bitmap, so decoding eight snapshots
+ * for every chip in a replayed transcript is exactly what must not happen —
+ * `open` is forced for a live result the user should see, never on replay.
+ */
+function attachImages(callId: string, images: ChatImage[], live: boolean): void {
+  const chip = chipFor(callId);
+  if (!chip || !images.length) return;
+  const paint = () => {
+    if (chip.dataset.imagesPainted) return;
+    chip.dataset.imagesPainted = "1";
+    images.forEach((image, index) => {
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.decoding = "async";
+      // Assigned on a created element, never interpolated into markup: the data
+      // comes from an MCP server and the page has no 'unsafe-inline'.
+      img.src = `data:${image.mimeType};base64,${image.dataBase64}`;
+      // cad labels its views in the result's JSON text, not in the image block,
+      // so the index is all that can honestly be claimed here.
+      img.alt = `Tool result image ${index + 1} of ${images.length}`;
+      img.title = `${image.mimeType} (${index + 1}/${images.length})`;
+      chip.appendChild(img);
+    });
+    scrollDown();
+  };
+  if (live) chip.open = true;
+  if (chip.open) paint();
+  else chip.addEventListener("toggle", () => chip.open && paint());
+}
+
+/**
  * The approve/deny prompt, appended into the tool chip it belongs to.
  *
  * Built the same way as the error banner's Open Settings button —
@@ -212,6 +247,20 @@ function showApproval(pending: ChatPendingApproval): void {
       : "KKSS has no policy for this tool, so it is treated as unsafe. Run it?";
   row.appendChild(msg);
 
+  // Not a fourth decision: it re-runs the call in validate-only mode and leaves
+  // the prompt armed, so the user answers it with the report in front of them.
+  if (pending.dryRunnable) {
+    const dry = document.createElement("button");
+    dry.className = "dryrun";
+    dry.textContent = "Validate (dry run)";
+    dry.addEventListener("click", () => {
+      dry.disabled = true;
+      dry.textContent = "Validating…";
+      post({ type: "dryRunTool", callId: pending.callId });
+    });
+    row.appendChild(dry);
+  }
+
   const choices: Array<[string, "allow" | "allowAlways" | "deny", string]> = [
     ["Allow", "allow", "allow"],
     ["Always allow in this chat", "allowAlways", "always"],
@@ -234,7 +283,39 @@ function showApproval(pending: ChatPendingApproval): void {
   }
 
   chip.appendChild(row);
+  // A validation already run for this call, replayed with the prompt: a
+  // renderer reload must not silently discard the answer it is looking at.
+  if (pending.dryRunPreview) showDryRunResult(pending.callId, pending.dryRunPreview);
   armedApproval = pending.callId;
+  scrollDown(true);
+}
+
+/**
+ * The validation report, painted into the still-open prompt.
+ *
+ * Worded narrowly on purpose: cad gates its OCCT replay on the same flag it
+ * gates its writes on, so this says which operations parse and are legal — not
+ * what the geometry would become.
+ */
+function showDryRunResult(callId: string, result: { ok: boolean; text: string }): void {
+  const chip = chipFor(callId);
+  const row = chip?.querySelector<HTMLDivElement>(".tool-approval:not(.decided)");
+  if (!chip || !row) return;
+  row.querySelector<HTMLButtonElement>("button.dryrun")?.remove();
+  chip.querySelector(".dry-run-report")?.remove();
+
+  const block = document.createElement("div");
+  block.className = "dry-run-report";
+  const heading = document.createElement("div");
+  heading.className = "dry-run-heading";
+  heading.textContent = result.ok
+    ? "Validated without running — nothing was executed or written."
+    : "Validation failed — nothing was executed or written.";
+  const body = document.createElement("pre");
+  body.textContent = result.text;
+  block.appendChild(heading);
+  block.appendChild(body);
+  row.insertAdjacentElement("beforebegin", block);
   scrollDown(true);
 }
 
@@ -513,6 +594,12 @@ api.onMessage((raw) => {
       break;
     case "approvalRequest":
       showApproval(msg.pending);
+      break;
+    case "toolImages":
+      attachImages(msg.callId, msg.images, msg.live);
+      break;
+    case "dryRunResult":
+      showDryRunResult(msg.callId, { ok: msg.ok, text: msg.text });
       break;
     case "approvalResolved":
       // Normally the click already settled the row; this covers a decision

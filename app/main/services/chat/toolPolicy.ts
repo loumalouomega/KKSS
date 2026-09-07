@@ -163,16 +163,51 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
 /**
  * Tools that can be asked to validate without persisting.
  *
- * Unused today: the approval prompt offers no Dry run button, because using it
- * would mean rewriting the arguments the model emitted and then handing it a
- * result for a call it never made — a semantics decision, not a UI one. Kept
- * here so that work is an isolated change rather than an archaeology exercise.
+ * Drives the approval prompt's **Validate (dry run)** button. The semantics
+ * question this table used to record — "what does the model believe happened,
+ * once we hand it a result for a call it never made?" — was answered by not
+ * creating the situation: a dry run does not settle the approval and its report
+ * never enters the transcript, so it is a check for the human and the model
+ * sees nothing. See `dryRunArgs` and ChatService's `dryRunTool` handler.
+ *
+ * What it actually checks is narrower than "preview": cad gates the OCCT replay
+ * on `!dryRun` too, so the report says which ops parse and are legal, never what
+ * the geometry would become. The button and its result block say so.
  */
 export const DRY_RUN_PARAM: Readonly<Record<string, string>> = {
   cad__apply_edit_ops: "dryRun",
   cad__run_parametric_script: "dryRun",
   cad__run_saved_script: "dryRun",
 };
+
+/**
+ * The model's own arguments, rewritten to ask for a validation-only run — or
+ * `null` when this call cannot be dry-run at all, which is also what decides
+ * whether the button is offered.
+ *
+ * Returns `null` for: a tool with no row, unparseable JSON, a payload that is
+ * not a plain object (`"[]"`, `"3"`, `"null"` would otherwise take a property),
+ * and a call the model already marked `dryRun: true` — where the button would
+ * be a no-op. An explicit `dryRun: false` is *overridden*, since the user asking
+ * to validate outranks the model's default.
+ *
+ * Never mutates its input: the user approves the arguments they were shown, and
+ * the chip renders that exact string.
+ */
+export function dryRunArgs(namespaced: string, argsJson: string): string | null {
+  const param = DRY_RUN_PARAM[namespaced];
+  if (!param) return null;
+  let parsed: unknown;
+  try {
+    parsed = argsJson ? JSON.parse(argsJson) : {};
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const args = parsed as Record<string, unknown>;
+  if (args[param] === true) return null;
+  return JSON.stringify({ ...args, [param]: true });
+}
 
 export function classifyTool(namespaced: string): ToolClass {
   return TOOL_ACCESS[namespaced] ?? "unknown";

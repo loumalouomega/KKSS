@@ -14,7 +14,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { WebContents } from "electron";
-import type { ChatToWebview } from "../app/main/ipc";
+import type { ChatImage, ChatToWebview } from "../app/main/ipc";
 
 vi.mock("electron", async () => {
   const { electronStub } = await import("./stubs/electron");
@@ -35,7 +35,7 @@ vi.mock("../app/main/services/stateStore", () => ({
   },
 }));
 
-const { ChatService } = await import("../app/main/services/chat/chatService");
+const { ChatService, evictImages } = await import("../app/main/services/chat/chatService");
 const { TranscriptStore } = await import("../app/main/services/chat/transcriptStore");
 const { PREVIEW_CHARS } = await import("../app/main/services/chat/transcript");
 const { electronStub, fakeWebContents } = await import("./stubs/electron");
@@ -86,25 +86,40 @@ class FakeProvider {
   }
 }
 
-class FakeMcp {
-  private pending: ((outcome: { ok: boolean; text: string }) => void) | null = null;
-  calls: string[] = [];
+type FakeOutcome = { ok: boolean; text: string; images?: ChatImage[] };
 
+/** Records arguments and holds several calls at once: a dry run runs while the
+ *  approval it belongs to is still open, so a single pending slot could not
+ *  express the case at all. */
+class FakeMcp {
+  private queue: Array<(outcome: FakeOutcome) => void> = [];
+  requests: Array<{ name: string; argsJson: string }> = [];
+
+  get calls(): string[] {
+    return this.requests.map((request) => request.name);
+  }
   chatTools = () => [];
   toolName = (server: string, tool: string) => `${server}__${tool}`;
-  callTool = (name: string) => {
-    this.calls.push(name);
-    return new Promise<{ ok: boolean; text: string }>((resolve) => {
-      this.pending = resolve;
+  callTool = (name: string, argsJson: string) => {
+    this.requests.push({ name, argsJson });
+    return new Promise<FakeOutcome>((resolve) => {
+      this.queue.push(resolve);
     });
   };
   get waiting(): boolean {
-    return !!this.pending;
+    return this.queue.length > 0;
   }
-  finish(text = "tool output", ok = true): void {
-    const pending = this.pending!;
-    this.pending = null;
-    pending({ ok, text });
+  get inFlight(): number {
+    return this.queue.length;
+  }
+  /** Resolves the oldest outstanding call. */
+  finish(text = "tool output", ok = true, images?: ChatImage[]): void {
+    this.queue.shift()!({ ok, text, ...(images ? { images } : {}) });
+  }
+  /** Resolves one specific outstanding call, oldest-first indexed. */
+  finishAt(index: number, text = "tool output", ok = true): void {
+    const [resolve] = this.queue.splice(index, 1);
+    resolve({ ok, text });
   }
 }
 
@@ -701,4 +716,249 @@ describe("tool-call approval", () => {
     expect(requests(messages)).toHaveLength(1);
     expect(mcp.calls).toEqual([]);
   });
+});
+
+describe("tool-result images", () => {
+  const SNAP = { id: "t1", name: "cad__render_snapshot", argsJson: "{}" };
+  const IMAGES: ChatImage[] = [
+    { mimeType: "image/png", dataBase64: "AAAA" },
+    { mimeType: "image/png", dataBase64: "BBBB" },
+  ];
+
+  const imageMsgs = (messages: ChatToWebview[]) =>
+    messages.filter((m): m is Extract<ChatToWebview, { type: "toolImages" }> => m.type === "toolImages");
+
+  const upToResult = async (post: ReturnType<typeof makeService>["post"], provider: FakeProvider, mcp: FakeMcp) => {
+    post({ type: "chatReady" });
+    await send(post, "render it");
+    provider.finish("looking", SNAP);
+    await settle(4);
+    mcp.finish("rendered", true, IMAGES);
+    await settle(4);
+  };
+
+  it("paints a live result's images and expands the chip", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await upToResult(post, provider, mcp);
+    const painted = imageMsgs(messages);
+    expect(painted).toHaveLength(1);
+    expect(painted[0]).toMatchObject({ callId: "t1", live: true });
+    expect(painted[0].images).toEqual(IMAGES);
+  });
+
+  it("keeps images out of the stored transcript entirely", async () => {
+    const { service, provider, mcp, messages, post } = makeService();
+    await upToResult(post, provider, mcp);
+    provider.finish("done");
+    await settle();
+    service.flushSync();
+    const entries = stored(lastState(messages).conversationId)!.entries;
+    const result = entries.find((e) => e.kind === "toolResult")!;
+    // The model was given the text, and only the text; the picture is UI.
+    expect(result).toEqual({ kind: "toolResult", callId: "t1", ok: true, text: "rendered" });
+  });
+
+  it("replays images after a reload, collapsed rather than expanded", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await upToResult(post, provider, mcp);
+    provider.finish("done");
+    await settle();
+    messages.length = 0;
+    post({ type: "chatReady" });
+    await settle();
+    const replayed = imageMsgs(messages);
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0]).toMatchObject({ callId: "t1", live: false });
+    // After the transcript, so the chip it attaches to already exists.
+    expect(messages.findIndex((m) => m.type === "state")).toBeLessThan(messages.indexOf(replayed[0]));
+  });
+
+  it("forgets them when the conversation changes", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await upToResult(post, provider, mcp);
+    provider.finish("done");
+    await settle();
+    post({ type: "newChat" });
+    await settle();
+    messages.length = 0;
+    post({ type: "chatReady" });
+    await settle();
+    expect(imageMsgs(messages)).toHaveLength(0);
+  });
+
+  it("evicts oldest-first once the budget is exceeded", () => {
+    const image = (bytes: number): ChatImage[] => [{ mimeType: "image/png", dataBase64: "A".repeat(bytes) }];
+    const map = new Map([
+      ["oldest", image(60)],
+      ["middle", image(60)],
+      ["newest", image(60)],
+    ]);
+    evictImages(map, 150);
+    expect([...map.keys()]).toEqual(["middle", "newest"]);
+  });
+
+  it("leaves a map that is already within budget alone", () => {
+    const map = new Map([["a", [{ mimeType: "image/png", dataBase64: "AAAA" }]]]);
+    evictImages(map, 1000);
+    expect([...map.keys()]).toEqual(["a"]);
+  });
+});
+
+describe("dry-run validation", () => {
+  const DRY = { id: "t1", name: "cad__apply_edit_ops", argsJson: '{"path":"/a.stp","ops":[]}' };
+  const PLAIN = { id: "t1", name: "mesh__mesh_transform", argsJson: '{"path":"/a.mdpa"}' };
+
+  const reports = (messages: ChatToWebview[]) =>
+    messages.filter((m): m is Extract<ChatToWebview, { type: "dryRunResult" }> => m.type === "dryRunResult");
+
+  const upToPrompt = async (
+    tool: ToolReq,
+    post: ReturnType<typeof makeService>["post"],
+    provider: FakeProvider
+  ) => {
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("working", tool);
+    await settle(4);
+  };
+
+  const asked = (messages: ChatToWebview[]) =>
+    messages.filter((m): m is Extract<ChatToWebview, { type: "approvalRequest" }> => m.type === "approvalRequest");
+
+  it("offers validation only for a tool that declares the parameter", async () => {
+    const dry = makeService();
+    await upToPrompt(DRY, dry.post, dry.provider);
+    expect(asked(dry.messages)[0].pending).toMatchObject({ dryRunnable: true });
+
+    const plain = makeService();
+    await upToPrompt(PLAIN, plain.post, plain.provider);
+    expect(asked(plain.messages)[0].pending).toMatchObject({ dryRunnable: false });
+  });
+
+  it("runs the call with dryRun set, then still runs it unmodified on approval", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await upToPrompt(DRY, post, provider);
+
+    post({ type: "dryRunTool", callId: "t1" });
+    await settle();
+    expect(mcp.requests).toEqual([{ name: "cad__apply_edit_ops", argsJson: '{"path":"/a.stp","ops":[],"dryRun":true}' }]);
+    mcp.finish("2 ops accepted");
+    await settle();
+    expect(reports(messages)).toMatchObject([{ callId: "t1", ok: true, text: "2 ops accepted" }]);
+
+    // The gate is still open — validating is not deciding.
+    post({ type: "chatReady" });
+    await settle();
+    expect(lastState(messages).pendingApproval).toMatchObject({ callId: "t1" });
+
+    post({ type: "approveTool", callId: "t1", decision: "allow" });
+    await settle();
+    // The real call carries the arguments the user approved, not the rewrite.
+    expect(mcp.requests[1]).toEqual({ name: "cad__apply_edit_ops", argsJson: '{"path":"/a.stp","ops":[]}' });
+  });
+
+  it("never lets the report reach the transcript or the model", async () => {
+    const { service, provider, mcp, messages, post } = makeService();
+    await upToPrompt(DRY, post, provider);
+    post({ type: "dryRunTool", callId: "t1" });
+    await settle();
+    mcp.finish("would apply 2 ops");
+    await settle();
+    post({ type: "approveTool", callId: "t1", decision: "allow" });
+    await settle();
+    mcp.finish("applied");
+    await settle();
+    provider.finish("done");
+    await settle();
+    service.flushSync();
+
+    const entries = stored(lastState(messages).conversationId)!.entries;
+    const results = entries.filter((e) => e.kind === "toolResult");
+    // Exactly one result for exactly one call: the model is never handed a
+    // result for a call that did not happen.
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ text: "applied" });
+    expect(JSON.stringify(entries)).not.toContain("would apply 2 ops");
+  });
+
+  it("replays a completed report with the prompt, so a reload keeps it", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await upToPrompt(DRY, post, provider);
+    post({ type: "dryRunTool", callId: "t1" });
+    await settle();
+    mcp.finish("1 op rejected", false);
+    await settle();
+    post({ type: "chatReady" });
+    await settle();
+    expect(lastState(messages).pendingApproval).toMatchObject({
+      callId: "t1",
+      dryRunPreview: { ok: false, text: "1 op rejected" },
+    });
+  });
+
+  it("drops a report that lands after the turn was stopped", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await upToPrompt(DRY, post, provider);
+    post({ type: "dryRunTool", callId: "t1" });
+    await settle();
+    post({ type: "stop" });
+    await settle();
+    mcp.finish("too late");
+    await settle();
+    expect(reports(messages)).toHaveLength(0);
+  });
+
+  it("drops a report after the conversation it belonged to was deleted", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await upToPrompt(DRY, post, provider);
+    const id = lastState(messages).conversationId;
+    post({ type: "dryRunTool", callId: "t1" });
+    await settle();
+    post({ type: "deleteConversation", id });
+    await settle();
+    mcp.finish("too late");
+    await settle();
+    expect(reports(messages)).toHaveLength(0);
+  });
+
+  it("ignores a second request while one is already running", async () => {
+    const { provider, mcp, post } = makeService();
+    await upToPrompt(DRY, post, provider);
+    post({ type: "dryRunTool", callId: "t1" });
+    post({ type: "dryRunTool", callId: "t1" });
+    await settle();
+    expect(mcp.inFlight).toBe(1);
+  });
+
+  it("ignores a request for a call that is not the one waiting", async () => {
+    const { provider, mcp, post } = makeService();
+    await upToPrompt(DRY, post, provider);
+    post({ type: "dryRunTool", callId: "some-other-call" });
+    await settle();
+    expect(mcp.calls).toEqual([]);
+  });
+
+  it("ignores a request for a tool that cannot be dry-run", async () => {
+    const { provider, mcp, post } = makeService();
+    await upToPrompt(PLAIN, post, provider);
+    post({ type: "dryRunTool", callId: "t1" });
+    await settle();
+    expect(mcp.calls).toEqual([]);
+  });
+
+  it("stays closable with a validation still in flight", async () => {
+    const { service, provider, mcp, messages, post } = makeService();
+    await upToPrompt(DRY, post, provider);
+    post({ type: "dryRunTool", callId: "t1" });
+    await settle();
+    // will-quit cannot await: the gate must already have been settled by the
+    // time this returns, dry run outstanding or not.
+    service.flushSync();
+    await settle();
+    mcp.finish("too late");
+    await settle();
+    expect(reports(messages)).toHaveLength(0);
+    const entries = stored(lastState(messages).conversationId)!.entries;
+    expect(entries[entries.length - 1]).toMatchObject({ kind: "assistant", stopped: true });
+  }, 5000);
 });
