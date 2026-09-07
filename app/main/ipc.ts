@@ -83,10 +83,38 @@ export interface ChatServerStatus {
  * main-process transcript keeps full tool-result texts for the model;
  * the wire form carries a truncated preview only.
  */
+/** How a tool call was gated. Absent = never asked (a read-only tool, or
+ *  approval turned off) — which is also every entry stored before this shipped. */
+export type ChatToolApproval = "allowed" | "denied";
+
+/**
+ * A tool call blocked on the user right now.
+ *
+ * Deliberately **never persisted**: a pending approval is session state, and a
+ * hard crash must not replay live-looking buttons wired to a promise that no
+ * longer exists. It rides `state.pendingApproval` instead, so a renderer reload
+ * *resumes* a blocked turn rather than stranding it.
+ */
+export interface ChatPendingApproval {
+  callId: string;
+  server: string;
+  tool: string;
+  argsJson: string;
+  /** Why it is being asked — drives the prompt's explanation line. */
+  access: "write" | "unknown";
+}
+
 export type ChatWireEntry =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string; stopped?: boolean }
-  | { kind: "toolCall"; callId: string; server: string; tool: string; argsJson: string }
+  | {
+      kind: "toolCall";
+      callId: string;
+      server: string;
+      tool: string;
+      argsJson: string;
+      approval?: ChatToolApproval;
+    }
   | { kind: "toolResult"; callId: string; ok: boolean; preview: string }
   | { kind: "error"; message: string; errorKind: ChatErrorKind };
 
@@ -107,6 +135,7 @@ export type ChatToHost =
   | { type: "chatReady" }
   | { type: "send"; text: string }
   | { type: "stop" }
+  | { type: "approveTool"; callId: string; decision: "allow" | "allowAlways" | "deny" }
   /** Archives the current conversation and starts an empty one — nothing lost. */
   | { type: "newChat" }
   /** Refresh the history list (the popover was opened). */
@@ -130,8 +159,14 @@ export type ChatToWebview =
       conversationId: string;
       conversationTitle: string;
       conversations: ChatConversationInfo[];
+      /** A tool call blocked on the user right now. Replayed here (and only
+       *  here) so a renderer reload or a switch away and back resumes the
+       *  prompt instead of leaving the turn stuck with nothing to answer it. */
+      pendingApproval?: ChatPendingApproval;
     }
   | { type: "entry"; entry: ChatWireEntry }
+  | { type: "approvalRequest"; pending: ChatPendingApproval }
+  | { type: "approvalResolved"; callId: string; approval: ChatToolApproval }
   | { type: "assistantStart" }
   | { type: "assistantDelta"; text: string }
   | { type: "assistantDone"; entry: ChatWireEntry }

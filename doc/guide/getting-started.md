@@ -123,6 +123,20 @@ Before first use, pick a provider and set an API key under **Settings ▸ LLM As
 
 Keys are stored encrypted with your OS keychain when available. Edits made by the assistant land in the same sidecar files the viewers use — reload the file to see them. Send with `Enter` and stop a running response with the same button.
 
+### Approving what the assistant does
+
+The assistant's tools are not suggestions — they write files, overwrite meshes and start solves. `mesh_transform`, for instance, overwrites the file it is given when you don't name an output path. So **a tool that changes anything is shown to you before it runs**: the call appears in the transcript with its full arguments and three buttons.
+
+- **Allow** — run it this once.
+- **Always allow in this chat** — stop asking about *that* tool for the rest of this conversation. It is per tool and per conversation; it is never remembered after you start a new chat or restart KKSS.
+- **Deny** — don't run it. Nothing on disk is touched, and the assistant is told you refused, so it explains what it wanted rather than trying again.
+
+Read-only tools — inspect, measure, mesh info, render — run without asking, so asking questions feels exactly as it did before. A tool KKSS has no policy for always asks; that is currently every tool from the Kratos server, because that server is fetched at runtime and its tools can't be classified in advance.
+
+**Settings ▸ LLM Assistant ▸ Tool Approval** changes this: *Ask before tools that change files* (the default), *Ask before every tool*, or *Never ask*. The last one turns the gate off entirely and asks you to confirm once before it does.
+
+Note this covers the built-in sidebar only. If you expose the toolset to an external MCP client (below), that path is protected by its bearer token alone — there is nobody at the keyboard to ask.
+
 ### Conversations
 
 Conversations are saved as you go and survive quitting the app — including the tool calls that record what the assistant actually did to your files, which is often the only account of it. **⟳ New** starts a fresh one and keeps the current one; nothing is discarded, so there is nothing to confirm.
@@ -182,7 +196,7 @@ The **Settings** menu (also reachable from the home screen's Settings button) ho
 - **Color Theme** — Auto / Dark / Light / Scientific. The same scene theme the mesh viewer's own picker controls; viewers apply it when they next load a file.
 - **CAD Viewer Defaults** — up axis, default mesh-size preset, B-rep tessellation quality, and whether the grid and axes show on open. These seed a newly opened CAD document; a per-document sidecar value or a runtime toggle wins once set.
 - **Terminal Shell** — the shell the embedded terminal launches (takes effect for the next terminal session).
-- **LLM Assistant** — provider (Anthropic / OpenAI-compatible), API keys, model names, and the OpenAI-compatible base URL for the AI chat sidebar. Keys are encrypted with the OS keychain (Electron `safeStorage`) when one is available; changes apply to the next message, no restart needed.
+- **LLM Assistant** — provider (Anthropic / OpenAI-compatible), API keys, model names, the OpenAI-compatible base URL, and **Tool Approval** (whether the assistant asks before running a tool that changes files — see *AI assistant ▸ Approving what the assistant does* above). Keys are encrypted with the OS keychain (Electron `safeStorage`) when one is available; changes apply to the next message, no restart needed.
 - **MCP Server** — enable the localhost HTTP endpoint that exposes KKSS's toolset to an external MCP client, set its port, and copy or regenerate the bearer token (see *AI assistant ▸ Use your own MCP client* above). Off by default.
 
 Viewer actions (mesh quality, field visualization, find entity…) are *not* in the menu bar — they live in each viewer's own toolbar.

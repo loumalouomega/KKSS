@@ -7,6 +7,16 @@ full auto-generated compare links.
 
 ## [1.5.0] - 2026-09-06
 
+- feat: **the assistant asks before it changes anything** — a tool call that
+  writes files, starts a solve, or that KKSS has no policy for now appears in
+  the chat with its full arguments and **Allow** / **Always allow in this chat**
+  / **Deny** buttons, instead of running the moment the model asks for it.
+  Read-only tools (inspect, measure, mesh info, render…) still run silently, so
+  asking questions is unchanged. A denial is reported back to the assistant, so
+  it explains what it wanted rather than retrying. Tune or disable it under
+  **Settings ▸ LLM Assistant ▸ Tool Approval**; the default asks before writes.
+  Note the **MCP Server** endpoint is not covered — an external client has no
+  one to ask, so it stays protected by its bearer token alone
 - feat: **open and save files directly from Google Drive, Dropbox and
   OneDrive** — **File ▸ Open from Cloud…** browses a connected account and
   downloads the model (and its sidecars) into a local staging cache, from which

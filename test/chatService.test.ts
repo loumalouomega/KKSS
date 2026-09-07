@@ -21,9 +21,14 @@ vi.mock("electron", async () => {
   return { app: electronStub.app, ipcMain: electronStub.ipcMain, safeStorage: electronStub.safeStorage };
 });
 
+/** Settings the service reads. Mutable so a case can flip the approval mode;
+ *  reset in beforeEach, so an unset key still yields the real default. */
+const stateValues: Record<string, unknown> = {};
+
 vi.mock("../app/main/services/stateStore", () => ({
   stateStore: {
-    get: <T,>(_key: string, defaultValue?: T) => defaultValue,
+    get: <T,>(key: string, defaultValue?: T) =>
+      key in stateValues ? (stateValues[key] as T) : defaultValue,
     update: async () => undefined,
     flush: async () => undefined,
     flushSync: () => undefined,
@@ -41,6 +46,12 @@ type Service = InstanceType<typeof ChatService>;
 interface PendingTurn {
   onTextDelta(delta: string): void;
   resolve(result: { text: string; toolCalls: Array<{ id: string; name: string; argsJson: string }> }): void;
+}
+
+interface ToolReq {
+  id: string;
+  name: string;
+  argsJson: string;
 }
 
 /** A provider whose turn is resolved by the test, and which rejects on abort
@@ -67,11 +78,11 @@ class FakeProvider {
   emit(delta: string): void {
     this.pending!.onTextDelta(delta);
   }
-  /** Finishes the turn, optionally asking for one tool call. */
-  finish(text: string, tool?: { id: string; name: string; argsJson: string }): void {
+  /** Finishes the turn, optionally asking for one tool call — or several. */
+  finish(text: string, tool?: ToolReq | ToolReq[]): void {
     const pending = this.pending!;
     this.pending = null;
-    pending.resolve({ text, toolCalls: tool ? [tool] : [] });
+    pending.resolve({ text, toolCalls: tool ? (Array.isArray(tool) ? tool : [tool]) : [] });
   }
 }
 
@@ -103,6 +114,7 @@ let dir: string;
 
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-chat-"));
+  for (const key of Object.keys(stateValues)) delete stateValues[key];
 });
 
 afterEach(async () => {
@@ -458,5 +470,235 @@ describe("workspace context suffix", () => {
     const text = suffixOf(provider);
     expect(text).toContain("/tmp/bull.stp");
     expect(text).not.toContain("staging copy");
+  });
+});
+
+describe("tool-call approval", () => {
+  const READ = { id: "t1", name: "cad__inspect", argsJson: "{}" };
+  const WRITE = { id: "t1", name: "mesh__mesh_transform", argsJson: '{"path":"/a.mdpa"}' };
+  const UNKNOWN = { id: "t1", name: "kratos__run_simulation", argsJson: "{}" };
+
+  const requests = (messages: ChatToWebview[]) =>
+    messages.filter((m): m is Extract<ChatToWebview, { type: "approvalRequest" }> => m.type === "approvalRequest");
+
+  /** Drives a turn to the point of the first tool call. `chatReady` first, so
+   *  a `state` message exists for the conversation-id lookups below. */
+  const upToTool = async (
+    tool: ToolReq | ToolReq[],
+    post: ReturnType<typeof makeService>["post"],
+    provider: FakeProvider
+  ) => {
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("working", tool);
+    await settle(4);
+  };
+
+  it("runs a read-only tool without asking", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await upToTool(READ, post, provider);
+    expect(requests(messages)).toHaveLength(0);
+    expect(mcp.calls).toEqual(["cad__inspect"]);
+  });
+
+  it("asks before a write tool, and a denied call never reaches the MCP layer", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+
+    const asked = requests(messages);
+    expect(asked).toHaveLength(1);
+    expect(asked[0].pending).toMatchObject({ callId: "t1", server: "mesh", tool: "mesh_transform", access: "write" });
+    // The arguments must reach the prompt — approving something you cannot read
+    // is not approval.
+    expect(asked[0].pending.argsJson).toBe('{"path":"/a.mdpa"}');
+    expect(mcp.calls).toEqual([]);
+
+    post({ type: "approveTool", callId: "t1", decision: "deny" });
+    await settle();
+    // The whole point: the tool never ran.
+    expect(mcp.calls).toEqual([]);
+  });
+
+  it("reports a denial back to the model instead of dropping the call", async () => {
+    const { service, provider, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    post({ type: "approveTool", callId: "t1", decision: "deny" });
+    await settle();
+    // Entry writes are debounced; flushSync lands them, as the tool-result
+    // case above already does.
+    service.flushSync();
+
+    const entries = stored(lastState(messages).conversationId)!.entries;
+    const call = entries.find((e) => e.kind === "toolCall")!;
+    const result = entries.find((e) => e.kind === "toolResult")!;
+    expect(call).toMatchObject({ callId: "t1", approval: "denied" });
+    // Without a result, transcript.ts drops the call and the model re-emits it.
+    expect(result).toMatchObject({ callId: "t1", ok: false });
+    expect((result as { text: string }).text).toMatch(/Denied by the user/);
+
+    // ...and it is genuinely in the next request the provider receives.
+    provider.finish("I'll explain instead.");
+    await settle();
+    expect(JSON.stringify(provider.lastEntries)).toContain("Denied by the user");
+  });
+
+  it("runs the tool when approved, and records the decision", async () => {
+    const { service, mcp, provider, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    post({ type: "approveTool", callId: "t1", decision: "allow" });
+    await settle();
+    expect(mcp.calls).toEqual(["mesh__mesh_transform"]);
+    mcp.finish("transformed");
+    await settle();
+    service.flushSync();
+    const call = stored(lastState(messages).conversationId)!.entries.find((e) => e.kind === "toolCall");
+    expect(call).toMatchObject({ approval: "allowed" });
+  });
+
+  it("always-allow suppresses the next prompt for that tool but not another", async () => {
+    const { mcp, provider, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    post({ type: "approveTool", callId: "t1", decision: "allowAlways" });
+    await settle();
+    mcp.finish("done");
+    await settle();
+
+    // Same tool again: runs straight through.
+    provider.finish("again", { ...WRITE, id: "t2" });
+    await settle();
+    expect(requests(messages)).toHaveLength(1);
+    expect(mcp.calls).toEqual(["mesh__mesh_transform", "mesh__mesh_transform"]);
+    mcp.finish("done");
+    await settle();
+
+    // A different write tool is still gated — the grant is per tool, not a
+    // blanket "this conversation is trusted".
+    provider.finish("now export", { id: "t3", name: "mesh__mesh_convert", argsJson: "{}" });
+    await settle();
+    expect(requests(messages)).toHaveLength(2);
+    expect(mcp.calls).toHaveLength(2);
+  });
+
+  it("asks about a tool it has no policy for", async () => {
+    // Every kratos tool, today: that server is resolved at runtime and is not
+    // in this tree, so it cannot be honestly classified.
+    const { provider, mcp, messages, post } = makeService();
+    await upToTool(UNKNOWN, post, provider);
+    expect(requests(messages)[0].pending.access).toBe("unknown");
+    expect(mcp.calls).toEqual([]);
+  });
+
+  it("gates each call of a batch independently", async () => {
+    const { mcp, provider, messages, post } = makeService();
+    await upToTool([WRITE, { id: "t2", name: "cad__inspect", argsJson: "{}" }], post, provider);
+    expect(requests(messages)).toHaveLength(1);
+    post({ type: "approveTool", callId: "t1", decision: "deny" });
+    await settle();
+    // The denial does not poison the read-only call that followed it.
+    expect(mcp.calls).toEqual(["cad__inspect"]);
+  });
+
+  it("Stop while a prompt is open unwinds the turn and leaves the service usable", async () => {
+    const { mcp, provider, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    post({ type: "stop" });
+    await settle();
+
+    expect(mcp.calls).toEqual([]);
+    expect(messages.filter((m) => m.type === "busy" && !m.busy)).not.toHaveLength(0);
+    // Not wedged: a fresh turn still starts.
+    post({ type: "send", text: "again" });
+    await settle();
+    expect(provider.waiting).toBe(true);
+  });
+
+  it("switching conversations while a prompt is open does not deadlock", async () => {
+    // The canary. settleTurn() AWAITS the turn, so an approval promise that
+    // never settles hangs this test (and the app's New/Select/Delete) rather
+    // than failing it — hence the explicit timeout.
+    const { provider, mcp, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    const before = lastState(messages).conversationId;
+    post({ type: "newChat" });
+    await settle();
+    expect(lastState(messages).conversationId).not.toBe(before);
+    expect(mcp.calls).toEqual([]);
+  }, 5000);
+
+  it("deleting the active conversation while a prompt is open unwinds it", async () => {
+    const { mcp, provider, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    const id = lastState(messages).conversationId;
+    post({ type: "deleteConversation", id });
+    await settle();
+    expect(stored(id)).toBeUndefined();
+    expect(mcp.calls).toEqual([]);
+  }, 5000);
+
+  it("flushSync while a prompt is open denies it and records the interruption", async () => {
+    const { service, provider, mcp, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    service.flushSync();
+    await settle();
+    expect(mcp.calls).toEqual([]);
+    const entries = stored(lastState(messages).conversationId)!.entries;
+    expect(entries[entries.length - 1]).toMatchObject({ kind: "assistant", stopped: true });
+  }, 5000);
+
+  it("ignores a decision that arrives after the turn was aborted", async () => {
+    const { mcp, provider, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    post({ type: "stop" });
+    await settle();
+    const seen = messages.length;
+    post({ type: "approveTool", callId: "t1", decision: "allow" });
+    await settle();
+    expect(mcp.calls).toEqual([]);
+    expect(messages).toHaveLength(seen);
+  });
+
+  it("ignores a decision for a call that is not the one waiting", async () => {
+    const { mcp, provider, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    post({ type: "approveTool", callId: "some-other-call", decision: "allow" });
+    await settle();
+    // Still waiting on the real one.
+    expect(mcp.calls).toEqual([]);
+    post({ type: "approveTool", callId: "t1", decision: "allow" });
+    await settle();
+    expect(mcp.calls).toEqual(["mesh__mesh_transform"]);
+  });
+
+  it("replays a pending prompt on chatReady, so a reload resumes the turn", async () => {
+    const { provider, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    post({ type: "chatReady" });
+    await settle();
+    expect(lastState(messages).pendingApproval).toMatchObject({ callId: "t1", tool: "mesh_transform" });
+  });
+
+  it("runs a write tool unprompted when approval is turned off", async () => {
+    stateValues.llmToolApproval = "never";
+    const { mcp, provider, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    expect(requests(messages)).toHaveLength(0);
+    expect(mcp.calls).toEqual(["mesh__mesh_transform"]);
+  });
+
+  it("asks about a read-only tool in askAlways", async () => {
+    stateValues.llmToolApproval = "askAlways";
+    const { mcp, provider, messages, post } = makeService();
+    await upToTool(READ, post, provider);
+    expect(requests(messages)).toHaveLength(1);
+    expect(mcp.calls).toEqual([]);
+  });
+
+  it("falls back to the default for a nonsense stored mode", async () => {
+    stateValues.llmToolApproval = "off";
+    const { mcp, provider, messages, post } = makeService();
+    await upToTool(WRITE, post, provider);
+    // Degrades to askOnWrite, never to "never".
+    expect(requests(messages)).toHaveLength(1);
+    expect(mcp.calls).toEqual([]);
   });
 });

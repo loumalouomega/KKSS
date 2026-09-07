@@ -111,7 +111,21 @@ function parseEntry(raw: unknown): ChatEntry | undefined {
       const callId = str(raw.callId);
       const argsJson = str(raw.argsJson);
       if (callId === undefined || argsJson === undefined) return undefined;
-      return { kind: "toolCall", callId, server: str(raw.server) ?? "", tool: str(raw.tool) ?? "", argsJson };
+      // The approval decision is optional, which is why adding it needed no
+      // CHAT_STORE_VERSION bump: a bump discards every stored conversation
+      // wholesale (see the constant), while an unknown field degrades in both
+      // directions — an older build drops it and keeps the call, a newer one
+      // reads an older file and simply sees `undefined`. A malformed value
+      // costs the annotation, never the entry.
+      const approval = raw.approval === "allowed" || raw.approval === "denied" ? raw.approval : undefined;
+      const entry: ChatEntry = {
+        kind: "toolCall",
+        callId,
+        server: str(raw.server) ?? "",
+        tool: str(raw.tool) ?? "",
+        argsJson,
+      };
+      return approval ? { ...entry, approval } : entry;
     }
     case "toolResult": {
       const callId = str(raw.callId);

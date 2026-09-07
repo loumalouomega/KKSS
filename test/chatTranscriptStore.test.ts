@@ -284,3 +284,55 @@ describe("markStopped", () => {
     expect(convo.updatedAt).toBe(3);
   });
 });
+
+describe("tool-call approval decisions", () => {
+  /** Parses one toolCall entry through the real (public) path. */
+  const parseCall = (extra: Record<string, unknown> = {}) =>
+    parseConversation({
+      version: CHAT_STORE_VERSION,
+      id: "c1",
+      title: "t",
+      createdAt: 1,
+      updatedAt: 2,
+      entries: [
+        {
+          kind: "toolCall",
+          callId: "t1",
+          server: "mesh",
+          tool: "mesh_transform",
+          argsJson: '{"path":"/a.mdpa"}',
+          ...extra,
+        },
+      ],
+    })?.entries[0];
+
+  it("round-trips a decision", () => {
+    for (const approval of ["allowed", "denied"] as const) {
+      expect(parseCall({ approval })).toMatchObject({ kind: "toolCall", callId: "t1", approval });
+    }
+  });
+
+  it("drops a malformed decision but keeps the call", () => {
+    // Losing the annotation costs a dim label; losing the entry would break the
+    // tool_use/tool_result pairing the model needs.
+    for (const approval of ["maybe", 7, null, {}]) {
+      const parsed = parseCall({ approval });
+      expect(parsed).toMatchObject({ kind: "toolCall", callId: "t1" });
+      expect(parsed).not.toHaveProperty("approval");
+    }
+  });
+
+  it("does not add an undefined approval to a call that was never gated", () => {
+    // Every entry stored before this feature shipped, and every read-only call
+    // since. An explicit `approval: undefined` would serialize as a JSON key.
+    const parsed = parseCall();
+    expect(parsed).not.toHaveProperty("approval");
+    expect(Object.keys(parsed!)).toEqual(["kind", "callId", "server", "tool", "argsJson"]);
+  });
+
+  it("still stores at version 1 — a bump would discard every conversation", () => {
+    // Asserted so bumping it is a deliberate act with this test in the diff,
+    // not a reflex the next time the entry shape changes.
+    expect(CHAT_STORE_VERSION).toBe(1);
+  });
+});

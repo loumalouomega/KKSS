@@ -18,7 +18,23 @@
  * to unwind first; deleting a background one leaves it running.
  */
 import { app, ipcMain, WebContents } from "electron";
-import type { ChatConversationInfo, ChatErrorKind, ChatToHost, ChatToWebview } from "../../ipc";
+import type {
+  ChatConversationInfo,
+  ChatErrorKind,
+  ChatPendingApproval,
+  ChatToHost,
+  ChatToolApproval,
+  ChatToWebview,
+} from "../../ipc";
+import {
+  classifyTool,
+  DEFAULT_APPROVAL_MODE,
+  gateFor,
+  isApprovalMode,
+  unclassifiedTools,
+  type ApprovalDecision,
+  type ApprovalMode,
+} from "./toolPolicy";
 import { stateStore } from "../stateStore";
 import { getSecret } from "./secrets";
 import type { McpManager } from "./mcpManager";
@@ -44,6 +60,7 @@ export const LLM_KEYS = {
   openaiModel: "llmModelOpenai",
   openaiKey: "llmKeyOpenai",
   openaiBaseUrl: "llmOpenaiBaseUrl",
+  toolApproval: "llmToolApproval", // ApprovalMode; see toolPolicy.ts
 } as const;
 
 export interface LlmSettings {
@@ -51,6 +68,17 @@ export interface LlmSettings {
   model: string;
   baseUrl: string;
   apiKey?: string;
+}
+
+/**
+ * Read per tool call rather than per turn, so flipping the setting mid-turn
+ * applies to the very next call — the same "changes apply immediately, no
+ * restart" contract every other LLM setting has.
+ */
+export function readApprovalMode(): ApprovalMode {
+  const stored = stateStore.get<string>(LLM_KEYS.toolApproval, DEFAULT_APPROVAL_MODE);
+  // A hand-edited state.json must degrade to the default, never to "never".
+  return isApprovalMode(stored) ? stored : DEFAULT_APPROVAL_MODE;
 }
 
 export function readLlmSettings(): LlmSettings {
@@ -150,6 +178,22 @@ unavailable, say so and continue with what works. Be concise; lead with the outc
 
 const MAX_ITERATIONS = 25;
 
+/** Shared empty set, so the common (no grants) path allocates nothing. */
+const EMPTY_ALLOW_SET: ReadonlySet<string> = new Set<string>();
+
+/**
+ * What the model is told when the user refuses a call.
+ *
+ * Load-bearing prose, not a placeholder. Without the "do not retry" the model
+ * reliably re-emits the same call, and every retry costs one of the 25
+ * iterations a turn gets — so a few denials would end the turn in the generic
+ * "stopped after 25 tool iterations" error instead of a useful answer.
+ */
+const DENIED_TEXT =
+  "Denied by the user. The tool was NOT run and nothing on disk was changed. " +
+  "Do not retry this call — explain what it would have done and ask the user what " +
+  "they want instead, or use a read-only tool to gather more facts.";
+
 /** Every open document per mode (KKSS supports several concurrent tabs), plus
  *  which one is currently focused — see the Context suffix's doc comment. */
 export interface OpenFilesInfo {
@@ -202,6 +246,29 @@ export class ChatService {
   private partial = "";
   private stoppedMarked = false;
   private mcp: McpManager | null = null;
+  /**
+   * The tool call blocked on the user, if any. At most one can be outstanding:
+   * the tool loop is strictly sequential and `run()` is guarded by `busy`.
+   * Keyed by callId so a stale click — from a replayed transcript, or a second
+   * renderer — is a no-op rather than a mis-approval.
+   */
+  private pendingApproval: {
+    pending: ChatPendingApproval;
+    settle(decision: ApprovalDecision): void;
+  } | null = null;
+  /**
+   * "Always allow this tool in this conversation", conversationId → tool names.
+   * Never persisted — a grant that silently re-armed weeks later on a reopened
+   * conversation would be a security regression, not a convenience.
+   *
+   * Deliberately NOT a field on `LiveConversation` (where `alive` is the
+   * precedent for live-only state): `store.close()` drops that object on every
+   * conversation switch, so a grant would expire on a round trip through the
+   * history popover — which reads as the feature being broken.
+   */
+  private readonly alwaysAllow = new Map<string, Set<string>>();
+  /** Unclassified tool names are logged once per process, not once per turn. */
+  private loggedUnclassified = false;
 
   constructor(private readonly deps: ChatDeps) {
     this.store = new TranscriptStore(deps.chatsDir);
@@ -220,6 +287,15 @@ export class ChatService {
           break;
         case "stop":
           this.abort?.abort();
+          break;
+        case "approveTool":
+          // Correlated by callId, matching the rest of ChatToHost's
+          // fire-and-forget shape. A mismatch means the decision arrived for a
+          // call that is no longer waiting — ignore it rather than settling
+          // whatever happens to be pending now.
+          if (this.pendingApproval?.pending.callId === msg.callId) {
+            this.pendingApproval.settle(msg.decision);
+          }
           break;
         case "newChat":
           this.enqueue(() => this.startNew());
@@ -323,6 +399,7 @@ export class ChatService {
       // Deleting a conversation the user is not looking at must not kill the
       // turn running in the one they are.
       this.store.remove(id);
+      this.alwaysAllow.delete(id);
       this.sendConversations();
       return;
     }
@@ -331,6 +408,7 @@ export class ChatService {
     // otherwise recreate the file we are about to delete.
     this.active.alive = false;
     this.store.remove(id);
+    this.alwaysAllow.delete(id);
     await this.switchTo(this.store.restoreActive() ?? this.store.create());
   }
 
@@ -371,6 +449,10 @@ export class ChatService {
       conversationId: convo.id,
       conversationTitle: convo.title,
       conversations: this.conversationList(),
+      // Replayed here and nowhere else: the renderer rebuilds the transcript
+      // wholesale from this message, so without it a reload (or a switch away
+      // and back) would leave a blocked turn with no prompt to answer it.
+      pendingApproval: this.pendingApproval?.pending,
     });
   }
 
@@ -379,6 +461,76 @@ export class ChatService {
   }
 
   /** Every append a turn makes goes through here. */
+  /**
+   * Blocks until the user decides — or until the turn is aborted.
+   *
+   * **Never rejects, and always settles.** `settleTurn()` *awaits* the running
+   * turn, and five paths reach it: Stop, New chat, selecting another
+   * conversation, deleting the active one, and `will-quit`. A promise that
+   * could stay pending would deadlock every one of them, so the abort listener
+   * here is not a nicety — it is what keeps the app closable.
+   *
+   * `sendTo` drops the request if the user has switched conversations, which is
+   * correct for painting and harmless for liveness: the switch aborted the turn
+   * first, so the promise is already settled by the time that matters.
+   */
+  private awaitApproval(
+    convo: LiveConversation,
+    pending: ChatPendingApproval,
+    signal: AbortSignal
+  ): Promise<ApprovalDecision> {
+    return new Promise<ApprovalDecision>((resolve) => {
+      let done = false;
+      const finish = (decision: ApprovalDecision): void => {
+        if (done) return; // a click that lands after the abort is a no-op
+        done = true;
+        signal.removeEventListener("abort", onAbort);
+        if (this.pendingApproval?.pending.callId === pending.callId) this.pendingApproval = null;
+        resolve(decision);
+      };
+      const onAbort = () => finish("deny");
+      if (signal.aborted) return finish("deny");
+      signal.addEventListener("abort", onAbort, { once: true });
+      this.pendingApproval = { pending, settle: finish };
+      this.sendTo(convo, { type: "approvalRequest", pending });
+    });
+  }
+
+  /**
+   * Annotates a toolCall entry that has already been appended and painted.
+   *
+   * The one sanctioned exception to `append()` being the only mutation point:
+   * the decision does not exist until after the user has seen the entry. Safe
+   * because `webContents.send` structured-clones synchronously, so the copy the
+   * renderer already holds is untouched — which is why the decision is also
+   * pushed explicitly as `approvalResolved`.
+   */
+  private setApproval(convo: LiveConversation, entry: ChatEntry, approval: ChatToolApproval): void {
+    if (entry.kind !== "toolCall") return;
+    entry.approval = approval;
+    this.store.saveSoon(convo);
+    this.sendTo(convo, { type: "approvalResolved", callId: entry.callId, approval });
+  }
+
+  private rememberAlways(convo: LiveConversation, namespaced: string): void {
+    const set = this.alwaysAllow.get(convo.id) ?? new Set<string>();
+    set.add(namespaced);
+    this.alwaysAllow.set(convo.id, set);
+  }
+
+  /** Names the advertised tools toolPolicy.ts has no row for, once per process.
+   *  An unclassified tool is safe (it asks), but a tree of them degrades into
+   *  "ask about everything" — this is the seam a submodule or
+   *  KRATOS_MCP_VERSION bump is noticed through. */
+  private reportUnclassified(tools: readonly { name: string }[]): void {
+    if (this.loggedUnclassified) return;
+    this.loggedUnclassified = true;
+    const unknown = unclassifiedTools(tools);
+    if (unknown.length) {
+      console.log(`[chat] tools with no toolPolicy.ts row (they will always ask): ${unknown.join(", ")}`);
+    }
+  }
+
   private append(convo: LiveConversation, entry: ChatEntry): void {
     if (!convo.alive) return; // the conversation was deleted mid-turn
     appendEntry(convo, entry, Date.now());
@@ -480,6 +632,7 @@ export class ChatService {
 
     this.ensureStarted();
     const mcp = this.mcp!;
+    this.reportUnclassified(mcp.chatTools());
     this.busy = true;
     this.partial = "";
     this.stoppedMarked = false;
@@ -527,13 +680,40 @@ export class ChatService {
         for (const call of result.toolCalls) {
           if (signal.aborted) return;
           const split = call.name.split("__");
-          this.append(convo, {
+          const server = split[0] ?? "";
+          const tool = split.slice(1).join("__") || call.name;
+          // Appended BEFORE the gate: the user has to be able to read the
+          // arguments in the very chip they are being asked to approve.
+          const entry: ChatEntry = {
             kind: "toolCall",
             callId: call.id,
-            server: split[0] ?? "",
-            tool: split.slice(1).join("__") || call.name,
+            server,
+            tool,
             argsJson: call.argsJson,
-          });
+          };
+          this.append(convo, entry);
+
+          const allowed = this.alwaysAllow.get(convo.id) ?? EMPTY_ALLOW_SET;
+          if (gateFor(call.name, { mode: readApprovalMode(), allowed }) === "ask") {
+            const access = classifyTool(call.name) === "write" ? "write" : "unknown";
+            const decision = await this.awaitApproval(
+              convo,
+              { callId: call.id, server, tool, argsJson: call.argsJson, access },
+              signal
+            );
+            if (signal.aborted) return; // aborted rather than decided — drop it, as an aborted call always was
+            if (decision === "deny") {
+              this.setApproval(convo, entry, "denied");
+              // A denial MUST still produce a result: transcript.ts drops a
+              // tool call with no matching result, so a silent denial would
+              // vanish from the next request and the model would re-emit the
+              // same call, burning one of MAX_ITERATIONS.
+              this.append(convo, { kind: "toolResult", callId: call.id, ok: false, text: DENIED_TEXT });
+              continue; // each call in a batch is gated on its own
+            }
+            if (decision === "allowAlways") this.rememberAlways(convo, call.name);
+            this.setApproval(convo, entry, "allowed");
+          }
 
           const outcome = await mcp.callTool(call.name, call.argsJson);
           if (signal.aborted) return; // drop the result: the dangling call is pruned on the next request
@@ -567,6 +747,10 @@ export class ChatService {
    * afterwards would never reach disk.
    */
   flushSync(): void {
+    // Before anything else: the store latches shut below, and settleTurn's
+    // usual abort path may not have run yet. An unsettled approval would leave
+    // run() suspended with nothing left that can resume it.
+    this.pendingApproval?.settle("deny");
     if (this.busy && this.active) this.markInterrupted(this.active);
     this.store.flushSync();
   }

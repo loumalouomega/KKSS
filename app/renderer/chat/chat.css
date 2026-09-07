@@ -315,6 +315,59 @@ body {
   word-break: break-word;
 }
 
+/* ---- tool approval --------------------------------------------------- */
+
+.tool .tool-status.ask {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.tool .tool-status.denied {
+  color: var(--vscode-descriptionForeground);
+}
+
+.tool .tool-approval {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--vscode-panel-border);
+  font-size: 11px;
+}
+
+.tool .tool-approval .approval-msg {
+  flex: 1 1 100%;
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.tool .tool-approval button {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 3px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+/* Deny is the safe answer, so it must not look like the odd one out — but it
+   must not look like the default either. */
+.tool .tool-approval button.always {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-foreground);
+}
+
+.tool .tool-approval button.deny {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-errorForeground, #f85149);
+}
+
+/* A decision already taken: history, not a control. */
+.tool .tool-approval.decided {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
 /* ---- error banner ---------------------------------------------------- */
 
 .error-banner {

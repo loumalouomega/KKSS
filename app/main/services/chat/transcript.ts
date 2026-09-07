@@ -9,12 +9,21 @@
  *    left dangling by an aborted run are dropped from requests.
  *  - Consecutive same-role messages are merged (tool_result blocks first).
  */
-import type { ChatErrorKind, ChatWireEntry } from "../../ipc";
+import type { ChatErrorKind, ChatToolApproval, ChatWireEntry } from "../../ipc";
 
 export type ChatEntry =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string; stopped?: boolean }
-  | { kind: "toolCall"; callId: string; server: string; tool: string; argsJson: string }
+  // Kept field-identical to ChatWireEntry's toolCall: toWire() passes this kind
+  // through by identity, and that is only sound while the two agree.
+  | {
+      kind: "toolCall";
+      callId: string;
+      server: string;
+      tool: string;
+      argsJson: string;
+      approval?: ChatToolApproval;
+    }
   | { kind: "toolResult"; callId: string; ok: boolean; text: string }
   | { kind: "error"; message: string; errorKind: ChatErrorKind };
 

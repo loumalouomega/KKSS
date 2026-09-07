@@ -5,7 +5,14 @@
  * from createElement/textContent — no innerHTML of untrusted text, so the
  * page keeps the strict CSP.
  */
-import type { ChatConversationInfo, ChatServerStatus, ChatToHost, ChatToWebview, ChatWireEntry } from "../../main/ipc";
+import type {
+  ChatConversationInfo,
+  ChatPendingApproval,
+  ChatServerStatus,
+  ChatToHost,
+  ChatToWebview,
+  ChatWireEntry,
+} from "../../main/ipc";
 
 declare global {
   interface Window {
@@ -32,6 +39,8 @@ const hideBtn = byId<HTMLButtonElement>("hide-btn");
 let busy = false;
 /** The assistant bubble currently receiving stream deltas. */
 let streaming: { el: HTMLDivElement; text: string } | null = null;
+/** callId of the approval prompt currently awaiting a click, if any. */
+let armedApproval: string | null = null;
 /** Last history list received, so the popover can repaint without a round trip. */
 let conversations: ChatConversationInfo[] = [];
 let activeId = "";
@@ -144,17 +153,109 @@ function addToolChip(entry: Extract<ChatWireEntry, { kind: "toolCall" }>): void 
   argsPre.textContent = prettyJson(entry.argsJson);
   details.appendChild(argsPre);
 
+  // Replay of a call that was already decided: one dim line, no buttons. A
+  // denied call must read as denied rather than as a tool that failed, or the
+  // transcript looks like the app broke.
+  if (entry.approval) {
+    if (entry.approval === "denied") setToolStatus(details, "denied", "⊘");
+    details.appendChild(decidedRow(entry.approval === "denied" ? "Denied by you." : "Approved by you."));
+  }
+
   messages.appendChild(details);
   scrollDown();
+}
+
+function setToolStatus(chip: HTMLDetailsElement, cls: string, glyph: string): void {
+  const status = chip.querySelector<HTMLSpanElement>(".tool-status");
+  if (!status) return;
+  status.classList.remove("running", "ask");
+  status.classList.add(cls);
+  status.textContent = glyph;
+}
+
+function decidedRow(text: string): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "tool-approval decided";
+  row.textContent = text;
+  return row;
+}
+
+function chipFor(callId: string): HTMLDetailsElement | undefined {
+  // Last match: a callId can repeat across a state replay.
+  const chips = messages.querySelectorAll<HTMLDetailsElement>(`details.tool[data-call-id="${CSS.escape(callId)}"]`);
+  return chips[chips.length - 1];
+}
+
+/**
+ * The approve/deny prompt, appended into the tool chip it belongs to.
+ *
+ * Built the same way as the error banner's Open Settings button —
+ * createElement + addEventListener — because this page keeps a strict CSP with
+ * no 'unsafe-inline'.
+ */
+function showApproval(pending: ChatPendingApproval): void {
+  const chip = chipFor(pending.callId);
+  if (!chip) return;
+  // The one moment the arguments must actually be read: approving something
+  // you cannot see is not approval.
+  chip.open = true;
+  setToolStatus(chip, "ask", "?");
+
+  const row = document.createElement("div");
+  row.className = "tool-approval";
+
+  const msg = document.createElement("div");
+  msg.className = "approval-msg";
+  msg.textContent =
+    pending.access === "write"
+      ? "This tool can create, overwrite or delete files. Run it?"
+      : "KKSS has no policy for this tool, so it is treated as unsafe. Run it?";
+  row.appendChild(msg);
+
+  const choices: Array<[string, "allow" | "allowAlways" | "deny", string]> = [
+    ["Allow", "allow", "allow"],
+    ["Always allow in this chat", "allowAlways", "always"],
+    ["Deny", "deny", "deny"],
+  ];
+  for (const [label, decision, cls] of choices) {
+    const button = document.createElement("button");
+    button.className = cls;
+    button.textContent = label;
+    button.addEventListener("click", () => {
+      post({ type: "approveTool", callId: pending.callId, decision });
+      // Optimistic: the click is what caused it. `approvalResolved` and
+      // `busy:false` both re-sync if a message is ever lost.
+      settleApproval(
+        pending.callId,
+        decision === "deny" ? "Denied." : "Allowed — running…"
+      );
+    });
+    row.appendChild(button);
+  }
+
+  chip.appendChild(row);
+  armedApproval = pending.callId;
+  scrollDown(true);
+}
+
+/** Replaces a still-armed prompt with a dim one-liner. */
+function settleApproval(callId: string, label: string): void {
+  const chip = chipFor(callId);
+  const row = chip?.querySelector<HTMLDivElement>(".tool-approval:not(.decided)");
+  if (row) row.replaceWith(decidedRow(label));
+  if (armedApproval === callId) armedApproval = null;
 }
 
 function resolveToolChip(entry: Extract<ChatWireEntry, { kind: "toolResult" }>): void {
   const chips = messages.querySelectorAll<HTMLDetailsElement>(`details.tool[data-call-id="${CSS.escape(entry.callId)}"]`);
   const chip = chips[chips.length - 1];
   if (!chip) return;
+  // A result means the decision is behind us; a row left armed here would be
+  // clickable with nothing listening.
+  chip.querySelector(".tool-approval:not(.decided)")?.remove();
   const status = chip.querySelector<HTMLSpanElement>(".tool-status");
   if (status) {
-    status.classList.remove("running");
+    status.classList.remove("running", "ask");
     status.classList.add(entry.ok ? "ok" : "err");
     status.textContent = entry.ok ? "✓" : "✗";
   }
@@ -350,6 +451,10 @@ function setBusy(value: boolean): void {
   busy = value;
   sendBtn.textContent = busy ? "Stop" : "Send";
   sendBtn.classList.toggle("stop", busy);
+  // The turn ended with a prompt still open — Stop, a conversation switch, a
+  // delete or a quit. One line here covers every one of them without the
+  // renderer needing to know which happened.
+  if (!busy && armedApproval) settleApproval(armedApproval, "Cancelled.");
 }
 
 function submit(): void {
@@ -392,15 +497,31 @@ api.onMessage((raw) => {
     case "state":
       messages.textContent = "";
       streaming = null;
+      armedApproval = null;
       // The tooltip stays the provider label; the visible name is the
       // conversation, which is what tells two of them apart.
       titleEl.title = msg.providerLabel;
       titleEl.textContent = msg.conversationTitle || "AI Chat";
       renderConversations(msg.conversations, msg.conversationId);
       msg.entries.forEach(addEntry);
+      // After the entries, so the chip it attaches to exists. This is what
+      // makes a renderer reload resume a blocked turn instead of stranding it.
+      if (msg.pendingApproval) showApproval(msg.pendingApproval);
       renderServers(msg.servers);
       setBusy(msg.busy);
       scrollDown(true);
+      break;
+    case "approvalRequest":
+      showApproval(msg.pending);
+      break;
+    case "approvalResolved":
+      // Normally the click already settled the row; this covers a decision
+      // made elsewhere, and marks a denied call as denied rather than failed.
+      if (msg.approval === "denied") {
+        const chip = chipFor(msg.callId);
+        if (chip) setToolStatus(chip, "denied", "⊘");
+      }
+      settleApproval(msg.callId, msg.approval === "denied" ? "Denied." : "Allowed — running…");
       break;
     case "conversations": {
       renderConversations(msg.conversations, msg.activeId);

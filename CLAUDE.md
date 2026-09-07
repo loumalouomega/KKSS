@@ -75,6 +75,10 @@ Concretely:
   submodule MCP servers expose it. If they don't, that's upstream work on the
   submodule's `kkss.dev` branch (the zero-modification rule applies to the MCP
   servers too); bump the gitlink when it lands.
+- New viewer/file capability that becomes a **new MCP tool** → it also needs a
+  row in `app/main/services/chat/toolPolicy.ts`'s table, or it silently defaults
+  to asking on every call (safe, but it degrades the gate into noise).
+  `test/chatToolPolicy.test.ts`'s key-set assertion is what fails to remind you.
 - New app-level ability, setting, or workflow → update the system prompt's
   capability description in `app/main/services/chat/chatService.ts`, the
   server wiring in `app/main/services/chat/mcpManager.ts` if a new tool source
@@ -630,6 +634,39 @@ Concretely:
   flag set on the previous entry, which would mislabel a finished turn), while
   deleting a *background* one leaves the running turn alone. An untouched
   conversation is never written or listed, so **New** archives at no cost.
+- **Tool calls are gated by a KKSS-side policy table, and the gate must always
+  settle.** `services/chat/toolPolicy.ts` is a pure module mapping the **full
+  namespaced** tool name to `read`/`write`; unlisted ⇒ `unknown` ⇒ ask. It is
+  deliberately **not** derived from MCP `annotations` — the SDK's own type
+  declarations say a client must never make tool-use decisions from a server's
+  annotations, and no cad/mesh tool declares any anyway — nor from name or
+  description heuristics (`mesh__problemtype_list` reads like a listing and
+  actually *executes* workspace problemtypes). Read ⇒ auto, write/unknown ⇒
+  prompt inline in the transcript. **Settings ▸ LLM Assistant ▸ Tool Approval**
+  (`llmToolApproval`, default `askOnWrite`; `never` is confirmed once by
+  dialog). Three rules are load-bearing: **(1)** `awaitApproval`'s promise
+  resolves `"deny"` on `signal.abort` and in `flushSync()` — `settleTurn()`
+  *awaits* the turn and five paths reach it (Stop / New chat /
+  selectConversation / deleteConversation-on-active / `will-quit`), so a promise
+  that could hang deadlocks every one of them; **(2)** a denial still appends a
+  `toolResult` (`ok:false`), because `transcript.ts` drops a `toolCall` with no
+  matching result — a silent denial makes the model re-emit the same call and
+  burn an iteration; **(3)** a *pending* approval is **never persisted** — it
+  rides `ChatToWebview`'s `state.pendingApproval` and is replayed on
+  `chatReady`, so a renderer reload resumes a blocked turn instead of stranding
+  it, while a hard crash cannot replay dead buttons. The *decision* persists as
+  an optional `approval` field on the `toolCall` entry, needing **no
+  `CHAT_STORE_VERSION` bump** (a bump discards every stored conversation; an
+  optional field degrades in both directions). "Always allow in this
+  conversation" lives in a service-level `Map<conversationId, Set<string>>`,
+  **not** on `LiveConversation` — `store.close()` drops that object on every
+  conversation switch, so a grant there would silently expire. **Path scoping is
+  out of scope** (classification only), and **the HTTP meta server
+  (`metaServer/buildServer.ts`'s `callToolRaw`) is deliberately un-gated** —
+  bearer token only, since an external client has no user to prompt. Every
+  submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
+  `unclassifiedTools()` logs the names a bump added, and
+  `test/chatToolPolicy.test.ts` pins the exact 71-name key set.
 - **One shared McpManager, two front-ends.** `McpHub`
   (`services/chat/mcpHub.ts`) owns the single `McpManager`; both the chat loop
   and the optional **HTTP meta MCP server** (`services/metaServer/`) call

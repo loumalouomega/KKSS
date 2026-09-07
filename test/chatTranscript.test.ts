@@ -131,3 +131,50 @@ describe("a conversation that came back off disk", () => {
     expect(wire.kind === "toolResult" && wire.preview).toContain("[truncated");
   });
 });
+
+describe("a denied tool call", () => {
+  /** What the approval gate appends when the user says no: the call is
+   *  annotated, and a synthetic failed result stands in for the run. */
+  const deniedTurn: ChatEntry[] = [
+    { kind: "user", text: "overwrite the mesh" },
+    { kind: "assistant", text: "Transforming." },
+    {
+      kind: "toolCall",
+      callId: "c1",
+      server: "mesh",
+      tool: "mesh_transform",
+      argsJson: '{"path":"/a.mdpa"}',
+      approval: "denied",
+    },
+    { kind: "toolResult", callId: "c1", ok: false, text: "Denied by the user." },
+  ];
+
+  it("still reaches Anthropic as a matched tool_use / tool_result pair", () => {
+    // This is the whole reason a denial synthesizes a result: toAnthropicMessages
+    // drops a tool_use with no matching tool_result, so a silent denial would
+    // vanish from the request and the model would re-emit the same call.
+    const messages = toAnthropicMessages(deniedTurn, name);
+    const assistant = messages[1];
+    expect(assistant.content).toContainEqual({
+      type: "tool_use",
+      id: "c1",
+      name: "mesh__mesh_transform",
+      input: { path: "/a.mdpa" },
+    });
+    expect(messages[2].content).toEqual([
+      { type: "tool_result", tool_use_id: "c1", content: "Denied by the user.", is_error: true },
+    ]);
+  });
+
+  it("still reaches an OpenAI-compatible backend as a tool message", () => {
+    const messages = toOpenAiMessages(deniedTurn, name);
+    const tool = messages.find((m) => m.role === "tool");
+    expect(tool).toMatchObject({ role: "tool", tool_call_id: "c1", content: "Denied by the user." });
+  });
+
+  it("passes the decision through toWire untouched", () => {
+    // toolCall is forwarded by identity, which is only sound while ChatEntry
+    // and ChatWireEntry stay field-identical for that kind.
+    expect(toWire(deniedTurn[2])).toEqual(deniedTurn[2]);
+  });
+});

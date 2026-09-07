@@ -5,7 +5,7 @@
  *         toggleNodeIds/computeQuality/fieldVisualization/findEntity
  * File actions dispatch to whichever mode is active at click time.
  */
-import { app, Menu, shell } from "electron";
+import { app, dialog, Menu, shell } from "electron";
 import type { MainWindow } from "./windows";
 import { CAD_DEFAULT_KEYS, type CadHost } from "./cadHost";
 import {
@@ -27,6 +27,7 @@ import type { CloudStatus } from "./services/cloud/cloudService";
 import { PROVIDER_LABELS, type ProviderId } from "./services/cloud/cloudCore";
 import { hasSecret, setSecret } from "./services/chat/secrets";
 import { LLM_KEYS } from "./services/chat/chatService";
+import { DEFAULT_APPROVAL_MODE, type ApprovalMode } from "./services/chat/toolPolicy";
 import { DEFAULT_ANTHROPIC_MODEL } from "./services/chat/providers/anthropic";
 import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./services/chat/providers/openaiCompat";
 import { DEFAULT_META_SERVER_PORT, META_SERVER_KEYS } from "./services/metaServer/metaServer";
@@ -161,6 +162,33 @@ async function promptSecret(key: string, title: string, placeHolder: string): Pr
   });
   if (value === undefined) return; // cancelled
   await setSecret(key, value.trim());
+}
+
+/**
+ * "Never ask" is the only setting that turns the gate off outright, so it is
+ * confirmed once — the same warning the MCP server's copy-config dialog uses,
+ * for the same tools. The other two modes are set without ceremony.
+ */
+async function setApprovalMode(mode: ApprovalMode, deps: MenuDeps): Promise<void> {
+  if (mode === "never") {
+    const { response } = await dialog.showMessageBox({
+      type: "warning",
+      buttons: ["Cancel", "Turn Approval Off"],
+      defaultId: 0,
+      cancelId: 0,
+      message: "Run every tool without asking?",
+      detail:
+        "The assistant will run every tool it chooses, with no prompt. These tools read and " +
+        "write files on disk and can run simulations, and some overwrite the file they are " +
+        "given when no output path is set. Only turn this off for a session you are watching.",
+    });
+    if (response !== 1) {
+      // The radio already moved on click; rebuilding puts it back.
+      installMenu(deps);
+      return;
+    }
+  }
+  await stateStore.update(LLM_KEYS.toolApproval, mode);
 }
 
 /** Plain setting entry, prefilled with the current (or default) value. */
@@ -648,6 +676,24 @@ export function installMenu(deps: MenuDeps): void {
                 type: "radio" as const,
                 checked: stateStore.get(LLM_KEYS.provider, "anthropic") === p.value,
                 click: () => void stateStore.update(LLM_KEYS.provider, p.value),
+              })),
+            },
+            {
+              // Read per tool call, so a change applies to the very next one.
+              // Read-only tools never prompt; a tool KKSS has no policy for
+              // (every kratos__* one today) always does.
+              label: "Tool Approval",
+              submenu: (
+                [
+                  { value: "askOnWrite", label: "Ask before tools that change files (recommended)" },
+                  { value: "askAlways", label: "Ask before every tool" },
+                  { value: "never", label: "Never ask" },
+                ] as Array<{ value: ApprovalMode; label: string }>
+              ).map((m) => ({
+                label: m.label,
+                type: "radio" as const,
+                checked: stateStore.get(LLM_KEYS.toolApproval, DEFAULT_APPROVAL_MODE) === m.value,
+                click: () => void setApprovalMode(m.value, deps),
               })),
             },
             { type: "separator" },
