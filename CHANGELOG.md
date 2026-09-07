@@ -5,6 +5,13 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.6.0] - 2026-09-07
+
+- fix: two flaky-test fixes in the chat service test suite (a real-fs-flush
+  race in the "New chat while a tool approval is open" test, and a too-tight
+  real-timer budget in the shared test helper that could be outrun under CI
+  load) — no functional changes to the app itself
+
 ## [1.5.0] - 2026-09-06
 
 - feat: **the assistant asks before it changes anything** — a tool call that
@@ -455,6 +462,7 @@ full auto-generated compare links.
 - Initial public release: CAD-Preview and VSCode-MDPA-Preview embedded as git
   submodules, icon assets, and base build scripts
 
+[1.6.0]: https://github.com/loumalouomega/KKSS/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/loumalouomega/KKSS/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/loumalouomega/KKSS/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/loumalouomega/KKSS/compare/v1.2.3...v1.3.0
