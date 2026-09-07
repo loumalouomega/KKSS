@@ -150,7 +150,13 @@ afterEach(async () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const settle = async (ticks = 12) => {
+// Real timers, not fake ones: the service chains real promise turns (provider,
+// MCP, disk flushes) rather than anything vitest's fake-timer clock advances.
+// The default tick count is deliberately generous — a CI runner under
+// contention can stall the process for tens of milliseconds between event
+// loop turns, and each tick only needs to be *reached*, not fully used, so a
+// bigger budget costs wall-clock, not CPU, when the work finishes early.
+const settle = async (ticks = 40) => {
   for (let i = 0; i < ticks; i++) await new Promise((resolve) => setTimeout(resolve, 1));
 };
 
