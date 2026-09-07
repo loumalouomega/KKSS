@@ -626,7 +626,9 @@ Concretely:
   **lands** a still-pending debounced save rather than cancelling it. **Stored entries
   keep the full tool-result text; `toWire()`/`PREVIEW_CHARS` in `transcript.ts`
   stays the single truncation point**, so a persisted transcript never becomes a
-  second one. The binding rule is the correctness core: `run()` captures the
+  second one. Since `compaction.ts` there is a second *request-shaping* point —
+  it never touches the store either, and it is the only place where what the
+  model reads and what the user reads deliberately differ. The binding rule is the correctness core: `run()` captures the
   active conversation once, every append targets that object, and every message
   is gated on it still being on screen — switching or deleting the *active*
   conversation aborts the turn and awaits its unwind first (recorded as an
@@ -651,7 +653,9 @@ Concretely:
   that could hang deadlocks every one of them; **(2)** a denial still appends a
   `toolResult` (`ok:false`), because `transcript.ts` drops a `toolCall` with no
   matching result — a silent denial makes the model re-emit the same call and
-  burn an iteration; **(3)** a *pending* approval is **never persisted** — it
+  burn an iteration; that `ok:false` is load-bearing a second time over, since it
+  is what keeps compaction from clearing the "do not retry" text and inviting the
+  model to re-run the very call the user refused; **(3)** a *pending* approval is **never persisted** — it
   rides `ChatToWebview`'s `state.pendingApproval` and is replayed on
   `chatReady`, so a renderer reload resumes a blocked turn instead of stranding
   it, while a hard crash cannot replay dead buttons. The *decision* persists as
@@ -739,12 +743,74 @@ Concretely:
   answers "how full is the window", a different question from what the
   conversation has cost. This readout is **not** the telemetry the roadmap rules
   out — it is computed main-side and shown only to the user whose key paid for it.
+- **Compaction clears old tool-result text from *requests*; it never summarizes
+  and never touches the store.** `services/chat/compaction.ts` replaces the
+  `text` of the oldest successful `toolResult`s with a placeholder, on the copy
+  `requestEntries()` builds — `convo.entries`, the sidebar and `<id>.json` keep
+  the full text, which is why the sidebar still shows every result and the
+  disclosure line exists to say the model is no longer being sent them. The
+  substitution is **structurally invisible** to both wire formats: `groupTurns`
+  matches a result to its call by `callId` alone and the "answered" filter is a
+  `Map.has`, so the message list stays role-for-role identical. That is what
+  removes the cut-point rule, the orphan-`tool_result` hazard and the model call
+  that summarizing would have needed. It only holds for **tool results** —
+  blanking an *assistant* entry can delete a whole message on either path. Only
+  `ok === true` results are cleared (see the approval bullet above).
+  `applyCompaction` **always allocates** and never mutates an entry: the tempting
+  `capEntries` same-array fast path would let `requestEntries()`'s context suffix
+  accumulate in the stored transcript.
+- **The compaction boundary is a count, not an id, and it only ever grows.**
+  `StoredConversation.compactedResults` = "the oldest N clearable results are
+  cleared" — optional, so no `CHAT_STORE_VERSION` bump, and it needs a line in
+  `parseConversation`, which rebuilds field by field and would otherwise drop it
+  on every restart *and every conversation switch*. An id anchor was the obvious
+  design and is wrong twice: the anchor vanishes when `capEntries` trims the
+  front, and tool-call ids are **not unique** on the OpenAI-compatible path,
+  where a gateway that streams no ids gets synthetic `call_<index>` values that
+  repeat every iteration — so an id-anchored boundary could move *backwards*.
+  The invariant: **a stale boundary must never clear less than before.**
+  `nextCount` halves what remains rather than stepping a fixed amount, because a
+  fixed step keeps firing when prose is the real consumer and blanks the whole
+  tool history, after which the model re-runs the tools and regrows the context.
+- **Two triggers, and the reactive one does the real work.** Proactive: after the
+  *per-iteration* usage fold (one turn can run 25 iterations and overflow without
+  finishing), when `lastInput` passes 70% of a known window. With every non-Haiku
+  model at 1M that rarely fires — the reactive trigger is what matters. Reactive:
+  a `context` `ProviderError` advances the boundary and retries, and it is the
+  only path that helps a model whose window KKSS does not know. It wraps **only
+  the `streamTurn` call**, never the loop body: `assistantStart` opens a fresh
+  bubble in the renderer, so re-entering the loop would strand an empty one. It
+  retries **once by construction** — the second call has no catch — and cannot
+  deadlock a `settleTurn()` caller (the approval gate is further down the loop,
+  so no promise is outstanding) or double-count usage (a throwing request returns
+  no `TurnResult`). `advanceCompaction` returning false when the boundary did not
+  move is what stops a pointless retry of a byte-identical request.
+- **What compaction does not fix, stated so it is not rediscovered.** "Tool
+  results dominate" is empirical, not a bound — one maximal assistant message
+  (16k output tokens) is larger than one maximal tool result (`RESULT_CHARS`
+  ≈ 12.5k). Two consumers are untouchable: the ~75 tool schemas re-sent every
+  iteration, and `toolCall.argsJson`, which nothing truncates and which cannot be
+  blanked because `parseArgs` and the OpenAI `arguments` field need real JSON.
+- **`capEntries` cuts at a turn boundary, and `toAnthropicMessages` strips
+  orphans.** A blind front-slice could leave a transcript starting mid-tool-turn;
+  the first-message-user trim then dropped the assistant message holding the
+  `tool_use` blocks and left a user message opening with an orphan `tool_result`,
+  which Anthropic rejects. `capEntries` now snaps its cut forward to the next
+  `user` entry (keeping the below-cap same-reference fast path a test pins), and
+  the trim **strips** leading `tool_result` blocks rather than dropping the
+  message — consecutive same-role messages are merged, so that first user message
+  routinely carries the orphan *and* the first real thing the user said.
 - **The Anthropic request carries one prompt-cache breakpoint, and that is what
   the byte-stable system prompt was always for.** `cache_control` sits on the
   `system` block; the render order is `tools` → `system` → `messages`, so that
-  single breakpoint also covers the whole MCP toolset — which is where the value
-  is, since every tool schema is re-sent on each of up to `MAX_ITERATIONS`
-  iterations. **Changing `SYSTEM_PROMPT`, or moving volatile context into it
+  single breakpoint covers the whole MCP toolset — which is where the value is,
+  since every tool schema is re-sent on each of up to `MAX_ITERATIONS`
+  iterations. **It covers tools + system and nothing else: `messages` are always
+  uncached**, so compaction neither helps nor harms the cache, and any claim that
+  reshaping the transcript protects it is wrong. Note also that the cached prefix
+  is invalidated on every iteration of a session's *first* turn, because
+  `chatTools()` is rebuilt per iteration while the three servers are still
+  connecting — a known limitation, filed as its own roadmap item. **Changing `SYSTEM_PROMPT`, or moving volatile context into it
   instead of onto the newest user message via `contextSuffix()`, now has a
   measurable cost** rather than a theoretical one; `cache_read_input_tokens`
   reading zero across repeated turns means a silent invalidator. The conservative
@@ -756,7 +822,12 @@ Concretely:
   loses its explanation. A context overflow also **suppresses the Anthropic
   conservative retry**: it is a 400, but a smaller `max_tokens` cannot shorten an
   over-long prompt, so retrying only bought a second round trip and then reported
-  the retry's error instead of the real one.
+  the retry's error instead of the real one. There are now two retry layers and
+  they must not be confused — the provider's conservative retry (an older model
+  rejecting `thinking`/`cache_control`) and the service's compaction retry (the
+  request itself is too big). The OpenAI-compatible classifier deliberately does
+  **not** require a 400: llama.cpp and vLLM have both reported an overflow as a
+  500, and the wording is the reliable signal.
 - **One shared McpManager, two front-ends.** `McpHub`
   (`services/chat/mcpHub.ts`) owns the single `McpManager`; both the chat loop
   and the optional **HTTP meta MCP server** (`services/metaServer/`) call

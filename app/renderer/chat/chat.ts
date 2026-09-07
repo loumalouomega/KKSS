@@ -38,6 +38,7 @@ const historyBtn = byId<HTMLButtonElement>("history-btn");
 const newBtn = byId<HTMLButtonElement>("new-btn");
 const hideBtn = byId<HTMLButtonElement>("hide-btn");
 const usageEl = byId<HTMLSpanElement>("usage");
+const compactionEl = byId<HTMLDivElement>("compaction");
 
 let busy = false;
 /** The assistant bubble currently receiving stream deltas. */
@@ -583,6 +584,26 @@ function renderUsage(usage: ChatUsage | undefined): void {
   usageEl.title = detail.join("\n");
 }
 
+/**
+ * Says that older tool results are no longer being sent to the model.
+ *
+ * Worth stating plainly because the transcript above is *not* compacted — every
+ * result is still shown here in full. Without this line the model would simply
+ * appear to have forgotten things the user can still see.
+ */
+function renderCompaction(count: number | undefined): void {
+  if (!count) {
+    compactionEl.hidden = true;
+    return;
+  }
+  compactionEl.hidden = false;
+  compactionEl.textContent =
+    count === 1
+      ? "1 older tool result is no longer sent to the model, to fit the context window."
+      : `${count} older tool results are no longer sent to the model, to fit the context window.`;
+  compactionEl.title = "The transcript still shows them in full. The assistant can re-run a tool if it needs the result again.";
+}
+
 // ---- busy / composer state ---------------------------------------------------
 
 function setBusy(value: boolean): void {
@@ -646,6 +667,7 @@ api.onMessage((raw) => {
       // makes a renderer reload resume a blocked turn instead of stranding it.
       if (msg.pendingApproval) showApproval(msg.pendingApproval);
       renderUsage(msg.usage);
+      renderCompaction(msg.compactedResults);
       renderServers(msg.servers);
       setBusy(msg.busy);
       scrollDown(true);
@@ -658,6 +680,9 @@ api.onMessage((raw) => {
       break;
     case "usage":
       renderUsage(msg.usage);
+      break;
+    case "compaction":
+      renderCompaction(msg.count);
       break;
     case "dryRunResult":
       showDryRunResult(msg.callId, { ok: msg.ok, text: msg.text });

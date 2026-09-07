@@ -79,6 +79,19 @@ export interface StoredConversation {
    * reset on every restart would be worse than showing none at all.
    */
   usage?: StoredUsage;
+  /**
+   * How many of the oldest successful tool results are cleared from *requests*
+   * (compaction.ts). Optional for the same reason `usage` is — an unknown field
+   * degrades in both directions, where a CHAT_STORE_VERSION bump would discard
+   * every stored conversation.
+   *
+   * Persisted, and it must be: `select()` reloads a conversation through
+   * `parseConversation`, so a session-only boundary would silently reset on a
+   * switch away and back, restoring the full-size request compaction had just
+   * shrunk. Note the stored *entries* keep their full text either way — this
+   * number shapes the request, never the record.
+   */
+  compactedResults?: number;
 }
 
 /**
@@ -193,6 +206,7 @@ export function parseConversation(raw: unknown): StoredConversation | undefined 
     ? raw.entries.map(parseEntry).filter((e): e is ChatEntry => !!e)
     : [];
   const usage = parseUsage(raw.usage);
+  const compacted = num(raw.compactedResults, 0);
   return {
     version: CHAT_STORE_VERSION,
     id,
@@ -201,6 +215,7 @@ export function parseConversation(raw: unknown): StoredConversation | undefined 
     updatedAt: num(raw.updatedAt, createdAt),
     entries: capEntries(entries, CONVERSATION_ENTRY_CAP),
     ...(usage ? { usage } : {}),
+    ...(compacted > 0 ? { compactedResults: compacted } : {}),
   };
 }
 
@@ -297,9 +312,28 @@ export function capConversations(index: StoredIndex, cap: number): { index: Stor
 
 // ---- conversation mutation -------------------------------------------------
 
-/** Drops the oldest entries past the cap. */
+/**
+ * Drops the oldest entries past the cap, cutting at a turn boundary.
+ *
+ * A blind slice can land mid-tool-turn, leaving a transcript whose first entries
+ * are a tool call or result orphaned from their partner — which
+ * `toAnthropicMessages` then has to strip, and used to strip incompletely. So
+ * the cut is snapped *forward* to the next user entry, dropping a little more
+ * rather than a little wrong.
+ *
+ * If there is no user entry in the tail (one enormous turn), fall back to the
+ * plain slice: the conversation still has to be capped, and the trim in
+ * `toAnthropicMessages` is hardened to handle exactly that leftover.
+ *
+ * Returns the same array untouched below the cap — callers rely on that.
+ */
 export function capEntries(entries: ChatEntry[], cap: number): ChatEntry[] {
-  return entries.length <= cap ? entries : entries.slice(entries.length - cap);
+  if (entries.length <= cap) return entries;
+  const cut = entries.length - cap;
+  for (let i = cut; i < entries.length; i++) {
+    if (entries[i].kind === "user") return entries.slice(i);
+  }
+  return entries.slice(cut);
 }
 
 /** The first user message names the conversation, the way a commit's subject

@@ -36,6 +36,8 @@ vi.mock("../app/main/services/stateStore", () => ({
 }));
 
 const { ChatService, evictImages } = await import("../app/main/services/chat/chatService");
+const { CLEARED_PLACEHOLDER } = await import("../app/main/services/chat/compaction");
+const { ProviderError } = await import("../app/main/services/chat/providers/types");
 const { TranscriptStore } = await import("../app/main/services/chat/transcriptStore");
 const { PREVIEW_CHARS } = await import("../app/main/services/chat/transcript");
 const { electronStub, fakeWebContents } = await import("./stubs/electron");
@@ -46,6 +48,7 @@ type Service = InstanceType<typeof ChatService>;
 interface PendingTurn {
   onTextDelta(delta: string): void;
   resolve(result: { text: string; toolCalls: Array<{ id: string; name: string; argsJson: string }> }): void;
+  reject(error: unknown): void;
 }
 
 interface ToolReq {
@@ -69,7 +72,7 @@ class FakeProvider {
     this.turns++;
     this.lastEntries = options.entries ?? [];
     return new Promise((resolve, reject) => {
-      this.pending = { onTextDelta: options.onTextDelta, resolve };
+      this.pending = { onTextDelta: options.onTextDelta, resolve, reject };
       options.signal.addEventListener("abort", () => reject(new Error("aborted by the user")));
     });
   };
@@ -79,6 +82,12 @@ class FakeProvider {
   }
   emit(delta: string): void {
     this.pending!.onTextDelta(delta);
+  }
+  /** Fails the turn the way a provider would — the reactive-compaction seam. */
+  fail(error: unknown): void {
+    const pending = this.pending!;
+    this.pending = null;
+    pending.reject(error);
   }
   /** Finishes the turn, optionally asking for one tool call — or several, and
    *  optionally reporting usage the way a real provider would. */
@@ -1075,5 +1084,139 @@ describe("token, cost and context accounting", () => {
     post({ type: "chatReady" });
     await settle();
     expect(lastState(messages).usage).toMatchObject({ input: 70, output: 7 });
+  });
+});
+
+describe("transcript compaction", () => {
+  const usage = (input: number): FakeUsage => ({ input, output: 10, cacheRead: 0, cacheWrite: 0 });
+  const overflow = () => new ProviderError("context", "prompt is too long: 1051277 tokens > 1000000 maximum");
+
+  const compactionMsgs = (messages: ChatToWebview[]) =>
+    messages.filter((m): m is Extract<ChatToWebview, { type: "compaction" }> => m.type === "compaction");
+  const resultTexts = (entries: any[]) => entries.filter((e) => e.kind === "toolResult").map((e) => e.text);
+
+  /** Drives a turn to completion with one tool round trip, so the conversation
+   *  holds a clearable result. */
+  const withOneToolResult = async (
+    post: ReturnType<typeof makeService>["post"],
+    provider: FakeProvider,
+    mcp: FakeMcp
+  ) => {
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("calling", { id: "t1", name: "cad__inspect", argsJson: "{}" });
+    await settle(4);
+    mcp.finish("a very long tool result");
+    await settle(4);
+  };
+
+  it("recovers from a context overflow by clearing older results and retrying once", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await withOneToolResult(post, provider, mcp);
+
+    const before = provider.turns;
+    provider.fail(overflow());
+    await settle(6);
+
+    expect(provider.turns).toBe(before + 1); // retried exactly once
+    expect(compactionMsgs(messages)).toMatchObject([{ count: 1 }]);
+    // The retry was sent a smaller transcript than the attempt that overflowed.
+    expect(resultTexts(provider.lastEntries)).toEqual([CLEARED_PLACEHOLDER]);
+
+    provider.finish("done");
+    await settle();
+  });
+
+  it("emits one assistantStart for the iteration, not one per attempt", async () => {
+    // The renderer opens a fresh assistant bubble on each of these, so the retry
+    // must not emit a second one or it strands an empty bubble in the
+    // transcript. This is why the retry wraps the streamTurn call alone rather
+    // than re-entering the loop body.
+    const { provider, mcp, messages, post } = makeService();
+    await withOneToolResult(post, provider, mcp);
+    const beforeRetry = messages.filter((m) => m.type === "assistantStart").length;
+    provider.fail(overflow());
+    await settle(6);
+    provider.finish("done");
+    await settle();
+    expect(messages.filter((m) => m.type === "assistantStart").length).toBe(beforeRetry);
+  });
+
+  it("gives up and shows the banner when there is nothing left to clear", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await withOneToolResult(post, provider, mcp);
+
+    provider.fail(overflow());
+    await settle(6);
+    const afterFirst = provider.turns;
+    provider.fail(overflow()); // the retry overflows too, and now nothing is left
+    await settle(6);
+
+    // Bounded: no third attempt, no loop.
+    expect(provider.turns).toBe(afterFirst);
+    const errors = messages.filter((m) => m.type === "entry" && (m as any).entry.kind === "error");
+    expect(errors).toHaveLength(1);
+    expect((errors[0] as any).entry.errorKind).toBe("context");
+  });
+
+  it("leaves the stored transcript and the sidebar showing the full result", async () => {
+    // Compaction shapes the request only — this is the whole point.
+    const { service, provider, mcp, messages, post } = makeService();
+    await withOneToolResult(post, provider, mcp);
+    provider.fail(overflow());
+    await settle(6);
+    provider.finish("done");
+    await settle();
+    service.flushSync();
+
+    const id = lastState(messages).conversationId;
+    expect(resultTexts(stored(id)!.entries)).toEqual(["a very long tool result"]);
+    const wire = messages.filter((m) => m.type === "entry" && (m as any).entry.kind === "toolResult");
+    expect((wire[0] as any).entry.preview).toBe("a very long tool result");
+  });
+
+  it("clears proactively once a known window is filling up", async () => {
+    stateValues.llmModelAnthropic = "claude-haiku-4-5"; // 200k window
+    const { provider, mcp, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("calling", { id: "t1", name: "cad__inspect", argsJson: "{}" }, usage(150_000));
+    await settle(4);
+    mcp.finish("output");
+    await settle(4);
+    provider.finish("done", undefined, usage(180_000)); // past 70% of 200k
+    await settle();
+    expect(compactionMsgs(messages).length).toBeGreaterThan(0);
+  });
+
+  it("does not compact proactively for a model whose window is unknown", async () => {
+    stateValues.llmProvider = "openai";
+    stateValues.llmModelOpenai = "llama3.1:70b";
+    const { provider, mcp, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("calling", { id: "t1", name: "cad__inspect", argsJson: "{}" }, usage(999_999));
+    await settle(4);
+    mcp.finish("output");
+    await settle(4);
+    provider.finish("done", undefined, usage(999_999));
+    await settle();
+    expect(compactionMsgs(messages)).toHaveLength(0);
+  });
+
+  it("keeps the boundary across a conversation switch away and back", async () => {
+    const { provider, mcp, messages, post } = makeService();
+    await withOneToolResult(post, provider, mcp);
+    provider.fail(overflow());
+    await settle(6);
+    provider.finish("done");
+    await settle();
+    const id = lastState(messages).conversationId;
+
+    post({ type: "newChat" });
+    await settle();
+    post({ type: "selectConversation", id });
+    await settle();
+    expect(lastState(messages).compactedResults).toBe(1);
   });
 });

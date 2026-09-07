@@ -52,8 +52,9 @@ import {
   type LiveConversation,
   type StoredUsage,
 } from "./transcriptStoreCore";
-import { Provider, ProviderError, type TurnUsage } from "./providers/types";
+import { Provider, ProviderError, type TurnResult, type TurnUsage } from "./providers/types";
 import { estimateCost, modelInfo } from "./modelInfo";
+import { applyCompaction, nextCount } from "./compaction";
 import { createAnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from "./providers/anthropic";
 import { createOpenAiCompatProvider, DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./providers/openaiCompat";
 
@@ -211,6 +212,11 @@ export function addUsage(total: StoredUsage | undefined, turn: TurnUsage): Store
     lastInput: turn.input + turn.cacheRead + turn.cacheWrite,
   };
 }
+
+/** Share of a known context window at which older tool results start being
+ *  cleared from requests. Below the renderer's 0.8 warning, so compaction gets a
+ *  chance before the user is told anything is wrong. */
+const COMPACT_AT = 0.7;
 
 export const IMAGE_BUDGET_BYTES = 24 * 1024 * 1024;
 
@@ -552,6 +558,7 @@ export class ChatService {
       // and back) would leave a blocked turn with no prompt to answer it.
       pendingApproval: this.pendingApproval?.pending,
       usage: this.usageFor(convo, settings.model),
+      ...(convo.compactedResults ? { compactedResults: convo.compactedResults } : {}),
     });
     // After the transcript, so the chips they attach to exist — and as separate
     // messages, so `state` itself stays small. sendState() fires on far more
@@ -695,6 +702,26 @@ export class ChatService {
     if (this.toolImages.has(callId)) this.sendTo(convo, { type: "toolImages", callId, images, live: true });
   }
 
+  /**
+   * Clears more of the conversation's older tool results from future requests.
+   *
+   * Returns false when the boundary did not move — there is nothing left to
+   * clear — which is what stops the reactive path buying a retry of a request
+   * that would be byte-identical.
+   *
+   * Mirrors `append()`'s `alive` guard: this writes to the conversation outside
+   * that funnel, and a conversation deleted mid-turn must not be resurrected.
+   */
+  private advanceCompaction(convo: LiveConversation): boolean {
+    if (!convo.alive) return false;
+    const next = nextCount(convo.entries, convo.compactedResults ?? 0);
+    if (next === null) return false;
+    convo.compactedResults = next;
+    this.store.saveSoon(convo);
+    this.sendTo(convo, { type: "compaction", count: next });
+    return true;
+  }
+
   private pushError(convo: LiveConversation, message: string, errorKind: ChatErrorKind): void {
     this.append(convo, { kind: "error", message, errorKind });
   }
@@ -800,7 +827,9 @@ export class ChatService {
     // The context suffix rides on a copy of the transcript so it never
     // accumulates in the stored history.
     const requestEntries = (): ChatEntry[] => {
-      const copy = [...convo.entries];
+      // Compaction first: it allocates its own array, and the suffix has to land
+      // on an entry that survived it.
+      const copy = applyCompaction(convo.entries, convo.compactedResults ?? 0);
       for (let i = copy.length - 1; i >= 0; i--) {
         const entry = copy[i];
         if (entry.kind === "user") {
@@ -813,25 +842,47 @@ export class ChatService {
 
     try {
       for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+        // Fires once per iteration, outside the retry below: the renderer opens
+        // a fresh assistant bubble on every one of these, so a retry that
+        // re-emitted it would leave an empty one stranded in the transcript.
         this.sendTo(convo, { type: "assistantStart" });
-        const result = await provider.streamTurn({
+        const turnOptions = {
           system: SYSTEM_PROMPT,
-          entries: requestEntries(),
           tools: mcp.chatTools(),
           model: settings.model,
           signal,
-          onTextDelta: (delta) => {
+          onTextDelta: (delta: string) => {
             this.partial += delta;
             this.sendTo(convo, { type: "assistantDelta", text: delta });
           },
           toolName: mcp.toolName,
-        });
+        };
+        let result: TurnResult;
+        try {
+          result = await provider.streamTurn({ ...turnOptions, entries: requestEntries() });
+        } catch (error) {
+          // Retries exactly once, by construction: the second call has no catch,
+          // so a repeat overflow falls through to the banner below. Nothing here
+          // can block a settleTurn() caller — the approval gate is further down
+          // the loop, so no promise is outstanding — and a request that throws
+          // returns no TurnResult, so no usage can be counted twice.
+          if (signal.aborted) throw error;
+          if (!(error instanceof ProviderError) || error.kind !== "context") throw error;
+          if (!this.advanceCompaction(convo)) throw error;
+          result = await provider.streamTurn({ ...turnOptions, entries: requestEntries() });
+        }
 
         if (result.usage) {
           convo.usage = addUsage(convo.usage, result.usage);
           this.store.saveSoon(convo);
           const usage = this.usageFor(convo, settings.model);
           if (usage) this.sendTo(convo, { type: "usage", usage });
+          // Proactive trigger, per *iteration* rather than per turn: usage is
+          // folded here, and one turn can run 25 iterations and overflow without
+          // ever finishing. Known windows only — an unrecognised model has no
+          // figure to compare against, and relies on the reactive path above.
+          const window = modelInfo(settings.model)?.contextWindow;
+          if (window && convo.usage.lastInput > COMPACT_AT * window) this.advanceCompaction(convo);
         }
 
         const assistantEntry: ChatEntry = { kind: "assistant", text: result.text };

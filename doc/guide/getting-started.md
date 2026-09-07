@@ -149,6 +149,14 @@ It turns amber as the window fills up. That is worth acting on: when a conversat
 
 Cost is an estimate from published per-token prices for the Claude models KKSS knows about. Point the OpenAI-compatible provider at your own gateway — Ollama, OpenRouter, a local model — and KKSS has no way to know what it charges, so you get token counts and nothing else rather than a made-up figure. None of this leaves your machine; it is calculated from what the provider returned with your response.
 
+### When a conversation gets long
+
+Every message you send includes the whole conversation so far, so a long one eventually stops fitting in the model's context window. Rather than failing, KKSS starts leaving the **oldest tool results** out of what it sends — usually the bulk of a long conversation — and a line under the header tells you how many.
+
+Your transcript is not changed: every result is still there in full, and it is still saved. Only what the assistant is re-sent shrinks, and it can always re-run a tool if it needs an older result again.
+
+If even that is not enough, you will get the "start a new conversation" message. The old one is saved and one click away in **☰**.
+
 ### Seeing what the assistant sees
 
 Some tools return pictures — a rendered snapshot of a model, or a side-by-side comparison of two. Those appear in the tool's entry in the transcript, so when the assistant says a part looks wrong you can look at the same image it did. A result that has just arrived opens by itself; older ones in a long conversation stay folded away until you click them.

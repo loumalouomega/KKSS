@@ -217,6 +217,10 @@ export type ChatToWebview =
       pendingApproval?: ChatPendingApproval;
       /** Absent until the conversation has actually spent something. */
       usage?: ChatUsage;
+      /** How many older tool results are cleared from requests, if any. The
+       *  sidebar still shows every result in full — this is the disclosure that
+       *  the model is no longer being sent them. */
+      compactedResults?: number;
     }
   | { type: "entry"; entry: ChatWireEntry }
   | { type: "approvalRequest"; pending: ChatPendingApproval }
@@ -230,6 +234,11 @@ export type ChatToWebview =
   | { type: "dryRunResult"; callId: string; ok: boolean; text: string }
   /** Pushed after each model turn; `state` carries the same figures for replay. */
   | { type: "usage"; usage: ChatUsage }
+  /** Older tool results are being cleared from requests to fit the context
+   *  window. Deliberately its own message rather than a field on ChatUsage:
+   *  usage is absent whenever the provider reports none, which is the normal
+   *  OpenAI-compatible case — precisely where compaction matters most. */
+  | { type: "compaction"; count: number }
   | { type: "assistantStart" }
   | { type: "assistantDelta"; text: string }
   | { type: "assistantDone"; entry: ChatWireEntry }

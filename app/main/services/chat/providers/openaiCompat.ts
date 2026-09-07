@@ -159,7 +159,12 @@ export function createOpenAiCompatProvider(config: { baseUrl: string; apiKey?: s
       if (response.status === 429) {
         throw new ProviderError("rateLimit", `Rate limit reached (429): ${body}`);
       }
-      if (response.status === 400 && /context[_ ]length|maximum context|too many tokens/i.test(body)) {
+      // Not gated on 400: compatible gateways disagree about the status for an
+      // over-length prompt (llama.cpp and vLLM have both returned 500). The
+      // wording is the reliable signal, and is kept narrow — misclassifying some
+      // other failure as a context overflow would trigger a pointless compaction
+      // and retry.
+      if (/context[_ ]length|maximum context|too many tokens/i.test(body)) {
         throw new ProviderError("context", `This conversation no longer fits in the model's context window: ${body}`);
       }
       throw new ProviderError("other", `Request failed (${response.status}): ${body}`);

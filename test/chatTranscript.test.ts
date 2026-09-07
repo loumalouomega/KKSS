@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   ChatEntry,
+  PREVIEW_CHARS,
   toAnthropicMessages,
   toOpenAiMessages,
   toWire,
   truncate,
-  PREVIEW_CHARS,
 } from "../app/main/services/chat/transcript";
+import { applyCompaction, CLEARED_PLACEHOLDER } from "../app/main/services/chat/compaction";
 import { parseConversation, newConversation, appendEntry } from "../app/main/services/chat/transcriptStoreCore";
 
 const name = (server: string, tool: string) => `${server}__${tool}`;
@@ -176,5 +177,65 @@ describe("a denied tool call", () => {
     // toolCall is forwarded by identity, which is only sound while ChatEntry
     // and ChatWireEntry stay field-identical for that kind.
     expect(toWire(deniedTurn[2])).toEqual(deniedTurn[2]);
+  });
+});
+
+describe("compaction is structurally invisible to both wire formats", () => {
+  const entries: ChatEntry[] = [
+    { kind: "user", text: "inspect the model" },
+    { kind: "assistant", text: "looking" },
+    { kind: "toolCall", callId: "c1", server: "cad", tool: "inspect", argsJson: '{"path":"/a.stp"}' },
+    { kind: "toolResult", callId: "c1", ok: true, text: "a very long inspection report" },
+    { kind: "user", text: "and the mesh?" },
+    { kind: "assistant", text: "checking" },
+    { kind: "toolCall", callId: "c2", server: "mesh", tool: "mesh_info", argsJson: "{}" },
+    { kind: "toolResult", callId: "c2", ok: false, text: "it failed" },
+  ];
+
+  it("keeps the Anthropic message shape identical — only tool_result content moves", () => {
+    // This is the claim the whole design rests on: clearing a result's text
+    // cannot drop a message, reorder roles, or unpair a tool_use.
+    const before = toAnthropicMessages(entries, name);
+    const after = toAnthropicMessages(applyCompaction(entries, 9), name);
+    const shape = (messages: ReturnType<typeof toAnthropicMessages>) =>
+      messages.map((m) => ({ role: m.role, blocks: m.content.map((b) => [b.type, "id" in b ? b.id : "tool_use_id" in b ? b.tool_use_id : null]) }));
+    expect(shape(after)).toEqual(shape(before));
+  });
+
+  it("keeps the OpenAI message shape identical too", () => {
+    const shape = (messages: ReturnType<typeof toOpenAiMessages>) =>
+      messages.map((m) => ({ role: m.role, calls: "tool_calls" in m ? m.tool_calls?.map((c) => c.id) : undefined }));
+    expect(shape(toOpenAiMessages(applyCompaction(entries, 9), name))).toEqual(shape(toOpenAiMessages(entries, name)));
+  });
+
+  it("clears a successful result and leaves a failed one — is_error survives", () => {
+    const messages = toAnthropicMessages(applyCompaction(entries, 9), name);
+    const results = messages.flatMap((m) => m.content).filter((b) => b.type === "tool_result");
+    expect(results[0]).toMatchObject({ tool_use_id: "c1", content: CLEARED_PLACEHOLDER });
+    expect(results[1]).toMatchObject({ tool_use_id: "c2", content: "it failed", is_error: true });
+  });
+});
+
+describe("a transcript that starts mid-tool-turn", () => {
+  // What capEntries used to be able to produce by trimming the front of a long
+  // conversation. Anthropic rejects a first message whose leading block is a
+  // tool_result, so it must never be emitted.
+  const orphaned: ChatEntry[] = [
+    { kind: "toolCall", callId: "c1", server: "cad", tool: "inspect", argsJson: "{}" },
+    { kind: "toolResult", callId: "c1", ok: true, text: "output" },
+    { kind: "user", text: "carry on" },
+    { kind: "assistant", text: "sure" },
+  ];
+
+  it("never begins with a user message carrying a tool_result", () => {
+    const messages = toAnthropicMessages(orphaned, name);
+    expect(messages.length).toBeGreaterThan(0);
+    expect(messages[0].role).toBe("user");
+    expect(messages[0].content.some((b) => b.type === "tool_result")).toBe(false);
+    expect(messages[0].content).toEqual([{ type: "text", text: "carry on" }]);
+  });
+
+  it("drops an entry list that is nothing but an orphaned tool turn", () => {
+    expect(toAnthropicMessages(orphaned.slice(0, 2), name)).toEqual([]);
   });
 });

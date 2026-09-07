@@ -368,3 +368,62 @@ describe("cumulative usage", () => {
     expect(parseConversation({ ...base, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, lastInput: 0 } })!.usage).toBeUndefined();
   });
 });
+
+describe("the compaction boundary", () => {
+  const base = { version: CHAT_STORE_VERSION, id: "c1", title: "t", createdAt: 1, updatedAt: 2, entries: [] };
+
+  it("round-trips through disk", () => {
+    // Without a parse line it would be silently dropped — parseConversation
+    // rebuilds field by field — and a switch away and back would restore the
+    // full-size request compaction had just shrunk.
+    expect(parseConversation({ ...base, compactedResults: 7 })!.compactedResults).toBe(7);
+  });
+
+  it("is absent on a conversation that has never been compacted", () => {
+    expect(parseConversation(base)!.compactedResults).toBeUndefined();
+    expect(parseConversation({ ...base, compactedResults: 0 })!.compactedResults).toBeUndefined();
+  });
+
+  it("costs the boundary, never the conversation, when it is damaged", () => {
+    const convo = parseConversation({ ...base, compactedResults: "lots", entries: [{ kind: "user", text: "hi" }] });
+    expect(convo!.entries).toHaveLength(1);
+    expect(convo!.compactedResults).toBeUndefined();
+  });
+
+  it("needs no version bump", () => {
+    expect(parseConversation({ ...base, compactedResults: 3 })!.version).toBe(1);
+  });
+});
+
+describe("capEntries cuts at a turn boundary", () => {
+  it("snaps forward to the next user entry rather than slicing mid-turn", () => {
+    // A blind slice here would start the transcript at a tool result whose call
+    // is gone — the shape Anthropic rejects.
+    const entries: ChatEntry[] = [
+      { kind: "user", text: "one" },
+      { kind: "toolCall", callId: "c1", server: "cad", tool: "inspect", argsJson: "{}" },
+      { kind: "toolResult", callId: "c1", ok: true, text: "out" },
+      { kind: "user", text: "two" },
+      { kind: "assistant", text: "ok" },
+    ];
+    // A cap of 3 would cut at index 2 (a toolResult); the snap moves it to 3.
+    expect(capEntries(entries, 3)).toEqual([entries[3], entries[4]]);
+  });
+
+  it("keeps the same array below the cap", () => {
+    const before: ChatEntry[] = [{ kind: "user", text: "one" }];
+    expect(capEntries(before, 5)).toBe(before);
+  });
+
+  it("falls back to a plain slice when one turn fills the whole cap", () => {
+    // No user entry to snap to; the transcript still has to be capped, and the
+    // orphan trim in toAnthropicMessages handles what is left.
+    const entries: ChatEntry[] = [
+      { kind: "user", text: "one" },
+      { kind: "assistant", text: "a" },
+      { kind: "assistant", text: "b" },
+      { kind: "assistant", text: "c" },
+    ];
+    expect(capEntries(entries, 2)).toEqual([entries[2], entries[3]]);
+  });
+});
