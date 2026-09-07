@@ -21,6 +21,8 @@ body {
 /* ---- header ---------------------------------------------------------- */
 
 #chat-header {
+  /* The history popover hangs off the header, out of the flex flow. */
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -31,6 +33,10 @@ body {
 
 #chat-title {
   font-weight: 600;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #servers {
@@ -59,7 +65,23 @@ body {
   opacity: 1;
 }
 
-#chat-header button {
+/* Token / context / cost readout. `#servers` keeps flex:1 and absorbs the
+   shrink; three 9px dots leave it almost entirely slack. */
+#usage {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* The context window is filling up. The cheap half of what compaction would
+   buy: the user finds out before the provider rejects the request. */
+#usage.near-limit {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+#chat-header > button {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
   border: 1px solid var(--vscode-panel-border);
@@ -70,9 +92,111 @@ body {
   opacity: 0.85;
 }
 
-#chat-header button:hover {
+#chat-header > button:hover {
   opacity: 1;
   background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* ---- history popover ------------------------------------------------- */
+
+#history {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  /* vh, not %: the containing block is the header strip, so a percentage would
+     cap the list at one line. The chat sidebar is its own page, so the
+     viewport is the sidebar. */
+  max-height: 55vh;
+  overflow-y: auto;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border-bottom: 1px solid var(--vscode-panel-border);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.convo-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.convo-row.active {
+  background: var(--vscode-list-activeSelectionBackground, rgba(128, 128, 128, 0.25));
+}
+
+.convo-row:hover {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.convo-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.convo-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.convo-time {
+  flex: none;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.convo-row button.convo-act {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.convo-row button.convo-act:hover {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
+/* Second click commits — a WebContentsView renderer has no dialog, and delete
+   is the only irreversible action here. */
+.convo-row button.convo-act.armed {
+  color: var(--vscode-errorForeground, #f85149);
+  font-size: 11px;
+}
+
+.convo-rename {
+  flex: 1;
+  min-width: 0;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-focusBorder, #007fd4);
+  border-radius: 3px;
+  padding: 2px 4px;
+  font: inherit;
+}
+
+.convo-empty {
+  padding: 10px;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
 }
 
 /* ---- messages -------------------------------------------------------- */
@@ -207,6 +331,104 @@ body {
   word-break: break-word;
 }
 
+/* A rendered image block from a tool result. max-height keeps an eight-view
+   comparison from burying the rest of the transcript. */
+.tool img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-top: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editor-background);
+}
+
+/* ---- tool approval --------------------------------------------------- */
+
+.tool .tool-status.ask {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.tool .tool-status.denied {
+  color: var(--vscode-descriptionForeground);
+}
+
+.tool .tool-approval {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--vscode-panel-border);
+  font-size: 11px;
+}
+
+.tool .tool-approval .approval-msg {
+  flex: 1 1 100%;
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.tool .tool-approval button {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 3px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+/* Deny is the safe answer, so it must not look like the odd one out — but it
+   must not look like the default either. */
+.tool .tool-approval button.always {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-foreground);
+}
+
+.tool .tool-approval button.dryrun {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-foreground);
+}
+
+.tool .tool-approval button.dryrun:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.tool .tool-approval button.deny {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-errorForeground, #f85149);
+}
+
+/* Not a result: a validation run at the user's request while the prompt is
+   still open. Styled like the decided row so it cannot read as one. */
+.tool .dry-run-report {
+  border-top: 1px solid var(--vscode-panel-border);
+  font-size: 11px;
+}
+
+.tool .dry-run-report .dry-run-heading {
+  padding: 6px 8px 0;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+/* A decision already taken: history, not a control. */
+.tool .tool-approval.decided {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+/* Sits under the header, above the transcript: a standing statement about what
+   the model is being sent, not an event in the conversation. */
+#compaction {
+  flex: none;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  font-size: 11px;
+  font-style: italic;
+  color: var(--vscode-descriptionForeground);
+}
+
 /* ---- error banner ---------------------------------------------------- */
 
 .error-banner {
@@ -217,6 +439,11 @@ body {
   color: var(--vscode-errorForeground, #f85149);
   background: var(--vscode-inputValidation-errorBackground, rgba(248, 81, 73, 0.1));
   white-space: pre-wrap;
+}
+
+.error-banner .error-advice {
+  margin-top: 4px;
+  opacity: 0.85;
 }
 
 .error-banner button {

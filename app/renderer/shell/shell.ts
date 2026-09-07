@@ -1,4 +1,5 @@
-/** Shell toolbar: mode toggle, Open button, current-file title, toasts, tab strip. */
+/** Shell toolbar: mode toggle, Open button, project-root chip, current-file
+ *  title, toasts, tab strip. */
 import type { Mode, Screen, ShellTabInfo, ShellToWebview } from "../../main/ipc";
 import { TOOLBAR_ICONS, type ToolbarIconId } from "./shellIcons";
 
@@ -26,6 +27,7 @@ const openBtn = byId<HTMLButtonElement>("open-btn");
 const editBtn = byId<HTMLButtonElement>("edit-btn");
 const terminalBtn = byId<HTMLButtonElement>("terminal-btn");
 const chatBtn = byId<HTMLButtonElement>("chat-btn");
+const rootBtn = byId<HTMLButtonElement>("root-btn");
 const fileTitle = byId<HTMLSpanElement>("file-title");
 const zoomSelect = byId<HTMLSelectElement>("zoom-select");
 const toasts = byId<HTMLDivElement>("toasts");
@@ -96,12 +98,17 @@ function renderTabStrip(): void {
     const row = document.createElement("div");
     row.className = tab.id === activeTabId ? "tab active" : "tab";
     row.setAttribute("role", "tab");
-    row.title = tab.fileName ?? "Untitled";
+    // A cloud document's real home is the remote folder, not the staging path,
+    // so that is what the tooltip says.
+    row.title = tab.cloud
+      ? `${tab.cloud.provider} · ${tab.cloud.name}`
+      : (tab.fileName ?? "Untitled");
     row.addEventListener("click", () => api.post({ type: "selectTab", mode, tabId: tab.id }));
 
     const label = document.createElement("span");
     label.className = "tab-label";
-    label.textContent = `${tab.fileName ?? "Untitled"}${tab.dirty ? " ●" : ""}`;
+    const cloudMark = tab.cloud ? "☁ " : "";
+    label.textContent = `${cloudMark}${tab.fileName ?? "Untitled"}${tab.dirty ? " ●" : ""}`;
     row.appendChild(label);
 
     const close = document.createElement("button");
@@ -132,6 +139,7 @@ openBtn.addEventListener("click", () => api.post({ type: "openFile" }));
 editBtn.addEventListener("click", () => api.post({ type: "editCurrentFile" }));
 terminalBtn.addEventListener("click", () => api.post({ type: "toggleTerminal" }));
 chatBtn.addEventListener("click", () => api.post({ type: "toggleChat" }));
+rootBtn.addEventListener("click", () => api.post({ type: "chooseProjectRoot" }));
 
 api.onMessage((raw) => {
   const msg = raw as ShellToWebview;
@@ -145,6 +153,16 @@ api.onMessage((raw) => {
       editorTitle = msg.fileName;
       editorDirty = msg.dirty ?? false;
       renderMode();
+      break;
+    case "projectRoot":
+      // Shown only when a root is explicitly set — an inferred one changes with
+      // the focused tab, so a chip for it would be noise.
+      if (msg.label) {
+        rootBtn.innerHTML = `${icon("open")}<span id="root-btn-label"></span>`;
+        (rootBtn.querySelector("#root-btn-label") as HTMLElement).textContent = msg.label;
+        rootBtn.title = `Project root: ${msg.display ?? msg.label}\nClick to change`;
+      }
+      rootBtn.hidden = !msg.label;
       break;
     case "tabs":
       tabState[msg.mode] = { tabs: msg.tabs, activeTabId: msg.activeTabId };

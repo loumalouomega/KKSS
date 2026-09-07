@@ -18,7 +18,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { CallToolResult, GetPromptResult, Prompt, ReadResourceResult, Resource } from "@modelcontextprotocol/sdk/types.js";
 import * as path from "node:path";
-import type { ChatServerStatus } from "../../ipc";
+import type { ChatImage, ChatServerStatus } from "../../ipc";
 import { truncate } from "./transcript";
 import type { ToolDef } from "./providers/types";
 
@@ -40,6 +40,25 @@ export const KRATOS_MCP_VERSION = "0.3.0";
 const NAMESPACE_SEPARATOR = "__";
 /** Cap on tool-result text handed back to the model. */
 export const RESULT_CHARS = 50_000;
+
+/**
+ * Caps on the image blocks forwarded to the sidebar.
+ *
+ * `MAX_IMAGE_BYTES` is small on purpose. It bounds the *transfer*, not the
+ * decoded bitmap — PNG compresses pathologically well, and a 2 MB file can be
+ * 20000x20000, i.e. well over a gigabyte of renderer memory once decoded. A low
+ * cap plus the renderer attaching its <img> lazily are the two halves of that
+ * bound; 512 KB is ample for what render_snapshot and compare_models emit.
+ */
+const IMAGE_MIME_TYPES: readonly string[] = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+/** compare_models' own ceiling is eight labelled views. */
+const MAX_IMAGES_PER_RESULT = 8;
+const MAX_IMAGE_BYTES = 512 * 1024;
+const MAX_IMAGE_BYTES_TOTAL = 2 * 1024 * 1024;
+/** Standard base64, no whitespace or URL-safe alphabet — this string is
+ *  interpolated into a data: URL by the renderer, and an MCP server is not a
+ *  trusted source. */
+const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
 /** uvx cold-starts by downloading the package — allow a slow first connect. */
 const CONNECT_TIMEOUT_MS = 60_000;
 /** Meshing/simulation tools can legitimately run for minutes. */
@@ -103,6 +122,33 @@ export function flattenContent(content: unknown): string {
       return `[${String((block as { type?: string })?.type ?? "unknown")} content]`;
     })
     .join("\n");
+}
+
+/**
+ * The displayable image blocks of an MCP tool result.
+ *
+ * Deliberately separate from `flattenContent`, which stays byte-identical: the
+ * model's view of a result must not move because the user gained a view of it.
+ * A block failing any cap is dropped whole rather than truncated — half an
+ * image is not a smaller image.
+ */
+export function extractImages(content: unknown): ChatImage[] {
+  if (!Array.isArray(content)) return [];
+  const images: ChatImage[] = [];
+  let total = 0;
+  for (const block of content) {
+    if (images.length >= MAX_IMAGES_PER_RESULT) break;
+    if (!block || typeof block !== "object") continue;
+    const { type, data, mimeType } = block as { type?: unknown; data?: unknown; mimeType?: unknown };
+    if (type !== "image") continue;
+    if (typeof data !== "string" || typeof mimeType !== "string") continue;
+    if (!IMAGE_MIME_TYPES.includes(mimeType)) continue;
+    if (!data || data.length > MAX_IMAGE_BYTES || !BASE64_RE.test(data)) continue;
+    if (total + data.length > MAX_IMAGE_BYTES_TOTAL) break;
+    total += data.length;
+    images.push({ mimeType, dataBase64: data });
+  }
+  return images;
 }
 
 /** The three server specs, resolved relative to out/ (== __dirname of main.js). */
@@ -288,8 +334,9 @@ export class McpManager {
   }
 
   /** Raw tool call that returns the untouched CallToolResult (used by the HTTP meta
-   *  server so image/structured content survives). Never throws — errors become a
-   *  CallToolResult with isError. */
+   *  server so structured content survives verbatim — `callTool` flattens it to
+   *  text, forwarding image blocks separately for display only). Never throws —
+   *  errors become a CallToolResult with isError. */
   async callToolRaw(namespaced: string, args: Record<string, unknown>): Promise<CallToolResult> {
     const split = splitToolName(namespaced, this.servers.map((s) => s.spec.key));
     const server = split && this.servers.find((s) => s.spec.key === split.server);
@@ -340,8 +387,10 @@ export class McpManager {
     }
   }
 
-  /** Routes a namespaced tool call; never throws — errors become tool results. */
-  async callTool(namespaced: string, argsJson: string): Promise<{ ok: boolean; text: string }> {
+  /** Routes a namespaced tool call; never throws — errors become tool results.
+   *  `images` is for the sidebar only; the model sees `text`, in which
+   *  `flattenContent` has already left an `[image content]` placeholder. */
+  async callTool(namespaced: string, argsJson: string): Promise<{ ok: boolean; text: string; images?: ChatImage[] }> {
     let args: Record<string, unknown> = {};
     try {
       args = argsJson ? (JSON.parse(argsJson) as Record<string, unknown>) : {};
@@ -368,7 +417,12 @@ export class McpManager {
         resetTimeoutOnProgress: true,
       });
       const text = truncate(flattenContent(result.content), RESULT_CHARS);
-      return { ok: !result.isError, text: text || (result.isError ? "Tool reported an error with no message." : "(empty result)") };
+      const images = extractImages(result.content);
+      return {
+        ok: !result.isError,
+        text: text || (result.isError ? "Tool reported an error with no message." : "(empty result)"),
+        ...(images.length ? { images } : {}),
+      };
     } catch (error) {
       return { ok: false, text: `Tool call failed: ${error instanceof Error ? error.message : String(error)}` };
     }

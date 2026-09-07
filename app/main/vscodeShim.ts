@@ -22,11 +22,27 @@
  *   mesh/src/runManager.ts       — EventEmitter, Disposable, window.createOutputChannel,
  *                                  context.workspaceState (see mesh/meshHost.ts),
  *                                  commands.executeCommand("setContext")
+ *   mesh/src/recentMeshes.ts     — EventEmitter, context.globalState, and
+ *                                  commands.executeCommand("setContext") again;
+ *                                  it fires on EVERY file open (both providers
+ *                                  record there), so that case must stay a
+ *                                  cheap no-op rather than a throw
+ *   mesh/src/previewHtml.ts      — Uri.joinPath, webview.asWebviewUri (identity,
+ *                                  via meshHost.ts's fake panel),
+ *                                  workspace.getConfiguration("kratos.flowgraph")
  *
- * mesh/src/runTreeView.ts is deliberately NOT served: it is reachable only from
- * the submodule's own activate(), which KKSS never calls (meshHost.ts constructs
- * the providers directly), so createTreeView/TreeItem/ThemeIcon/MarkdownString
- * stay out of the bundle. KKSS surfaces runs through its native menu instead.
+ * Three modules are deliberately NOT served, because each is reachable only
+ * from the submodule's own activate(), which KKSS never calls (meshHost.ts
+ * constructs the providers directly):
+ *   mesh/src/runTreeView.ts   — createTreeView, TreeItem, ThemeIcon, MarkdownString
+ *   mesh/src/sidebarViews.ts  — createTreeView, TreeItem, commands.registerCommand
+ *                               (mesh 3.15.0's Kratos activity-bar panel)
+ *   mesh/src/emptyPreview.ts  — window.createWebviewPanel
+ * That is what keeps all of the above out of both the bundle and this shim.
+ * KKSS covers the same ground natively: runs via File ▸ Stop Kratos Run, recent
+ * meshes via File ▸ Open Recent, and the empty-preview shell via its own tab
+ * model (a mode screen always has at least one tab, so KKSS structurally cannot
+ * be in the "no editor open" state that panel exists for).
  *
  * Anything else throws loudly so a submodule update that starts using a new
  * API fails visibly instead of silently misbehaving.
@@ -51,6 +67,13 @@ export interface VscodeShimHooks {
    * is the *only* path behind PtController.openResults(), so it cannot throw.
    */
   openLatestResults(caseDir: string, options?: { excludeNewest?: boolean }): void;
+  /**
+   * The explicit project root, or undefined when the user has not chosen one.
+   * Backs `workspace.workspaceFolders` — unlike the hooks above this is a
+   * passive read that submodule code can make at any time, so its unconfigured
+   * default returns undefined rather than throwing.
+   */
+  projectRoot(): string | undefined;
 }
 
 let hooks: VscodeShimHooks = {
@@ -63,6 +86,7 @@ let hooks: VscodeShimHooks = {
   openLatestResults: () => {
     throw new Error("vscodeShim: hooks not configured");
   },
+  projectRoot: () => undefined,
 };
 
 export function __configureVscodeShim(h: VscodeShimHooks): void {
@@ -399,11 +423,22 @@ export const workspace = {
   },
 
   /**
-   * KKSS opens files, not folders — ptController reads this only to resolve
-   * `kratos.problemtypes.extraPaths` relative to a workspace, and treats
-   * undefined as "none". mesh's own `?? []` handles it.
+   * The explicit project root, as a one-folder workspace.
+   *
+   * ptController reads this only to resolve `kratos.problemtypes.extraPaths`
+   * (`<root>/.kratos/problemtypes` by default), so setting a root is what makes
+   * project-local problemtypes discoverable — impossible while this was always
+   * undefined. It is the *explicit* root deliberately: an inferred one would
+   * change every time the user focused another tab, so the catalog would flap.
+   * Undefined when no root is set, which mesh's own `?? []` already handles.
+   *
+   * A getter, not a value: the root changes at runtime, and the shim's exports
+   * are read once at import time by the submodule modules.
    */
-  workspaceFolders: undefined as undefined | { uri: Uri }[],
+  get workspaceFolders(): { uri: Uri }[] | undefined {
+    const root = hooks.projectRoot();
+    return root ? [{ uri: Uri.file(root) }] : undefined;
+  },
 
   /**
    * mesh 3.2.0's mdpa provider re-parses when the file is saved in a text

@@ -13,9 +13,13 @@
     <header id="chat-header">
       <span id="chat-title" title="AI assistant">AI Chat</span>
       <span id="servers" title="MCP tool servers"></span>
-      <button id="new-btn" title="Start a new conversation">⟳ New</button>
+      <span id="usage" hidden></span>
+      <button id="history-btn" title="Conversations">☰</button>
+      <button id="new-btn" title="Start a new conversation (this one is saved)">⟳ New</button>
       <button id="hide-btn" title="Hide chat (Ctrl+Shift+L)">✕</button>
+      <div id="history" hidden></div>
     </header>
+    <div id="compaction" hidden></div>
     <div id="messages" aria-live="polite"></div>
     <footer id="composer">
       <textarea id="input" rows="3"

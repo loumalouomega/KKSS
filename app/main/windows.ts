@@ -38,6 +38,27 @@ export interface Tab {
   view: WebContentsView;
 }
 
+/** Which of the window's views a crash report is about. */
+export type ViewKind = "shell" | "home" | "editor" | "terminal" | "chat" | "tab";
+
+/** Identifies a view to the crash handler. `mode`/`tabId` are set for "tab". */
+export interface ViewRef {
+  kind: ViewKind;
+  mode?: Mode;
+  tabId?: string;
+}
+
+export interface ViewCrash extends ViewRef {
+  /** Electron's `render-process-gone` reason, or a load-failure description. */
+  reason: string;
+}
+
+export interface MainWindowHooks {
+  /** A view's renderer died, or its main frame failed to load. windows.ts only
+   *  reports — index.ts owns the hosts, so it decides what to replay. */
+  onViewCrash?: (crash: ViewCrash) => void;
+}
+
 export interface MainWindow {
   win: BaseWindow;
   shell: WebContentsView;
@@ -64,13 +85,20 @@ export interface MainWindow {
   chatVisible: () => boolean;
   /** Shows/hides the chat sidebar, creating its view on first use. */
   toggleChat: () => { view: WebContentsView; visible: boolean };
+  /** Reloads one view's page — crash recovery for the views index.ts holds no
+   *  reference to (terminal/chat are private, and tabs are keyed by id). */
+  reloadView: (ref: ViewRef) => void;
   /** Current interface scale (applied to every view + the chrome bounds). */
   zoom: () => number;
   /** Scales every view's content and the chrome constants; clamped to presets. */
   setZoom: (factor: number) => number;
 }
 
-export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): MainWindow {
+export function createMainWindow(
+  outDir: string,
+  initialZoom = DEFAULT_ZOOM,
+  hooks: MainWindowHooks = {}
+): MainWindow {
   const win = new BaseWindow({
     width: 1360,
     height: 860,
@@ -169,13 +197,53 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
   };
   win.on("resize", layout);
 
-  // Electron resets a view's zoom to 1 on every navigation, so reassert it once
-  // each page commits (mode-tab views reload on file open). Applied to every
-  // tab view in openTab() below and to the lazily created terminal/chat views
-  // in their factories.
-  const trackZoom = (view: WebContentsView) =>
-    view.webContents.on("did-finish-load", () => view.webContents.setZoomFactor(currentZoom));
-  for (const v of [shell, home, editor]) trackZoom(v);
+  // Views we are tearing down ourselves (closeTab) still emit a gone/failed
+  // event — not a crash, and nothing to recover.
+  const closing = new WeakSet<WebContentsView>();
+
+  /**
+   * The one place every view in this window is wired up. Two jobs:
+   *
+   * - Electron resets a view's zoom to 1 on every navigation, so reassert it
+   *   once each page commits (mode-tab views reload on file open).
+   * - Notice a dead renderer. Without this a crashed view is a blank pane with
+   *   no message and no way back but quitting the app — and that is not
+   *   hypothetical: the mesh vtk.js renderer dies under software GL, which is
+   *   exactly the stack the Docker image ships (tools/smoke.e2e.mjs retries
+   *   whole app launches over it).
+   *
+   * Applied to shell/home/editor below, to each tab view in openTab(), and to
+   * the lazily created terminal/chat views in their factories.
+   */
+  const wireView = (view: WebContentsView, ref: ViewRef) => {
+    const wc = view.webContents;
+    wc.on("did-finish-load", () => wc.setZoomFactor(currentZoom));
+    const report = (reason: string) => {
+      if (closing.has(view) || wc.isDestroyed()) return;
+      hooks.onViewCrash?.({ ...ref, reason });
+    };
+    wc.on("render-process-gone", (_event, details) => {
+      // "clean-exit" is an orderly shutdown, not a crash.
+      if (details.reason === "clean-exit") return;
+      report(details.reason);
+    });
+    wc.on("did-fail-load", (_event, errorCode, errorDescription, url, isMainFrame) => {
+      // Subresource failures and aborted loads (-3, ERR_ABORTED — routine when
+      // a navigation supersedes another) leave a working page behind. Only a
+      // failed main-frame navigation to one of our own pages kills the pane.
+      if (!isMainFrame || errorCode === -3 || !url.startsWith("kkss://app/")) return;
+      report(errorDescription || `load failed (${errorCode})`);
+    });
+    // `unresponsive` is deliberately NOT wired to recovery — log only. It fires
+    // on any long synchronous parse, which is precisely what both viewers do on
+    // a large mesh, so reloading on it would destroy a working session
+    // mid-load.
+    wc.on("unresponsive", () => console.warn(`[kkss] ${ref.kind} renderer is busy (not reloading)`));
+  };
+
+  wireView(shell, { kind: "shell" });
+  wireView(home, { kind: "home" });
+  wireView(editor, { kind: "editor" });
 
   const applyTabVisibility = () => {
     for (const mode of ["cad", "mesh"] as const) {
@@ -190,7 +258,7 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
     tabs[mode].push(tab);
     win.contentView.addChildView(view);
     win.contentView.addChildView(home); // keep the home screen topmost
-    trackZoom(view);
+    wireView(view, { kind: "tab", mode, tabId: tab.id });
     view.setVisible(false); // shown only once focused, via setActiveTab
     void view.webContents.loadURL(`kkss://app/renderer/${mode}/index.html`);
     return tab;
@@ -200,6 +268,7 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
     const idx = tabs[mode].findIndex((t) => t.id === tabId);
     if (idx < 0) return;
     const [tab] = tabs[mode].splice(idx, 1);
+    closing.add(tab.view);
     win.contentView.removeChildView(tab.view);
     tab.view.webContents.close();
     if (activeTab[mode] === tabId) {
@@ -233,7 +302,7 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
       });
       win.contentView.addChildView(terminal);
       win.contentView.addChildView(home); // keep the home screen topmost
-      trackZoom(terminal);
+      wireView(terminal, { kind: "terminal" });
       void terminal.webContents.loadURL("kkss://app/renderer/terminal/index.html");
     }
     terminalShown = !terminalShown;
@@ -255,7 +324,7 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
       });
       win.contentView.addChildView(chat);
       win.contentView.addChildView(home); // keep the home screen topmost
-      trackZoom(chat);
+      wireView(chat, { kind: "chat" });
       void chat.webContents.loadURL("kkss://app/renderer/chat/index.html");
     }
     chatShown = !chatShown;
@@ -277,6 +346,16 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
     if (screen === "editor") editor.webContents.focus();
   };
   setScreen("home");
+
+  const reloadView = ({ kind, mode, tabId }: ViewRef): void => {
+    const view =
+      kind === "tab"
+        ? mode && tabId
+          ? findTab(mode, tabId)?.view
+          : undefined
+        : { shell, home, editor, terminal, chat }[kind];
+    if (view && !view.webContents.isDestroyed()) view.webContents.reload();
+  };
 
   const setZoom = (factor: number): number => {
     currentZoom = clampZoom(factor);
@@ -315,6 +394,7 @@ export function createMainWindow(outDir: string, initialZoom = DEFAULT_ZOOM): Ma
     toggleTerminal,
     chatVisible: () => chatShown,
     toggleChat,
+    reloadView,
     zoom: () => currentZoom,
     setZoom,
   };

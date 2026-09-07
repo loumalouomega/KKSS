@@ -13,6 +13,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { EditorLanguage, EditorToHost, EditorToWebview } from "../ipc";
 import { toast } from "./notifications";
+import { projectRoot } from "./projectRoot";
 
 /** Refuse to text-edit files bigger than this (CodeMirror stays responsive). */
 const MAX_EDIT_BYTES = 20 * 1024 * 1024;
@@ -77,6 +78,19 @@ export class EditorService {
     });
   }
 
+  /**
+   * The editor's renderer died. Its unsaved buffer lived only there, so it is
+   * gone — clear the flag so the window-close guard (index.ts) does not prompt
+   * about a buffer that no longer exists. The reloaded page replays `lastDoc`
+   * (the on-disk content) through the `editorReady` handshake.
+   */
+  notifyRendererGone(): boolean {
+    const wasDirty = this.dirty;
+    this.dirty = false;
+    this.title();
+    return wasDirty;
+  }
+
   isDirty(): boolean {
     return this.dirty;
   }
@@ -96,6 +110,9 @@ export class EditorService {
     const result = await dialog.showOpenDialog(this.deps.getWindow(), {
       title: "Open in Text Editor",
       filters: FILE_FILTERS,
+      // This service talks to Electron directly rather than through
+      // services/dialogs.ts, so it applies the project-root default itself.
+      defaultPath: projectRoot.effective(),
       properties: ["openFile"],
     });
     if (result.canceled || !result.filePaths[0]) return;
@@ -150,7 +167,9 @@ export class EditorService {
     if (saveAs || !target) {
       const result = await dialog.showSaveDialog(this.deps.getWindow(), {
         title: "Save As",
-        defaultPath: target ?? undefined,
+        // An open document keeps its own folder; an unsaved buffer lands in the
+        // project root instead of wherever the OS last left the picker.
+        defaultPath: target ?? projectRoot.effective(),
         filters: FILE_FILTERS,
       });
       if (result.canceled || !result.filePath) {

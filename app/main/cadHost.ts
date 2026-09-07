@@ -15,6 +15,19 @@
  *   showOpenDialog/showSaveDialog  → services/dialogs
  *   showQuickPick                  → services/quickPick modal window
  *   vscode.openWith                → hooks.onOpenRequest (router)
+ *   cadPreview.openscadBinary      → the cadOpenscadBinary stateStore key
+ *                                    (Settings ▸ CAD Viewer Defaults), since
+ *                                    the shim's getConfiguration always
+ *                                    resolves to the caller's default
+ *
+ * Deliberately NOT ported from cad 1.12.0:
+ *   - SpaceMouse (the provider's spaceMouseConnect/Disconnect commands and the
+ *     `spacemouse` relay). It needs `node-hid`, a second native N-API module,
+ *     and node-pty is KKSS's only one — see CLAUDE.md. cad `require()`s it
+ *     lazily and fails soft, so nothing else in the submodule is affected.
+ *   - The Models activity-bar view (cad/src/modelsView.ts): a VS Code TreeView
+ *     over the workspace folders, which KKSS has no analogue of and whose job
+ *     the home screen and the Open dialog already do.
  */
 import { ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs/promises";
@@ -26,6 +39,7 @@ import {
   type FileRoute,
   type MeshParseFormat,
 } from "../../cad/src/fileRouter";
+import { resolveEffectiveSource } from "../../cad/src/scadService";
 import { SVG_VIEWS } from "../../cad/src/svgSilhouette";
 import type { CompareSource } from "../../cad/src/modelDiffHost";
 import { resolveExternalBuffers, type GltfExternalBuffers } from "../../cad/src/gltfParser";
@@ -34,6 +48,7 @@ import {
   type HostToWebview,
   type WebviewToHost,
   type Part,
+  type SelectorSynthesizeResultEntry,
 } from "../../cad/src/protocol";
 import {
   exportTargetsFor,
@@ -87,9 +102,12 @@ import {
 } from "../../cad/src/meshioService";
 import { cadCompute } from "./cadComputeClient";
 import { toKkssUrl, allowRoot } from "./protocol";
+import { projectRoot } from "./services/projectRoot";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
 import { showQuickPick, showInputBox } from "./services/quickPick";
 import { stateStore } from "./services/stateStore";
+import { writeFileAtomic } from "./services/atomicWrite";
+import { CAD_SIDECAR, MACRO_LIBRARY_NAME } from "./services/sidecarSuffixes";
 
 /**
  * stateStore keys backing the viewer defaults the extension gets from its
@@ -103,20 +121,42 @@ export const CAD_DEFAULT_KEYS = {
   upAxis: "cadUpAxis",
   /** cadPreview.tessellationQuality — read fresh on every B-rep load. */
   tessellationQuality: "cadTessellationQuality",
+  /**
+   * cadPreview.openscadBinary (cad 1.12.0) — the `openscad` executable used to
+   * convert a `.scad` source to `.csg` on open. Unset means "resolve `openscad`
+   * on PATH", which is the submodule's own default; the OPENSCAD_BINARY
+   * environment variable stays the headless escape hatch and already reaches
+   * the MCP child through its inherited env.
+   */
+  openscadBinary: "cadOpenscadBinary",
 } as const;
 
 /** Debounce window for autosaving the parts/edits/mesh-options sidecars (provider.ts). */
 const PARTS_SAVE_DEBOUNCE_MS = 500;
 
 const BREP_FORMATS: ReadonlySet<CadFormat> = new Set(["step", "iges", "brep"]);
+
+/**
+ * What the OCCT pipeline accepts as a *source*. `.csg` joined it in cad 1.12.0
+ * (OpenSCAD's evaluated form, built kernel-side into an opaque base shape, like
+ * a STEP import rather than an op history), and `.scad` reaches it by
+ * converting to `.csg` first — see `readOcctSource`, after which nothing
+ * downstream ever sees "scad".
+ *
+ * Export *targets* stay `BREP_FORMATS`: both OpenSCAD formats are import-only.
+ */
+type OcctSourceFormat = Extract<CadFormat, "step" | "iges" | "brep" | "csg">;
 const CAD_OPEN_FILTER = {
   name: "CAD / Mesh",
-  // Mirrors provider.openFileDialog's own filter — the second row is the
-  // meshio++ route (cad 1.2.x). Note the router still prefers post mode for
-  // those (app/main/router.ts); this dialog is the CAD-mode importer.
+  // Mirrors provider.openFileDialog's own filter — the second and third rows
+  // are the meshio++ route (cad 1.2.x, extended in 1.5.1). Note the router
+  // still prefers post mode for those (app/main/router.ts); this dialog is the
+  // CAD-mode importer. Electron matches the final dot-segment only, so GiD's
+  // compound `post.msh` is covered by the plain `msh` entry.
   extensions: [
-    "stl", "obj", "ply", "gltf", "glb", "step", "stp", "iges", "igs", "brep",
-    "vtk", "vtu", "med", "cgns", "exo", "e", "xdmf", "mdpa",
+    "stl", "obj", "ply", "gltf", "glb", "step", "stp", "iges", "igs", "brep", "csg", "scad",
+    "vtk", "vtu", "med", "cgns", "exo", "e", "xdmf", "mdpa", "foam",
+    "msh", "msh2", "inp", "unv", "su2", "mesh",
   ],
 };
 
@@ -138,67 +178,79 @@ let camerasLinked = false;
 
 const readParts = async (modelPath: string): Promise<Part[]> => {
   try {
-    return parsePartsJson(await fs.readFile(`${modelPath}.parts.json`, "utf8"));
+    return parsePartsJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.parts}`, "utf8"));
   } catch {
     return [];
   }
 };
 const writeParts = (modelPath: string, parts: Part[]): Promise<void> =>
-  fs.writeFile(`${modelPath}.parts.json`, serializePartsJson(path.basename(modelPath), parts), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.parts}`,
+    serializePartsJson(path.basename(modelPath), parts)
+  );
 
 const readEdits = async (modelPath: string): Promise<ParsedEdits> => {
   try {
-    return parseEditsJson(await fs.readFile(`${modelPath}.edits.json`, "utf8"));
+    return parseEditsJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.edits}`, "utf8"));
   } catch {
     return { ops: [], variables: [] };
   }
 };
 const writeEdits = (modelPath: string, ops: EditOp[], variables: ParamVariable[]): Promise<void> =>
-  fs.writeFile(`${modelPath}.edits.json`, serializeEditsJson(path.basename(modelPath), ops, variables), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.edits}`,
+    serializeEditsJson(path.basename(modelPath), ops, variables)
+  );
 
 const readAnnotations = async (modelPath: string): Promise<Annotation[]> => {
   try {
-    return parseAnnotationsJson(await fs.readFile(`${modelPath}.annotations.json`, "utf8"));
+    return parseAnnotationsJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.annotations}`, "utf8"));
   } catch {
     return [];
   }
 };
 const writeAnnotations = (modelPath: string, annotations: Annotation[]): Promise<void> =>
-  fs.writeFile(
-    `${modelPath}.annotations.json`,
-    serializeAnnotationsJson(path.basename(modelPath), annotations),
-    "utf8"
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.annotations}`,
+    serializeAnnotationsJson(path.basename(modelPath), annotations)
   );
 
 const readViewState = async (modelPath: string): Promise<ViewState | null> => {
   try {
-    return parseViewStateJson(await fs.readFile(`${modelPath}.view.json`, "utf8"));
+    return parseViewStateJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.view}`, "utf8"));
   } catch {
     return null;
   }
 };
 const writeViewState = (modelPath: string, view: ViewState): Promise<void> =>
-  fs.writeFile(`${modelPath}.view.json`, serializeViewStateJson(path.basename(modelPath), view), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.view}`,
+    serializeViewStateJson(path.basename(modelPath), view)
+  );
 
 // cad 1.7.0's named construction planes. Stores resolved point+normal vectors,
 // never a face reference, so it is deliberately outside entity rebinding and
 // is never renumbered by an op replay.
 const readPlanes = async (modelPath: string): Promise<ConstructionPlane[]> => {
   try {
-    return parsePlanesJson(await fs.readFile(`${modelPath}.planes.json`, "utf8"));
+    return parsePlanesJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.planes}`, "utf8"));
   } catch {
     return [];
   }
 };
 const writePlanes = (modelPath: string, planes: ConstructionPlane[]): Promise<void> =>
-  fs.writeFile(`${modelPath}.planes.json`, serializePlanesJson(path.basename(modelPath), planes), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.planes}`,
+    serializePlanesJson(path.basename(modelPath), planes)
+  );
 
 /**
- * cad 1.7.0's macro library. Unlike every other sidecar this is **per folder**,
- * not per model — one library is shared by every model beside it.
+ * cad 1.7.0's macro library — per folder, not per model, which is why two tabs
+ * on models in one directory write the same path. writeFileAtomic serializes
+ * them; a bare writeFile would have let them interleave.
  */
 const macroLibraryPath = (modelPath: string): string =>
-  path.join(path.dirname(modelPath), "cad-preview-macros.json");
+  path.join(path.dirname(modelPath), MACRO_LIBRARY_NAME);
 
 const readMacros = async (modelPath: string): Promise<ScriptLibrary> => {
   try {
@@ -208,19 +260,25 @@ const readMacros = async (modelPath: string): Promise<ScriptLibrary> => {
   }
 };
 const writeMacros = (modelPath: string, library: ScriptLibrary): Promise<void> =>
-  fs.writeFile(macroLibraryPath(modelPath), serializeScriptLibraryJson(library), "utf8");
+  writeFileAtomic(macroLibraryPath(modelPath), serializeScriptLibraryJson(library));
 
 const readMeshOptions = async (modelPath: string): Promise<MeshOptions> => {
   try {
-    return parseMeshJson(await fs.readFile(`${modelPath}.mesh.json`, "utf8"));
+    return parseMeshJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.meshOptions}`, "utf8"));
   } catch {
     return DEFAULT_MESH_OPTIONS;
   }
 };
 const writeMeshOptions = (modelPath: string, options: MeshOptions): Promise<void> =>
-  fs.writeFile(`${modelPath}.mesh.json`, serializeMeshJson(path.basename(modelPath), options), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.meshOptions}`,
+    serializeMeshJson(path.basename(modelPath), options)
+  );
 const writeGeoScript = (modelPath: string, options: MeshOptions): Promise<void> =>
-  fs.writeFile(`${modelPath}.geo`, generateGeoScript(path.basename(modelPath), options), "utf8");
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.geoScript}`,
+    generateGeoScript(path.basename(modelPath), options)
+  );
 
 // -----------------------------------------------------------------------------
 
@@ -345,6 +403,11 @@ export class CadHost {
     void this.loadPreprocessDialog();
   }
 
+  /** File ▸ New Blank Model… (cad-preview.new) — needs no open document either. */
+  newBlankModel(): void {
+    void this.newBlankModelDialog();
+  }
+
   /** Tab closed — tear down this session's state (timers, pending work, the
    *  worker's cached B-rep entry). The WebContentsView itself is disposed by
    *  the caller (windows.ts's closeTab). */
@@ -398,7 +461,7 @@ export class CadHost {
     } else {
       void this.handleBRep(
         this.doc.path,
-        this.doc.route.format as Extract<CadFormat, "step" | "iges" | "brep">,
+        this.doc.route.format as Extract<CadFormat, "step" | "iges" | "brep" | "csg" | "scad">,
         this.currentEdits
       );
     }
@@ -418,11 +481,34 @@ export class CadHost {
     if (JSON.stringify(previousOps) === JSON.stringify(newOps)) return;
     const epoch = this.epoch;
     try {
-      const bytes = await fs.readFile(doc.path);
+      const scadWarnings: string[] = [];
+      const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+      for (const w of scadWarnings) this.post({ type: "status", text: w });
+      const bytes = src.bytes;
+      const format = src.format as OcctSourceFormat;
+      // Stored selectors resolve FIRST (authoritative — a query that hits is
+      // exact by construction) and the heuristic rebind runs on the result, so
+      // a query-covered part is never also geometrically remapped underneath
+      // its own resolution (provider.rebindPartsOnChange, cad 1.9.0).
+      const selected = await cadCompute.resolvePartSelectors(
+        this.runtimePath,
+        bytes,
+        format,
+        newOps,
+        this.currentParts
+      );
+      if (epoch !== this.epoch) return;
+      // The provider gates on reference identity; a structured clone across the
+      // worker RPC is always a fresh array, so compare by value instead (the
+      // same reason the rebind below gates on `stats`).
+      const selectorsChangedIds =
+        JSON.stringify(selected.parts) !== JSON.stringify(this.currentParts);
+      if (selectorsChangedIds) this.currentParts = selected.parts;
+      for (const warning of selected.warnings) this.post({ type: "status", text: warning });
       const result = await cadCompute.rebindPartsAcrossOps(
         this.runtimePath,
         bytes,
-        doc.route.format as Extract<CadFormat, "step" | "iges" | "brep">,
+        format,
         previousOps,
         newOps,
         this.currentParts
@@ -433,8 +519,13 @@ export class CadHost {
       // fresh one, so gate on the stats instead — which also skips the
       // provider's own harmless-but-pointless write when every id mapped to
       // itself.
-      if (result.stats.rebound === 0 && result.stats.dropped === 0) return;
-      this.currentParts = result.parts;
+      if (result.stats.rebound === 0 && result.stats.dropped === 0) {
+        // No heuristic remap — but the selector pass above may still have
+        // rewritten the ids, and that has to be persisted and posted.
+        if (!selectorsChangedIds) return;
+      } else {
+        this.currentParts = result.parts;
+      }
       await writeParts(doc.path, this.currentParts);
       this.post({ type: "parts", parts: this.currentParts });
     } catch (err) {
@@ -463,8 +554,14 @@ export class CadHost {
       // The meshio route's own handleMeshio (in loadModel) owns the parts
       // round trip for that route — calling both would double-post "parts".
       if (this.doc.route.strategy !== "meshio") {
-        void this.sendParts().then((parts) => {
+        void this.sendParts().then(async (parts) => {
           this.currentParts = parts;
+          // Heal a stale selector cache on open: a part whose query still hits
+          // keeps its stored ids, anything else freezes with a status line —
+          // the same terms as the edit-driven path in rebindPartsOnChange
+          // (provider.ts, cad 1.9.0). Skipped entirely for a document carrying
+          // no selector at all, which is every pre-1.9.0 sidecar.
+          await this.healPartSelectors();
         });
       }
       void readAnnotations(this.doc.path).then((annotations) => {
@@ -667,6 +764,13 @@ export class CadHost {
       return;
     }
 
+    if (msg.type === "newBlank") {
+      // Like openFile, this ignores the current route — it CREATES a document
+      // rather than acting on this one.
+      void this.newBlankModel();
+      return;
+    }
+
     if (msg.type === "openPath") {
       // Drag-and-drop onto the 3D view. The router decides the owning mode,
       // exactly as it does for the Open dialog.
@@ -729,11 +833,14 @@ export class CadHost {
             "Mass properties are computed for B-rep sources on the host; mesh sources compute this client-side."
           );
         }
-        const bytes = await fs.readFile(doc.path);
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const bytes = src.bytes;
         const properties = await cadCompute.computeMassProperties(
           this.runtimePath,
           bytes,
-          doc.route.format as Extract<CadFormat, "step" | "iges" | "brep">,
+          src.format as OcctSourceFormat,
           this.currentEdits,
           msg.entityId
         );
@@ -751,11 +858,14 @@ export class CadHost {
             "Exact measurement requires a B-rep source; mesh sources have no host-side geometry to re-derive it from."
           );
         }
-        const bytes = await fs.readFile(doc.path);
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const bytes = src.bytes;
         const result = await cadCompute.measureExact(
           this.runtimePath,
           bytes,
-          doc.route.format as Extract<CadFormat, "step" | "iges" | "brep">,
+          src.format as OcctSourceFormat,
           this.currentEdits,
           msg.kind,
           msg.entityIdA,
@@ -823,19 +933,76 @@ export class CadHost {
 
     if (msg.type === "entityFactsRequest") {
       try {
+        // requireBRep is the guard AND the narrowing: it throws for a mesh
+        // source, so `format` below is the document's own occt format.
         const format = this.requireBRep(
           "Geometry classification requires a B-rep source; a mesh has no analytic surface type."
         );
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const bytes = src.bytes;
         const facts = await cadCompute.getEntityFacts(
           this.runtimePath,
-          await fs.readFile(doc.path),
-          format,
+          bytes,
+          src.format as OcctSourceFormat,
           this.currentEdits,
           msg.entityId
         );
         this.post({ type: "entityFactsResult", requestId: msg.requestId, facts });
       } catch (err) {
         this.post({ type: "entityFactsError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "selectorSynthesizeRequest") {
+      // The Edits panel's "Pin query" row. The webview sends the whole picked
+      // set in one round trip and the host answers per id, so one refusal never
+      // costs the rest of the selection.
+      try {
+        const format = this.requireBRep(
+          "Pinning an operand as a query requires a B-rep source; mesh sources have no produced-face classification to induce from."
+        );
+        if (msg.entityIds.length === 0 || msg.entityIds.length > 25) {
+          throw new Error(
+            `Cannot synthesize queries for ${msg.entityIds.length} entities — pick between 1 and 25.`
+          );
+        }
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const results: SelectorSynthesizeResultEntry[] = [];
+        for (const entityId of msg.entityIds) {
+          try {
+            const r = await cadCompute.synthesizeSelector(
+              this.runtimePath,
+              src.bytes,
+              src.format as OcctSourceFormat,
+              this.currentEdits,
+              msg.op,
+              msg.role,
+              entityId
+            );
+            // The kind tag is stamped from the producing op itself — server-
+            // derived, never caller-supplied (the set_part precedent).
+            results.push({
+              entityId,
+              query: r.query,
+              kind: r.query ? (this.currentEdits[msg.op]?.op ?? null) : null,
+              reason: r.reason,
+            });
+          } catch (err) {
+            results.push({ entityId, query: null, kind: null, reason: (err as Error).message });
+          }
+        }
+        this.post({ type: "selectorSynthesizeResult", requestId: msg.requestId, results });
+      } catch (err) {
+        this.post({
+          type: "selectorSynthesizeError",
+          requestId: msg.requestId,
+          message: (err as Error).message,
+        });
       }
       return;
     }
@@ -1103,11 +1270,38 @@ export class CadHost {
     this.post({ type: "macros", macros });
   }
 
+  /**
+   * `.scad`-aware source reader for every occt path (provider.readOcctSource,
+   * cad 1.12.0): reads the bytes and, for a `.scad`, converts them to `.csg`
+   * with the user-installed openscad binary, so everything downstream only ever
+   * sees step/iges/brep/csg. Conversion runs host-side with `cwd` at the
+   * source's own directory — that is what keeps a multi-file model's relative
+   * `use`/`include`/`import` working, and why this cannot move into the compute
+   * worker (which only ever receives marshalled bytes).
+   *
+   * Conversion chatter accumulates into `warnings`; each caller status-posts
+   * them. A missing binary throws `ScadUnavailableError`, whose message IS the
+   * install hint, so every caller's existing catch already reports it properly.
+   */
+  private async readOcctSource(
+    fsPath: string,
+    format: CadFormat,
+    warnings: string[]
+  ): Promise<{ bytes: Uint8Array; format: CadFormat }> {
+    return resolveEffectiveSource({
+      modelPath: fsPath,
+      format,
+      readBytes: async () => fs.readFile(fsPath),
+      warnings,
+      binary: stateStore.get<string>(CAD_DEFAULT_KEYS.openscadBinary) || undefined,
+    });
+  }
+
   /** The document's B-rep format, or a thrown explanation for a mesh source. */
-  private requireBRep(why: string): Extract<CadFormat, "step" | "iges" | "brep"> {
+  private requireBRep(why: string): OcctSourceFormat {
     const route = this.doc?.route;
     if (!route || route.strategy !== "occt") throw new Error(why);
-    return route.format as Extract<CadFormat, "step" | "iges" | "brep">;
+    return route.format as OcctSourceFormat;
   }
 
   /** The document's mesh format, or a thrown explanation for a B-rep source. */
@@ -1141,13 +1335,20 @@ export class CadHost {
 
   private async handleBRep(
     modelPath: string,
-    format: Extract<CadFormat, "step" | "iges" | "brep">,
+    format: Extract<CadFormat, "step" | "iges" | "brep" | "csg" | "scad">,
     ops: EditOp[]
   ): Promise<void> {
     const epoch = this.epoch;
     try {
       this.post({ type: "status", text: `Loading ${format.toUpperCase()} kernel…` });
-      const bytes = await fs.readFile(modelPath);
+      // A `.scad` converts to `.csg` bytes first (user-installed openscad
+      // binary) — everything below only ever sees step/iges/brep/csg. A missing
+      // binary throws ScadUnavailableError, whose message the catch below posts
+      // verbatim: it IS the install hint.
+      const scadWarnings: string[] = [];
+      const src = await this.readOcctSource(modelPath, format, scadWarnings);
+      const bytes = src.bytes;
+      const effectiveFormat = src.format as OcctSourceFormat;
       this.post({ type: "status", text: `Tessellating ${format.toUpperCase()}…` });
       // Read the quality fresh on every load (cheap) rather than caching it at
       // open time — a Settings change should take effect on the next edit,
@@ -1155,15 +1356,23 @@ export class CadHost {
       const quality = normalizeTessellationQuality(
         stateStore.get(CAD_DEFAULT_KEYS.tessellationQuality, DEFAULT_TESSELLATION_QUALITY)
       );
-      const { groups, edges, points, tree } = await cadCompute.loadBRepCachedInWorker(
-        this.sessionId,
-        this.runtimePath,
-        bytes,
-        format,
-        ops,
-        tessellationParamsFor(quality)
-      );
+      const { groups, edges, points, tree, queryWarnings, warnings } =
+        await cadCompute.loadBRepCachedInWorker(
+          this.sessionId,
+          this.runtimePath,
+          bytes,
+          effectiveFormat,
+          ops,
+          tessellationParamsFor(quality)
+        );
       if (epoch !== this.epoch) return; // document changed while tessellating
+      // A frozen operand query replays on its cached ids — the user has to know
+      // the query was not honored rather than staring at unchanged geometry.
+      // `.csg` parse/build skips (a dropped hull(), a faceted-cylinder
+      // approximation) ride the same channel and must never be silent.
+      for (const w of queryWarnings ?? []) this.post({ type: "status", text: w });
+      for (const w of warnings ?? []) this.post({ type: "status", text: w });
+      for (const w of scadWarnings) this.post({ type: "status", text: w });
       this.post({
         type: "geometry",
         meshes: groups.flatMap((g) =>
@@ -1188,11 +1397,14 @@ export class CadHost {
       // The file's own declared length unit, so the view-controls Units
       // dropdown opens on it. Both detectors are plain text scans — they stay
       // in the main process rather than costing a worker round trip.
-      const text = format === "step" || format === "iges" ? Buffer.from(bytes).toString("latin1") : undefined;
+      const text =
+        effectiveFormat === "step" || effectiveFormat === "iges"
+          ? Buffer.from(bytes).toString("latin1")
+          : undefined;
       const sourceUnit =
-        format === "step"
+        effectiveFormat === "step"
           ? detectStepLengthUnit(text!)
-          : format === "iges"
+          : effectiveFormat === "iges"
             ? detectIgesLengthUnit(text!)
             : undefined;
       this.post({ type: "tree", root: tree, sourceUnit });
@@ -1321,7 +1533,14 @@ export class CadHost {
   ): Promise<MeshGenerationInput | undefined> {
     const doc = this.doc!;
     if (doc.route && doc.route.strategy === "occt") {
-      const sourceBytes = await fs.readFile(doc.path);
+      // Conversion chatter is deliberately dropped here rather than
+      // status-posted: the document's own load path already surfaced the
+      // identical warnings on open and re-surfaces them on every edit reload,
+      // so repeating them on every meshing call would be spam for a condition
+      // that has not changed. A missing binary still throws and reaches the
+      // caller's catch, exactly like any other load failure.
+      const src = await this.readOcctSource(doc.path, doc.route.format, []);
+      const sourceBytes = src.bytes;
       // labelStepUnit: false — Gmsh's STEP importer reinterprets a correctly
       // labelled header and would undo this scale entirely. The intermediate
       // file is meshing input only, so it stays labelled "mm" while its
@@ -1329,7 +1548,7 @@ export class CadHost {
       const stepBytes = await cadCompute.exportBRep(
         this.runtimePath,
         sourceBytes,
-        doc.route.format as Extract<CadFormat, "step" | "iges" | "brep">,
+        src.format as OcctSourceFormat,
         "step",
         this.currentEdits,
         unit,
@@ -1389,11 +1608,14 @@ export class CadHost {
       EXPORT_LABEL[targetFormat],
       async () => {
         if (BREP_FORMATS.has(targetFormat)) {
-          const sourceBytes = await fs.readFile(modelPath);
+          const scadWarnings: string[] = [];
+          const src = await this.readOcctSource(modelPath, route.format, scadWarnings);
+          for (const w of scadWarnings) this.post({ type: "status", text: w });
+          const sourceBytes = src.bytes;
           return cadCompute.exportBRep(
             this.runtimePath,
             sourceBytes,
-            route.format as Extract<CadFormat, "step" | "iges" | "brep">,
+            src.format as OcctSourceFormat,
             targetFormat as Extract<CadFormat, "step" | "iges" | "brep">,
             this.currentEdits,
             unit
@@ -1429,6 +1651,131 @@ export class CadHost {
   }
 
   /**
+   * File ▸ New Blank Model… (provider.newBlankModelDialog, cad 1.10.0) —
+   * creates an empty B-rep document and opens it, so the Edits panel's creation
+   * vocabulary (primitives, 2D sketch profiles, bottom-up wireframe modeling,
+   * booleans, fillets, patterns) can be used from scratch rather than only on
+   * top of an existing model.
+   *
+   * The source file is an EMPTY COMPOUND and stays that way: everything the
+   * user authors lives in the replayable `<file>.brep.edits.json` op-list,
+   * exactly as it does for an edited STEP, so the read-only-CAD invariant is
+   * untouched. `.brep` rather than `.step` because BREP is OCCT's own
+   * serialization and carries no unit header to declare for geometry that isn't
+   * there yet.
+   *
+   * Session-free, like `loadPreprocessDialog`: it creates a document rather
+   * than acting on one, so it must work with no CAD tab focused. The new file
+   * goes through `hooks.onOpenRequest` — index.ts opens it into a tab the same
+   * way the Open dialog does.
+   */
+  private async newBlankModelDialog(): Promise<void> {
+    try {
+      // With no open document, fall back to the project root rather than a bare
+      // relative name — that would resolve against the process cwd, which is
+      // arbitrary in a packaged app.
+      const defaultDir = this.doc ? path.dirname(this.doc.path) : projectRoot.effective();
+      const destPath = await showSaveDialog({
+        defaultPath: defaultDir ? path.join(defaultDir, "untitled.brep") : "untitled.brep",
+        filters: [{ name: "CAD (B-rep)", extensions: ["brep"] }],
+      });
+      if (!destPath) return;
+
+      // The dialog's filter is advisory on some platforms, so verify the
+      // extension actually routes — the same cross-check, and the same
+      // reasoning, as loadPreprocessDialog's.
+      const route = routeFile(destPath);
+      if (!route || route.strategy !== "occt" || route.format !== "brep") {
+        this.post({
+          type: "error",
+          message: `A blank model must be created as a .brep file — "${path.basename(destPath)}" is not one.`,
+        });
+        return;
+      }
+
+      // Refuse to overwrite. Blanking an existing model would leave its own
+      // .edits.json replaying against an empty base — geometry that looks
+      // plausible and is silently wrong. A generic overwrite prompt reads as
+      // routine and is easy to click through, so this refuses and names the fix.
+      if (
+        await fs
+          .stat(destPath)
+          .then(() => true)
+          .catch(() => false)
+      ) {
+        this.post({
+          type: "error",
+          message:
+            `"${path.basename(destPath)}" already exists. New Blank Model only creates new ` +
+            `files — use File ▸ Open… to open the existing one.`,
+        });
+        return;
+      }
+
+      // The same pipeline function decompose_to_primitives goes through; an
+      // empty op list is a supported input (see its doc comment).
+      const built = await cadCompute.buildPrimitivesFile(this.runtimePath, [], "brep", "mm");
+      await fs.writeFile(destPath, built.bytes);
+      allowRoot(path.dirname(destPath));
+
+      this.post({
+        type: "status",
+        text:
+          "Blank model created — build it with the Edits panel. Your geometry lives in the " +
+          ".edits.json sidecar beside it, so keep the pair together, or use File ▸ Export… / " +
+          "Save Preprocess… to produce a standalone file.",
+      });
+      this.hooks.onOpenRequest(destPath);
+    } catch (err) {
+      this.post({ type: "error", message: `New blank model failed: ${(err as Error).message}` });
+    }
+  }
+
+  /**
+   * Re-resolves any stored `Part.selector` against the current model and
+   * persists the result (provider's on-open half of cad 1.9.0's selector
+   * synthesis). A part whose query still hits gets exact ids back; one whose
+   * producing op changed kind freezes on its cached ids with a status line,
+   * rather than silently resolving against the wrong op.
+   *
+   * Gated to documents that actually carry a selector, which is every sidecar
+   * written before 1.9.0 — for those this costs nothing at all.
+   */
+  private async healPartSelectors(): Promise<void> {
+    const doc = this.doc;
+    if (!doc?.route || doc.route.strategy !== "occt") return;
+    if (!this.currentParts.some((p) => p.selector !== undefined)) return;
+    const epoch = this.epoch;
+    try {
+      const scadWarnings: string[] = [];
+      const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+      for (const w of scadWarnings) this.post({ type: "status", text: w });
+      const selected = await cadCompute.resolvePartSelectors(
+        this.runtimePath,
+        src.bytes,
+        src.format as OcctSourceFormat,
+        this.currentEdits,
+        this.currentParts
+      );
+      if (epoch !== this.epoch) return; // document changed while resolving
+      // Reference identity can't survive the worker RPC — compare by value,
+      // same as rebindPartsOnChange.
+      if (JSON.stringify(selected.parts) !== JSON.stringify(this.currentParts)) {
+        this.currentParts = selected.parts;
+        await writeParts(doc.path, this.currentParts);
+        this.post({ type: "parts", parts: this.currentParts });
+      }
+      for (const warning of selected.warnings) this.post({ type: "status", text: warning });
+    } catch (err) {
+      if (epoch !== this.epoch) return;
+      this.post({
+        type: "error",
+        message: `Could not resolve stored selectors: ${(err as Error).message}`,
+      });
+    }
+  }
+
+  /**
    * File ▸ Save Preprocess… (provider.handleSavePreprocess): bundles the CAD
    * source plus whichever sidecars exist into one `.zip`. Callers must flush
    * the debounced sidecar writes first, so the archive reflects what is on
@@ -1455,10 +1802,10 @@ export class CadHost {
       };
       const [source, parts, annotations, edits, meshOptions] = await Promise.all([
         fs.readFile(modelPath),
-        readOptional(".parts.json"),
-        readOptional(".annotations.json"),
-        readOptional(".edits.json"),
-        readOptional(".mesh.json"),
+        readOptional(CAD_SIDECAR.parts),
+        readOptional(CAD_SIDECAR.annotations),
+        readOptional(CAD_SIDECAR.edits),
+        readOptional(CAD_SIDECAR.meshOptions),
       ]);
       const zipBytes = buildPreprocessZip({ sourceName, source, parts, annotations, edits, meshOptions });
       await fs.writeFile(savePath, zipBytes);
@@ -1562,7 +1909,7 @@ export class CadHost {
     if (route.strategy !== "occt" && !COMPARABLE_MESH_FORMATS.has(route.format)) {
       this.post({
         type: "error",
-        message: `Silhouette ${format.toUpperCase()} export requires a STEP/IGES/BREP or STL/OBJ/PLY/glTF source.`,
+        message: `Silhouette ${format.toUpperCase()} export requires a STEP/IGES/BREP/CSG/SCAD or STL/OBJ/PLY/glTF source.`,
       });
       return;
     }
@@ -1599,13 +1946,16 @@ export class CadHost {
       format,
       format === "dxf" ? "DXF Drawing" : "SVG Drawing",
       async () => {
-        const bytes = await fs.readFile(doc.path);
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, route.format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const bytes = src.bytes;
         const source: CompareSource =
           route.strategy === "occt"
             ? {
                 kind: "brep",
                 bytes,
-                format: route.format as Extract<CadFormat, "step" | "iges" | "brep">,
+                format: src.format as OcctSourceFormat,
                 ops: this.currentEdits,
               }
             : route.format === "gltf"

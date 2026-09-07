@@ -8,13 +8,29 @@
  *    by tool_result blocks in the single following user message; tool calls
  *    left dangling by an aborted run are dropped from requests.
  *  - Consecutive same-role messages are merged (tool_result blocks first).
+ *  - The first message must be a user message that does NOT open with a
+ *    tool_result — see the trim at the end of toAnthropicMessages.
+ *
+ * `toWire`/`PREVIEW_CHARS` below is the only place anything is shortened for
+ * the *sidebar*. Since compaction.ts there is a second, separate reshaping —
+ * of the *request* — so the transcript the model reads and the one the user
+ * reads can now legitimately differ. Neither touches the stored conversation.
  */
-import type { ChatErrorKind, ChatWireEntry } from "../../ipc";
+import type { ChatErrorKind, ChatToolApproval, ChatWireEntry } from "../../ipc";
 
 export type ChatEntry =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string; stopped?: boolean }
-  | { kind: "toolCall"; callId: string; server: string; tool: string; argsJson: string }
+  // Kept field-identical to ChatWireEntry's toolCall: toWire() passes this kind
+  // through by identity, and that is only sound while the two agree.
+  | {
+      kind: "toolCall";
+      callId: string;
+      server: string;
+      tool: string;
+      argsJson: string;
+      approval?: ChatToolApproval;
+    }
   | { kind: "toolResult"; callId: string; ok: boolean; text: string }
   | { kind: "error"; message: string; errorKind: ChatErrorKind };
 
@@ -159,8 +175,32 @@ export function toAnthropicMessages(
     );
   }
 
-  // The API requires the first message to be a user message.
-  while (messages.length && messages[0].role !== "user") messages.shift();
+  // The API requires the first message to be a user message, and one that does
+  // not lead with a tool_result — the sharper half of the rule. Dropping a
+  // leading assistant message strands the tool_result that answered its
+  // tool_use blocks, and that orphan is rejected outright. Reachable whenever
+  // the entry list starts mid-tool-turn, which capEntries can produce by
+  // trimming the front of a long conversation.
+  //
+  // The orphans are stripped rather than the message dropped: consecutive
+  // same-role messages are merged above, so the first user message routinely
+  // carries both the orphaned tool_result *and* the first real thing the user
+  // said. Dropping it wholesale would throw that away.
+  for (;;) {
+    const first = messages[0];
+    if (!first) break;
+    if (first.role !== "user") {
+      messages.shift();
+      continue;
+    }
+    const kept = first.content.filter((block) => block.type !== "tool_result");
+    if (kept.length === first.content.length) break; // no orphans; done
+    if (kept.length) {
+      first.content = kept;
+      break;
+    }
+    messages.shift(); // nothing but orphans
+  }
   return messages;
 }
 

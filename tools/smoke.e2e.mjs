@@ -10,6 +10,14 @@
  * Runs under xvfb in CI: xvfb-run -a node tools/smoke.e2e.mjs
  */
 import { launchApp, waitForMarkers, appWindow, closeApp } from "./e2eShared.mjs";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+
+// A throwaway profile per run, so the smoke test neither reads nor writes the
+// developer's real ~/.config/kkss — it starts from stock settings every time,
+// and cannot leave recents or a saved session behind.
+const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-smoke-profile-"));
 
 // Headless CI runners have no real GPU. Left to auto-pick, Chromium crashes the
 // mesh viewer's vtk.js renderer mid-frame — the GPU compositor fails to allocate
@@ -75,7 +83,11 @@ async function attempt(c) {
   // deadline below — otherwise a slow-booting case (e.g. cad's heavier
   // OCCT+WebGL startup) can hit Playwright's launch timeout before its own
   // waitForMarkers/appWindow deadline ever gets a chance to apply.
-  const { app, output } = await launchApp(c.file, { extraArgs: SOFTWARE_GL, timeout: c.timeoutMs });
+  const { app, output } = await launchApp(c.file, {
+    extraArgs: SOFTWARE_GL,
+    timeout: c.timeoutMs,
+    userDataDir: profileDir,
+  });
   const deadline = Date.now() + c.timeoutMs;
   try {
     // 1. Grab the mode's webview page and assert its viewer DOM mounts *as the
@@ -120,4 +132,5 @@ for (const c of CASES) {
     console.error(`FAIL ${c.name}\n${err instanceof Error ? err.message : err}`);
   }
 }
+fs.rmSync(profileDir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

@@ -5,7 +5,7 @@
  *         toggleNodeIds/computeQuality/fieldVisualization/findEntity
  * File actions dispatch to whichever mode is active at click time.
  */
-import { Menu, shell } from "electron";
+import { app, dialog, Menu, shell } from "electron";
 import type { MainWindow } from "./windows";
 import { CAD_DEFAULT_KEYS, type CadHost } from "./cadHost";
 import {
@@ -23,13 +23,22 @@ import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
 import { showChangelog } from "./services/whatsNew";
 import { stateStore } from "./services/stateStore";
+import type { CloudStatus } from "./services/cloud/cloudService";
+import { PROVIDER_LABELS, type ProviderId } from "./services/cloud/cloudCore";
 import { hasSecret, setSecret } from "./services/chat/secrets";
 import { LLM_KEYS } from "./services/chat/chatService";
+import { DEFAULT_APPROVAL_MODE, type ApprovalMode } from "./services/chat/toolPolicy";
 import { DEFAULT_ANTHROPIC_MODEL } from "./services/chat/providers/anthropic";
 import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./services/chat/providers/openaiCompat";
 import { DEFAULT_META_SERVER_PORT, META_SERVER_KEYS } from "./services/metaServer/metaServer";
 import type { EditorService } from "./services/editor";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
+// The mesh submodule's recents core is vscode-free, so its label/folder
+// formatting is reused verbatim for KKSS's own app-wide list.
+import { recentLabel } from "../../mesh/src/recentMeshesCore";
+import { describeWithin, rootLabel } from "./services/projectRootCore";
+import type { RecentFile } from "./services/recentFilesCore";
+import { RESTORE_SESSION_KEY } from "./services/session";
 import { DOCS_URL } from "./urls";
 
 export interface MenuDeps {
@@ -52,6 +61,50 @@ export interface MenuDeps {
     stepIn(): void;
     stepOut(): void;
     reset(): void;
+  };
+  /**
+   * KKSS's app-wide recents (services/recentFiles.ts) — both modes, recorded at
+   * openFile(). Supersedes mesh's own RecentMeshStore here: that one records
+   * only what the mesh providers resolve, so it never saw a CAD document (it
+   * still runs, since both providers require it, but drives no UI). Each entry
+   * carries the mode it was opened in, so it reopens where it belongs.
+   * `list()` prunes vanished files on read, so the submenu never offers a path
+   * that no longer exists.
+   */
+  /**
+   * The project root — a default for the terminal's cwd, file dialogs and the
+   * assistant's context, never a restriction. `current()` is the *explicit*
+   * root only, so the menu label reflects what the user actually chose.
+   */
+  projectRoot: {
+    /** The explicit root, if it still exists — drives the labels. */
+    current(): string | undefined;
+    /** Whether one is stored at all (a stale root stays clearable). */
+    isSet(): boolean;
+    choose(): void;
+    clear(): void;
+  };
+  recentFiles: {
+    list(): RecentFile[];
+    open(fsPath: string, mode: Mode): void;
+    clear(): void;
+  };
+  /** Cloud storage accounts and the staging cache (see services/cloud). */
+  cloud: {
+    statuses(): CloudStatus[];
+    isConnected(): boolean;
+    /** The exact loopback redirect URI the provider's console needs. */
+    redirectHint(id: ProviderId): string;
+    setClientId(id: ProviderId, value: string | undefined): void;
+    setClientSecret(id: ProviderId, value: string): void;
+    connect(id: ProviderId): void;
+    disconnect(id: ProviderId): void;
+    openFromCloud(): void;
+    /** File ▸ Save also pushes any staged document that changed. */
+    saveNow(): void;
+    cacheLimitMb(): number;
+    setCacheLimitMb(value: number | undefined): void;
+    clearCache(): void;
   };
   /** HTTP meta MCP server controls (see index.ts). */
   metaServer: {
@@ -111,6 +164,33 @@ async function promptSecret(key: string, title: string, placeHolder: string): Pr
   await setSecret(key, value.trim());
 }
 
+/**
+ * "Never ask" is the only setting that turns the gate off outright, so it is
+ * confirmed once — the same warning the MCP server's copy-config dialog uses,
+ * for the same tools. The other two modes are set without ceremony.
+ */
+async function setApprovalMode(mode: ApprovalMode, deps: MenuDeps): Promise<void> {
+  if (mode === "never") {
+    const { response } = await dialog.showMessageBox({
+      type: "warning",
+      buttons: ["Cancel", "Turn Approval Off"],
+      defaultId: 0,
+      cancelId: 0,
+      message: "Run every tool without asking?",
+      detail:
+        "The assistant will run every tool it chooses, with no prompt. These tools read and " +
+        "write files on disk and can run simulations, and some overwrite the file they are " +
+        "given when no output path is set. Only turn this off for a session you are watching.",
+    });
+    if (response !== 1) {
+      // The radio already moved on click; rebuilding puts it back.
+      installMenu(deps);
+      return;
+    }
+  }
+  await stateStore.update(LLM_KEYS.toolApproval, mode);
+}
+
 /** Plain setting entry, prefilled with the current (or default) value. */
 async function promptValue(key: string, title: string, defaultValue: string): Promise<void> {
   const value = await showInputBox({
@@ -119,6 +199,89 @@ async function promptValue(key: string, title: string, defaultValue: string): Pr
   });
   if (value === undefined) return; // cancelled
   await stateStore.update(key, value.trim() || undefined);
+}
+
+/** One block per provider, plus the shared cache controls. */
+function cloudAccountsSubmenu(deps: MenuDeps): Electron.MenuItemConstructorOptions[] {
+  const items: Electron.MenuItemConstructorOptions[] = [];
+  for (const status of deps.cloud.statuses()) {
+    items.push({
+      label: status.label,
+      submenu: [
+        {
+          // A disabled row is the whole status display: connected as whom, or
+          // exactly which step is still missing.
+          label: status.connected
+            ? `Connected as ${status.account?.label ?? "?"}`
+            : status.hasClientId
+              ? "Not connected"
+              : "Client ID not set",
+          enabled: false,
+        },
+        { type: "separator" },
+        {
+          label: "Client ID…",
+          click: () => void promptCloudClientId(deps, status),
+        },
+        {
+          label: status.needsClientSecret ? "Client Secret…" : "Client Secret… (optional)",
+          click: () => void promptCloudSecret(deps, status),
+        },
+        { type: "separator" },
+        {
+          label: status.connected ? "Reconnect…" : "Connect…",
+          enabled: status.hasClientId,
+          click: () => deps.cloud.connect(status.id),
+        },
+        {
+          label: "Disconnect…",
+          enabled: status.connected,
+          click: () => deps.cloud.disconnect(status.id),
+        },
+      ],
+    });
+  }
+  items.push(
+    { type: "separator" },
+    {
+      label: `Cache Size Limit… (${deps.cloud.cacheLimitMb()} MB)`,
+      click: () => void promptCacheLimit(deps),
+    },
+    { label: "Clear Cloud Cache…", click: () => deps.cloud.clearCache() }
+  );
+  return items;
+}
+
+async function promptCloudClientId(deps: MenuDeps, status: CloudStatus): Promise<void> {
+  const value = await showInputBox({
+    title: `${status.label} Client ID`,
+    // The redirect URI is the single most common setup mistake, so it is stated
+    // here rather than left to the docs.
+    prompt: `Create a desktop/installed-app OAuth client in your ${status.label} console with redirect URI ${deps.cloud.redirectHint(status.id)}, then paste its client ID. Leave empty to clear.`,
+  });
+  if (value === undefined) return; // cancelled
+  deps.cloud.setClientId(status.id, value.trim() || undefined);
+}
+
+async function promptCloudSecret(deps: MenuDeps, status: CloudStatus): Promise<void> {
+  const value = await showInputBox({
+    title: `${status.label} Client Secret`,
+    prompt: status.needsClientSecret
+      ? "Required for this provider's desktop clients. Stored encrypted. Leave empty to clear."
+      : "Not needed for this provider (PKCE public client). Leave empty to clear.",
+  });
+  if (value === undefined) return; // cancelled
+  deps.cloud.setClientSecret(status.id, value.trim());
+}
+
+async function promptCacheLimit(deps: MenuDeps): Promise<void> {
+  const value = await showInputBox({
+    title: "Cloud Cache Size Limit (MB)",
+    value: String(deps.cloud.cacheLimitMb()),
+  });
+  if (value === undefined) return; // cancelled
+  const parsed = Number(value.trim());
+  deps.cloud.setCacheLimitMb(Number.isFinite(parsed) && parsed > 0 ? parsed : undefined);
 }
 
 export function installMenu(deps: MenuDeps): void {
@@ -142,14 +305,73 @@ export function installMenu(deps: MenuDeps): void {
     if (pick) activeMeshHost()?.dispatchMenu({ type: "menuExport", format: pick.ext });
   };
 
+  /**
+   * File ▸ Open Recent — KKSS's app-wide list, covering both modes, with each
+   * entry reopening in the mode it was recorded under. `list()` prunes vanished
+   * files as it reads, so an entry here always still exists; an empty list
+   * shows one disabled row rather than an empty (and on some platforms
+   * unopenable) submenu. Electron menus are static once built, so index.ts
+   * re-installs the menu on the store's onDidChange — this whole template is
+   * rebuilt each time.
+   */
+  const recentFilesSubmenu = (): Electron.MenuItemConstructorOptions[] => {
+    const entries = deps.recentFiles.list();
+    if (entries.length === 0) return [{ label: "No Recent Files", enabled: false }];
+    return [
+      ...entries.map((entry) => ({
+        label: recentLabel(entry.path),
+        // A native menu has no second column, so the folder rides in the
+        // tooltip (the same shape mesh's own activity-bar view shows).
+        // A cloud row's local path is a cache directory nobody would recognise,
+        // so it names its provider and remote folder instead.
+        toolTip: entry.cloud
+          ? `${PROVIDER_LABELS[entry.cloud.provider as ProviderId] ?? entry.cloud.provider} · ${entry.cloud.folder ?? entry.cloud.name}`
+          : describeWithin(deps.projectRoot.current(), entry.path, app.getPath("home")),
+        click: () => deps.recentFiles.open(entry.path, entry.mode),
+      })),
+      { type: "separator" as const },
+      { label: "Clear Recent", click: () => deps.recentFiles.clear() },
+    ];
+  };
+
   const menu = Menu.buildFromTemplate([
     {
       label: "&File",
       submenu: [
         {
+          // Scope, not a document — so it leads the File menu, above the
+          // document group, and the label names the current root.
+          label: deps.projectRoot.current()
+            ? `Project Root: ${rootLabel(deps.projectRoot.current()!)}…`
+            : "Open Folder…",
+          toolTip: deps.projectRoot.current(),
+          click: () => deps.projectRoot.choose(),
+        },
+        {
+          label: "Clear Project Root",
+          // Stays available for a stored-but-missing root (deleted or unmounted),
+          // which `current()` hides but the user still needs to be able to drop.
+          enabled: deps.projectRoot.isSet(),
+          click: () => deps.projectRoot.clear(),
+        },
+        { type: "separator" },
+        {
           label: "Open…",
           accelerator: "CmdOrCtrl+O",
           click: () => (inCad() ? void activeCadHost()?.openFileDialog() : void openMesh()),
+        },
+        {
+          label: "Open Recent",
+          submenu: recentFilesSubmenu(),
+        },
+        {
+          // Degrades honestly rather than opening an empty picker: the label
+          // itself says why it is unavailable.
+          label: deps.cloud.isConnected()
+            ? "Open from Cloud…"
+            : "Open from Cloud… (no account connected)",
+          enabled: deps.cloud.isConnected(),
+          click: () => deps.cloud.openFromCloud(),
         },
         {
           label: "Open in Text Editor…",
@@ -159,10 +381,17 @@ export function installMenu(deps: MenuDeps): void {
           label: "Save",
           accelerator: "CmdOrCtrl+S",
           click: () => {
-            if (inEditor()) return editor.requestSave(false);
-            inCad()
-              ? void activeCadHost()?.flushSidecars()
-              : void activeMeshHost()?.dispatchMenu({ type: "menuSave" });
+            if (inEditor()) {
+              editor.requestSave(false);
+            } else if (inCad()) {
+              void activeCadHost()?.flushSidecars();
+            } else {
+              void activeMeshHost()?.dispatchMenu({ type: "menuSave" });
+            }
+            // A staged document's save has to reach the provider too. Harmless
+            // when nothing is cloud-backed: the sync engine tracks no
+            // directories and this resolves immediately.
+            deps.cloud.saveNow();
           },
         },
         {
@@ -177,6 +406,15 @@ export function installMenu(deps: MenuDeps): void {
           label: "Export…",
           accelerator: "CmdOrCtrl+E",
           click: () => (inCad() ? activeCadHost()?.export() : void meshExportPick()),
+        },
+        { type: "separator" },
+        {
+          // cad 1.10.0's cad-preview.new. Deliberately session-free upstream
+          // ("must work with no CAD tab focused"), and it CREATES a document —
+          // so it routes through onOpenRequest like the Open dialog rather than
+          // needing a tab of its own first.
+          label: "New Blank Model…",
+          click: () => activeCadHost()?.newBlankModel(),
         },
         { type: "separator" },
         {
@@ -382,6 +620,17 @@ export function installMenu(deps: MenuDeps): void {
               })),
             },
             {
+              // cad 1.12.0's cadPreview.openscadBinary. Only consulted when a
+              // .scad is opened; unset resolves `openscad` on PATH.
+              label: "OpenSCAD Binary…",
+              click: () =>
+                void promptValue(
+                  CAD_DEFAULT_KEYS.openscadBinary,
+                  "OpenSCAD binary used to convert .scad sources to .csg on open (bare name = resolved on PATH)",
+                  "openscad"
+                ),
+            },
+            {
               label: "Show Grid && Axes on Open",
               type: "checkbox" as const,
               checked: stateStore.get(
@@ -391,6 +640,15 @@ export function installMenu(deps: MenuDeps): void {
               click: (item) => void stateStore.update(CAD_DEFAULT_KEYS.showGridAndAxes, item.checked),
             },
           ],
+        },
+        {
+          // Reopens the last run's documents, screen and panels at launch.
+          // Also skipped by KKSS_E2E (the harness launches the real app) and by
+          // KKSS_NO_RESTORE=1 — see services/session.ts.
+          label: "Restore Last Session",
+          type: "checkbox" as const,
+          checked: stateStore.get<boolean>(RESTORE_SESSION_KEY, true) !== false,
+          click: (item) => void stateStore.update(RESTORE_SESSION_KEY, item.checked),
         },
         {
           label: "Terminal Shell",
@@ -418,6 +676,24 @@ export function installMenu(deps: MenuDeps): void {
                 type: "radio" as const,
                 checked: stateStore.get(LLM_KEYS.provider, "anthropic") === p.value,
                 click: () => void stateStore.update(LLM_KEYS.provider, p.value),
+              })),
+            },
+            {
+              // Read per tool call, so a change applies to the very next one.
+              // Read-only tools never prompt; a tool KKSS has no policy for
+              // (every kratos__* one today) always does.
+              label: "Tool Approval",
+              submenu: (
+                [
+                  { value: "askOnWrite", label: "Ask before tools that change files (recommended)" },
+                  { value: "askAlways", label: "Ask before every tool" },
+                  { value: "never", label: "Never ask" },
+                ] as Array<{ value: ApprovalMode; label: string }>
+              ).map((m) => ({
+                label: m.label,
+                type: "radio" as const,
+                checked: stateStore.get(LLM_KEYS.toolApproval, DEFAULT_APPROVAL_MODE) === m.value,
+                click: () => void setApprovalMode(m.value, deps),
               })),
             },
             { type: "separator" },
@@ -471,6 +747,13 @@ export function installMenu(deps: MenuDeps): void {
               click: () => deps.metaServer.regenerateToken(),
             },
           ],
+        },
+        {
+          // Bring-your-own OAuth client: no KKSS-owned credentials are baked
+          // in, so every provider starts at "set a client ID" rather than at a
+          // confusing failure inside the consent flow.
+          label: "Cloud Accounts",
+          submenu: cloudAccountsSubmenu(deps),
         },
       ],
     },

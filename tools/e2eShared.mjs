@@ -21,12 +21,39 @@ export const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
  * `output()` accessor over combined stdout+stderr (the KKSS_E2E=1
  * host↔webview message trace).
  */
-export async function launchApp(file, { extraArgs = [], timeout = 60_000 } = {}) {
+/**
+ * @param {string|undefined} file  Document to open on launch.
+ * @param {{extraArgs?: string[], timeout?: number, userDataDir?: string}} opts
+ *   `userDataDir` isolates the run from the developer's real ~/.config/kkss.
+ *   Callers that render persisted state (the docs screenshots now show the
+ *   recent-files list) must pass one, or a committed PNG would capture whoever
+ *   regenerated it; every caller passing one also keeps e2e runs from writing
+ *   to the real profile at all.
+ */
+export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDataDir } = {}) {
   const app = await _electron.launch({
     executablePath: electronPath,
-    args: [".", "--no-sandbox", "--enable-unsafe-swiftshader", "--disable-gpu-sandbox", ...extraArgs, ...(file ? [file] : [])],
+    args: [
+      ".",
+      "--no-sandbox",
+      "--enable-unsafe-swiftshader",
+      "--disable-gpu-sandbox",
+      // A flag, so fileArgFrom() in the app skips it when looking for the
+      // launch document.
+      ...(userDataDir ? [`--user-data-dir=${userDataDir}`] : []),
+      ...extraArgs,
+      ...(file ? [file] : []),
+    ],
     cwd: root,
-    env: { ...process.env, KKSS_E2E: "1", ELECTRON_RUN_AS_NODE: undefined },
+    // KKSS_ALLOW_MULTIPLE_INSTANCES: the harness relaunches the app many times
+    // and SIGKILLs the tree between runs (killTree below), so a lock left over
+    // from a killed run would make every later launch quit on startup.
+    env: {
+      ...process.env,
+      KKSS_E2E: "1",
+      KKSS_ALLOW_MULTIPLE_INSTANCES: "1",
+      ELECTRON_RUN_AS_NODE: undefined,
+    },
     timeout,
   });
   let captured = "";

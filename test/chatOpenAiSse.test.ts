@@ -3,6 +3,7 @@ import {
   accumulateToolCallDeltas,
   createSseParser,
   finishToolCalls,
+  parseUsageChunk,
   ToolCallAccumulator,
 } from "../app/main/services/chat/providers/openaiCompat";
 
@@ -53,5 +54,37 @@ describe("tool call delta accumulation", () => {
     accumulateToolCallDeltas(acc, [{ index: 0, id: "a", function: { name: "tool" } }]);
     accumulateToolCallDeltas(acc, [{ index: 1, id: "b" }]); // never gets a name
     expect(finishToolCalls(acc)).toEqual([{ id: "a", name: "tool", argsJson: "{}" }]);
+  });
+});
+
+describe("parseUsageChunk", () => {
+  it("reads the trailing usage chunk, which carries no choices at all", () => {
+    // The reason this is parsed before the stream loop's `delta` guard: that
+    // guard skips any chunk without choices, which is exactly this one.
+    const usage = parseUsageChunk('{"choices":[],"usage":{"prompt_tokens":1200,"completion_tokens":340}}');
+    expect(usage).toEqual({ input: 1200, output: 340, cacheRead: 0, cacheWrite: 0 });
+  });
+
+  it("splits cached tokens out of prompt_tokens", () => {
+    // OpenAI counts cached tokens inside prompt_tokens; Anthropic reports them
+    // alongside. TurnUsage.input means uncached input on both.
+    const usage = parseUsageChunk('{"usage":{"prompt_tokens":1000,"completion_tokens":10,"prompt_tokens_details":{"cached_tokens":800}}}');
+    expect(usage).toEqual({ input: 200, output: 10, cacheRead: 800, cacheWrite: 0 });
+  });
+
+  it("never reports negative input if a gateway's figures disagree", () => {
+    const usage = parseUsageChunk('{"usage":{"prompt_tokens":10,"prompt_tokens_details":{"cached_tokens":99}}}');
+    expect(usage).toMatchObject({ input: 0, cacheRead: 99 });
+  });
+
+  it("returns null for a chunk that carries no usage", () => {
+    expect(parseUsageChunk('{"choices":[{"delta":{"content":"hi"}}]}')).toBeNull();
+    expect(parseUsageChunk('{"usage":null}')).toBeNull();
+    expect(parseUsageChunk("not json")).toBeNull();
+    expect(parseUsageChunk("[DONE]")).toBeNull();
+  });
+
+  it("treats missing or non-numeric fields as zero rather than NaN", () => {
+    expect(parseUsageChunk('{"usage":{"prompt_tokens":"lots"}}')).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
   });
 });

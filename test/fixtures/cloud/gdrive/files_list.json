@@ -1,0 +1,35 @@
+{
+  "nextPageToken": "TOKEN_PAGE_2",
+  "files": [
+    {
+      "id": "folder1",
+      "name": "models",
+      "mimeType": "application/vnd.google-apps.folder",
+      "parents": ["root"]
+    },
+    {
+      "id": "file1",
+      "name": "bull.stp",
+      "mimeType": "application/octet-stream",
+      "size": "482913",
+      "md5Checksum": "d41d8cd98f00b204e9800998ecf8427e",
+      "headRevisionId": "0B-rev-1",
+      "modifiedTime": "2026-09-01T10:15:00.000Z",
+      "parents": ["root"]
+    },
+    {
+      "id": "doc1",
+      "name": "Notes",
+      "mimeType": "application/vnd.google-apps.document",
+      "parents": ["root"]
+    },
+    {
+      "id": "file2",
+      "name": "case.post.msh",
+      "mimeType": "text/plain",
+      "size": "12",
+      "headRevisionId": "0B-rev-2",
+      "parents": ["root"]
+    }
+  ]
+}

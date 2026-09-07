@@ -17,6 +17,7 @@
  *   env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots
  */
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { launchApp, waitForMarkers, appWindow, closeApp, sleep, root } from "./e2eShared.mjs";
 
@@ -24,6 +25,19 @@ const OUT = path.join(root, "doc", "public", "screenshots");
 const IMAGES = path.join(root, "images");
 // 2x pixel density, matching cad's deviceScaleFactor: 2 retina PNGs.
 const EXTRA_ARGS = ["--force-device-scale-factor=2"];
+
+/**
+ * One throwaway profile shared by all four sessions, in order.
+ *
+ * Two reasons it must be isolated rather than the real ~/.config/kkss: the home
+ * screen now lists recent files, so a committed PNG would otherwise capture
+ * whatever the person regenerating it had open; and a fresh profile means
+ * default theme/zoom/viewer settings, so the shots are reproducible rather than
+ * reflecting one developer's preferences. Sharing it *across* sessions is what
+ * makes Session D deterministic: A, B and C open bull.stp, double_arch.mdpa and
+ * Main_0_6.vtk, so the home screen then shows exactly those three.
+ */
+const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-docs-profile-"));
 
 fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(IMAGES, { recursive: true });
@@ -119,7 +133,7 @@ async function restoreWindow(prepared) {
 // ---- Session A: CAD mode on bull.stp ----------------------------------------
 
 async function sessionCad() {
-  const { app, output } = await launchApp("cad/examples/STP/bull.stp", { extraArgs: EXTRA_ARGS });
+  const { app, output } = await launchApp("cad/examples/STP/bull.stp", { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
   const deadline = Date.now() + 120_000;
   let prepared;
   try {
@@ -154,7 +168,7 @@ async function sessionCad() {
 // ---- Session B: mesh mode on an MDPA model ----------------------------------
 
 async function sessionMdpa() {
-  const { app, output } = await launchApp("mesh/example/MDPA/double_arch.mdpa", { extraArgs: EXTRA_ARGS });
+  const { app, output } = await launchApp("mesh/example/MDPA/double_arch.mdpa", { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
   const deadline = Date.now() + 90_000;
   let prepared;
   try {
@@ -183,7 +197,7 @@ async function sessionMdpa() {
 // ---- Session C: mesh mode on a VTK time series --------------------------------
 
 async function sessionVtk() {
-  const { app, output } = await launchApp("mesh/example/VTK/Main_0_6.vtk", { extraArgs: EXTRA_ARGS });
+  const { app, output } = await launchApp("mesh/example/VTK/Main_0_6.vtk", { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
   const deadline = Date.now() + 90_000;
   let prepared;
   try {
@@ -203,11 +217,15 @@ async function sessionVtk() {
 // ---- Session D: home screen (no file argument) --------------------------------
 
 async function sessionHome() {
-  const { app } = await launchApp(undefined, { extraArgs: EXTRA_ARGS });
+  const { app } = await launchApp(undefined, { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
   const deadline = Date.now() + 60_000;
   try {
     const page = await appWindow(app, "/renderer/home/", deadline);
     await page.waitForSelector(".menu-btn", { timeout: 15_000 });
+    // Park the pointer off the menu: the recents block shifts this centered
+    // column upward, which otherwise leaves whichever button sits under the
+    // default cursor position hover-highlighted in the committed PNG.
+    await page.mouse.move(0, 0);
     await sleep(800);
     await shoot(page, "home-screen.png");
   } finally {
@@ -218,6 +236,7 @@ async function sessionHome() {
 await sessionCad();
 await sessionMdpa();
 await sessionVtk();
+// Last, so its recents list is the three documents the sessions above opened.
 await sessionHome();
 
 // ---- README hero refresh (same pattern as cad's capture.mjs tail) -------------
@@ -229,6 +248,8 @@ for (const [src, dst] of [
   fs.copyFileSync(path.join(OUT, src), path.join(IMAGES, dst));
   console.log(`hero ${dst} ← ${src}`);
 }
+
+fs.rmSync(profileDir, { recursive: true, force: true });
 
 if (warnings.length) {
   console.log(`\n${warnings.length} warning(s):\n  ${warnings.join("\n  ")}`);

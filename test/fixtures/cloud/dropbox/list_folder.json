@@ -1,0 +1,39 @@
+{
+  "entries": [
+    {
+      ".tag": "folder",
+      "name": "models",
+      "path_lower": "/kkss/models",
+      "path_display": "/KKSS/models",
+      "id": "id:folder1"
+    },
+    {
+      ".tag": "file",
+      "name": "bull.stp",
+      "path_lower": "/kkss/bull.stp",
+      "path_display": "/KKSS/bull.stp",
+      "id": "id:file1",
+      "rev": "015f1e2a3b4c5d6",
+      "size": 482913,
+      "content_hash": "aa11bb22",
+      "server_modified": "2026-09-01T10:15:00Z"
+    },
+    {
+      ".tag": "file",
+      "name": "case.post.msh",
+      "path_lower": "/kkss/case.post.msh",
+      "path_display": "/KKSS/case.post.msh",
+      "id": "id:file2",
+      "rev": "025f1e2a3b4c5d6",
+      "size": 12,
+      "server_modified": "2026-09-02T08:00:00Z"
+    },
+    {
+      ".tag": "deleted",
+      "name": "gone.stp",
+      "path_lower": "/kkss/gone.stp"
+    }
+  ],
+  "cursor": "AAEF_cursor_token",
+  "has_more": true
+}

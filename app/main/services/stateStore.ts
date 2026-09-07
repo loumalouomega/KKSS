@@ -1,35 +1,40 @@
 /**
  * vscode `globalState` replacement: a JSON file in Electron's userData dir.
- * Used for the mesh extension's persisted keys (sceneTheme, overwrite-warned).
+ * Holds the mesh extension's persisted keys (sceneTheme, overwrite-warned, the
+ * recent-mesh list), KKSS's own settings, and — safeStorage-encrypted via
+ * chat/secrets.ts — the LLM API key and the MCP meta server's bearer token.
+ *
+ * Thin Electron binding only: the store logic (atomic temp-file + rename
+ * writes, serialized behind a single-writer chain) lives in the Electron-free
+ * JsonStore so it can be unit tested, mirroring chat/secrets.ts over
+ * chat/secretCodec.ts.
  */
 import { app } from "electron";
-import * as fs from "node:fs";
 import * as path from "node:path";
+import { JsonStore } from "./jsonStore";
 
-let file: string | undefined;
-let data: Record<string, unknown> | undefined;
+let store: JsonStore | undefined;
 
-function load(): Record<string, unknown> {
-  if (data) return data;
-  file = path.join(app.getPath("userData"), "state.json");
-  try {
-    data = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
-  } catch {
-    data = {};
-  }
-  return data;
+/** Bound lazily — app.getPath("userData") is only valid once Electron is up. */
+function backing(): JsonStore {
+  if (!store) store = new JsonStore(path.join(app.getPath("userData"), "state.json"));
+  return store;
 }
 
 export const stateStore = {
   get<T>(key: string, defaultValue?: T): T | undefined {
-    const value = load()[key];
-    return value === undefined ? defaultValue : (value as T);
+    return backing().get(key, defaultValue);
   },
-  async update(key: string, value: unknown): Promise<void> {
-    const store = load();
-    if (value === undefined) delete store[key];
-    else store[key] = value;
-    await fs.promises.mkdir(path.dirname(file!), { recursive: true });
-    await fs.promises.writeFile(file!, JSON.stringify(store, null, 2), "utf8");
+  update(key: string, value: unknown): Promise<void> {
+    return backing().update(key, value);
+  },
+  /** Resolves once every queued write is on disk. */
+  flush(): Promise<void> {
+    return backing().flush();
+  },
+  /** Synchronous last write, for `will-quit` (which cannot await), so a quit
+   *  right after a settings change cannot drop it. */
+  flushSync(): void {
+    backing().flushSync();
   },
 };

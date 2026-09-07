@@ -2,8 +2,9 @@
  * Wires one aggregated McpManager (via the shared McpHub) behind a low-level MCP
  * `Server`. The low-level Server (not the high-level McpServer) is used because
  * McpManager already holds tools as raw JSON Schema — we forward ListTools /
- * CallTool verbatim (preserving image/structured content that the chat path
- * flattens) and re-expose resources & prompts natively.
+ * CallTool verbatim (preserving structured content verbatim, where the chat
+ * path flattens to text and forwards image blocks separately for display) and
+ * re-expose resources & prompts natively.
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
