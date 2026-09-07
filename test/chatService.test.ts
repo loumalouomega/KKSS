@@ -647,8 +647,11 @@ describe("tool-call approval", () => {
     await upToTool(WRITE, post, provider);
     const before = lastState(messages).conversationId;
     post({ type: "newChat" });
-    await settle();
-    expect(lastState(messages).conversationId).not.toBe(before);
+    // switchTo() awaits a real flush (fsync + rename) of the outgoing
+    // conversation before it sends the new state — under CI disk contention
+    // that can outrun settle()'s fixed tick budget, so poll instead of
+    // assuming a fixed number of ticks is always enough.
+    await vi.waitFor(() => expect(lastState(messages).conversationId).not.toBe(before), { timeout: 4000, interval: 10 });
     expect(mcp.calls).toEqual([]);
   }, 5000);
 
