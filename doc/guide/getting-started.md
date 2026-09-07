@@ -141,6 +141,14 @@ For a few CAD tools — applying edit operations, and running a parametric or sa
 
 What it checks is narrower than a preview: it tells you which operations parse and are legal, not what the geometry would look like afterwards. The report is for you only — the assistant is not told about it, and is not told a call happened when it did not.
 
+### Tokens, context and cost
+
+The sidebar header shows how much of the model's context window your last message filled, and roughly what the conversation has cost so far — for example `12.4k/1M · $0.03`. Hover it for the full breakdown: the model, the split between fresh and cached input, and the output total.
+
+It turns amber as the window fills up. That is worth acting on: when a conversation no longer fits, the provider rejects it outright, and the fix is to start a new one with **⟳ New** (the old conversation is saved, not lost).
+
+Cost is an estimate from published per-token prices for the Claude models KKSS knows about. Point the OpenAI-compatible provider at your own gateway — Ollama, OpenRouter, a local model — and KKSS has no way to know what it charges, so you get token counts and nothing else rather than a made-up figure. None of this leaves your machine; it is calculated from what the provider returned with your response.
+
 ### Seeing what the assistant sees
 
 Some tools return pictures — a rendered snapshot of a model, or a side-by-side comparison of two. Those appear in the tool's entry in the transcript, so when the assistant says a part looks wrong you can look at the same image it did. A result that has just arrived opens by itself; older ones in a long conversation stay folded away until you click them.

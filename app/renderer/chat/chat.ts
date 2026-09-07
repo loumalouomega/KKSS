@@ -7,6 +7,7 @@
  */
 import type {
   ChatConversationInfo,
+  ChatUsage,
   ChatImage,
   ChatPendingApproval,
   ChatServerStatus,
@@ -36,6 +37,7 @@ const historyEl = byId<HTMLDivElement>("history");
 const historyBtn = byId<HTMLButtonElement>("history-btn");
 const newBtn = byId<HTMLButtonElement>("new-btn");
 const hideBtn = byId<HTMLButtonElement>("hide-btn");
+const usageEl = byId<HTMLSpanElement>("usage");
 
 let busy = false;
 /** The assistant bubble currently receiving stream deltas. */
@@ -350,6 +352,20 @@ function addError(entry: Extract<ChatWireEntry, { kind: "error" }>): void {
   const el = document.createElement("div");
   el.className = "error-banner";
   el.textContent = entry.message;
+  // These two used to arrive as "other" and render as a bare wall of provider
+  // text. Both have an action the user can actually take right now.
+  const advice =
+    entry.errorKind === "context"
+      ? "Start a new conversation (⟳ New) to continue — this one is too long to send."
+      : entry.errorKind === "rateLimit"
+        ? "The provider is throttling requests. Wait a moment and send again."
+        : "";
+  if (advice) {
+    const line = document.createElement("div");
+    line.className = "error-advice";
+    line.textContent = advice;
+    el.appendChild(line);
+  }
   if (entry.errorKind === "auth" || entry.errorKind === "noKey") {
     const button = document.createElement("button");
     button.textContent = "Open Settings…";
@@ -526,6 +542,47 @@ function renderServers(servers: ChatServerStatus[]): void {
   }
 }
 
+/** 12400 -> "12.4k", 900000 -> "900k", 1000000 -> "1M". Compact enough for the
+ *  header strip, keeping a decimal only where it still carries information. */
+function compactTokens(value: number): string {
+  const trim = (text: string) => text.replace(/\.0$/, "");
+  if (value < 1000) return String(value);
+  if (value < 1_000_000) return `${trim((value / 1000).toFixed(value < 100_000 ? 1 : 0))}k`;
+  return `${trim((value / 1_000_000).toFixed(1))}M`;
+}
+
+/**
+ * Tokens, context fullness and cost, next to the server dots.
+ *
+ * Everything past the token count is conditional on the main process having
+ * recognised the model: an unknown one (any Ollama/OpenRouter id) shows counts
+ * alone rather than a fabricated price or percentage.
+ */
+function renderUsage(usage: ChatUsage | undefined): void {
+  if (!usage) {
+    usageEl.hidden = true;
+    return;
+  }
+  usageEl.hidden = false;
+  const parts = [
+    usage.contextWindow ? `${compactTokens(usage.lastInput)}/${compactTokens(usage.contextWindow)}` : compactTokens(usage.lastInput),
+  ];
+  if (usage.costUsd !== undefined) parts.push(usage.costUsd < 0.01 ? "<$0.01" : `$${usage.costUsd.toFixed(2)}`);
+  usageEl.textContent = parts.join(" · ");
+
+  const share = usage.contextWindow ? usage.lastInput / usage.contextWindow : 0;
+  usageEl.classList.toggle("near-limit", share >= 0.8);
+
+  const detail = [
+    `Model: ${usage.model}`,
+    `Last request: ${usage.lastInput.toLocaleString()} input tokens${usage.contextWindow ? ` of ${usage.contextWindow.toLocaleString()}` : ""}`,
+    `This conversation: ${usage.input.toLocaleString()} in, ${usage.output.toLocaleString()} out`,
+    `Cache: ${usage.cacheRead.toLocaleString()} read, ${usage.cacheWrite.toLocaleString()} written`,
+  ];
+  if (usage.costUsd === undefined) detail.push("No pricing on record for this model — token counts only.");
+  usageEl.title = detail.join("\n");
+}
+
 // ---- busy / composer state ---------------------------------------------------
 
 function setBusy(value: boolean): void {
@@ -588,6 +645,7 @@ api.onMessage((raw) => {
       // After the entries, so the chip it attaches to exists. This is what
       // makes a renderer reload resume a blocked turn instead of stranding it.
       if (msg.pendingApproval) showApproval(msg.pendingApproval);
+      renderUsage(msg.usage);
       renderServers(msg.servers);
       setBusy(msg.busy);
       scrollDown(true);
@@ -597,6 +655,9 @@ api.onMessage((raw) => {
       break;
     case "toolImages":
       attachImages(msg.callId, msg.images, msg.live);
+      break;
+    case "usage":
+      renderUsage(msg.usage);
       break;
     case "dryRunResult":
       showDryRunResult(msg.callId, { ok: msg.ok, text: msg.text });

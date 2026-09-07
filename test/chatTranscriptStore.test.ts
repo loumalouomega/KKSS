@@ -336,3 +336,35 @@ describe("tool-call approval decisions", () => {
     expect(CHAT_STORE_VERSION).toBe(1);
   });
 });
+
+describe("cumulative usage", () => {
+  const base = { version: CHAT_STORE_VERSION, id: "c1", title: "t", createdAt: 1, updatedAt: 2, entries: [] };
+
+  it("round-trips the totals through disk", () => {
+    const usage = { input: 120, output: 30, cacheRead: 900, cacheWrite: 40, lastInput: 1060 };
+    expect(parseConversation({ ...base, usage })!.usage).toEqual(usage);
+  });
+
+  it("needs no version bump — an older file simply has no totals", () => {
+    // The same optional-field precedent as a toolCall's `approval`: a bump
+    // would discard every stored conversation instead.
+    expect(parseConversation(base)!.usage).toBeUndefined();
+    expect(parseConversation({ ...base, entries: [] })!.version).toBe(1);
+  });
+
+  it("costs the totals, never the conversation, when they are damaged", () => {
+    const convo = parseConversation({ ...base, usage: "not an object", entries: [{ kind: "user", text: "hi" }] });
+    expect(convo!.entries).toHaveLength(1);
+    expect(convo!.usage).toBeUndefined();
+  });
+
+  it("repairs individual non-numeric fields rather than dropping everything", () => {
+    const convo = parseConversation({ ...base, usage: { input: 50, output: "lots", lastInput: 50 } });
+    expect(convo!.usage).toEqual({ input: 50, output: 0, cacheRead: 0, cacheWrite: 0, lastInput: 50 });
+  });
+
+  it("treats an all-zero total as no total at all", () => {
+    // Nothing was spent, so there is nothing to show — distinct from "spent 0".
+    expect(parseConversation({ ...base, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, lastInput: 0 } })!.usage).toBeUndefined();
+  });
+});

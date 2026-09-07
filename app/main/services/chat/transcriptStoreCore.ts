@@ -52,6 +52,16 @@ export interface StoredIndex {
   activeId: string | null;
 }
 
+/** Cumulative token spend for one conversation. */
+export interface StoredUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  /** Total input of the most recent request, for the context-fullness readout. */
+  lastInput: number;
+}
+
 export interface StoredConversation {
   version: number;
   id: string;
@@ -59,6 +69,16 @@ export interface StoredConversation {
   createdAt: number;
   updatedAt: number;
   entries: ChatEntry[];
+  /**
+   * Optional, and deliberately so: like `approval` on a toolCall, an optional
+   * field needed **no CHAT_STORE_VERSION bump**, which would have discarded
+   * every stored conversation. An older build drops it and keeps the
+   * transcript; a newer build reading an older file simply sees `undefined`.
+   *
+   * Persisted rather than session-only because a lifetime cost that silently
+   * reset on every restart would be worse than showing none at all.
+   */
+  usage?: StoredUsage;
 }
 
 /**
@@ -88,7 +108,24 @@ const str = (value: unknown): string | undefined => (typeof value === "string" ?
 const num = (value: unknown, fallback: number): number =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
-const ERROR_KINDS: ChatErrorKind[] = ["auth", "network", "noKey", "other"];
+// Must list every ChatErrorKind: a kind missing here is not rejected, it is
+// silently rewritten to "other" on read, so the banner loses its explanation.
+const ERROR_KINDS: ChatErrorKind[] = ["auth", "network", "noKey", "context", "rateLimit", "other"];
+
+/** Usage totals off disk, or `undefined` if absent or unusable. A malformed
+ *  value costs the totals, never the conversation. */
+function parseUsage(raw: unknown): StoredUsage | undefined {
+  if (!isRecord(raw)) return undefined;
+  const usage: StoredUsage = {
+    input: num(raw.input, 0),
+    output: num(raw.output, 0),
+    cacheRead: num(raw.cacheRead, 0),
+    cacheWrite: num(raw.cacheWrite, 0),
+    lastInput: num(raw.lastInput, 0),
+  };
+  const spent = usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+  return spent > 0 || usage.lastInput > 0 ? usage : undefined;
+}
 
 /**
  * One entry, or `undefined` if it is damaged beyond use. Repairing rather than
@@ -155,6 +192,7 @@ export function parseConversation(raw: unknown): StoredConversation | undefined 
   const entries = Array.isArray(raw.entries)
     ? raw.entries.map(parseEntry).filter((e): e is ChatEntry => !!e)
     : [];
+  const usage = parseUsage(raw.usage);
   return {
     version: CHAT_STORE_VERSION,
     id,
@@ -162,6 +200,7 @@ export function parseConversation(raw: unknown): StoredConversation | undefined 
     createdAt,
     updatedAt: num(raw.updatedAt, createdAt),
     entries: capEntries(entries, CONVERSATION_ENTRY_CAP),
+    ...(usage ? { usage } : {}),
   };
 }
 

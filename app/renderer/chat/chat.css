@@ -65,6 +65,22 @@ body {
   opacity: 1;
 }
 
+/* Token / context / cost readout. `#servers` keeps flex:1 and absorbs the
+   shrink; three 9px dots leave it almost entirely slack. */
+#usage {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* The context window is filling up. The cheap half of what compaction would
+   buy: the user finds out before the provider rejects the request. */
+#usage.near-limit {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
 #chat-header > button {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
@@ -412,6 +428,11 @@ body {
   color: var(--vscode-errorForeground, #f85149);
   background: var(--vscode-inputValidation-errorBackground, rgba(248, 81, 73, 0.1));
   white-space: pre-wrap;
+}
+
+.error-banner .error-advice {
+  margin-top: 4px;
+  opacity: 0.85;
 }
 
 .error-banner button {

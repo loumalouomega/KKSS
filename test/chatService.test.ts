@@ -56,6 +56,8 @@ interface ToolReq {
 
 /** A provider whose turn is resolved by the test, and which rejects on abort
  *  the way the real ones do. */
+type FakeUsage = { input: number; output: number; cacheRead: number; cacheWrite: number };
+
 class FakeProvider {
   private pending: PendingTurn | null = null;
   turns = 0;
@@ -78,11 +80,12 @@ class FakeProvider {
   emit(delta: string): void {
     this.pending!.onTextDelta(delta);
   }
-  /** Finishes the turn, optionally asking for one tool call — or several. */
-  finish(text: string, tool?: ToolReq | ToolReq[]): void {
+  /** Finishes the turn, optionally asking for one tool call — or several, and
+   *  optionally reporting usage the way a real provider would. */
+  finish(text: string, tool?: ToolReq | ToolReq[], usage?: FakeUsage): void {
     const pending = this.pending!;
     this.pending = null;
-    pending.resolve({ text, toolCalls: tool ? (Array.isArray(tool) ? tool : [tool]) : [] });
+    pending.resolve({ text, toolCalls: tool ? (Array.isArray(tool) ? tool : [tool]) : [], ...(usage ? { usage } : {}) });
   }
 }
 
@@ -961,4 +964,116 @@ describe("dry-run validation", () => {
     const entries = stored(lastState(messages).conversationId)!.entries;
     expect(entries[entries.length - 1]).toMatchObject({ kind: "assistant", stopped: true });
   }, 5000);
+});
+
+describe("token, cost and context accounting", () => {
+  const usage = (input: number, output: number, cacheRead = 0, cacheWrite = 0): FakeUsage => ({ input, output, cacheRead, cacheWrite });
+
+  const usageMsgs = (messages: ChatToWebview[]) =>
+    messages.filter((m): m is Extract<ChatToWebview, { type: "usage" }> => m.type === "usage");
+  const latestUsage = (messages: ChatToWebview[]) => {
+    const seen = usageMsgs(messages);
+    return seen[seen.length - 1].usage;
+  };
+
+  it("reports nothing until a turn actually costs something", async () => {
+    const { messages, post } = makeService();
+    post({ type: "chatReady" });
+    await settle();
+    expect(lastState(messages).usage).toBeUndefined();
+  });
+
+  it("accumulates across the iterations of a single turn", async () => {
+    // Every tool round trip is a separate billed request, so a turn that used
+    // three iterations must report all three — not just the last.
+    const { provider, mcp, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("calling", { id: "t1", name: "cad__inspect", argsJson: "{}" }, usage(100, 10));
+    await settle(4);
+    mcp.finish("tool output");
+    await settle(4);
+    provider.finish("done", undefined, usage(250, 20));
+    await settle();
+
+    const latest = latestUsage(messages);
+    expect(latest).toMatchObject({ input: 350, output: 30 });
+    // lastInput is the most recent request alone — the context question, not
+    // the cost question.
+    expect(latest.lastInput).toBe(250);
+  });
+
+  it("prices a known model and reports its context window", async () => {
+    stateValues.llmModelAnthropic = "claude-opus-4-8";
+    const { provider, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("done", undefined, usage(1_000_000, 0));
+    await settle();
+    const latest = latestUsage(messages);
+    expect(latest.contextWindow).toBe(1_000_000);
+    expect(latest.costUsd).toBeCloseTo(5, 6);
+    expect(latest.model).toBe("claude-opus-4-8");
+  });
+
+  it("reports tokens but no price or window for a model it has no figures for", async () => {
+    // An Ollama or OpenRouter id: counts are real, a price would be invented.
+    stateValues.llmProvider = "openai";
+    stateValues.llmModelOpenai = "llama3.1:70b";
+    const { provider, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("done", undefined, usage(500, 50));
+    await settle();
+    const latest = latestUsage(messages);
+    expect(latest).toMatchObject({ input: 500, output: 50 });
+    expect(latest.costUsd).toBeUndefined();
+    expect(latest.contextWindow).toBeUndefined();
+  });
+
+  it("leaves the total untouched when a provider reports nothing", async () => {
+    const { provider, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("done");
+    await settle();
+    expect(usageMsgs(messages)).toHaveLength(0);
+    expect(lastState(messages).usage).toBeUndefined();
+  });
+
+  it("survives a quit and comes back with the conversation", async () => {
+    // A lifetime cost that silently reset on restart would be worse than none.
+    const { service, provider, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("done", undefined, usage(120, 30, 900, 40));
+    await settle();
+    const id = lastState(messages).conversationId;
+    service.flushSync();
+
+    expect(stored(id)!.usage).toEqual({ input: 120, output: 30, cacheRead: 900, cacheWrite: 40, lastInput: 1060 });
+  });
+
+  it("keeps each conversation's total to itself", async () => {
+    const { provider, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("done", undefined, usage(400, 40));
+    await settle();
+
+    post({ type: "newChat" });
+    await settle();
+    expect(lastState(messages).usage).toBeUndefined();
+  });
+
+  it("replays the total on reload", async () => {
+    const { provider, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("done", undefined, usage(70, 7));
+    await settle();
+    post({ type: "chatReady" });
+    await settle();
+    expect(lastState(messages).usage).toMatchObject({ input: 70, output: 7 });
+  });
 });

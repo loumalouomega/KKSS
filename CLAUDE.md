@@ -713,6 +713,50 @@ Concretely:
   never force-opens a chip, are the other half of that bound. SVG is excluded
   from the mime allow-list and `dataBase64` is shape-validated: it is
   interpolated into a `data:` URL by a page with no `'unsafe-inline'`.
+- **Token accounting is measured, priced from a reviewed table, and never
+  transmitted.** `TurnResult.usage` is optional and **absent** when a provider
+  reports nothing — "no data" and "cost nothing" must stay distinguishable.
+  `TurnUsage.input` means *uncached* input on both providers, which takes work
+  on each: Anthropic bills `cache_read_input_tokens`/`cache_creation_input_tokens`
+  **in addition to** `input_tokens`, so the context figure is the sum of all
+  three; OpenAI counts cached tokens *inside* `prompt_tokens`, so
+  `parseUsageChunk` subtracts them back out. That chunk arrives with an **empty
+  `choices` array**, which is why it is parsed *before* the `delta` guard that
+  skips choice-less chunks — and it is only sent at all because the request now
+  carries `stream_options: {include_usage: true}`, which a stricter gateway may
+  reject, hence the retry-without-it (the same shape as Anthropic's conservative
+  retry). `services/chat/modelInfo.ts` is a deliberate table in the
+  `toolPolicy.ts` mould: **an unknown model resolves to `null` and the sidebar
+  shows token counts with no cost and no context percentage**, which is the
+  normal case for the OpenAI-compatible provider and is the honest answer rather
+  than a gap to fill by guessing. Cache rates are stored per row, not derived
+  from input (Fable 5.1 reads at a flat $0.25/MTok, and a pricing rule with one
+  exception acquires more). Cumulative usage is an **optional field on
+  `StoredConversation`** — the `approval` precedent again, so **no
+  `CHAT_STORE_VERSION` bump**, which would discard every stored conversation;
+  it is persisted rather than session-only because a lifetime cost that reset on
+  restart is worse than none. `lastInput` is *replaced* per turn, not summed: it
+  answers "how full is the window", a different question from what the
+  conversation has cost. This readout is **not** the telemetry the roadmap rules
+  out — it is computed main-side and shown only to the user whose key paid for it.
+- **The Anthropic request carries one prompt-cache breakpoint, and that is what
+  the byte-stable system prompt was always for.** `cache_control` sits on the
+  `system` block; the render order is `tools` → `system` → `messages`, so that
+  single breakpoint also covers the whole MCP toolset — which is where the value
+  is, since every tool schema is re-sent on each of up to `MAX_ITERATIONS`
+  iterations. **Changing `SYSTEM_PROMPT`, or moving volatile context into it
+  instead of onto the newest user message via `contextSuffix()`, now has a
+  measurable cost** rather than a theoretical one; `cache_read_input_tokens`
+  reading zero across repeated turns means a silent invalidator. The conservative
+  retry drops `cache_control` along with `thinking`, so a model old enough to
+  reject one degrades the way it already did.
+- **`ChatErrorKind` gained `context` and `rateLimit`, and every kind must be
+  listed in `transcriptStoreCore.ts`'s `ERROR_KINDS`** — a kind missing there is
+  not rejected on read, it is silently rewritten to `"other"`, so the banner
+  loses its explanation. A context overflow also **suppresses the Anthropic
+  conservative retry**: it is a 400, but a smaller `max_tokens` cannot shorten an
+  over-long prompt, so retrying only bought a second round trip and then reported
+  the retry's error instead of the real one.
 - **One shared McpManager, two front-ends.** `McpHub`
   (`services/chat/mcpHub.ts`) owns the single `McpManager`; both the chat loop
   and the optional **HTTP meta MCP server** (`services/metaServer/`) call

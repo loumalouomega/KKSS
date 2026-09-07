@@ -20,6 +20,7 @@
 import { app, ipcMain, WebContents } from "electron";
 import type {
   ChatConversationInfo,
+  ChatUsage,
   ChatErrorKind,
   ChatImage,
   ChatPendingApproval,
@@ -49,8 +50,10 @@ import {
   isEmptyConversation,
   markStopped,
   type LiveConversation,
+  type StoredUsage,
 } from "./transcriptStoreCore";
-import { Provider, ProviderError } from "./providers/types";
+import { Provider, ProviderError, type TurnUsage } from "./providers/types";
+import { estimateCost, modelInfo } from "./modelInfo";
 import { createAnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from "./providers/anthropic";
 import { createOpenAiCompatProvider, DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./providers/openaiCompat";
 
@@ -188,6 +191,27 @@ const MAX_ITERATIONS = 25;
  * (Map insertion order); an evicted image degrades to "no image", exactly as a
  * restarted app does.
  */
+/**
+ * Folds one turn's usage into a conversation's running total.
+ *
+ * `lastInput` is *replaced*, not added: it answers "how full was the window on
+ * the most recent request", which is the sum of that request's uncached and
+ * cached input. The cumulative fields answer the different question of what the
+ * conversation has cost overall.
+ *
+ * Pure, so the accounting is testable without a provider.
+ */
+export function addUsage(total: StoredUsage | undefined, turn: TurnUsage): StoredUsage {
+  const base = total ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, lastInput: 0 };
+  return {
+    input: base.input + turn.input,
+    output: base.output + turn.output,
+    cacheRead: base.cacheRead + turn.cacheRead,
+    cacheWrite: base.cacheWrite + turn.cacheWrite,
+    lastInput: turn.input + turn.cacheRead + turn.cacheWrite,
+  };
+}
+
 export const IMAGE_BUDGET_BYTES = 24 * 1024 * 1024;
 
 /** Drops oldest entries until the map is within budget. Mutates in place. */
@@ -495,6 +519,22 @@ export class ChatService {
     this.send(message);
   }
 
+  /**
+   * A conversation's totals in wire form, priced if the model is one we have
+   * reviewed figures for. `contextWindow`/`costUsd` are resolved here rather
+   * than in the renderer: the pricing table is main-side, and a renderer that
+   * carried it would be a second copy to keep current.
+   */
+  private usageFor(convo: LiveConversation, model: string): ChatUsage | undefined {
+    if (!convo.usage) return undefined;
+    const info = modelInfo(model);
+    return {
+      ...convo.usage,
+      model,
+      ...(info ? { contextWindow: info.contextWindow, costUsd: estimateCost(convo.usage, info) } : {}),
+    };
+  }
+
   private sendState(): void {
     const settings = readLlmSettings();
     const convo = this.ensureActive();
@@ -511,6 +551,7 @@ export class ChatService {
       // wholesale from this message, so without it a reload (or a switch away
       // and back) would leave a blocked turn with no prompt to answer it.
       pendingApproval: this.pendingApproval?.pending,
+      usage: this.usageFor(convo, settings.model),
     });
     // After the transcript, so the chips they attach to exist — and as separate
     // messages, so `state` itself stays small. sendState() fires on far more
@@ -785,6 +826,13 @@ export class ChatService {
           },
           toolName: mcp.toolName,
         });
+
+        if (result.usage) {
+          convo.usage = addUsage(convo.usage, result.usage);
+          this.store.saveSoon(convo);
+          const usage = this.usageFor(convo, settings.model);
+          if (usage) this.sendTo(convo, { type: "usage", usage });
+        }
 
         const assistantEntry: ChatEntry = { kind: "assistant", text: result.text };
         this.append(convo, assistantEntry);

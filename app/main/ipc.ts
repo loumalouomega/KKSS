@@ -64,8 +64,10 @@ export type TermToWebview =
   | { type: "data"; data: string }
   | { type: "exit"; code: number };
 
-/** Error classes the chat sidebar renders differently (banner + settings button). */
-export type ChatErrorKind = "auth" | "network" | "noKey" | "other";
+/** Error classes the chat sidebar renders differently (banner + settings button).
+ *  Every member must also appear in transcriptStoreCore.ts's ERROR_KINDS, or a
+ *  stored error of that kind silently degrades to "other" when it is read back. */
+export type ChatErrorKind = "auth" | "network" | "noKey" | "context" | "rateLimit" | "other";
 
 /** Startup/health state of one MCP server backing the chat agent. */
 export interface ChatServerStatus {
@@ -125,6 +127,29 @@ export interface ChatPendingApproval {
 export interface ChatImage {
   mimeType: string;
   dataBase64: string;
+}
+
+/**
+ * What a conversation has spent, and how much of the window its last request
+ * filled. Measured locally and shown to the user; never transmitted anywhere.
+ *
+ * `contextWindow` and `costUsd` are resolved in the main process from
+ * `modelInfo.ts` and are **absent for a model KKSS has no reviewed figures
+ * for** — the sidebar then shows token counts alone rather than a wrong number.
+ */
+export interface ChatUsage {
+  /** Cumulative over the conversation. `input` is uncached input only. */
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  /** Total input of the most recent request — including its cached part, since
+   *  that is what actually occupied the window. This, not the cumulative total,
+   *  is what "how full is the context" means. */
+  lastInput: number;
+  model: string;
+  contextWindow?: number;
+  costUsd?: number;
 }
 
 export type ChatWireEntry =
@@ -190,6 +215,8 @@ export type ChatToWebview =
        *  here) so a renderer reload or a switch away and back resumes the
        *  prompt instead of leaving the turn stuck with nothing to answer it. */
       pendingApproval?: ChatPendingApproval;
+      /** Absent until the conversation has actually spent something. */
+      usage?: ChatUsage;
     }
   | { type: "entry"; entry: ChatWireEntry }
   | { type: "approvalRequest"; pending: ChatPendingApproval }
@@ -201,6 +228,8 @@ export type ChatToWebview =
    *  once. Main knows which this is — the renderer must not infer it. */
   | { type: "toolImages"; callId: string; images: ChatImage[]; live: boolean }
   | { type: "dryRunResult"; callId: string; ok: boolean; text: string }
+  /** Pushed after each model turn; `state` carries the same figures for replay. */
+  | { type: "usage"; usage: ChatUsage }
   | { type: "assistantStart" }
   | { type: "assistantDelta"; text: string }
   | { type: "assistantDone"; entry: ChatWireEntry }
