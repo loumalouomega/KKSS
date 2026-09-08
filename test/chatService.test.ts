@@ -160,6 +160,16 @@ const settle = async (ticks = 40) => {
   for (let i = 0; i < ticks; i++) await new Promise((resolve) => setTimeout(resolve, 1));
 };
 
+/** switchTo() (newChat/selectConversation/deleteConversation) awaits a real
+ *  flush (fsync + rename) of the outgoing conversation before it sends the new
+ *  state — under CI disk contention that can outrun settle()'s fixed tick
+ *  budget (this is the same race the "switching conversations while a prompt
+ *  is open" case below already works around), so poll for the state actually
+ *  changing rather than assuming a fixed number of ticks is always enough. */
+async function settleAfterSwitch(check: () => void): Promise<void> {
+  await vi.waitFor(check, { timeout: 4000, interval: 10 });
+}
+
 function makeService(currentFiles?: () => any) {
   const provider = new FakeProvider();
   const mcp = new FakeMcp();
@@ -258,7 +268,7 @@ describe("ChatService conversations", () => {
     const firstId = lastState(messages).conversationId;
 
     post({ type: "newChat" });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(firstId));
     const state = lastState(messages);
     expect(state.conversationId).not.toBe(firstId);
     expect(state.entries).toEqual([]);
@@ -298,7 +308,7 @@ describe("ChatService conversations", () => {
     const firstId = lastState(messages).conversationId;
 
     post({ type: "newChat" });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(firstId));
     service.flushSync();
 
     const state = lastState(messages);
@@ -317,9 +327,10 @@ describe("ChatService conversations", () => {
     post({ type: "chatReady" });
     await send(post, "long job");
     provider.emit("half a thought");
+    const firstId = lastState(messages).conversationId;
 
     post({ type: "newChat" });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(firstId));
 
     const stateIndex = messages.lastIndexOf(lastState(messages));
     const after = messages.slice(stateIndex + 1);
@@ -354,7 +365,7 @@ describe("ChatService conversations", () => {
     const doomed = lastState(messages).conversationId;
 
     post({ type: "deleteConversation", id: doomed });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(doomed));
     service.flushSync();
 
     expect(fs.existsSync(path.join(dir, `${doomed}.json`))).toBe(false);
@@ -374,7 +385,7 @@ describe("ChatService conversations", () => {
     const oldId = lastState(messages).conversationId;
 
     post({ type: "newChat" });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(oldId));
     await send(post, "current one");
     provider.emit("still going");
     const currentId = lastState(messages).conversationId;
@@ -404,21 +415,21 @@ describe("ChatService conversations", () => {
     const alpha = lastState(messages).conversationId;
 
     post({ type: "newChat" });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(alpha));
     await send(post, "beta");
     provider.finish("answer to beta");
     await settle();
     const beta = lastState(messages).conversationId;
 
     post({ type: "selectConversation", id: alpha });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).toBe(alpha));
     expect(lastState(messages).entries).toEqual([
       { kind: "user", text: "alpha" },
       { kind: "assistant", text: "answer to alpha" },
     ]);
 
     post({ type: "selectConversation", id: beta });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).toBe(beta));
     expect(lastState(messages).conversationTitle).toBe("beta");
     service.flushSync();
   });
@@ -653,11 +664,7 @@ describe("tool-call approval", () => {
     await upToTool(WRITE, post, provider);
     const before = lastState(messages).conversationId;
     post({ type: "newChat" });
-    // switchTo() awaits a real flush (fsync + rename) of the outgoing
-    // conversation before it sends the new state — under CI disk contention
-    // that can outrun settle()'s fixed tick budget, so poll instead of
-    // assuming a fixed number of ticks is always enough.
-    await vi.waitFor(() => expect(lastState(messages).conversationId).not.toBe(before), { timeout: 4000, interval: 10 });
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(before));
     expect(mcp.calls).toEqual([]);
   }, 5000);
 
@@ -799,8 +806,9 @@ describe("tool-result images", () => {
     await upToResult(post, provider, mcp);
     provider.finish("done");
     await settle();
+    const before = lastState(messages).conversationId;
     post({ type: "newChat" });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(before));
     messages.length = 0;
     post({ type: "chatReady" });
     await settle();
@@ -936,7 +944,7 @@ describe("dry-run validation", () => {
     post({ type: "dryRunTool", callId: "t1" });
     await settle();
     post({ type: "deleteConversation", id });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(id));
     mcp.finish("too late");
     await settle();
     expect(reports(messages)).toHaveLength(0);
@@ -1078,9 +1086,10 @@ describe("token, cost and context accounting", () => {
     await send(post, "go");
     provider.finish("done", undefined, usage(400, 40));
     await settle();
+    const before = lastState(messages).conversationId;
 
     post({ type: "newChat" });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(before));
     expect(lastState(messages).usage).toBeUndefined();
   });
 
@@ -1225,7 +1234,7 @@ describe("transcript compaction", () => {
     post({ type: "newChat" });
     await settle();
     post({ type: "selectConversation", id });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).toBe(id));
     expect(lastState(messages).compactedResults).toBe(1);
   });
 });
