@@ -181,6 +181,7 @@ function makeService(currentFiles?: () => any) {
   const hub = {
     ensureStarted: () => mcp,
     manager: () => mcp,
+    retryKratos: vi.fn(async (_install?: boolean) => {}),
     statuses: () => [],
     onStatus: () => undefined,
     offStatus: () => undefined,
@@ -196,7 +197,7 @@ function makeService(currentFiles?: () => any) {
   });
   service.attach(contents as unknown as WebContents);
   const post = (payload: unknown) => electronStub.post("chat:toHost", contents, payload);
-  return { service, provider, mcp, messages, post };
+  return { service, provider, mcp, messages, post, hub };
 }
 
 const lastState = (messages: ChatToWebview[]) =>
@@ -212,6 +213,20 @@ async function send(post: (p: unknown) => void, text: string) {
 }
 
 // ---- cases -----------------------------------------------------------------
+
+describe("Kratos recovery IPC", () => {
+  it("accepts only fixed recovery actions from the attached renderer", async () => {
+    const { service, post, hub } = makeService();
+    post(null);
+    post({ type: "installKratosRuntime", command: "untrusted", url: "https://untrusted.invalid" });
+    post({ type: "retryKratos" });
+    post({ type: "runInstaller", command: "untrusted" });
+    const stranger = fakeWebContents<ChatToWebview>().contents;
+    electronStub.post("chat:toHost", stranger, { type: "installKratosRuntime" });
+    expect(hub.retryKratos.mock.calls).toEqual([[true], []]);
+    service.flushSync();
+  });
+});
 
 describe("per-turn tool snapshot", () => {
   it("keeps tools and system stable through server startup and a context retry, refreshing next turn", async () => {

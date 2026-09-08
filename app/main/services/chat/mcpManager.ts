@@ -20,6 +20,7 @@ import type { CallToolResult, GetPromptResult, Prompt, ReadResourceResult, Resou
 import * as path from "node:path";
 import type { ChatImage, ChatServerStatus } from "../../ipc";
 import { truncate } from "./transcript";
+import { classifyStartupFailure, type KratosRuntime } from "./kratosRuntime";
 import type { ToolDef } from "./providers/types";
 
 export type ServerKey = ChatServerStatus["key"];
@@ -175,7 +176,8 @@ export function buildServerSpecs(outDir: string): ServerSpec[] {
       key: "kratos",
       name: "kratos-mcp-server",
       command: "uvx",
-      args: [`kratos-mcp-server@${KRATOS_MCP_VERSION}`],
+      // 0.3.0 imports mcp.server.fastmcp, removed by MCP Python 2.x.
+      args: ["--with", "mcp<2", `kratos-mcp-server@${KRATOS_MCP_VERSION}`],
       env: { ...process.env } as Record<string, string>,
     },
   ];
@@ -185,18 +187,23 @@ interface ServerState {
   spec: ServerSpec;
   status: ChatServerStatus;
   client: Client | null;
+  transport?: StdioClientTransport;
   tools: ToolDef[];
 }
 
 export class McpManager {
   private readonly servers: ServerState[];
   private started = false;
+  private disposed = false;
+  private readonly abort = new AbortController();
+  private readonly connecting = new Map<ServerKey, Promise<void>>();
   /** uri → owning server, rebuilt on each listResources() (URIs aren't namespaced). */
   private readonly resourceOwners = new Map<string, ServerState>();
 
   constructor(
     specs: ServerSpec[],
-    private readonly onStatus: (statuses: ChatServerStatus[]) => void
+    private readonly onStatus: (statuses: ChatServerStatus[]) => void,
+    private readonly runtime?: Pick<KratosRuntime, "discover" | "install">
   ) {
     this.servers = specs.map((spec) => ({
       spec,
@@ -218,40 +225,97 @@ export class McpManager {
     await Promise.all(this.servers.map((server) => this.connect(server)));
   }
 
-  private async connect(server: ServerState): Promise<void> {
+  /** Retry only Kratos; concurrent clicks share the same operation. */
+  retryKratos(install = false): Promise<void> {
+    const server = this.servers.find((s) => s.spec.key === "kratos");
+    if (!server || this.disposed || server.status.state === "ready") return Promise.resolve();
+    return this.connect(server, install);
+  }
+
+  private connect(server: ServerState, install = false): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    const pending = this.connecting.get(server.spec.key);
+    if (pending) return pending;
+    const operation = this.connectAttempt(server, install).finally(() => this.connecting.delete(server.spec.key));
+    this.connecting.set(server.spec.key, operation);
+    return operation;
+  }
+
+  private async closeServer(server: ServerState): Promise<void> {
+    const client = server.client;
+    const transport = server.transport;
+    server.client = null;
+    server.transport = undefined;
+    server.tools = [];
+    for (const [uri, owner] of this.resourceOwners) if (owner === server) this.resourceOwners.delete(uri);
+    try { await client?.close(); } catch { /* already closed */ }
+    try { await transport?.close(); } catch { /* already closed */ }
+  }
+
+  private async connectAttempt(server: ServerState, install: boolean): Promise<void> {
+    let stderr = "";
+    const kratos = server.spec.key === "kratos";
+    const status = (phase: NonNullable<ChatServerStatus["phase"]>) => {
+      server.status = { key: server.spec.key, name: server.spec.name, state: "starting", phase };
+      this.onStatus(this.statuses());
+    };
+    status(kratos ? "probing" : "preparing");
+    await this.closeServer(server);
     try {
-      const transport = new StdioClientTransport({
-        command: server.spec.command,
-        args: server.spec.args,
-        env: server.spec.env,
-        stderr: "pipe",
-      });
-      transport.stderr?.on("data", (chunk: Buffer) => {
-        for (const line of chunk.toString().split("\n")) {
-          if (line.trim()) console.log(`[mcp:${server.spec.key}] ${line}`);
+      let spec = server.spec;
+      if (kratos && this.runtime) {
+        if (install) {
+          // A stale click must not install over an already usable runtime.
+          try { await this.runtime.discover(this.abort.signal); }
+          catch (error) {
+            this.abort.signal.throwIfAborted();
+            const failure = classifyStartupFailure(error).failure;
+            if (failure !== "missing-runtime" && failure !== "runtime") throw error;
+            status("installing");
+            await this.runtime.install(this.abort.signal);
+          }
         }
+        const runtime = await this.runtime.discover(this.abort.signal);
+        spec = { ...spec, command: runtime.command, args: [...runtime.args, ...spec.args], env: { ...process.env } as Record<string, string> };
+      }
+      this.abort.signal.throwIfAborted();
+      status("preparing");
+      const transport = new StdioClientTransport({
+        command: spec.command, args: spec.args, env: spec.env, stderr: "pipe",
+      });
+      server.transport = transport;
+      transport.stderr?.on("data", (chunk: Buffer) => {
+        stderr = (stderr + chunk.toString()).slice(-8192);
       });
       const client = new Client({ name: "kkss-chat", version: "1.0.0" });
-      await client.connect(transport, { timeout: CONNECT_TIMEOUT_MS });
-      const { tools } = await client.listTools();
       server.client = client;
+      const timeout = kratos ? 5 * 60_000 : CONNECT_TIMEOUT_MS;
+      await client.connect(transport, { timeout, signal: this.abort.signal });
+      const { tools } = await client.listTools(undefined, { timeout, signal: this.abort.signal });
+      this.abort.signal.throwIfAborted();
       server.tools = tools.map((tool) => ({
-        name: namespaceTool(server.spec.key, tool.name),
-        description: tool.description,
+        name: namespaceTool(server.spec.key, tool.name), description: tool.description,
         inputSchema: tool.inputSchema as Record<string, unknown>,
       }));
       server.status = {
-        key: server.spec.key,
-        name: client.getServerVersion()?.name ?? server.spec.name,
-        state: "ready",
-        toolCount: server.tools.length,
+        key: server.spec.key, name: client.getServerVersion()?.name ?? server.spec.name,
+        state: "ready", toolCount: server.tools.length,
+      };
+      client.onclose = () => {
+        if (this.disposed || server.client !== client) return;
+        void this.closeServer(server);
+        server.status = { key: server.spec.key, name: server.spec.name, state: "unavailable",
+          failure: "unknown", error: "The tool server disconnected. Retry to reconnect." };
+        this.onStatus(this.statuses());
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.log(`[mcp:${server.spec.key}] unavailable: ${message}`);
-      server.status = { key: server.spec.key, name: server.spec.name, state: "unavailable", error: truncate(message, 300) };
+      await this.closeServer(server);
+      if (this.disposed) return;
+      const failure = classifyStartupFailure(error, stderr);
+      server.status = { key: server.spec.key, name: server.spec.name, state: "unavailable",
+        failure: failure.failure, error: truncate(failure.message, 700) };
     }
-    this.onStatus(this.statuses());
+    if (!this.disposed) this.onStatus(this.statuses());
   }
 
   /** Real, namespaced tools aggregated across servers (used by the HTTP meta server). */
@@ -267,7 +331,7 @@ export class McpManager {
   toolName = (server: string, tool: string): string => namespaceTool(server as ServerKey, tool);
 
   private ready(): ServerState[] {
-    return this.servers.filter((s) => s.client);
+    return this.servers.filter((s) => s.client && s.status.state === "ready");
   }
 
   /** Aggregated MCP resources across ready servers; records the owner of each uri. */
@@ -341,7 +405,7 @@ export class McpManager {
     const split = splitToolName(namespaced, this.servers.map((s) => s.spec.key));
     const server = split && this.servers.find((s) => s.spec.key === split.server);
     if (!split || !server) return { isError: true, content: [{ type: "text", text: `Unknown tool: ${namespaced}` }] };
-    if (!server.client) return { isError: true, content: [{ type: "text", text: `MCP server "${server.status.name}" is unavailable: ${server.status.error ?? "not connected"}` }] };
+    if (!server.client || server.status.state !== "ready") return { isError: true, content: [{ type: "text", text: `MCP server "${server.status.name}" is unavailable: ${server.status.error ?? "not connected"}` }] };
     try {
       return (await server.client.callTool({ name: split.tool, arguments: args }, undefined, {
         timeout: CALL_TIMEOUT_MS,
@@ -409,7 +473,7 @@ export class McpManager {
     );
     const server = split && this.servers.find((s) => s.spec.key === split.server);
     if (!split || !server) return { ok: false, text: `Unknown tool: ${namespaced}` };
-    if (!server.client) return { ok: false, text: `MCP server "${server.status.name}" is unavailable: ${server.status.error ?? "not connected"}` };
+    if (!server.client || server.status.state !== "ready") return { ok: false, text: `MCP server "${server.status.name}" is unavailable: ${server.status.error ?? "not connected"}` };
 
     try {
       const result = await server.client.callTool({ name: split.tool, arguments: args }, undefined, {
@@ -429,15 +493,9 @@ export class McpManager {
   }
 
   async dispose(): Promise<void> {
-    await Promise.all(
-      this.servers.map(async (server) => {
-        try {
-          await server.client?.close();
-        } catch {
-          /* already gone */
-        }
-        server.client = null;
-      })
-    );
+    this.disposed = true;
+    this.abort.abort();
+    await Promise.all(this.servers.map((server) => this.closeServer(server)));
+    await Promise.allSettled(this.connecting.values());
   }
 }

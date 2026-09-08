@@ -183,6 +183,8 @@ file or an already-stepped format is refused — nothing to combine). case_run s
 the <stem>.kratosrun.json sidecar the app's own run manager shares, and case_stop walks SIGINT → SIGTERM → \
 SIGKILL. SubModelParts survive an export to .mdpa, .vtu, .med (as MED families), .inp (as *NSET/*ELSET) \
 and — block names only — .exo; a .msh export carries no groups.
+If Kratos tools are unavailable, the user can use Install uv for KKSS or Retry in the chat server-status area. \
+Installation requires the user action; you cannot install the runtime through a tool. Newly ready tools join the next user turn. \
 - kratos__* (kratos-mcp-server): the Kratos Multiphysics engine and its knowledge layer — \
 single- and multi-stage project scaffolding, running simulations as background jobs, post-processing \
 and probing results, introspecting process/solver defaults, material and linear-solver presets, \
@@ -365,6 +367,7 @@ export class ChatService {
     this.store = new TranscriptStore(deps.chatsDir);
     ipcMain.on("chat:toHost", (event, raw) => {
       if (!this.target || event.sender !== this.target) return;
+      if (!raw || typeof raw !== "object") return;
       const msg = raw as ChatToHost;
       switch (msg.type) {
         case "chatReady":
@@ -408,6 +411,12 @@ export class ChatService {
           break;
         case "deleteConversation":
           this.enqueue(() => this.remove(msg.id));
+          break;
+        case "installKratosRuntime":
+          void this.deps.hub.retryKratos(true);
+          break;
+        case "retryKratos":
+          void this.deps.hub.retryKratos();
           break;
         case "openSettings":
           this.deps.openSettings();
@@ -778,6 +787,7 @@ export class ChatService {
       return `${label}: ${list}`;
     };
     const parts = [
+      ...this.deps.hub.statuses().map((s) => `Tool server ${s.key}: ${s.state}${s.failure ? ` (${s.failure})` : ""}`),
       files.projectRoot ? `Project root: ${files.projectRoot}` : undefined,
       describe("CAD (pre-processing) tabs", files.cad, files.activeCad),
       describe("Mesh (post-processing) tabs", files.mesh, files.activeMesh),

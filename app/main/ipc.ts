@@ -76,6 +76,8 @@ export interface ChatServerStatus {
   name: string;
   state: "starting" | "ready" | "unavailable";
   toolCount?: number;
+  phase?: "probing" | "installing" | "preparing";
+  failure?: "missing-runtime" | "runtime" | "network" | "package" | "timeout" | "installation" | "unknown";
   /** Short failure description (state: unavailable). */
   error?: string;
 }
@@ -181,6 +183,8 @@ export interface ChatConversationInfo {
 /** Messages posted by the chat-sidebar renderer. */
 export type ChatToHost =
   | { type: "chatReady" }
+  | { type: "installKratosRuntime" }
+  | { type: "retryKratos" }
   | { type: "send"; text: string }
   | { type: "stop" }
   | { type: "approveTool"; callId: string; decision: "allow" | "allowAlways" | "deny" }

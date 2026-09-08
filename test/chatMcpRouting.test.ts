@@ -108,7 +108,7 @@ describe("buildServerSpecs", () => {
     expect(cad.args[0].replace(/\\/g, "/")).toBe("/app/out/cad-runtime/dist/mcp-server.js");
     expect(mesh.args[0].replace(/\\/g, "/")).toBe("/app/out/mcpServer.js");
     expect(kratos.command).toBe("uvx");
-    expect(kratos.args).toEqual([`kratos-mcp-server@${KRATOS_MCP_VERSION}`]);
+    expect(kratos.args).toEqual(["--with", "mcp<2", `kratos-mcp-server@${KRATOS_MCP_VERSION}`]);
   });
 
   it("runs the node bundles under Electron's own binary and keeps PATH", () => {

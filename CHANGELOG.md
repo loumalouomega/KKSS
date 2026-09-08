@@ -7,6 +7,12 @@ full auto-generated compare links.
 
 ## [Unreleased]
 
+- feat: show readable Kratos startup errors with app-local uv installation and
+  retry controls in chat. Recovery leaves CAD and mesh running; no PATH or
+  shell-profile changes are needed.
+- fix: constrain the pinned Kratos server to MCP Python 1.x, restoring startup
+  after the incompatible MCP Python 2.x release.
+
 - fix: keep the assistant's tool definitions stable throughout each user turn,
   including retries, so MCP servers connecting in the background do not
   invalidate the prompt-cache prefix. Newly ready tools join the next turn.

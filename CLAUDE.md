@@ -639,13 +639,35 @@ Concretely:
   installs), and **always pass `{...process.env}` to `StdioClientTransport`**
   — the MCP SDK otherwise strips env to a minimal set, silently losing PATH
   (breaks `uvx kratos-mcp-server`). The kratos server is **pinned** to
-  `KRATOS_MCP_VERSION` in `mcpManager.ts` (`uvx kratos-mcp-server@<v>`) — bump
+  `KRATOS_MCP_VERSION` in `mcpManager.ts` (`uvx --with "mcp<2" kratos-mcp-server@<v>`) — bump
   that constant to upgrade; its 40 tools + resources + prompts are discovered
   at runtime, so nothing else changes. `McpManager` also aggregates MCP
   resources/prompts (surfaced to the chat as synthetic `mcp__*` tools via
   `chatTools()`). API keys go through `services/chat/secrets.ts`
   (safeStorage-encrypted in the stateStore) — never store them
   plaintext-by-design or ship them to a renderer.
+- **Kratos runtime recovery is app-owned and user-initiated.** `kratosRuntime.ts`
+  probes `<userData>/runtimes/uv/uv`, PATH's `uvx`, then `uv tool run` (with
+  `.exe` on Windows). Discovery never downloads. The chat's Install button
+  invokes the official pinned uv 0.12.10 installer in unmanaged mode into a
+  temporary sibling directory; only a verified executable is promoted. No
+  PATH/profile changes, administrator privileges, or automatic upgrades.
+  `McpManager.retryKratos()` shares in-flight attempts, keeps CAD/mesh alive,
+  closes failed transports, clears stale tools/resources, and aborts setup on
+  shutdown. Prompts are resolved dynamically and have no cached ownership.
+  Current availability rides the context suffix, not the static system prompt;
+  newly ready tools join the next user turn's snapshot. Failure categories are
+  conservative, with bounded stderr; unfamiliar errors remain unknown.
+  Kratos connect/listTools each get five minutes; tool-call timeouts are unchanged.
+  **Live finding:** server 0.3.0 needs `mcp<2`, since MCP Python 2.x removed its
+  `mcp.server.fastmcp` import. Keep that constraint when resolving the pinned
+  server unless a newer server has been verified compatible.
+  Linux: real official installer + MCP handshake (40 tools), and live Electron
+  missing-runtime → recovery checked in an isolated profile. Windows/macOS:
+  mocked command coverage only; real installation remains unverified.
+  `test/kratosRuntime.test.ts`, `test/kratosStartup.test.ts`, the chat IPC tests,
+  and `tools/kratosStartup.e2e.mjs` cover the new paths. Screenshots include
+  `chat-kratos-setup.png`, generated from the live sidebar.
 - **Chat transcripts are durable, per conversation, and a turn is bound to the
   one it started in.** `<userData>/chats/` holds one `<id>.json` per
   conversation plus an `index.json` of the sidebar's history rows; each file is

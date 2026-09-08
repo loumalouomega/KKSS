@@ -6,6 +6,8 @@
  * shared-FlowgraphController lifecycle: constructed once in index.ts, disposed
  * on will-quit.
  */
+import { app } from "electron";
+import { KratosRuntime } from "./kratosRuntime";
 import type { ChatServerStatus } from "../../ipc";
 import { buildServerSpecs, McpManager } from "./mcpManager";
 
@@ -24,9 +26,13 @@ export class McpHub {
     this.mgr = new McpManager(buildServerSpecs(this.outDir), (statuses) => {
       this.lastStatuses = statuses;
       for (const listener of this.listeners) listener(statuses);
-    });
+    }, new KratosRuntime(app.getPath("userData")));
     void this.mgr.start();
     return this.mgr;
+  }
+
+  retryKratos(install = false): Promise<void> {
+    return this.ensureStarted().retryKratos(install);
   }
 
   /** The manager if already started, else null (does not spawn). */

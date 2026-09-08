@@ -502,3 +502,15 @@ body {
   background: var(--vscode-errorForeground, #f85149);
   color: #fff;
 }
+
+/* Kratos recovery is separate from the transcript and never hides the composer. */
+#kratos-status { padding: 8px 12px; border-bottom: 1px solid var(--vscode-panel-border); font-size: 12px; overflow-wrap: anywhere; max-height: 180px; overflow-y: auto; }
+#kratos-status[hidden] { display: none; }
+#kratos-status p { margin: 4px 0; }
+#kratos-status button {
+  cursor: pointer; margin: 5px 0; padding: 5px 10px; border-radius: 3px;
+  border: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-button-background); color: var(--vscode-button-foreground);
+}
+#kratos-status button:hover { background: var(--vscode-button-hoverBackground); }
+#kratos-status button:disabled { cursor: wait; }
