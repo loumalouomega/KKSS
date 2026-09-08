@@ -830,7 +830,11 @@ export class ChatService {
 
     this.ensureStarted();
     const mcp = this.mcp!;
-    this.reportUnclassified(mcp.chatTools());
+    // Snapshot ready tools without waiting for all servers to connect. Tools
+    // precede the system cache breakpoint, so discovering more mid-turn would
+    // invalidate that prefix. Newly connected servers join the next turn.
+    const tools = mcp.chatTools();
+    this.reportUnclassified(tools);
     this.busy = true;
     this.partial = "";
     this.stoppedMarked = false;
@@ -862,7 +866,7 @@ export class ChatService {
         this.sendTo(convo, { type: "assistantStart" });
         const turnOptions = {
           system: SYSTEM_PROMPT,
-          tools: mcp.chatTools(),
+          tools,
           model: settings.model,
           signal,
           onTextDelta: (delta: string) => {

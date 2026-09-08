@@ -844,10 +844,16 @@ Concretely:
   since every tool schema is re-sent on each of up to `MAX_ITERATIONS`
   iterations. **It covers tools + system and nothing else: `messages` are always
   uncached**, so compaction neither helps nor harms the cache, and any claim that
-  reshaping the transcript protects it is wrong. Note also that the cached prefix
-  is invalidated on every iteration of a session's *first* turn, because
-  `chatTools()` is rebuilt per iteration while the three servers are still
-  connecting — a known limitation, filed as its own roadmap item. **Changing `SYSTEM_PROMPT`, or moving volatile context into it
+  reshaping the transcript protects it is wrong. `ChatService.run()` snapshots
+  `mcp.chatTools()` once per user turn, reusing that list for every iteration
+  and context-overflow retry. It starts with the tools already available rather
+  than waiting for all servers; servers that connect later join the next turn.
+  The unclassified-tool check uses the same snapshot. This prevents asynchronous
+  server startup from invalidating the tools + system prefix mid-turn, including
+  the first turn. `test/chatService.test.ts` covers startup during a tool round
+  trip, a compaction retry, and refreshing the list on the next turn. Actual
+  provider cache hits still depend on provider eligibility; no paid API probe
+  is part of this verification. **Changing `SYSTEM_PROMPT`, or moving volatile context into it
   instead of onto the newest user message via `contextSuffix()`, now has a
   measurable cost** rather than a theoretical one; `cache_read_input_tokens`
   reading zero across repeated turns means a silent invalidator. The conservative

@@ -5,6 +5,12 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [Unreleased]
+
+- fix: keep the assistant's tool definitions stable throughout each user turn,
+  including retries, so MCP servers connecting in the background do not
+  invalidate the prompt-cache prefix. Newly ready tools join the next turn.
+
 ## [1.7.1] - 2026-09-08
 
 - fix: the Docker image build now runs `apt-get upgrade` before installing

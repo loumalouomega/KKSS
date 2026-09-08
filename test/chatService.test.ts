@@ -15,6 +15,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { WebContents } from "electron";
 import type { ChatImage, ChatToWebview } from "../app/main/ipc";
+import type { StreamTurnOptions, ToolDef } from "../app/main/services/chat/providers/types";
 
 vi.mock("electron", async () => {
   const { electronStub } = await import("./stubs/electron");
@@ -67,9 +68,11 @@ class FakeProvider {
   /** The entries the last turn was actually sent — where the context suffix
    *  lands, since it rides the newest user message and not the system prompt. */
   lastEntries: any[] = [];
+  requests: StreamTurnOptions[] = [];
 
   streamTurn = (options: any): Promise<any> => {
     this.turns++;
+    this.requests.push(options);
     this.lastEntries = options.entries ?? [];
     return new Promise((resolve, reject) => {
       this.pending = { onTextDelta: options.onTextDelta, resolve, reject };
@@ -110,7 +113,8 @@ class FakeMcp {
   get calls(): string[] {
     return this.requests.map((request) => request.name);
   }
-  chatTools = () => [];
+  availableTools: ToolDef[] = [];
+  chatTools = () => [...this.availableTools];
   toolName = (server: string, tool: string) => `${server}__${tool}`;
   callTool = (name: string, argsJson: string) => {
     this.requests.push({ name, argsJson });
@@ -208,6 +212,54 @@ async function send(post: (p: unknown) => void, text: string) {
 }
 
 // ---- cases -----------------------------------------------------------------
+
+describe("per-turn tool snapshot", () => {
+  it("keeps tools and system stable through server startup and a context retry, refreshing next turn", async () => {
+    const { service, provider, mcp, post } = makeService();
+    const inspect: ToolDef = { name: "cad__inspect", inputSchema: { type: "object" } };
+    const mesh: ToolDef = { name: "mesh__mesh_info", inputSchema: { type: "object" } };
+    mcp.availableTools = [inspect];
+    post({ type: "chatReady" });
+    await send(post, "inspect the model");
+    expect(provider.requests[0].tools).toEqual([inspect]);
+
+    // Another server connects while the first provider request is in flight.
+    mcp.availableTools.push(mesh);
+    provider.finish("inspecting", { id: "t1", name: inspect.name, argsJson: "{}" });
+    await settle(4);
+    mcp.finish("inspection result");
+    await settle(4);
+    provider.fail(new ProviderError("context", "prompt too long"));
+    await settle(6);
+    expect(provider.requests).toHaveLength(3);
+    for (const request of provider.requests) {
+      expect(request.tools).toEqual([inspect]);
+      expect(request.system).toBe(provider.requests[0].system);
+    }
+    provider.finish("done");
+    await settle();
+
+    await send(post, "inspect the mesh too");
+    expect(provider.requests[3].tools).toEqual([inspect, mesh]);
+    provider.finish("done again");
+    await settle();
+    service.flushSync();
+  });
+
+  it("starts immediately with no ready tools and discovers them on the next turn", async () => {
+    const { service, provider, mcp, post } = makeService();
+    await send(post, "hello");
+    expect(provider.requests[0].tools).toEqual([]);
+    mcp.availableTools = [{ name: "cad__inspect", inputSchema: { type: "object" } }];
+    provider.finish("hello");
+    await settle();
+    await send(post, "inspect");
+    expect(provider.requests[1].tools).toEqual(mcp.availableTools);
+    provider.finish("done");
+    await settle();
+    service.flushSync();
+  });
+});
 
 describe("ChatService conversations", () => {
   it("persists a finished turn and replays it in a new process", async () => {
