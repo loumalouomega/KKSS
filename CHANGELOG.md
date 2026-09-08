@@ -5,6 +5,17 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.7.1] - 2026-09-08
+
+- fix: the Docker image build now runs `apt-get upgrade` before installing
+  its runtime libraries, so a rebuilt image picks up Debian security
+  point-releases instead of reusing a stale cached apt layer indefinitely.
+  `v1.7.0`'s release build failed the vulnerability scan on 6 already-fixed
+  HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
+  functional change to the app itself
+
+[1.7.1]: https://github.com/loumalouomega/KKSS/compare/v1.7.0...v1.7.1
+
 ## [1.7.0] - 2026-09-08
 
 - feat: **both engines updated** — Pre-Processing to CAD-Preview 1.13.0 (from

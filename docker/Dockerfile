@@ -62,10 +62,22 @@ LABEL org.opencontainers.image.title="KKSS" \
 # Electron/Chromium runtime libs + display/streaming stack + glue. x11-utils
 # supplies xdpyinfo, which entrypoint.sh polls to know the display is up (and
 # the healthcheck uses) — nothing else pulls it in, so it must be explicit.
+#
+# `apt-get upgrade` runs before the explicit installs, not just alongside
+# them: this whole RUN is one BuildKit layer, cached by instruction text plus
+# upstream state (docker.yml's `cache-from: type=gha`) — `debian:bookworm-slim`
+# is a rolling tag, so an unchanged Dockerfile can keep hitting a stale cached
+# layer indefinitely even as Debian ships security point-releases for
+# already-resolved packages (libaom3, libssh2-1, …, pulled in transitively by
+# the libs above / curl). The scan step only gates a *tag* push
+# (docker.yml's `exit-code`), so that staleness is invisible on every ordinary
+# branch push and only surfaces as a release-time failure. Upgrading first
+# fixes already-installed packages too, and — just as importantly — changing
+# this RUN's own text is what busts its cache on the next build.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
  && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
- && apt-get update && apt-get install -y --no-install-recommends \
+ && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 libcups2 libdrm2 \
     libgtk-3-0 libgbm1 libasound2 libxss1 libxcomposite1 libxtst6 \
     libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 libuuid1 \

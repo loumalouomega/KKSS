@@ -53,9 +53,14 @@ jobs:
       - uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: docker/Dockerfile
-          # Pinning every apt package version is impractical for a base we
-          # rebuild on every release; the rest of the ruleset still applies.
-          ignore: DL3008
+          # DL3008: pinning every apt package version is impractical for a
+          # base we rebuild on every release.
+          # DL3005: apt-get upgrade is exactly how a rebuilt image picks up
+          # Debian security point-releases for already-resolved CVEs — see
+          # the runtime apt-get RUN's own comment in the Dockerfile. The
+          # scan step below (not this rule) is what actually gates a release
+          # on a clean image; the rest of the ruleset still applies.
+          ignore: DL3005,DL3008
 
   image:
     name: image (${{ matrix.arch }})
