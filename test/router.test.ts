@@ -55,18 +55,29 @@ describe("modeForFile", () => {
     }
   });
 
-  it("routes the two formats only cad can read to cad mode", () => {
-    // Not an oversight, and the reason each side differs is worth pinning:
-    // mesh writes `.foam` but cannot READ a case (that needs a tree of
-    // sibling files its single-file MEMFS staging can't supply), and it never
-    // registered `.msh2` at all. cad 1.5.x reads both, so cad mode is the only
-    // one that can open them and wins outright rather than by active-mode
-    // preference.
-    for (const f of ["a.foam", "a.msh2"]) {
+  it("routes the one format only cad can read to cad mode", () => {
+    // cad 1.5.x reads .msh2, and mesh never registered it at all, so cad mode
+    // is the only one that can open it and wins outright rather than by
+    // active-mode preference.
+    for (const f of ["a.msh2"]) {
       expect(routeFile(f)?.strategy).toBe("meshio");
       expect(modeForFile(f, "cad")).toBe("cad");
       expect(modeForFile(f, "mesh")).toBe("cad");
     }
+  });
+
+  it("routes .foam to mesh mode now that mesh 3.17.0 can read a case", () => {
+    // Used to be cad-only, for the same reason .msh2 still is: a `.foam`
+    // marker's real mesh lives in a sibling `constant/polyMesh/` TREE, and
+    // mesh's staging used to only ever hand the reader a single file. mesh
+    // 3.17.0 taught its staging to hold that tree (openfoamCase.ts), so .foam
+    // moved from the cad-only branch into the cad-and-mesh one — mesh mode
+    // wins there because it reads OpenFOAM natively (named boundary
+    // SubModelParts recovered from constant/polyMesh/boundary), same as every
+    // other meshio-strategy format above.
+    expect(routeFile("a.foam")?.strategy).toBe("meshio");
+    expect(modeForFile("a.foam", "cad")).toBe("mesh");
+    expect(modeForFile("a.foam", "mesh")).toBe("mesh");
   });
 
   it("routes the OpenSCAD formats to cad mode, on the occt strategy", () => {

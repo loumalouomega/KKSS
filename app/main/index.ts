@@ -402,7 +402,8 @@ function syncTabs(mode: Mode): void {
   if (!main) return;
   const hosts = mode === "cad" ? cadHosts : meshHosts;
   const tabs: ShellTabInfo[] = main.tabs(mode).map((t) => {
-    const file = hosts.get(t.id)?.currentFile;
+    const host = hosts.get(t.id);
+    const file = host?.currentFile;
     const origin = file ? cloud?.describe(file) : undefined;
     return {
       id: t.id,
@@ -410,6 +411,9 @@ function syncTabs(mode: Mode): void {
       // remote one are the same except where the OS forced a substitution.
       fileName: file ? path.basename(file) : null,
       cloud: origin ? { provider: origin.providerLabel, name: origin.name } : undefined,
+      // cad has no unsaved-changes concept (sidecars autosave); mesh 3.18.0
+      // gave its previews one, tracked per tab by MeshHost.isDirty().
+      dirty: mode === "mesh" ? (host as MeshHost | undefined)?.isDirty() : undefined,
     };
   });
   sendShell({ type: "tabs", mode, tabs, activeTabId: main.activeTabId(mode) });
@@ -444,6 +448,8 @@ const meshHostHooks = (tabId: string) => ({
     setScreen("mesh");
     syncTabs("mesh");
   },
+  // mesh 3.18.0's unsaved-edit tracking — refresh the tab strip's dirty dot.
+  onDirtyChanged: () => syncTabs("mesh"),
 });
 
 /** Creates a new (focused) tab for `mode`: its WebContentsView + Host. */
@@ -533,13 +539,45 @@ function newTab(mode: Mode): void {
   setScreen(mode);
 }
 
-/** ✕ on a tab. No dirty-prompt — cad/mesh sidecars autosave, same as any
- *  other document replace/close in this app (see CLAUDE.md's tabs invariant). */
-function closeTab(mode: Mode, tabId: string): void {
+/**
+ * Save / Don't Save / Cancel for a dirty mesh tab, mirroring
+ * EditorService.confirmClose's exact dialog shape. cad has no unsaved-changes
+ * concept (sidecars autosave), so this is only ever asked of a MeshHost.
+ * Resolves false ("Cancel") to abort whatever wanted to discard the tab.
+ */
+async function confirmDiscardMeshTab(host: MeshHost): Promise<boolean> {
+  if (!main || !host.isDirty()) return true;
+  const name = host.currentFile ? path.basename(host.currentFile) : "this mesh";
+  const { response } = await dialog.showMessageBox(main.win, {
+    type: "warning",
+    message: `Save changes to ${name}?`,
+    buttons: ["Save", "Don't Save", "Cancel"],
+    defaultId: 0,
+    cancelId: 2,
+  });
+  if (response === 2) return false;
+  if (response === 0) {
+    try {
+      await host.saveDocument();
+    } catch (err) {
+      toast("error", err instanceof Error ? err.message : String(err));
+      return false; // the write failed — keep the tab open, still dirty
+    }
+  }
+  return true;
+}
+
+/** ✕ on a tab. cad has no dirty-prompt — sidecars autosave, same as any other
+ *  document replace/close in this app (see CLAUDE.md's tabs invariant). mesh
+ *  3.18.0 gave its previews unsaved-edit tracking, so a dirty mesh tab prompts
+ *  first (confirmDiscardMeshTab) — Cancel leaves the tab open, untouched. */
+async function closeTab(mode: Mode, tabId: string): Promise<void> {
   if (!main) return;
   const hosts = mode === "cad" ? cadHosts : meshHosts;
-  const closing = hosts.get(tabId)?.currentFile;
-  hosts.get(tabId)?.dispose();
+  const host = hosts.get(tabId);
+  if (mode === "mesh" && host instanceof MeshHost && !(await confirmDiscardMeshTab(host))) return;
+  const closing = host?.currentFile;
+  host?.dispose();
   hosts.delete(tabId);
   main.closeTab(mode, tabId);
   // Stop watching the staging directory once no tab holds the document any
@@ -791,7 +829,7 @@ function restoreSession(hasLaunchFile: boolean): boolean {
       cloud?.trackIfStaged(file);
         if (file === activeFile) focusId = tab.id;
       }
-      if (starter) closeTab(mode, starter);
+      if (starter) void closeTab(mode, starter);
       if (focusId) main.setActiveTab(mode, focusId);
       syncTabs(mode);
     }
@@ -938,6 +976,18 @@ app.whenReady().then(() => {
     openLatestResults,
     // Only the explicit root becomes a workspace folder — see the shim.
     projectRoot: () => projectRoot.explicit(),
+    // mesh 3.18.0's workspace.save(uri) — see the shim's own comment. Finds
+    // the tab whose current document owns this uri (there is at most one:
+    // openPath replaces, never duplicates) and lets it save itself; a uri no
+    // open mesh tab owns resolves without doing anything, same as VS Code.
+    saveMesh: async (fsPath) => {
+      for (const host of meshHosts.values()) {
+        if (host.currentFile === fsPath) {
+          await host.saveDocument();
+          return;
+        }
+      }
+    },
   });
 
   for (const mode of ["cad", "mesh"] as Mode[]) {
@@ -959,11 +1009,30 @@ app.whenReady().then(() => {
   });
 
   // Closing the window is the one destructive path for an unsaved buffer —
-  // screen switches only hide the editor view, so they need no guard.
+  // screen switches only hide the editor/mode views, so they need no guard.
+  // mesh 3.18.0 gave its previews the same kind of unsaved-edit tracking the
+  // text editor already had; both are checked here rather than adding a
+  // second before-quit hold (which already carries a single-shot cloud-drain
+  // preventDefault it is best not to complicate further). Mesh tabs are
+  // confirmed first, one dialog per dirty tab, sequentially — a Cancel at any
+  // point aborts the whole close before the editor is even asked. If the
+  // editor is ALSO dirty, its own confirmClose() owns window.destroy() when
+  // it finishes (the pendingClose flag); otherwise this destroys the window
+  // itself once every mesh tab has resolved.
   main.win.on("close", (event) => {
-    if (!editor?.isDirty()) return;
+    const dirtyMeshTabs = [...meshHosts.values()].filter((host) => host.isDirty());
+    if (!editor?.isDirty() && dirtyMeshTabs.length === 0) return;
     event.preventDefault();
-    void editor.confirmClose();
+    void (async () => {
+      for (const host of dirtyMeshTabs) {
+        if (!(await confirmDiscardMeshTab(host))) return;
+      }
+      if (editor?.isDirty()) {
+        void editor.confirmClose();
+        return;
+      }
+      main?.win.destroy();
+    })();
   });
 
   terminal = new TerminalService(
@@ -1209,7 +1278,7 @@ app.whenReady().then(() => {
         newTab(msg.mode);
         break;
       case "closeTab":
-        closeTab(msg.mode, msg.tabId);
+        void closeTab(msg.mode, msg.tabId);
         break;
       case "selectTab":
         selectTab(msg.mode, msg.tabId);

@@ -38,6 +38,26 @@
  * upstream source of truth tools/webviewMarkup.ts must track (it used to be
  * `mdpaEditorProvider.getHtml`). The output still lands on the fake webview's
  * inert `html` setter below — our page is generated at build time.
+ *
+ * mesh 3.18.0 made both providers full `vscode.CustomEditorProvider`s (were
+ * `CustomReadonlyEditorProvider`): applying an operation now marks the tab
+ * dirty, and only `vscode.workspace.save(uri)` can clear it. Two consequences
+ * live here rather than upstream:
+ *  - `resolveProviderFor` is now async and mints the document itself via
+ *    `provider.openCustomDocument(...)` — `resolveCustomEditor` unconditionally
+ *    reads `document.takeRestoredOps()` (on the VTK side, on every frame post),
+ *    so the old bare `{uri, dispose(){}}` stand-in throws immediately.
+ *  - `MeshHost` keeps `currentDocument`/`currentProvider` alongside
+ *    `currentPanel` so the vscodeShim's `saveMesh` hook (vscodeShim.ts) — the
+ *    parent-side stand-in for "VS Code saves the active editor for this uri" —
+ *    has something to call `saveCustomDocument` on. `dirtyFlag`
+ *    (`onDidChangeCustomDocument`, fired only on an actual edit) backs the tab
+ *    strip's dirty dot and the close/quit prompts in index.ts.
+ *
+ * mesh 3.21.0 also gave `VtkEditorProvider` its own `PtController` (Problemtype
+ * support for non-.mdpa formats), so its constructor now takes the same
+ * `(context, flowgraph, runs, recents)` shape as `MdpaEditorProvider` — and
+ * `dispatchCase` below fans out to both providers accordingly.
  */
 import { ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs";
@@ -49,9 +69,11 @@ import { FlowgraphController } from "../../../mesh/src/flowgraphController";
 import type { RunManager } from "../../../mesh/src/runManager";
 import type { RecentMeshStore } from "../../../mesh/src/recentMeshes";
 import type { MenuMessage } from "../../../mesh/src/meshExport";
+import type { MeshPreviewDocument } from "../../../mesh/src/meshDocument";
 import { configureMmg } from "../../../mesh/src/parser/remesh";
 import { configureMmgRunner } from "../../../mesh/src/parser/operations";
 import { runMmgInWorker } from "../../../mesh/src/mmgWorkerClient";
+import { packSeries } from "../../../mesh/src/sequenceExport";
 import { Uri } from "../vscodeShim";
 import { stateStore } from "../services/stateStore";
 
@@ -180,14 +202,22 @@ export interface MeshHostHooks {
   onTitle(fileName: string | null): void;
   /** Bring this tab to the front (a provider called WebviewPanel.reveal()). */
   onReveal(): void;
+  /** The dirty flag changed — mesh 3.18.0's unsaved-edit tracking. */
+  onDirtyChanged(): void;
 }
 
 export class MeshHost {
   private readonly mdpaProvider: MdpaEditorProvider;
   private readonly vtkProvider: VtkEditorProvider;
   private currentPanel: FakeWebviewPanel | undefined;
+  /** The document `resolveCustomEditor` is showing, and the provider that
+   *  minted it — kept so `saveDocument()` (the vscodeShim's `saveMesh` hook
+   *  calls into it) has something to call `saveCustomDocument` on. */
+  private currentDocument: MeshPreviewDocument | undefined;
+  private currentProvider: MdpaEditorProvider | VtkEditorProvider | undefined;
   private currentPath: string | undefined;
   private pendingOpen: string | undefined;
+  private dirtyFlag = false;
 
   constructor(
     private readonly view: WebContentsView,
@@ -211,7 +241,15 @@ export class MeshHost {
     const context = createMeshExtensionContext(outDir);
 
     this.mdpaProvider = new MdpaEditorProvider(context, flowgraph, runs, recents);
-    this.vtkProvider = new VtkEditorProvider(context, recents);
+    this.vtkProvider = new VtkEditorProvider(context, flowgraph, runs, recents);
+
+    // Each provider instance belongs to exactly this one tab (constructed
+    // above, not shared), so this fires only for edits made in THIS tab.
+    // markDirty() upstream only fires on an actual applied/undone operation —
+    // never at initial load — so a freshly opened file is never spuriously
+    // dirty.
+    this.mdpaProvider.onDidChangeCustomDocument(() => this.setDirty(true));
+    this.vtkProvider.onDidChangeCustomDocument(() => this.setDirty(true));
 
     ipcMain.on("mesh:toHost", (event, msg: { type?: string }) => {
       if (event.sender !== view.webContents) return;
@@ -222,14 +260,30 @@ export class MeshHost {
 
   /** Tab closed — disposes this tab's panel/provider state. The shared
    *  FlowgraphController and the WebContentsView are the caller's to tear
-   *  down (index.ts / windows.ts's closeTab). */
+   *  down (index.ts / windows.ts's closeTab). Callers that need to guard on
+   *  unsaved edits first must check isDirty() themselves (index.ts's
+   *  closeTab). */
   dispose(): void {
     this.currentPanel?.dispose();
     this.currentPanel = undefined;
+    this.currentDocument?.dispose();
+    this.currentDocument = undefined;
+    this.currentProvider = undefined;
   }
 
   get currentFile(): string | undefined {
     return this.currentPath;
+  }
+
+  /** mesh 3.18.0: true while this tab holds an applied-but-unsaved edit. */
+  isDirty(): boolean {
+    return this.dirtyFlag;
+  }
+
+  private setDirty(value: boolean): void {
+    if (this.dirtyFlag === value) return;
+    this.dirtyFlag = value;
+    this.hooks.onDirtyChanged();
   }
 
   private dispatch(msg: { type?: string }): void {
@@ -237,9 +291,13 @@ export class MeshHost {
       // Fresh page load for a newly opened document: resolve the provider
       // now (it subscribes onDidReceiveMessage), then deliver "ready" so its
       // parse/discover flow starts — same order as resolveCustomEditor.
+      // resolveProviderFor is async (openCustomDocument), but the panel's
+      // onDidReceiveMessage buffers inbound messages until a handler
+      // subscribes (FakeWebviewPanel above), so "ready" queuing behind the
+      // await here is safe — no handshake restructuring needed.
       const fsPath = this.pendingOpen;
       this.pendingOpen = undefined;
-      this.resolveProviderFor(fsPath);
+      void this.resolveProviderFor(fsPath);
     }
     if (this.currentPanel) {
       this.currentPanel.deliver(msg);
@@ -251,10 +309,16 @@ export class MeshHost {
     }
   }
 
-  /** Opens `fsPath` in the mesh view (replaces any current document). */
+  /** Opens `fsPath` in the mesh view (replaces any current document). Callers
+   *  that need to guard on unsaved edits first must check isDirty()
+   *  themselves (index.ts's openFile). */
   openPath(fsPath: string): void {
     this.currentPanel?.dispose(); // fires the provider's onDidDispose cleanup
     this.currentPanel = undefined;
+    this.currentDocument?.dispose();
+    this.currentDocument = undefined;
+    this.currentProvider = undefined;
+    this.setDirty(false);
     this.currentPath = fsPath;
     this.pendingOpen = fsPath;
     this.hooks.onTitle(path.basename(fsPath));
@@ -272,12 +336,36 @@ export class MeshHost {
   }
 
   /**
-   * Routes a Problemtype case action to the mdpa provider (extension.ts's
-   * `dispatchCase`, backing kratos.case.generate/run/stop/openResults). Not
-   * `postToActive` — these are host-side actions, not webview messages.
+   * Routes a Problemtype case action to whichever provider has it active
+   * (extension.ts's `dispatchCase`, backing
+   * kratos.case.generate/run/stop/openResults). Not `postToActive` — these are
+   * host-side actions, not webview messages. mesh 3.21.0 gave VtkEditorProvider
+   * its own PtController (Problemtype support for non-.mdpa formats), so this
+   * fans out the same way dispatchMenu/dispatchReload do — a VTK tab used to
+   * have no case actions at all.
    */
   dispatchCase(action: Parameters<MdpaEditorProvider["dispatchCase"]>[0]): boolean {
-    return this.mdpaProvider.dispatchCase(action);
+    return this.mdpaProvider.dispatchCase(action) || this.vtkProvider.dispatchCase(action);
+  }
+
+  /** Ctrl+Z / Ctrl+Shift+Z / Edit ▸ Undo|Redo Mesh Operation on the active
+   *  preview (mesh 3.18.0's dispatchHistory). */
+  dispatchHistory(action: "undo" | "redo"): boolean {
+    return this.mdpaProvider.dispatchHistory(action) || this.vtkProvider.dispatchHistory(action);
+  }
+
+  /**
+   * Saves this tab's active document through the provider's own
+   * `saveCustomDocument` — the vscodeShim's `saveMesh` hook's whole reason for
+   * existing: mesh 3.18.0 routes File ▸ Save through `vscode.workspace.save`,
+   * and only the object that minted the document can call this. Mirrors
+   * `saveDocument()` (meshDocument.ts)'s own contract: throws on refusal
+   * (auto-save gate, or nothing written), in which case the tab stays dirty.
+   */
+  async saveDocument(): Promise<void> {
+    if (!this.currentDocument || !this.currentProvider) return;
+    await this.currentProvider.saveCustomDocument(this.currentDocument as never, DUMMY_TOKEN);
+    this.setDirty(false);
   }
 
   /** Paths this tab's VTK provider currently has open (extension.ts openPanelPaths). */
@@ -300,13 +388,55 @@ export class MeshHost {
     this.vtkProvider.postToActive(message);
   }
 
-  private resolveProviderFor(fsPath: string): void {
+  /**
+   * File ▸ Pack Time Series Into One File… (mesh 3.21.0's
+   * kratos.mesh.packSeries). Combines this tab's active multi-step series into
+   * one XDMF that re-opens as a scrubbable timeline. Reachable upstream only
+   * from the Command Palette and the Kratos Runs tree — neither runs in
+   * KKSS — so this is the sole entry point; mirrors the upstream call site
+   * (`vtkProvider.activeFsPath()` → `packSeries(fsPath)`), since a series is
+   * always a VTK-provider document. A no-op when this tab has nothing open.
+   */
+  async packSeries(): Promise<void> {
+    const target = this.vtkProvider.activeFsPath();
+    if (!target) return;
+    await packSeries(target);
+  }
+
+  /**
+   * mesh 3.18.0: both providers are full CustomEditorProviders now, so
+   * resolveCustomEditor requires a real MeshPreviewDocument from the
+   * provider's own openCustomDocument — resolveCustomEditor unconditionally
+   * calls `document.takeRestoredOps()` (on the VTK side, on every frame post),
+   * which a bare `{uri, dispose(){}}` stand-in does not have.
+   */
+  private async resolveProviderFor(fsPath: string): Promise<void> {
     const panel = new FakeWebviewPanel(this.view);
     panel.onReveal(() => this.hooks.onReveal());
     this.currentPanel = panel;
     const isMdpa = path.extname(fsPath).toLowerCase() === ".mdpa";
     const provider = isMdpa ? this.mdpaProvider : this.vtkProvider;
-    const document = { uri: Uri.file(fsPath), dispose() {} };
+    // backupId stays undefined — KKSS has no hot-exit analogue, and even if it
+    // did, restoreOpsFromBackup's vscode.Uri.parse(backupId) would hit the
+    // shim's Uri.parse, whose .fsPath throws for a non-file Uri (vscodeShim.ts).
+    const openContext = {
+      backupId: undefined,
+      untitledDocumentData: undefined,
+    } as unknown as vscodeTypes.CustomDocumentOpenContext;
+    const document = await provider.openCustomDocument(
+      Uri.file(fsPath) as never,
+      openContext,
+      DUMMY_TOKEN
+    );
+    // openPath() may have superseded this open while we awaited (Ctrl+O
+    // twice in quick succession, crash replay, onMeshExported) — the panel
+    // identity says whether we are still the live request.
+    if (this.currentPanel !== panel) {
+      document.dispose();
+      return;
+    }
+    this.currentDocument = document as unknown as MeshPreviewDocument;
+    this.currentProvider = provider;
     provider.resolveCustomEditor(
       document as never,
       panel as unknown as vscodeTypes.WebviewPanel,

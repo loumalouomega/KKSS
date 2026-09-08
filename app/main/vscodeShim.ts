@@ -30,6 +30,29 @@
  *   mesh/src/previewHtml.ts      — Uri.joinPath, webview.asWebviewUri (identity,
  *                                  via meshHost.ts's fake panel),
  *                                  workspace.getConfiguration("kratos.flowgraph")
+ *   mesh/src/*EditorProvider,     — workspace.save(uri): mesh 3.18.0 routes
+ *   mesh/src/meshDocument.ts        File ▸ Save through VS Code rather than
+ *                                  calling saveMesh directly, so only VS Code
+ *                                  (here: the saveMesh hook) can clear the
+ *                                  dirty marker it set. Resolved by finding
+ *                                  which MeshHost's current document owns the
+ *                                  uri and calling its own saveDocument(),
+ *                                  which calls the provider's
+ *                                  saveCustomDocument on the exact document
+ *                                  object openCustomDocument minted for it —
+ *                                  see meshHost.ts's header. A uri no open
+ *                                  mesh tab owns is a silent no-op, matching
+ *                                  what real VS Code does for a uri with no
+ *                                  open editor.
+ *
+ *                                  meshDocument.ts's autoSaveWouldFire() reads
+ *                                  getConfiguration("files").get("autoSave")
+ *                                  and getConfiguration("kratos").get(
+ *                                  "preview.autoSave") — both always resolve
+ *                                  to their schema default here (below), so a
+ *                                  mesh preview is never auto-saved in KKSS.
+ *                                  That is the behaviour upstream wants; it is
+ *                                  correct by construction, not by accident.
  *
  * Three modules are deliberately NOT served, because each is reachable only
  * from the submodule's own activate(), which KKSS never calls (meshHost.ts
@@ -54,6 +77,7 @@ import { showOpenDialog as electronOpen, showSaveDialog as electronSave, FileFil
 import { showQuickPick as electronQuickPick, QuickPickItem } from "./services/quickPick";
 import { toast, progressToast } from "./services/notifications";
 import { createFileSystemWatcher } from "./services/watcher";
+import { stateStore } from "./services/stateStore";
 
 // ---- Hooks the app injects (avoids import cycles) ---------------------------
 
@@ -74,7 +98,25 @@ export interface VscodeShimHooks {
    * default returns undefined rather than throwing.
    */
   projectRoot(): string | undefined;
+  /**
+   * Implements CustomEditorProvider save (mesh 3.18.0's `workspace.save`).
+   * Resolves the MeshHost whose current document owns `fsPath` and calls its
+   * `saveDocument()`. Throws exactly when `saveCustomDocument` throws (an
+   * auto-save refusal, or nothing written) — the caller (`workspace.save`
+   * below) is what turns that into a notification rather than an unhandled
+   * rejection; a path no open mesh tab owns resolves without doing anything.
+   */
+  saveMesh(fsPath: string): Promise<void>;
 }
+
+/**
+ * The one `kratos.*` configuration key KKSS makes user-settable (Settings ▸
+ * Mesh Viewer Defaults ▸ Large-Mesh Summary Threshold…, menu.ts). Every other
+ * `getConfiguration` key stays at its schema default — see the class comment
+ * below. `meshSummaryThresholdMb` is checked against both submodules'
+ * globalState/stateStore key lists and is otherwise unused.
+ */
+export const MESH_SUMMARY_THRESHOLD_MB_KEY = "meshSummaryThresholdMb";
 
 let hooks: VscodeShimHooks = {
   openWith: () => {
@@ -87,6 +129,9 @@ let hooks: VscodeShimHooks = {
     throw new Error("vscodeShim: hooks not configured");
   },
   projectRoot: () => undefined,
+  saveMesh: () => {
+    throw new Error("vscodeShim: hooks not configured");
+  },
 };
 
 export function __configureVscodeShim(h: VscodeShimHooks): void {
@@ -450,15 +495,46 @@ export const workspace = {
 
   /**
    * KKSS has no settings.json equivalent for extension contribution points,
-   * so this always resolves to the caller-supplied default — i.e. the same
-   * schema default declared in the submodule's package.json.
+   * so this resolves to the caller-supplied default — i.e. the same schema
+   * default declared in the submodule's package.json — for every key except
+   * `kratos.preview.summaryThresholdMb` (mesh 3.16.0), which Settings ▸ Mesh
+   * Viewer Defaults makes user-settable (see MESH_SUMMARY_THRESHOLD_MB_KEY):
+   * a mesh above the threshold opens as a header summary instead of loading,
+   * so unlike the other schema keys this one is genuinely worth exposing.
    */
-  getConfiguration: (_section?: string) => ({
-    get: <T>(_key: string, defaultValue?: T): T | undefined => defaultValue,
+  getConfiguration: (section?: string) => ({
+    get: <T>(key: string, defaultValue?: T): T | undefined => {
+      if (section === "kratos" && key === "preview.summaryThresholdMb") {
+        // Stored as a string via menu.ts's promptValue (the META_SERVER_KEYS.port
+        // precedent) — parsed back to a number here, its consumer's own type.
+        const stored = Number(stateStore.get<string>(MESH_SUMMARY_THRESHOLD_MB_KEY));
+        return (Number.isFinite(stored) && stored > 0 ? stored : defaultValue) as T | undefined;
+      }
+      return defaultValue;
+    },
   }),
 
   openTextDocument: async (pathOrUri: string | Uri): Promise<TextDocument> => {
     return new TextDocument(typeof pathOrUri === "string" ? Uri.file(pathOrUri) : pathOrUri);
+  },
+
+  /**
+   * mesh 3.18.0's CustomEditorProvider save path: `dispatchSave()` and the
+   * File-menu's `menuSave` branch both call `void vscode.workspace.save(uri)`
+   * instead of writing the mesh directly, because only VS Code (here: this
+   * hook) can clear the dirty marker it set. `saveMesh` throws on a real
+   * refusal (the auto-save gate, or nothing written); that becomes a toast
+   * here rather than an unhandled rejection, since every call site `void`s
+   * this promise the same way it would a fire-and-forget VS Code command.
+   */
+  save: async (uri: Uri): Promise<Uri | undefined> => {
+    try {
+      await hooks.saveMesh(uri.fsPath);
+      return uri;
+    } catch (err) {
+      toast("error", err instanceof Error ? err.message : String(err));
+      return undefined;
+    }
   },
 };
 

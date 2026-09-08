@@ -123,7 +123,8 @@ edge length, radius), check_interference (clash detection between solids or Part
 geometric diff of two models, optionally with rendered images), render_snapshot (headless multi-view PNGs), \
 and search_standard_parts / download_standard_part (fasteners and other standard parts from step.parts, \
 the one tool family that reaches the network). It also reads .foam OpenFOAM cases and .msh/.inp/.unv/.su2/\
-.mesh/.post.msh, which KKSS opens in CAD mode only when post mode cannot read them. Beyond geometry it \
+.mesh/.post.msh as geometry-only boundary surfaces through meshio++ — these mostly open in post mode by \
+default (it reads them natively, fields and all), except .msh2, which only cad can open at all. Beyond geometry it \
 reports and repairs: recognize_primitives and fit_mesh_region name the analytic surface under a face or a \
 grown mesh region (each with its own residual), check_mesh_health then promote_mesh_to_brep turns a clean \
 skin mesh into a solid, repair_mesh makes a broken one watertight with fTetWild first, generate_bom and \
@@ -135,13 +136,17 @@ resolve_selector and synthesize_selector persist a re-executable QUERY for an op
 positional entity id, so an edit keeps naming the right face after the op list is spliced — prefer them \
 over a bare face-N whenever an op's operand has to survive later edits; a null query with a reason is an \
 honest refusal, never a guess. The op catalog also carries rib and drill, extrude's upToFace terminator, \
-region pick on extrude/revolve/sweep, and loft smoothing. Call \
+region pick on extrude/revolve/sweep, loft smoothing, an optional loft guide rail (guides: one edge id, \
+closed sections only — a resampling fallback, not the kernel's own rail wiring), and wrap (develops a flat \
+sketch face onto a cylinder/cone target — standalone/emboss/engrave variants, B-rep only). Call \
 cad__describe_capabilities before your first cad__apply_edit_ops to learn the operation catalog.
 - mesh__* (kratos-mdpa): mesh inspection and transformation — info, quality metrics, and mesh size \
 (nodal Kratos NODAL_H + element edge length with box-whisker stats, std, and IQR small/large outlier ids) for MDPA, \
-VTK, STL/OBJ/PLY and 43 extended formats read through meshio++ (Gmsh .msh, Abaqus .inp, Nastran, UNV, Medit, \
+VTK, STL/OBJ/PLY and 44 extended formats read through meshio++ (Gmsh .msh, Abaqus .inp, Nastran, UNV, Medit, \
 Netgen, SU2, XDMF, Exodus .e/.exo/.ex2, CGNS, MOAB .h5m, Salome .med, tetgen, EnSight Gold, Triangle, GiD \
-postprocess .post.msh/.post.res/.post.bin/.post.h5, OpenFOAM .foam on export, …), 37 of them writable, format conversion (pass inputFormat/outputFormat to force a meshio++ reader/writer when \
+postprocess .post.msh/.post.res/.post.bin/.post.h5, OpenFOAM .foam (reads a case's constant/polyMesh/ tree, \
+recovering named boundary SubModelParts; writes one too, but in-place save is refused — a .foam marker is \
+0 bytes, the mesh lives in sibling files), …), 37 of them writable, format conversion (pass inputFormat/outputFormat to force a meshio++ reader/writer when \
 the extension is ambiguous; pass timeStep to pick a step of a multi-step file — Exodus and Salome MED, but \
 only Exodus reports its available times as mesh__mesh_info's timeValues, so a MED step count is discoverable \
 only by asking for one), boundary-skin extraction, and Kratos case setup \
@@ -151,8 +156,13 @@ optional per-SubModelPart overrides, and mode "aniso", which differentiates a sc
 inline and adapts the mesh to the curvature of that solution — fine across a boundary layer, coarse along \
 it, clamped by hmin/hmax; remeshing also takes "frozen" EntityBlocks/SubModelParts MMG must leave \
 bit-identical and per-block/per-part "localSizes" hmin/hmax/hausd bounds, both remesh-only) \
-and level-set splitting, smoothing, RCM/Morton/Hilbert renumbering, \
-space-filling-curve partitioning, uniform refinement, linear↔quadratic conversion, simplexification, box/plane \
+and level-set splitting (keepMaterials returns each split cell to its original block/SubModelParts instead \
+of the generic MMG_Domain_Inside/_Outside pair; noSplitBlocks/noSplitParts name material that must not be \
+cut; rmc deletes components below a volume fraction; baseRefBlocks/baseRefParts delete any split domain not \
+touching a named boundary), smoothing, RCM/Morton/Hilbert renumbering, \
+space-filling-curve partitioning, refine (whole mesh, cells a per-cell field marks, or a SubModelPart — \
+selected cells split fully and their neighbours get the smallest partial split that keeps the mesh \
+conforming, so there are no hanging nodes; triangles and tetrahedra only), linear↔quadratic conversion, simplexification, box/plane \
 cropping, a field calculator and nodal↔elemental averaging, mesh merging (N files in one op), id renumbering, \
 the five SubModelPart-tree ops (create/move/merge/add/remove entities), field gradient, Hessian, \
 Zienkiewicz-Zhu error estimation, signed distance to an external surface, mass-preserving field transfer, \
@@ -162,10 +172,14 @@ constraints section for multi-point constraints, which every op now maintains ra
 isolatedNodes section for nodes no cell references). mesh__mesh_info also takes metadataOnly: true, which \
 answers from the file header alone — available only for .xdmf/.xmf/.msh and the GiD .post.* set, and \
 refused elsewhere rather than served at full-parse cost, so use it when you need counts/blocks/fields/time \
-values for one of those and not the mesh itself. \
+values for one of those and not the mesh itself; summary: true is the looser sibling — the same shape of \
+report (counts, blocks, field names, regions, time steps) for ANY supported format, at whatever cost that \
+format's header/scan/full-read actually takes (a cost field says which), so prefer it when metadataOnly \
+refuses. \
 mesh_field_integrate gives cell-measure-weighted totals and means per region, mesh_export_table writes the \
-whole entity table as CSV/XLSX, and mesh_field_series samples one entity across every step of a time \
-series. case_run starts a solve detached (logging to <stem>.kratosrun.log), case_status reports on it from \
+whole entity table as CSV/XLSX, mesh_field_series samples one entity across every step of a time series, \
+and mesh_pack_series combines a run's per-step files into one XDMF time series in one streamed pass (a lone \
+file or an already-stepped format is refused — nothing to combine). case_run starts a solve detached (logging to <stem>.kratosrun.log), case_status reports on it from \
 the <stem>.kratosrun.json sidecar the app's own run manager shares, and case_stop walks SIGINT → SIGTERM → \
 SIGKILL. SubModelParts survive an export to .mdpa, .vtu, .med (as MED families), .inp (as *NSET/*ELSET) \
 and — block names only — .exo; a .msh export carries no groups.

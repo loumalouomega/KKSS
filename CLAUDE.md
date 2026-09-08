@@ -113,6 +113,21 @@ Concretely:
   **File ▸ Stop Kratos Run**, recent files via **File ▸ Open Recent** (KKSS's
   own app-wide store, not the submodule's), and the
   empty-preview shell via the tab model itself.
+  mesh 3.18.0 made both preview providers full `CustomEditorProvider`s (were
+  `CustomReadonlyEditorProvider`), so `app/main/mesh/meshHost.ts`'s
+  `resolveProviderFor` mints the document itself via the provider's own
+  `openCustomDocument(uri, {backupId: undefined, ...}, token)` — `backupId`
+  stays undefined, since KKSS has no hot-exit analogue and the shim's
+  `Uri.parse` would throw resolving one anyway — instead of a bare
+  `{uri, dispose(){}}` stand-in, because `resolveCustomEditor` unconditionally
+  reads `document.takeRestoredOps()` (on the VTK side, on every frame post).
+  `MeshHost` keeps that document (and the provider that minted it) alongside
+  its panel, because the providers now route `File ▸ Save` through
+  `vscode.workspace.save(uri)` rather than writing the mesh directly — "only
+  VS Code clears the dirty marker it set" — so the shim's fifth hook,
+  `saveMesh(fsPath)`, is KKSS's stand-in for that half of VS Code: it finds the
+  `MeshHost` whose document owns the uri and calls its `saveDocument()`, which
+  calls `saveCustomDocument` on the exact document object.
 - **Heavy WASM stays off the UI thread.** OCCT + Gmsh run in
   `app/main/cadCompute.worker.ts` (RPC via `cadComputeClient.ts`); MMG runs in
   the mesh submodule's own worker pair. Path contracts of the unmodified
@@ -270,9 +285,15 @@ Concretely:
   Both submodules moved to this (mesh 3.6.0, cad 1.5.1) because `case.post.msh`
   (GiD postprocess), `case.msh` (Gmsh) and `case.post` (permas) are three
   different formats sharing a last dot. `app/main/router.ts` therefore uses
-  mesh's `meshExtname`, never `path.extname`. Note two formats route to **CAD**
-  mode outright because post mode cannot read them: `.foam` (mesh writes an
-  OpenFOAM case but cannot read one back) and `.msh2`.
+  mesh's `meshExtname`, never `path.extname`. Note `.msh2` routes to **CAD**
+  mode outright — cad 1.5.x reads it and mesh never registered it at all — the
+  one format only cad can open. `.foam` used to route the same way for the
+  identical reason (mesh's staging could hand its reader only a single file, and
+  a `.foam` marker's real mesh lives in a sibling `constant/polyMesh/` *tree*);
+  mesh 3.17.0 taught the staging to hold that tree, so `.foam` now opens in
+  **mesh** mode like every other meshio-strategy format both sides claim —
+  `router.ts` needed no code change, since the `cadOk && meshOk` branch already
+  existed for exactly this shape.
 - **Tabs: one `WebContentsView` + one `CadHost`/`MeshHost` instance per open
   document, per mode.** Opening a document into a tab disposes only *that
   tab's* session (`CadHost.dispose()`/`MeshHost.dispose()`) and reloads only
@@ -310,8 +331,13 @@ Concretely:
   `stateStore`), so per-tab instances would share the underlying list yet each
   keep their own `EventEmitter` and fire redundant `setContext` calls — one
   instance is the correct reading, not merely the cheaper one. Both providers
-  now require it (`new MdpaEditorProvider(context, flowgraph, runs, recents)`,
-  `new VtkEditorProvider(context, recents)`) and `record()` on every resolve.
+  now require it and `record()` on every resolve — since mesh 3.15.0
+  `new MdpaEditorProvider(context, flowgraph, runs, recents)`, and since mesh
+  3.21.0 `new VtkEditorProvider(context, flowgraph, runs, recents)` too (it took
+  only `(context, recents)` before): the VTK provider now owns its own
+  `PtController`, so Problemtype support extends to non-`.mdpa` formats, and
+  `MeshHost.dispatchCase` fans out to both providers accordingly — the same
+  shape `dispatchMenu`/`dispatchReload` already used.
   It no longer drives any UI: **File ▸ Open Recent** and the home
   screen both read KKSS's own app-wide `services/recentFiles.ts` (see the
   recents invariant below), rebuilt from `onDidChange` because an Electron menu
@@ -320,10 +346,21 @@ Concretely:
   the flag and session list on its single provider, so KKSS keeps them in a
   module-level `liveHosts` registry in `cadHost.ts` instead. **Open (Ctrl+O) replaces the focused tab's document**, matching
   pre-tabs muscle memory exactly; **File ▸ New CAD/Mesh Tab** (or the tab
-  strip's `+`) is the explicit way to open a second document instead. Closing
-  a tab has no dirty-prompt — cad/mesh have no app-level "unsaved changes"
-  concept (sidecars autosave on a debounce), so this is a plain dispose, same
-  as replacing a tab's document always has been. Entering a mode screen
+  strip's `+`) is the explicit way to open a second document instead. Closing a
+  cad tab has no dirty-prompt — cad's sidecars autosave on a debounce, so it is
+  a plain dispose, same as replacing a tab's document always has been. mesh
+  3.18.0 gave its previews an app-level "unsaved changes" concept of their own
+  (applying an operation marks the tab dirty; only `vscode.workspace.save`
+  clears it — see the shim invariant below), so **closing a dirty mesh tab
+  prompts Save / Don't Save / Cancel first** (`index.ts`'s
+  `confirmDiscardMeshTab`, mirroring `EditorService.confirmClose`'s exact dialog
+  shape), and quitting with any dirty mesh tab open does the same, ahead of the
+  text editor's own equivalent guard — both live on `main.win.on("close")`
+  rather than adding a second `before-quit` hold, since that hook already
+  carries a single-shot cloud-drain `preventDefault`. Ctrl+O replacing a tab's
+  document is deliberately **not** guarded the same way — same scope as the
+  editor's own dirty-guard-on-close precedent, just not yet extended to this
+  path. Entering a mode screen
   (`setScreen`) guarantees it has at least one tab, creating a blank one if
   the user closed every tab of that mode, so the viewer is never left
   literally empty. `.stl/.obj/.ply` are viewable in both modes — the active
@@ -670,7 +707,7 @@ Concretely:
   bearer token only, since an external client has no user to prompt. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 71-name key set.
+  `test/chatToolPolicy.test.ts` pins the exact 72-name key set.
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is

@@ -5,6 +5,54 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.7.0] - 2026-09-08
+
+- feat: **both engines updated** — Pre-Processing to CAD-Preview 1.13.0 (from
+  1.12.0) and Post-Processing to VSCode-MDPA-Preview 3.21.0 (from 3.15.1)
+- feat: Pre-Processing gains **wrap** — develops a flat sketch face onto a
+  cylinder/cone target (true surface development, not projection) as a new
+  solid, or fused/cut into the target — and **loft guide rails**, steering a
+  loft between two closed sections along an edge instead of a straight blend
+- feat: Post-Processing now **reads OpenFOAM cases**, not just writes them —
+  opening a `.foam` marker loads its `constant/polyMesh/` tree with named
+  boundary SubModelParts recovered from `constant/polyMesh/boundary`, and the
+  preview watches that tree so re-running `blockMesh`/`snappyHexMesh` refreshes
+  it in place. `.foam` now opens in Post-Processing, not Pre-Processing, since
+  post mode can finally read it; in-place save stays refused (the opened file
+  is a 0-byte marker, so writing it would collapse every patch name)
+- feat: **Refine is now selective** — the whole mesh as before, or just the
+  cells a per-cell field marks (defaulting to the error estimator's own output)
+  or a SubModelPart; the neighbours of a selected cell get the smallest partial
+  split that keeps the mesh conforming, so the refined region has no hanging
+  nodes (triangles and tetrahedra only)
+- feat: **level-set splitting can keep your mesh's own structure** — Materials
+  & base references puts each split cell back into its original block and
+  SubModelParts instead of the generic `MMG_Domain_Inside`/`_Outside` pair, and
+  can clean up parasitic components below a volume fraction or that don't
+  touch a named boundary
+- feat: **Pack Time Series Into One File…** (File menu) combines a finished
+  run's hundreds of per-step files into a single XDMF time series, streamed
+  one step at a time and cancellable; the packed file reopens as the same
+  scrubbable timeline
+- feat: **mesh edits are unsaved work KKSS now protects** — applying an
+  operation marks a mesh tab dirty (a `●` in the tab strip), and closing that
+  tab or quitting with one open prompts Save / Don't Save / Cancel, the same
+  as the text editor already did. Edits are never auto-saved
+- feat: **Undo / Redo Mesh Operation** on `Ctrl+Alt+Z` / `Ctrl+Alt+Shift+Z`
+  (not the plain `Ctrl+Z` the sidebar buttons already answered to, which would
+  otherwise steal the text editor's own undo)
+- feat: a mesh over **Settings ▸ Mesh Viewer Defaults ▸ Large-Mesh Summary
+  Threshold…** (default 250 MB) opens as a header summary — counts, blocks,
+  field names, regions, time steps — instead of loading in full, with an
+  **Open full mesh anyway** button
+- feat: the AI assistant gained the **mesh_pack_series** tool (Pack Time
+  Series, above), gated the same way as every other tool that writes a file
+- fix: a `.foam`'s content watcher, and a GiD ascii `.post.msh`/`.post.res`
+  pair's timeline watcher, now actually fire — both patterns fell through the
+  file watcher's matcher unmatched
+
+[1.7.0]: https://github.com/loumalouomega/KKSS/compare/v1.6.0...v1.7.0
+
 ## [1.6.0] - 2026-09-07
 
 - fix: two flaky-test fixes in the chat service test suite (a real-fs-flush

@@ -154,16 +154,16 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers every tool the two bundled servers register, and nothing else", () => {
-    // 46 cad + 21 mesh (verified against `grep -c 'registerTool('` in both
+    // 46 cad + 22 mesh (verified against `grep -c 'registerTool('` in both
     // submodules) + 4 in-process mcp__ meta tools. A bump that adds a tool
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(71);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(72);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     expect(cad).toHaveLength(46);
-    expect(mesh).toHaveLength(21);
+    expect(mesh).toHaveLength(22);
     expect(meta).toHaveLength(4);
     // No fourth namespace: kratos is deliberately unclassified.
     expect(cad.length + mesh.length + meta.length).toBe(Object.keys(TOOL_ACCESS).length);
@@ -205,6 +205,7 @@ describe("the table itself", () => {
       "mesh__mesh_extract_skin",
       "mesh__mesh_extract_submodelpart",
       "mesh__mesh_field_series",
+      "mesh__mesh_pack_series",
       "mesh__mesh_transform",
       "mesh__problem_pack",
       "mesh__problem_unpack",

@@ -252,6 +252,7 @@ Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the too
 | `Ctrl+E` | Export |
 | `Ctrl+Alt+S` / `Ctrl+Alt+O` | Save / Load a problem archive (Post-Processing) |
 | `Ctrl+Alt+R` | Reload the focused document from disk, replaying applied edits (Post-Processing) |
+| `Ctrl+Alt+Z` / `Ctrl+Alt+Shift+Z` | Undo / Redo a mesh operation (Post-Processing) — not `Ctrl+Z`, which stays the text editor's |
 | `Ctrl+Alt+P` | Screenshot the current view to PNG |
 | `Ctrl+0` | Back to the home screen (main menu) |
 | `Ctrl+1` / `Ctrl+2` | Switch to Pre-Processing / Post-Processing |
@@ -262,5 +263,10 @@ On macOS use `Cmd` instead of `Ctrl`.
 
 Inside the mesh view, `1`–`6` snap the camera to ±X/±Y/±Z and `i` to an isometric view.
 
-**File ▸ Export Data Table…** and **File ▸ Stop Kratos Run** are also in the native menu: the mesh
-viewer contributes them to its own File strip, which KKSS hides in favour of the native menu bar.
+**File ▸ Export Data Table…**, **File ▸ Stop Kratos Run**, and **File ▸ Pack Time Series Into One
+File…** are also in the native menu: the mesh viewer contributes the first two to its own File
+strip (which KKSS hides in favour of the native menu bar), and the third is reachable upstream only
+from the Command Palette and the Kratos Runs tree — neither of which KKSS runs.
+
+A mesh tab with unsaved operations shows a `●` in the tab strip; closing it, or quitting with one
+open, prompts Save / Don't Save / Cancel.

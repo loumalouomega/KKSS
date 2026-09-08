@@ -9,7 +9,7 @@
  * (`readOnlyHint`, `destructiveHint`, …) look like exactly what this needs, and
  * are deliberately not used: the SDK's own type declarations say *"Clients
  * should never make tool use decisions based on ToolAnnotations received from
- * untrusted servers"*, and as of cad 1.12.0 / mesh 3.15.1 no bundled tool
+ * untrusted servers"*, and as of cad 1.13.0 / mesh 3.21.0 no bundled tool
  * declares any anyway. Two other shortcuts are rejected for the same reason:
  *
  * - **No name-prefix heuristic** (`list_*`/`get_*` ⇒ read). Inferring "safe"
@@ -47,6 +47,10 @@
  *   `.py`). CLAUDE.md's `workspaceFolders` invariant already treats exactly
  *   that as a safety decision rather than a read.
  * - `mesh__case_stop` — **write**. Not a file write; it signals a process.
+ * - `mesh__mesh_pack_series` (mesh 3.21.0) — **write**, and not a conservative
+ *   guess like `mesh_export_table`/`mesh_field_series` above: `outputPath` is
+ *   required, so it unconditionally writes the packed XDMF plus its sibling
+ *   `.h5` companions.
  *
  * The tool this whole feature exists for is `mesh__mesh_transform`, whose own
  * description carries "WARNING: when `outputPath` is omitted the input file is
@@ -127,7 +131,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__save_preprocess: "write",
   cad__load_preprocess: "write",
 
-  // ---- kratos-mdpa (21) ---------------------------------------------------
+  // ---- kratos-mdpa (22) ---------------------------------------------------
   mesh__mesh_info: "read",
   mesh__mesh_quality: "read",
   mesh__mesh_field_integrate: "read",
@@ -141,6 +145,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__mesh_extract_skin: "write",
   mesh__mesh_export_table: "write",
   mesh__mesh_field_series: "write",
+  mesh__mesh_pack_series: "write",
   mesh__problemtype_list: "write",
   mesh__problemtype_describe: "write",
   mesh__case_write_state: "write",

@@ -32,6 +32,8 @@ import { DEFAULT_ANTHROPIC_MODEL } from "./services/chat/providers/anthropic";
 import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./services/chat/providers/openaiCompat";
 import { DEFAULT_META_SERVER_PORT, META_SERVER_KEYS } from "./services/metaServer/metaServer";
 import type { EditorService } from "./services/editor";
+import { MESH_SUMMARY_THRESHOLD_MB_KEY } from "./vscodeShim";
+import { SUMMARY_THRESHOLD_MB_DEFAULT } from "../../mesh/src/parser/meshSummary";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
 // The mesh submodule's recents core is vscode-free, so its label/folder
 // formatting is reused verbatim for KKSS's own app-wide list.
@@ -52,8 +54,9 @@ export interface MenuDeps {
   setScreen(screen: Screen): void;
   /** File ▸ New CAD/Mesh Tab — creates and focuses an empty tab. */
   newTab(mode: Mode): void;
-  /** File ▸ Close Tab. */
-  closeTab(mode: Mode, tabId: string): void;
+  /** File ▸ Close Tab. Async since mesh 3.18.0: a dirty mesh tab prompts
+   *  Save / Don't Save / Cancel first (index.ts's confirmDiscardMeshTab). */
+  closeTab(mode: Mode, tabId: string): Promise<void>;
   toggleTerminal(): void;
   toggleChat(): void;
   /** Interface-scale controls (see index.ts) — step through the shell's zoom presets. */
@@ -431,7 +434,7 @@ export function installMenu(deps: MenuDeps): void {
           click: () => {
             const mode = main.mode();
             const id = main.activeTabId(mode);
-            if (id) deps.closeTab(mode, id);
+            if (id) void deps.closeTab(mode, id);
           },
         },
         { type: "separator" },
@@ -462,6 +465,38 @@ export function installMenu(deps: MenuDeps): void {
           label: "Stop Kratos Run",
           enabled: !inCad(),
           click: () => void activeMeshHost()?.dispatchCase("stop"),
+        },
+        {
+          // mesh 3.21.0's kratos.mesh.packSeries — combines a solve's per-step
+          // files into one XDMF time series. Upstream this is reachable only
+          // from the Command Palette and the Kratos Runs tree, neither of
+          // which KKSS runs, so this menu item is the sole entry point.
+          label: "Pack Time Series Into One File…",
+          enabled: !inCad(),
+          click: () => void activeMeshHost()?.packSeries(),
+        },
+        { type: "separator" },
+        {
+          // mesh 3.18.0's kratos.mesh.undo/redo (Ctrl+Z / Ctrl+Shift+Z
+          // upstream). NOT bound to those keys here: KKSS has no VS Code
+          // keybinding service to gate them on "a mesh preview is focused" the
+          // way upstream's `when` clause does, and an Electron menu
+          // accelerator is captured globally, ahead of the focused webview —
+          // binding Ctrl+Z here would silently break the text editor's own
+          // undo. Ctrl+Alt+Z matches this file's existing convention for
+          // mesh-parity commands with no natural KKSS-level shortcut (Reload
+          // from Disk, Save/Load Problem, Screenshot). The sidebar's own
+          // Undo/Redo buttons remain the mouse route.
+          label: "Undo Mesh Operation",
+          accelerator: "CmdOrCtrl+Alt+Z",
+          enabled: !inCad(),
+          click: () => void activeMeshHost()?.dispatchHistory("undo"),
+        },
+        {
+          label: "Redo Mesh Operation",
+          accelerator: "CmdOrCtrl+Alt+Shift+Z",
+          enabled: !inCad(),
+          click: () => void activeMeshHost()?.dispatchHistory("redo"),
         },
         { type: "separator" },
         {
@@ -638,6 +673,27 @@ export function installMenu(deps: MenuDeps): void {
                 DEFAULT_VIEWER_DEFAULTS.showGridAndAxes
               ),
               click: (item) => void stateStore.update(CAD_DEFAULT_KEYS.showGridAndAxes, item.checked),
+            },
+          ],
+        },
+        {
+          label: "Mesh Viewer Defaults",
+          submenu: [
+            {
+              // mesh 3.16.0's kratos.preview.summaryThresholdMb, made
+              // user-settable by the vscodeShim's getConfiguration
+              // special-case (see MESH_SUMMARY_THRESHOLD_MB_KEY) — every
+              // other kratos.* configuration key stays at its schema default.
+              // A mesh above this size opens as a header summary (counts,
+              // blocks, field names) with an "Open full mesh anyway" button,
+              // instead of loading in full.
+              label: "Large-Mesh Summary Threshold…",
+              click: () =>
+                void promptValue(
+                  MESH_SUMMARY_THRESHOLD_MB_KEY,
+                  "Meshes above this size (MB) open as a header summary instead of loading in full",
+                  String(SUMMARY_THRESHOLD_MB_DEFAULT)
+                ),
             },
           ],
         },
