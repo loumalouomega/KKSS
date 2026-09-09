@@ -5,7 +5,7 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
-## [Unreleased]
+## [1.8.0] - 2026-09-09
 
 - fix: refresh native menu availability when switching modes, restoring mesh
   actions such as time-series packing after opening a mesh from CAD mode.
@@ -32,6 +32,7 @@ full auto-generated compare links.
   HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
   functional change to the app itself
 
+[1.8.0]: https://github.com/loumalouomega/KKSS/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/loumalouomega/KKSS/compare/v1.7.0...v1.7.1
 
 ## [1.7.0] - 2026-09-08
