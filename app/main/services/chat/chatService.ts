@@ -178,7 +178,7 @@ format's header/scan/full-read actually takes (a cost field says which), so pref
 refuses. \
 mesh_field_integrate gives cell-measure-weighted totals and means per region, mesh_export_table writes the \
 whole entity table as CSV/XLSX, mesh_field_series samples one entity across every step of a time series, \
-and mesh_pack_series combines a run's per-step files into one XDMF time series in one streamed pass (a lone \
+and mesh_pack_series combines a run's per-step files into an XDMF time series (.xdmf plus its required sibling .h5; keep both) in one streamed pass (a lone \
 file or an already-stepped format is refused — nothing to combine). case_run starts a solve detached (logging to <stem>.kratosrun.log), case_status reports on it from \
 the <stem>.kratosrun.json sidecar the app's own run manager shares, and case_stop walks SIGINT → SIGTERM → \
 SIGKILL. SubModelParts survive an export to .mdpa, .vtu, .med (as MED families), .inp (as *NSET/*ELSET) \

@@ -137,7 +137,7 @@ Concretely:
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
 - **meshio++ (extended mesh formats) is a verbatim WASM tree, loaded in-process.**
-  The mesh submodule reads 39 (writes ~35) formats it has no native parser for
+  The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
   `@meshioplusplus/wasm` package (10.20.2, which adds the field-only
@@ -169,10 +169,10 @@ Concretely:
 - **Flowgraph embedding is a forked child process, not WASM.** The mesh
   submodule's Flowgraph problemtype embeds the AGPL-3.0
   `@kratos-flowgraph/flowgraph` node editor in an iframe backed by a small
-  Express server the submodule forks on demand. `app/main/mesh/meshHost.ts`
+  Express server the submodule forks on demand. `app/main/index.ts`
   owns one shared `FlowgraphController` (mirroring `mesh/src/extension.ts`
-  activate()), passes it to `new MdpaEditorProvider(context, flowgraph)` (the
-  VTK provider takes only `context`), and disposes it on Electron's
+  activate()), passes it through each `MeshHost` to both preview providers as
+  `(context, flowgraph, runs, recents)`, and disposes it on Electron's
   `will-quit` so the child process doesn't outlive the app. Same `__dirname`
   path-contract pattern as MMG: `out/flowgraphServer.js` and the
   `out/flowgraph/` asset tree (mesh's `dist/flowgraph/` — Flowgraph's
@@ -937,6 +937,39 @@ Concretely:
   persisted under the `uiZoom` stateStore key and re-applied via
   `createMainWindow(__dirname, zoom)` on launch. `ZOOM_PRESETS` is the source
   of truth — the shell renderer mirrors the same list to build the dropdown.
+
+## Verified submodule integration (Tier 0)
+
+CAD v1.13.0 (`2ff65b1`) and mesh v3.21.0 through `kkss.dev` (`1232d49`)
+are integrated without edits to either submodule. The recurring release-bump
+checklist lives in `doc/guide/development.md` under **Submodule release
+maintenance**; repeat it for every bump, including live MCP tool discovery
+(the current sets are 46 CAD + 22 mesh + 4 aggregation tools).
+
+**The CAD MCP kernel must be bundled by KKSS.** The copied upstream worker
+requires external Gmsh/meshio/fTetWild packages from the extension's
+`node_modules`, so merely starting the MCP server and listing its tools can
+succeed while every kernel operation fails. `cadMcpWorkerConfig` builds the
+unchanged upstream entry with the same aliases as the interactive compute
+worker into `out/cad-runtime/dist/kernel-worker.js`. OCCT's imported WASM
+path is beside that bundle; meshio and fTetWild resolve the shared trees two
+levels up. `copyArtifacts()` must never replace this bundle with upstream's
+artifact. The bundled-runtime regression test exercises OCCT and meshio.
+
+`setScreen()` refreshes the native menu after `main.setScreen()` so mesh-only
+actions, including packing, reflect the active mode. Recent-file notifications
+fire before that switch and cannot keep enabled states current on their own.
+The smoke harness checks file-open and explicit CAD/mesh switches.
+
+The verification uses the existing block STEP fixture for wrap (shell volume
+120) and guided loft (4139.06 versus 4105.01 without a rail), and the VTK
+series for XDMF packing at times 2/4/6. Packing creates a required `.h5`
+companion beside the `.xdmf` index; the native menu and `mesh_pack_series`
+both use the upstream packer. Mesh's existing tests cover selective refinement,
+material-preserving level sets, and packed timeline round trips. The generated
+mesh body matches `buildPreviewHtml` with `startEmpty` omitted; all four
+meshio runtime files ship. Format routing tables, not approximate prose
+counts, define the supported read/write formats.
 
 ## Screenshots are generated, not hand-captured
 

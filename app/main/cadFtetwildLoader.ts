@@ -1,6 +1,6 @@
 /**
  * Resolution shim for `float-tetwild-wasm`, aliased in place of the real
- * package in the cad compute worker (esbuild.mjs `cadWorkerConfig`).
+ * package in both CAD workers (esbuild.mjs).
  *
  * Same problem and same shape as app/main/cadMeshioLoader.ts, for the fourth
  * WASM kernel cad 1.5.0 added (`cad/src/ftetwildService.ts`, behind Mesh
@@ -45,6 +45,8 @@ function packageDir(): string {
   if (resolvedDir) return resolvedDir;
   const candidates = [
     path.join(__dirname, "ftetwild"), // packaged: esbuild.mjs copies the tree here
+    // The MCP kernel lives two levels below out/, beside OCCT/Gmsh.
+    path.join(__dirname, "..", "..", "ftetwild"),
     path.join(__dirname, "..", "cad", "node_modules", "float-tetwild-wasm"),
   ];
   for (const dir of candidates) {

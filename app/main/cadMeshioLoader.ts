@@ -1,6 +1,6 @@
 /**
  * Resolution shim for `@meshioplusplus/wasm`, aliased in place of the real
- * package in the cad compute worker (esbuild.mjs `cadWorkerConfig`).
+ * package in both CAD workers (esbuild.mjs).
  *
  * Why this exists: `cad/src/meshioService.ts` loads the package with a bare
  * `await import("@meshioplusplus/wasm")` and no directory fallback — unlike
@@ -10,7 +10,7 @@
  * route would die with ERR_MODULE_NOT_FOUND in a packaged install. The
  * submodule is consumed verbatim, so the fix lives here: same `out/meshio/`
  * tree esbuild.mjs already copies from `mesh/dist/meshio` (cad and mesh both
- * pin ^9.9.0, so one copy serves both).
+ * pin ^10.20.2, so one copy serves both).
  *
  * The alias only rewrites the bare specifier; mesh's own loader builds its
  * import path at runtime, so it is untouched by it.
@@ -39,6 +39,8 @@ function packageDir(): string {
   if (resolvedDir) return resolvedDir;
   const candidates = [
     path.join(__dirname, "meshio"), // packaged: esbuild.mjs copies mesh/dist/meshio here
+    // The MCP kernel lives two levels below out/, beside OCCT/Gmsh.
+    path.join(__dirname, "..", "..", "meshio"),
     path.join(__dirname, "..", "mesh", "node_modules", "@meshioplusplus", "wasm"),
     path.join(__dirname, "..", "cad", "node_modules", "@meshioplusplus", "wasm"),
   ];

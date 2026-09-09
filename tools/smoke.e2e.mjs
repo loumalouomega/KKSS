@@ -105,6 +105,29 @@ async function attempt(c) {
     //    crashes — and the host only sends them after the webview posts `ready`,
     //    which itself follows the DOM mount above.
     await waitForMarkers(output, c.expect, deadline);
+    // Opening a mesh used to leave the menu built for the previous CAD mode.
+    // Check both the initial file-open path and explicit mode switches.
+    await app.evaluate(({ Menu }, isMesh) => {
+      const find = (label, menu = Menu.getApplicationMenu()) => {
+        for (const item of menu.items) {
+          if (item.label === label) return item;
+          if (item.submenu) {
+            const found = find(label, item.submenu);
+            if (found) return found;
+          }
+        }
+      };
+      const check = (enabled) => {
+        if (find("Pack Time Series Into One File…")?.enabled !== enabled) {
+          throw new Error(`Packing menu enabled state should be ${enabled}`);
+        }
+      };
+      check(isMesh);
+      find("Pre-Processing (CAD)").click();
+      check(false);
+      find("Post-Processing (Mesh)").click();
+      check(true);
+    }, c.windowUrl === "/renderer/mesh/");
   } finally {
     await closeApp(app);
   }

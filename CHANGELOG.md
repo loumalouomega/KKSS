@@ -7,6 +7,12 @@ full auto-generated compare links.
 
 ## [Unreleased]
 
+- fix: refresh native menu availability when switching modes, restoring mesh
+  actions such as time-series packing after opening a mesh from CAD mode.
+
+- fix: bundle the CAD assistant kernel with KKSS runtime loaders so geometry
+  and mesh tools work without the extension's external npm packages.
+
 - feat: show readable Kratos startup errors with app-local uv installation and
   retry controls in chat. Recovery leaves CAD and mesh running; no PATH or
   shell-profile changes are needed.
