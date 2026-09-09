@@ -21,6 +21,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { launchApp, waitForMarkers, appWindow, closeApp, sleep, root } from "./e2eShared.mjs";
 
+import { kratosStartupScenario } from "./kratosStartup.e2e.mjs";
+
 const OUT = path.join(root, "doc", "public", "screenshots");
 const IMAGES = path.join(root, "images");
 // 2x pixel density, matching cad's deviceScaleFactor: 2 retina PNGs.
@@ -238,6 +240,7 @@ await sessionMdpa();
 await sessionVtk();
 // Last, so its recents list is the three documents the sessions above opened.
 await sessionHome();
+await kratosStartupScenario(path.join(OUT, "chat-kratos-setup.png"));
 
 // ---- README hero refresh (same pattern as cad's capture.mjs tail) -------------
 

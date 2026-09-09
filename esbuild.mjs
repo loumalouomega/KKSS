@@ -58,15 +58,15 @@ for (const [rel, fix] of required) {
  * worker lives at out/cadCompute.worker.js and the WASM under
  * out/cad-runtime/dist/ (the `dist/`-shaped layout occtService expects).
  */
-const wasmPathPlugin = {
+const wasmPathPlugin = (relativePath) => ({
   name: "wasm-path",
   setup(build) {
     build.onLoad({ filter: /\.wasm$/ }, () => ({
-      contents: `module.exports = require("path").join(__dirname, "cad-runtime", "dist", "opencascade.wasm.wasm");`,
+      contents: `module.exports = require("path").join(__dirname, ${JSON.stringify(relativePath)});`,
       loader: "js",
     }));
   },
-};
+});
 
 /** Restores a real `import.meta.url` for bundled ESM deps (see cad/esbuild.mjs). */
 const importMetaShim = {
@@ -154,7 +154,7 @@ const cadWorkerConfig = {
   format: "cjs",
   target: "node20",
   outfile: "out/cadCompute.worker.js",
-  plugins: [wasmPathPlugin],
+  plugins: [wasmPathPlugin("cad-runtime/dist/opencascade.wasm.wasm")],
   // gmshService.ts (bundled into this worker) imports gmsh-wasm — force its
   // CJS build so the top-level await in the ESM entry never reaches this CJS
   // bundle. meshioService.ts's bare @meshioplusplus/wasm import and
@@ -168,6 +168,17 @@ const cadWorkerConfig = {
   ...importMetaShim,
   sourcemap: true,
   logLevel: "info",
+};
+
+// The upstream worker leaves its WASM packages external for VS Code's
+// node_modules. Bundle the unchanged entry with the same loaders as the UI
+// worker; the MCP server forks it beside the OCCT/Gmsh binaries.
+const cadMcpWorkerConfig = {
+  ...cadWorkerConfig,
+  entryPoints: ["cad/src/kernelWorker.ts"],
+  outfile: "out/cad-runtime/dist/kernel-worker.js",
+  plugins: [wasmPathPlugin("opencascade.wasm.wasm")],
+  external: ["ws", "playwright"],
 };
 
 /** @type {import('esbuild').BuildOptions} */
@@ -253,10 +264,8 @@ function copyArtifacts() {
     // its extensionPath (= dirname/..) resolves to out/cad-runtime; mesh's
     // sits beside out/mmg-core.wasm (it reads __dirname/mmg-core.wasm).
     ["cad/dist/mcp-server.js", out("cad-runtime/dist/mcp-server.js")],
-    // Since cad 1.3.0 every OCCT/Gmsh/meshio++/fTetWild call from that server
-    // goes through a forked child, which kernelClient.ts looks up as
-    // `<extensionPath>/dist/kernel-worker.js` — i.e. right here.
-    ["cad/dist/kernel-worker.js", out("cad-runtime/dist/kernel-worker.js")],
+    // kernel-worker.js is built by cadMcpWorkerConfig, never overwritten by
+    // the upstream artifact whose external packages do not ship here.
     ["mesh/dist/mcpServer.js", out("mcpServer.js")],
     // Flowgraph static server must sit next to out/main.js (flowgraphController
     // resolves both it and out/flowgraph/ via __dirname); its served assets
@@ -313,6 +322,7 @@ function copyArtifacts() {
 const configs = [
   mainConfig,
   cadWorkerConfig,
+  cadMcpWorkerConfig,
   preloadConfig,
   shellRendererConfig,
   ...shimConfigs,

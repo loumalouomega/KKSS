@@ -16,6 +16,8 @@ import type {
   ChatWireEntry,
 } from "../../main/ipc";
 
+import { kratosStatusView } from "./serverStatus";
+
 declare global {
   interface Window {
     chatApi: {
@@ -528,6 +530,31 @@ function renderConversations(list: ChatConversationInfo[], active: string): void
 // ---- server dots -----------------------------------------------------------
 
 function renderServers(servers: ChatServerStatus[]): void {
+  const panel = byId<HTMLElement>("kratos-status");
+  const view = kratosStatusView(servers);
+  panel.replaceChildren();
+  panel.hidden = !view;
+  if (view) {
+    const text = document.createElement("p");
+    text.textContent = view.text;
+    panel.appendChild(text);
+    if (view.action) {
+      const button = document.createElement("button");
+      const action = view.action;
+      button.textContent = action === "installKratosRuntime" ? "Install uv for KKSS" : "Retry";
+      button.addEventListener("click", () => {
+        button.disabled = true;
+        api.post({ type: action });
+      });
+      panel.appendChild(button);
+      if (action === "installKratosRuntime") {
+        const hint = document.createElement("p");
+        hint.textContent = "Downloads uv from Astral into KKSS’s data directory. Your system installation and PATH stay unchanged.";
+        panel.appendChild(hint);
+      }
+    }
+  }
+
   serversEl.textContent = "";
   for (const server of servers) {
     const dot = document.createElement("span");

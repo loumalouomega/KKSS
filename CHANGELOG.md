@@ -5,6 +5,24 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [Unreleased]
+
+- fix: refresh native menu availability when switching modes, restoring mesh
+  actions such as time-series packing after opening a mesh from CAD mode.
+
+- fix: bundle the CAD assistant kernel with KKSS runtime loaders so geometry
+  and mesh tools work without the extension's external npm packages.
+
+- feat: show readable Kratos startup errors with app-local uv installation and
+  retry controls in chat. Recovery leaves CAD and mesh running; no PATH or
+  shell-profile changes are needed.
+- fix: constrain the pinned Kratos server to MCP Python 1.x, restoring startup
+  after the incompatible MCP Python 2.x release.
+
+- fix: keep the assistant's tool definitions stable throughout each user turn,
+  including retries, so MCP servers connecting in the background do not
+  invalidate the prompt-cache prefix. Newly ready tools join the next turn.
+
 ## [1.7.1] - 2026-09-08
 
 - fix: the Docker image build now runs `apt-get upgrade` before installing

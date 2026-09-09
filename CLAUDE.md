@@ -137,7 +137,7 @@ Concretely:
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
 - **meshio++ (extended mesh formats) is a verbatim WASM tree, loaded in-process.**
-  The mesh submodule reads 39 (writes ~35) formats it has no native parser for
+  The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
   `@meshioplusplus/wasm` package (10.20.2, which adds the field-only
@@ -169,10 +169,10 @@ Concretely:
 - **Flowgraph embedding is a forked child process, not WASM.** The mesh
   submodule's Flowgraph problemtype embeds the AGPL-3.0
   `@kratos-flowgraph/flowgraph` node editor in an iframe backed by a small
-  Express server the submodule forks on demand. `app/main/mesh/meshHost.ts`
+  Express server the submodule forks on demand. `app/main/index.ts`
   owns one shared `FlowgraphController` (mirroring `mesh/src/extension.ts`
-  activate()), passes it to `new MdpaEditorProvider(context, flowgraph)` (the
-  VTK provider takes only `context`), and disposes it on Electron's
+  activate()), passes it through each `MeshHost` to both preview providers as
+  `(context, flowgraph, runs, recents)`, and disposes it on Electron's
   `will-quit` so the child process doesn't outlive the app. Same `__dirname`
   path-contract pattern as MMG: `out/flowgraphServer.js` and the
   `out/flowgraph/` asset tree (mesh's `dist/flowgraph/` — Flowgraph's
@@ -639,13 +639,35 @@ Concretely:
   installs), and **always pass `{...process.env}` to `StdioClientTransport`**
   — the MCP SDK otherwise strips env to a minimal set, silently losing PATH
   (breaks `uvx kratos-mcp-server`). The kratos server is **pinned** to
-  `KRATOS_MCP_VERSION` in `mcpManager.ts` (`uvx kratos-mcp-server@<v>`) — bump
+  `KRATOS_MCP_VERSION` in `mcpManager.ts` (`uvx --with "mcp<2" kratos-mcp-server@<v>`) — bump
   that constant to upgrade; its 40 tools + resources + prompts are discovered
   at runtime, so nothing else changes. `McpManager` also aggregates MCP
   resources/prompts (surfaced to the chat as synthetic `mcp__*` tools via
   `chatTools()`). API keys go through `services/chat/secrets.ts`
   (safeStorage-encrypted in the stateStore) — never store them
   plaintext-by-design or ship them to a renderer.
+- **Kratos runtime recovery is app-owned and user-initiated.** `kratosRuntime.ts`
+  probes `<userData>/runtimes/uv/uv`, PATH's `uvx`, then `uv tool run` (with
+  `.exe` on Windows). Discovery never downloads. The chat's Install button
+  invokes the official pinned uv 0.12.10 installer in unmanaged mode into a
+  temporary sibling directory; only a verified executable is promoted. No
+  PATH/profile changes, administrator privileges, or automatic upgrades.
+  `McpManager.retryKratos()` shares in-flight attempts, keeps CAD/mesh alive,
+  closes failed transports, clears stale tools/resources, and aborts setup on
+  shutdown. Prompts are resolved dynamically and have no cached ownership.
+  Current availability rides the context suffix, not the static system prompt;
+  newly ready tools join the next user turn's snapshot. Failure categories are
+  conservative, with bounded stderr; unfamiliar errors remain unknown.
+  Kratos connect/listTools each get five minutes; tool-call timeouts are unchanged.
+  **Live finding:** server 0.3.0 needs `mcp<2`, since MCP Python 2.x removed its
+  `mcp.server.fastmcp` import. Keep that constraint when resolving the pinned
+  server unless a newer server has been verified compatible.
+  Linux: real official installer + MCP handshake (40 tools), and live Electron
+  missing-runtime → recovery checked in an isolated profile. Windows/macOS:
+  mocked command coverage only; real installation remains unverified.
+  `test/kratosRuntime.test.ts`, `test/kratosStartup.test.ts`, the chat IPC tests,
+  and `tools/kratosStartup.e2e.mjs` cover the new paths. Screenshots include
+  `chat-kratos-setup.png`, generated from the live sidebar.
 - **Chat transcripts are durable, per conversation, and a turn is bound to the
   one it started in.** `<userData>/chats/` holds one `<id>.json` per
   conversation plus an `index.json` of the sidebar's history rows; each file is
@@ -844,10 +866,16 @@ Concretely:
   since every tool schema is re-sent on each of up to `MAX_ITERATIONS`
   iterations. **It covers tools + system and nothing else: `messages` are always
   uncached**, so compaction neither helps nor harms the cache, and any claim that
-  reshaping the transcript protects it is wrong. Note also that the cached prefix
-  is invalidated on every iteration of a session's *first* turn, because
-  `chatTools()` is rebuilt per iteration while the three servers are still
-  connecting — a known limitation, filed as its own roadmap item. **Changing `SYSTEM_PROMPT`, or moving volatile context into it
+  reshaping the transcript protects it is wrong. `ChatService.run()` snapshots
+  `mcp.chatTools()` once per user turn, reusing that list for every iteration
+  and context-overflow retry. It starts with the tools already available rather
+  than waiting for all servers; servers that connect later join the next turn.
+  The unclassified-tool check uses the same snapshot. This prevents asynchronous
+  server startup from invalidating the tools + system prefix mid-turn, including
+  the first turn. `test/chatService.test.ts` covers startup during a tool round
+  trip, a compaction retry, and refreshing the list on the next turn. Actual
+  provider cache hits still depend on provider eligibility; no paid API probe
+  is part of this verification. **Changing `SYSTEM_PROMPT`, or moving volatile context into it
   instead of onto the newest user message via `contextSuffix()`, now has a
   measurable cost** rather than a theoretical one; `cache_read_input_tokens`
   reading zero across repeated turns means a silent invalidator. The conservative
@@ -909,6 +937,39 @@ Concretely:
   persisted under the `uiZoom` stateStore key and re-applied via
   `createMainWindow(__dirname, zoom)` on launch. `ZOOM_PRESETS` is the source
   of truth — the shell renderer mirrors the same list to build the dropdown.
+
+## Verified submodule integration (Tier 0)
+
+CAD v1.13.0 (`2ff65b1`) and mesh v3.21.0 through `kkss.dev` (`1232d49`)
+are integrated without edits to either submodule. The recurring release-bump
+checklist lives in `doc/guide/development.md` under **Submodule release
+maintenance**; repeat it for every bump, including live MCP tool discovery
+(the current sets are 46 CAD + 22 mesh + 4 aggregation tools).
+
+**The CAD MCP kernel must be bundled by KKSS.** The copied upstream worker
+requires external Gmsh/meshio/fTetWild packages from the extension's
+`node_modules`, so merely starting the MCP server and listing its tools can
+succeed while every kernel operation fails. `cadMcpWorkerConfig` builds the
+unchanged upstream entry with the same aliases as the interactive compute
+worker into `out/cad-runtime/dist/kernel-worker.js`. OCCT's imported WASM
+path is beside that bundle; meshio and fTetWild resolve the shared trees two
+levels up. `copyArtifacts()` must never replace this bundle with upstream's
+artifact. The bundled-runtime regression test exercises OCCT and meshio.
+
+`setScreen()` refreshes the native menu after `main.setScreen()` so mesh-only
+actions, including packing, reflect the active mode. Recent-file notifications
+fire before that switch and cannot keep enabled states current on their own.
+The smoke harness checks file-open and explicit CAD/mesh switches.
+
+The verification uses the existing block STEP fixture for wrap (shell volume
+120) and guided loft (4139.06 versus 4105.01 without a rail), and the VTK
+series for XDMF packing at times 2/4/6. Packing creates a required `.h5`
+companion beside the `.xdmf` index; the native menu and `mesh_pack_series`
+both use the upstream packer. Mesh's existing tests cover selective refinement,
+material-preserving level sets, and packed timeline round trips. The generated
+mesh body matches `buildPreviewHtml` with `startEmpty` omitted; all four
+meshio runtime files ship. Format routing tables, not approximate prose
+counts, define the supported read/write formats.
 
 ## Screenshots are generated, not hand-captured
 

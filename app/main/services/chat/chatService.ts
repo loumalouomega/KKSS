@@ -178,11 +178,13 @@ format's header/scan/full-read actually takes (a cost field says which), so pref
 refuses. \
 mesh_field_integrate gives cell-measure-weighted totals and means per region, mesh_export_table writes the \
 whole entity table as CSV/XLSX, mesh_field_series samples one entity across every step of a time series, \
-and mesh_pack_series combines a run's per-step files into one XDMF time series in one streamed pass (a lone \
+and mesh_pack_series combines a run's per-step files into an XDMF time series (.xdmf plus its required sibling .h5; keep both) in one streamed pass (a lone \
 file or an already-stepped format is refused — nothing to combine). case_run starts a solve detached (logging to <stem>.kratosrun.log), case_status reports on it from \
 the <stem>.kratosrun.json sidecar the app's own run manager shares, and case_stop walks SIGINT → SIGTERM → \
 SIGKILL. SubModelParts survive an export to .mdpa, .vtu, .med (as MED families), .inp (as *NSET/*ELSET) \
 and — block names only — .exo; a .msh export carries no groups.
+If Kratos tools are unavailable, the user can use Install uv for KKSS or Retry in the chat server-status area. \
+Installation requires the user action; you cannot install the runtime through a tool. Newly ready tools join the next user turn. \
 - kratos__* (kratos-mcp-server): the Kratos Multiphysics engine and its knowledge layer — \
 single- and multi-stage project scaffolding, running simulations as background jobs, post-processing \
 and probing results, introspecting process/solver defaults, material and linear-solver presets, \
@@ -365,6 +367,7 @@ export class ChatService {
     this.store = new TranscriptStore(deps.chatsDir);
     ipcMain.on("chat:toHost", (event, raw) => {
       if (!this.target || event.sender !== this.target) return;
+      if (!raw || typeof raw !== "object") return;
       const msg = raw as ChatToHost;
       switch (msg.type) {
         case "chatReady":
@@ -408,6 +411,12 @@ export class ChatService {
           break;
         case "deleteConversation":
           this.enqueue(() => this.remove(msg.id));
+          break;
+        case "installKratosRuntime":
+          void this.deps.hub.retryKratos(true);
+          break;
+        case "retryKratos":
+          void this.deps.hub.retryKratos();
           break;
         case "openSettings":
           this.deps.openSettings();
@@ -778,6 +787,7 @@ export class ChatService {
       return `${label}: ${list}`;
     };
     const parts = [
+      ...this.deps.hub.statuses().map((s) => `Tool server ${s.key}: ${s.state}${s.failure ? ` (${s.failure})` : ""}`),
       files.projectRoot ? `Project root: ${files.projectRoot}` : undefined,
       describe("CAD (pre-processing) tabs", files.cad, files.activeCad),
       describe("Mesh (post-processing) tabs", files.mesh, files.activeMesh),
@@ -830,7 +840,11 @@ export class ChatService {
 
     this.ensureStarted();
     const mcp = this.mcp!;
-    this.reportUnclassified(mcp.chatTools());
+    // Snapshot ready tools without waiting for all servers to connect. Tools
+    // precede the system cache breakpoint, so discovering more mid-turn would
+    // invalidate that prefix. Newly connected servers join the next turn.
+    const tools = mcp.chatTools();
+    this.reportUnclassified(tools);
     this.busy = true;
     this.partial = "";
     this.stoppedMarked = false;
@@ -862,7 +876,7 @@ export class ChatService {
         this.sendTo(convo, { type: "assistantStart" });
         const turnOptions = {
           system: SYSTEM_PROMPT,
-          tools: mcp.chatTools(),
+          tools,
           model: settings.model,
           signal,
           onTextDelta: (delta: string) => {

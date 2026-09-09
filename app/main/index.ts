@@ -109,6 +109,8 @@ function focusMainWindow(): void {
 }
 
 let main: MainWindow | null = null;
+// Set after menu dependencies exist; screen changes must refresh enabled flags.
+let refreshMenu = (): void => {};
 /** One CadHost/MeshHost per open tab, keyed by that tab's id (windows.ts's Tab.id). */
 const cadHosts = new Map<string, CadHost>();
 const meshHosts = new Map<string, MeshHost>();
@@ -784,6 +786,7 @@ function setScreen(screen: Screen): void {
   if (!main) return;
   if (screen === "cad" || screen === "mesh") ensureActiveTab(screen);
   main.setScreen(screen);
+  refreshMenu();
   sendShell({ type: "screen", screen });
   saveSessionSoon();
 }
@@ -1134,7 +1137,8 @@ app.whenReady().then(() => {
       regenerateToken: () => void regenerateMetaServerToken(),
     },
   };
-  installMenu(menuDeps);
+  refreshMenu = () => installMenu(menuDeps);
+  refreshMenu();
   // An Electron menu is static once built, so the Open Recent submenu only
   // tracks the store by rebuilding the whole template. `record()` fires once
   // per file open and `clear()` once per click, so this is not a hot path.
