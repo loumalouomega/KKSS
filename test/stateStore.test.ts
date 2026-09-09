@@ -4,7 +4,7 @@
  * atomic (a reader never sees a torn file) and serialized (concurrent updates
  * cannot interleave and lose each other).
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -19,6 +19,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -133,6 +134,40 @@ describe("JsonStore", () => {
     // bail rather than rename a stale snapshot over the final state.
     await inFlight.catch(() => undefined);
     expect(read()).toEqual(afterSync);
+    expect(strays()).toEqual([]);
+  });
+
+  it.each([false, true])("flushSync saves an active write (existing file: %s)", async (existing) => {
+    const store = new JsonStore(file);
+    if (existing) await store.update("reply", "old reply");
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let reached!: () => void;
+    const syncing = new Promise<void>((resolve) => { reached = resolve; });
+    const open = fs.promises.open.bind(fs.promises);
+    vi.spyOn(fs.promises, "open").mockImplementationOnce(async (...args) => {
+      const handle = await open(...args);
+      const sync = handle.sync.bind(handle);
+      vi.spyOn(handle, "sync").mockImplementationOnce(async () => {
+        await sync();
+        reached();
+        await held;
+      });
+      return handle;
+    });
+
+    const pending = store.update("reply", "finished reply");
+    try {
+      await syncing;
+      // The snapshot has been serialized but has not reached the target file.
+      store.flushSync();
+      expect(read()).toEqual({ reply: "finished reply" });
+    } finally {
+      release();
+      await pending;
+    }
+    expect(new JsonStore(file).get("reply")).toBe("finished reply");
     expect(strays()).toEqual([]);
   });
 

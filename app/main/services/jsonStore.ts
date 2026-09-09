@@ -27,6 +27,8 @@ export class JsonStore {
   private data: Record<string, unknown> | undefined;
   /** Set by a mutation, cleared when a write serializes the snapshot. */
   private dirty = false;
+  /** A serialized snapshot is still awaiting disk; shutdown must save it too. */
+  private writing = false;
   /** Set by flushSync() — an async write still in flight must not land after it. */
   private stopped = false;
   /** The write currently in flight (or the last finished one). */
@@ -91,6 +93,7 @@ export class JsonStore {
     if (this.stopped) return; // flushSync() already wrote the final state
     const snapshot = JSON.stringify(this.load(), null, 2);
     this.dirty = false;
+    this.writing = true;
     try {
       // The beforeRename veto is this store's `stopped` re-check: flushSync()
       // may have run while this write was awaiting, and its snapshot is newer.
@@ -98,6 +101,8 @@ export class JsonStore {
     } catch (err) {
       this.dirty = true; // the mutation never reached disk — let a later flush retry
       throw err;
+    } finally {
+      this.writing = false;
     }
   }
 
@@ -110,7 +115,7 @@ export class JsonStore {
    */
   flushSync(): void {
     this.stopped = true;
-    if (!this.data || !this.dirty) return;
+    if (!this.data || (!this.dirty && !this.writing)) return;
     try {
       writeFileAtomicSync(this.file, JSON.stringify(this.data, null, 2));
       this.dirty = false;
