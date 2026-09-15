@@ -23,6 +23,7 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
         if (fake.hold) await new Promise((_, reject) => options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
       }
     });
+    callTool = vi.fn(async () => ({ content: [{ type: "text", text: "{}" }] }));
     listTools = vi.fn(async () => ({ tools: [{ name: "inspect", inputSchema: { type: "object" } }] }));
     getServerVersion = () => ({ name: "test" });
     constructor() { fake.clients.push(this); }
@@ -107,5 +108,28 @@ describe("Kratos recovery lifecycle", () => {
     await manager.dispose();
     await pending;
     expect(fake.clients).toHaveLength(2);
+  });
+});
+
+
+describe("simulation call timeout parity", () => {
+  it("honours long waits in raw and chat calls, retains defaults and rejects timer overflow", async () => {
+    const { manager } = harness();
+    await manager.start(); await manager.retryKratos(true);
+    const client = fake.clients[2];
+    await manager.callToolRaw("kratos__run_simulation", { wait_seconds: 1200 });
+    expect(client.callTool.mock.calls.at(-1)[2].timeout).toBe(1_260_000);
+    await manager.callTool("kratos__run_simulation", '{"wait_seconds":1200}');
+    expect(client.callTool.mock.calls.at(-1)[2].timeout).toBe(1_260_000);
+    for (const wait of [0, -1, "1200", null, Number.NaN]) {
+      await manager.callToolRaw("kratos__run_simulation", { wait_seconds: wait });
+      expect(client.callTool.mock.calls.at(-1)[2].timeout).toBe(600_000);
+    }
+    await manager.callToolRaw("kratos__job_status", { wait_seconds: 1200 });
+    expect(client.callTool.mock.calls.at(-1)[2].timeout).toBe(600_000);
+    const previous = client.callTool.mock.calls.length;
+    expect((await manager.callToolRaw("kratos__run_simulation", { wait_seconds: 3_000_000 })).isError).toBe(true);
+    expect(client.callTool.mock.calls).toHaveLength(previous);
+    await manager.dispose();
   });
 });

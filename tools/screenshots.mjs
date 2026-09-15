@@ -21,6 +21,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { launchApp, waitForMarkers, appWindow, closeApp, sleep, root } from "./e2eShared.mjs";
 
+import { jobsScenario } from "./jobs.e2e.mjs";
 import { kratosStartupScenario } from "./kratosStartup.e2e.mjs";
 
 const OUT = path.join(root, "doc", "public", "screenshots");
@@ -241,6 +242,7 @@ await sessionVtk();
 // Last, so its recents list is the three documents the sessions above opened.
 await sessionHome();
 await kratosStartupScenario(path.join(OUT, "chat-kratos-setup.png"));
+await jobsScenario(path.join(OUT, "kratos-jobs.png"));
 
 // ---- README hero refresh (same pattern as cad's capture.mjs tail) -------------
 

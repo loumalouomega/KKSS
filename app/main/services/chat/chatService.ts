@@ -189,7 +189,10 @@ Installation requires the user action; you cannot install the runtime through a 
 single- and multi-stage project scaffolding, running simulations as background jobs, post-processing \
 and probing results, introspecting process/solver defaults, material and linear-solver presets, \
 explaining an existing ProjectParameters.json, and Flowgraph import/export (the same node-graph \
-format KKSS's mesh mode edits).
+format KKSS's mesh mode edits). Prefer kratos__run_simulation with wait_seconds=0, then \
+kratos__job_status and kratos__job_logs. The Jobs panel tracks these jobs independently of chat and \
+can cancel them via kratos__job_cancel. Stopping chat does not cancel a simulation. The panel covers \
+Kratos server jobs, not mesh__case_run sidecar runs.
 - mcp__* (knowledge base): mcp__list_resources / mcp__read_resource surface worked examples and \
 reference docs the servers ship; mcp__list_prompts / mcp__get_prompt fetch guided setup recipes. \
 Consult these before scaffolding an unfamiliar analysis type.

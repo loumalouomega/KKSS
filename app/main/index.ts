@@ -19,6 +19,7 @@ import { configureWhatsNew, checkForNewVersion } from "./services/whatsNew";
 import { TerminalService } from "./services/terminal";
 import { EditorService } from "./services/editor";
 import { ChatService } from "./services/chat/chatService";
+import { JobsService } from "./services/jobs";
 import { McpHub } from "./services/chat/mcpHub";
 import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
@@ -128,6 +129,7 @@ let terminal: TerminalService | null = null;
 let editor: EditorService | null = null;
 let chat: ChatService | null = null;
 let mcpHub: McpHub | null = null;
+let jobs: JobsService | null = null;
 let metaServer: MetaMcpServer | null = null;
 let cloud: CloudService | null = null;
 /** `before-quit` may hold the quit open exactly once to drain uploads. */
@@ -343,6 +345,9 @@ function recoverView(crash: ViewCrash, label: string): void {
       break;
     case "terminal":
       toast("info", "Terminal panel reloaded — the shell session is still running (scrollback lost).");
+      break;
+    case "jobs":
+      toast("info", "Jobs panel reloaded — simulations are still tracked.");
       break;
     case "chat":
       toast("info", "Chat panel reloaded — the conversation is intact.");
@@ -879,7 +884,17 @@ function toggleChat(): void {
   if (!main || !chat) return;
   const { view, visible } = main.toggleChat();
   chat.attach(view.webContents);
+  jobs?.setVisible(main.jobsVisible());
   if (visible) chat.ensureStarted();
+  saveSessionSoon();
+}
+
+function toggleJobs(): void {
+  if (!main || !jobs) return;
+  const { view, visible } = main.toggleJobs();
+  jobs.attach(view.webContents);
+  jobs.setVisible(visible);
+  if (!visible) (main.screen() === "home" ? main.home : main.shell).webContents.focus();
   saveSessionSoon();
 }
 
@@ -1049,6 +1064,15 @@ app.whenReady().then(() => {
   // One McpManager owner, shared by the chat loop and the HTTP meta server, so
   // the three MCP child servers are spawned once (whichever front-end starts first).
   mcpHub = new McpHub(__dirname);
+  jobs = new JobsService({
+    hub: mcpHub,
+    hide: () => { if (main?.jobsVisible()) toggleJobs(); },
+    changed: (active, visible, stale) => {
+      if (main && !main.shell.webContents.isDestroyed())
+        main.shell.webContents.send("shell:toWebview", { type: "jobs", active, visible, stale });
+    },
+    notify: (job) => shellToast(job.state === "failed" ? "error" : "info", `Kratos: ${path.basename(job.case_dir)} ${job.state}.`),
+  });
 
   metaServer = new MetaMcpServer({
     hub: mcpHub,
@@ -1096,6 +1120,7 @@ app.whenReady().then(() => {
     closeTab,
     toggleTerminal,
     toggleChat,
+    toggleJobs,
     zoom: {
       stepIn: () => stepUiZoom(1),
       stepOut: () => stepUiZoom(-1),
@@ -1232,6 +1257,7 @@ app.whenReady().then(() => {
     if (!main) return;
     switch (msg.type) {
       case "shellReady":
+        jobs?.publish();
         shellUp = true;
         // The shell page may finish loading after a CLI file-open already ran
         // (or after a reload) — replay the current screen + tab strips + zoom.
@@ -1253,6 +1279,9 @@ app.whenReady().then(() => {
         break;
       case "toggleTerminal":
         toggleTerminal();
+        break;
+      case "toggleJobs":
+        if (_event.sender === main.shell.webContents) toggleJobs();
         break;
       case "toggleChat":
         toggleChat();
@@ -1357,6 +1386,7 @@ app.on("will-quit", () => {
   // this neither depends on nor blocks the stateStore flush.
   cloud?.flushSync();
   void metaServer?.dispose();
+  jobs?.dispose();
   void mcpHub?.dispose();
   flowgraph?.dispose();
   // Stops live solves (or detaches them, per kratos.run.stopOnWindowClose) so

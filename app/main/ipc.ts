@@ -32,6 +32,8 @@ export const channels = {
   termToWebview: "term:toWebview",
   editorToHost: "editor:toHost",
   editorToWebview: "editor:toWebview",
+  jobsToHost: "jobs:toHost",
+  jobsToWebview: "jobs:toWebview",
   chatToHost: "chat:toHost",
   chatToWebview: "chat:toWebview",
 } as const;
@@ -348,6 +350,7 @@ export type ShellToHost =
   | { type: "goHome" }
   | { type: "toggleTerminal" }
   | { type: "toggleChat" }
+  | { type: "toggleJobs" }
   | { type: "editCurrentFile" }
   | { type: "openFile" }
   | { type: "setZoom"; factor: number }
@@ -374,6 +377,7 @@ export interface ShellTabInfo {
 
 /** Messages sent to the shell toolbar renderer. */
 export type ShellToWebview =
+  | { type: "jobs"; active: number; visible: boolean; stale: boolean }
   | { type: "screen"; screen: Screen }
   /** Editor-only — cad/mesh report their per-tab titles via `tabs` instead. */
   | { type: "title"; view: "editor"; fileName: string | null; dirty?: boolean }
@@ -383,3 +387,32 @@ export type ShellToWebview =
   | { type: "toast"; id: number; kind: "info" | "warning" | "error" | "progress"; text: string; buttons?: string[] }
   | { type: "toastUpdate"; id: number; text?: string; done?: boolean }
   | ProjectRootInfo;
+
+/** Server-owned simulation records; all timestamps are Unix seconds. */
+export interface KratosJob {
+  job_id: string;
+  case_dir: string;
+  parameters_file: string;
+  state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  created_at: number;
+  started_at?: number;
+  finished_at?: number;
+  elapsed_seconds?: number;
+  progress?: { current_step?: number; current_time?: number };
+}
+export interface JobsSnapshot {
+  type: "state";
+  jobs: KratosJob[];
+  loading: boolean;
+  stale: boolean;
+  error?: string;
+  servers: ChatServerStatus[];
+  selected?: string;
+  log?: string;
+  logError?: string;
+  cancelling: string[];
+  cancelErrors: Record<string, string>;
+}
+export type JobsToHost =
+  | { type: "jobsReady" | "refresh" | "hide" | "retryKratos" | "installKratosRuntime" }
+  | { type: "select" | "cancel"; jobId: string };

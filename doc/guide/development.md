@@ -100,6 +100,18 @@ The Terminal toolbar button / ``Ctrl+` `` toggles a bottom panel `WebContentsVie
 The `editor` screen (`Screen = "home" | "editor" | Mode`) is a `WebContentsView` with body bounds — the shell toolbar stays visible and the terminal panel shares space with it. `app/renderer/editor/` bundles CodeMirror 6 (`codemirror` basic setup + `@codemirror/lang-json`/`lang-python`
 + one-dark theme); all fs work lives in `app/main/services/editor.ts` behind `editor:toHost` / `editor:toWebview` (`app/preload/editorPreload.ts`) — the renderer never touches the filesystem. File ▸ Save / Save As route to the editor when it's the active screen (`main.screen()`), and the in-page CodeMirror keymap binds `Mod-s` for the focused case. Dirty handling: the buffer survives screen switches (views are only hidden), so prompts fire only on the destructive paths — window close (Save / Don't Save / Cancel) and opening another file over unsaved changes. Like the terminal page, the editor page allows `'unsafe-inline'` styles (CodeMirror injects `<style>` at runtime).
 
+## Kratos background jobs
+
+`app/main/services/jobs.ts` observes the pinned Kratos server through the same `McpHub` used by chat and the HTTP meta server. It calls only `job_list`, `job_status`, `job_logs`, and user-requested `job_cancel`. Structured results (including FastMCP's `result` wrapper) and JSON text are validated; error objects are failures. Records stay owned by the server, with no new local store or solver process ownership.
+
+The Jobs view is created lazily and shares the right-hand sidebar area with Chat. Opening either hides the other without stopping work. Typed `jobs:toHost` / `jobs:toWebview` messages carry ready, refresh, selection, cancellation, runtime recovery and hide requests, and full snapshots. The service verifies renderer identity and known job IDs. A `jobs` shell message supplies active count, visibility and staleness; both views replay state after reload.
+
+Polling is serial, every five seconds while visible or active and thirty seconds otherwise after server startup. Active records receive status detail; selected running logs refresh with the poll, completed logs on explicit refresh. Disconnect generations discard late responses; per-job revisions prevent old polls undoing cancellation. Failures retain stale records, and observed active-to-success/failure transitions notify once. Disposal removes listeners/timers without cancelling jobs.
+
+Both chat and raw MCP calls use one timeout selector: ten minutes by default, or a positive `run_simulation.wait_seconds` plus sixty seconds when longer. Waits beyond Node's timer range return an error before execution. The prompt recommends `wait_seconds=0` plus status/log polling; chat approval policy is unchanged.
+
+Validation: `test/jobs.test.ts`, the timeout cases in `test/kratosStartup.test.ts`, and `node tools/jobs.e2e.mjs` (requires a display; use xvfb-run on headless Linux). The Electron scenario uses a deterministic stdio MCP fixture discovered through a temporary uvx wrapper, exercises reconnect/cancel/layout, and is reused by the screenshot generator.
+
 ## AI chat sidebar (LLM agent + MCP)
 
 The Chat toolbar button / `Ctrl+Shift+L` toggles a right-hand sidebar `WebContentsView` (lazily created in `app/main/windows.ts`; `layout()` shrinks the body views and the terminal panel by `CHAT_WIDTH` while it's shown). The renderer (`app/renderer/chat/`, dependency-free, strict CSP) talks to `app/main/services/chat/chatService.ts` over `chat:toHost` / `chat:toWebview` (`app/preload/chatPreload.ts`); all network and child-process work stays in the main process, and the transcript is replayed on `chatReady` so hiding/showing the sidebar never loses the conversation.

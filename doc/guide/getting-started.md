@@ -221,6 +221,18 @@ Click **Start** on the server in `mcp.json`, then open Copilot Chat in **Agent**
 
 Any MCP client that speaks Streamable HTTP with a bearer header works the same way — give it the URL and the `Authorization: Bearer <token>` header.
 
+## Kratos background jobs
+
+Open **Jobs** in the toolbar or **View ▸ Toggle Jobs** to follow simulations started through the Kratos MCP server, including jobs launched by an external MCP client. The toolbar shows the active count. Jobs and Chat share the right-hand panel; switching between them keeps the conversation and simulations running. The Jobs panel works without an LLM API key.
+
+Select a job to see its case directory, state, elapsed time, current step/time when available, and the last 100 log lines. Active jobs refresh every five seconds; **Refresh** also reloads the selected log. **Cancel simulation** requests cancellation from the server. A failed cancellation is shown beside the button.
+
+![Kratos background jobs and simulation log](/screenshots/kratos-jobs.png)
+
+If the server disconnects, the panel keeps the last known state and offers **Retry**. Missing runtime setup offers **Install uv for KKSS**, using the same setup flow as Chat. Server-owned job records are rediscovered after reconnecting or reopening Jobs after an app restart. Closing the panel, stopping chat, and quitting KKSS do not cancel these background jobs.
+
+This panel covers `kratos__run_simulation` jobs. Runs started from the mesh Problemtype UI or `mesh__case_run` keep their existing run controls, including **File ▸ Stop Kratos Run**. Progress and recovered completion states come from the Kratos server; a percentage is not estimated when the server supplies only step/time.
+
 ## Text editor
 
 The **Edit** toolbar button opens the file currently loaded in the active mode (`.mdpa`, `.stp`, …) as plain text — handy for touching up an input deck without leaving the app. **Text Editor** on the home screen (or **File ▸ Open in Text Editor…**) opens any file via a dialog instead. It's a lightweight editor for input files, scripts and configuration — `.json` and `.py` get syntax highlighting; binary or very large files are refused with a notice. `Ctrl+S` saves, `Ctrl+Shift+S` saves as, and the toolbar has Open/Save/Save As buttons. Unsaved changes show a ● next to the file name; switching screens never loses the buffer, and closing the window with unsaved changes prompts to save. Pair it with the terminal panel (``Ctrl+` ``) to edit and launch a Kratos case side by side.

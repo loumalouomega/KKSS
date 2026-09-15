@@ -213,4 +213,16 @@ api.onMessage((raw) => {
 });
 
 renderMode();
+
+
+const jobsBtn = byId<HTMLButtonElement>("jobs-btn");
+jobsBtn.addEventListener("click", () => api.post({ type: "toggleJobs" }));
+api.onMessage((raw) => {
+  const msg = raw as ShellToWebview;
+  if (msg.type !== "jobs") return;
+  jobsBtn.textContent = msg.active ? `Jobs (${msg.active})` : "Jobs";
+  jobsBtn.setAttribute("aria-pressed", String(msg.visible));
+  jobsBtn.title = msg.stale ? "Kratos jobs — status unavailable; showing last known count" : "Kratos background jobs";
+});
+
 api.post({ type: "shellReady" });

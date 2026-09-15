@@ -62,6 +62,7 @@ body {
 #edit-btn,
 #terminal-btn,
 #chat-btn,
+#jobs-btn,
 #root-btn {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
@@ -77,6 +78,7 @@ body {
 #edit-btn:hover,
 #terminal-btn:hover,
 #chat-btn:hover,
+#jobs-btn:hover,
 #root-btn:hover {
   background: var(--vscode-button-secondaryHoverBackground);
 }
@@ -265,3 +267,8 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Keep every toolbar command reachable when interface scaling narrows it. */
+#shell { overflow-x: auto; gap: 6px; }
+#shell > button, #mode-toggle { flex-shrink: 0; white-space: nowrap; }
+#jobs-btn[aria-pressed="true"] { outline: 1px solid var(--vscode-focusBorder); }

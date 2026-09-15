@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src kkss:; script-src kkss:" />
+  <link href="../theme/vscode-vars.css" rel="stylesheet" />
+  <link href="./jobs.css" rel="stylesheet" />
+  <title>Kratos Jobs</title>
+</head>
+<body>
+  <header><h1>Kratos Jobs</h1><button id="refresh">Refresh</button><button id="hide" aria-label="Close Jobs">×</button></header>
+  <p class="hint">Simulations started through the Kratos server. Runs continue when this panel closes.</p>
+  <div id="status" role="status" aria-live="polite"></div>
+  <button id="recovery" hidden>Retry</button>
+  <p id="empty" hidden>No simulation jobs yet. Ask the assistant to run a Kratos simulation.</p>
+  <div id="jobs" aria-label="Simulation jobs"></div>
+  <section id="details" hidden aria-label="Selected job">
+    <h2>Simulation log</h2><p id="selected-id"></p>
+    <button id="cancel">Cancel simulation</button>
+    <p id="cancel-error" role="alert"></p><p id="log-error" role="status"></p>
+    <pre id="log" tabindex="0" aria-label="Last 100 log lines"></pre>
+  </section>
+  <script src="./jobs.js"></script>
+</body>
+</html>

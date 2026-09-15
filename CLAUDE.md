@@ -1015,3 +1015,34 @@ now-AGPL-3.0-or-later mesh engine — its Flowgraph problemtype embeds the
 AGPL-3.0 `@kratos-flowgraph/flowgraph` node editor. Before adding any
 dependency that ships in the packaged app, check GPL/AGPL compatibility first
 (same rule as cad's CLAUDE.md).
+
+
+## Kratos MCP jobs panel
+
+`JobsService` (`app/main/services/jobs.ts`) is one app-wide observer sharing
+`McpHub` with chat and the HTTP server. It discovers the pinned 0.3.0 server's
+persistent jobs via `job_list`, polls active `job_status`, retrieves 100-line
+`job_logs`, and exposes explicit user cancellation through `job_cancel`.
+It never owns or signals a solver process and has no duplicate persistent
+store. Mesh RunManager/sidecar runs remain separate.
+
+Jobs and Chat are mutually exclusive lazy right-hand views, with preserved
+service state when hidden. `jobs:toHost` is sender-guarded and only known IDs
+can be selected/cancelled. `jobs:toWebview` snapshots replay after reload;
+`ShellToWebview.jobs` replays the active count/visibility/staleness. Polling
+runs serially at 5s while visible or active, otherwise 30s after MCP startup.
+Disconnect generations and cancellation revisions prevent stale responses
+from replacing newer state. Only observed active-to-succeeded/failed changes
+notify, never historical terminal jobs on initial discovery. Closing KKSS
+stops observation, not these jobs. Server cancellation and recovered status
+semantics are authoritative; the app does not infer success itself.
+
+`toolCallTimeout` is shared by chat/raw calls: max(10 minutes, positive
+run_simulation.wait_seconds + 60 seconds); refuse Node timer overflow before
+calling the server. Chat's prompt recommends immediate background handoff.
+The existing approval policy is unchanged; the UI's automatic reads are an
+explicit allowlist independent of model-initiated calls.
+
+Tests: `test/jobs.test.ts`, `test/kratosStartup.test.ts`; real Electron/MCP
+fixture scenario `tools/jobs.e2e.mjs` also supplies `kratos-jobs.png` to
+`tools/screenshots.mjs`. No real solver or LLM key is required for that scenario.

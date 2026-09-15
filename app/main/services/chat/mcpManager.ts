@@ -65,6 +65,18 @@ const CONNECT_TIMEOUT_MS = 60_000;
 /** Meshing/simulation tools can legitimately run for minutes. */
 const CALL_TIMEOUT_MS = 10 * 60_000;
 
+/** Match an explicitly requested server wait in both chat and HTTP calls. */
+export function toolCallTimeout(name: string, args: Record<string, unknown>): number {
+  const wait = args.wait_seconds;
+  if (name === "kratos__run_simulation" && typeof wait === "number" && Number.isFinite(wait) && wait > 0) {
+    const timeout = Math.max(CALL_TIMEOUT_MS, Math.ceil(wait * 1000) + 60_000);
+    // Node timers overflow above this value; refusing is safer than a 1ms timeout.
+    if (timeout > 2_147_483_647) throw new Error("Requested simulation wait exceeds the supported timer duration; use wait_seconds=0 and poll job_status.");
+    return timeout;
+  }
+  return CALL_TIMEOUT_MS;
+}
+
 /** Reserved prefix for the aggregated resource/prompt tools (not a real server). */
 export const META_NAMESPACE = "mcp";
 /** Synthetic tools that expose the servers' MCP resources & prompts to the chat
@@ -408,7 +420,7 @@ export class McpManager {
     if (!server.client || server.status.state !== "ready") return { isError: true, content: [{ type: "text", text: `MCP server "${server.status.name}" is unavailable: ${server.status.error ?? "not connected"}` }] };
     try {
       return (await server.client.callTool({ name: split.tool, arguments: args }, undefined, {
-        timeout: CALL_TIMEOUT_MS,
+        timeout: toolCallTimeout(namespaced, args),
         resetTimeoutOnProgress: true,
       })) as CallToolResult;
     } catch (error) {
@@ -477,7 +489,7 @@ export class McpManager {
 
     try {
       const result = await server.client.callTool({ name: split.tool, arguments: args }, undefined, {
-        timeout: CALL_TIMEOUT_MS,
+        timeout: toolCallTimeout(namespaced, args),
         resetTimeoutOnProgress: true,
       });
       const text = truncate(flattenContent(result.content), RESULT_CHARS);

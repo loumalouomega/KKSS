@@ -59,6 +59,7 @@ export interface MenuDeps {
   closeTab(mode: Mode, tabId: string): Promise<void>;
   toggleTerminal(): void;
   toggleChat(): void;
+  toggleJobs(): void;
   /** Interface-scale controls (see index.ts) — step through the shell's zoom presets. */
   zoom: {
     stepIn(): void;
@@ -584,6 +585,7 @@ export function installMenu(deps: MenuDeps): void {
           click: () => deps.toggleChat(),
         },
         { type: "separator" },
+        { label: "Toggle Jobs", click: () => deps.toggleJobs() },
         { label: "Reset Camera", click: () => activeMeshHost()?.postToActive({ type: "resetCamera" }) },
         { label: "Toggle Node IDs", click: () => activeMeshHost()?.postToActive({ type: "toggleNodeIds" }) },
         { type: "separator" },
