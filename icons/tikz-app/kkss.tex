@@ -1,45 +1,52 @@
-% KKSS application icon — the "split cube": one isometric cube whose top and
-% left faces are solid shaded blue (the Pre-Processing / CAD half) and whose
-% right face is an orange triangulated wireframe (the Post-Processing / mesh
-% half), on a dark rounded-square backdrop. Rendered to PNG by the Makefile's
-% `app` target (pdftocairo -png -transp) for electron-builder + the window
-% icon. Unlike tikz-ui/ this drawing is COLORED — it never goes through the
-% currentColor codegen.
+% KKSS application icon: a tessellated kiss, inspired by the teal faces and
+% white mesh edges of Kratos Multiphysics. Keep the polygon mesh vector-native
+% so every installer/window size is rendered from the same editable source.
 \documentclass[tikz,border=0mm]{standalone}
-\usetikzlibrary{arrows.meta,calc,shapes.geometric}
 \definecolor{kkssbg}{HTML}{14191F}
-\definecolor{kkssblue}{HTML}{1F6FEB}
-\definecolor{kkssblueLight}{HTML}{58A6FF}
-\definecolor{kkssblueDark}{HTML}{174F9E}
-\definecolor{kkssorange}{HTML}{F0883E}
+\definecolor{kratosteal}{HTML}{008688}
+\definecolor{teallight}{HTML}{11999A}
+\definecolor{tealdark}{HTML}{007477}
 \begin{document}
-\begin{tikzpicture}[line width=1.6pt, line cap=round, line join=round, x=1mm,y=1mm]
-  % Backdrop: dark rounded square (transparent outside the corners).
-  \fill[kkssbg, rounded corners=5.5mm] (-14,-14) rectangle (14,14);
+\begin{tikzpicture}[x=1mm,y=1mm,line cap=round,line join=round]
+  \fill[kkssbg,rounded corners=5.5mm] (-14,-14) rectangle (14,14);
 
-  % Isometric cube: apex-up hexagon. Vertices:
-  %   top T(0,11), upper-left UL(-9.5,5.5), upper-right UR(9.5,5.5),
-  %   center C(0,0), lower-left LL(-9.5,-5.5), lower-right LR(9.5,-5.5),
-  %   bottom B(0,-11).
-  % Top face (T, UL, C, UR) — light blue.
-  \fill[kkssblueLight] (0,11) -- (-9.5,5.5) -- (0,0) -- (9.5,5.5) -- cycle;
-  % Left face (UL, C, B, LL) — mid blue.
-  \fill[kkssblue] (-9.5,5.5) -- (0,0) -- (0,-11) -- (-9.5,-5.5) -- cycle;
-  % Right face (C, UR, LR, B) — dark blue ground under the orange wireframe.
-  \fill[kkssblueDark!35!kkssbg] (0,0) -- (9.5,5.5) -- (9.5,-5.5) -- (0,-11) -- cycle;
+  % Shared nodes form a conforming triangular mesh: a pronounced cupid's bow
+  % above, a full lower lip below, and a narrow open kiss between them.
+  \coordinate (L) at (-11.5,0);
+  \coordinate (A) at (-7.5,4.2);
+  \coordinate (B) at (-3.8,6.7);
+  \coordinate (C) at (0,4.8);
+  \coordinate (D) at (3.8,6.7);
+  \coordinate (E) at (7.5,4.2);
+  \coordinate (R) at (11.5,0);
+  \coordinate (U) at (-5.3,1.2);
+  \coordinate (V) at (0,0.5);
+  \coordinate (W) at (5.3,1.2);
+  \coordinate (I) at (-5.3,-1.2);
+  \coordinate (J) at (0,-1.8);
+  \coordinate (K) at (5.3,-1.2);
+  \coordinate (F) at (-7.4,-4.5);
+  \coordinate (G) at (-3.7,-6.5);
+  \coordinate (H) at (0,-7.1);
+  \coordinate (M) at (3.7,-6.5);
+  \coordinate (N) at (7.4,-4.5);
 
-  % Right face triangulation — the mesh half, orange.
-  \begin{scope}[kkssorange, line width=1.4pt]
-    \draw (0,0) -- (9.5,-5.5);
-    \draw (9.5,5.5) -- (0,-11);
-    \draw (0,-5.5) -- (9.5,0);
-    \draw (4.75,2.75) -- (4.75,-8.25);
-    \draw (0,0) -- (9.5,5.5) -- (9.5,-5.5) -- (0,-11) -- cycle;
-  \end{scope}
+  % Fill facets first; draw each shared edge just once for even mesh weights.
+  \fill[kratosteal] (L)--(A)--(B)--(C)--(D)--(E)--(R)--(W)--(V)--(U)--cycle;
+  \fill[teallight] (A)--(B)--(U)--cycle (B)--(C)--(V)--cycle (C)--(D)--(W)--cycle;
+  \fill[tealdark] (L)--(A)--(U)--cycle (U)--(B)--(V)--cycle (W)--(E)--(R)--cycle;
+  \fill[kratosteal] (L)--(I)--(J)--(K)--(R)--(N)--(M)--(H)--(G)--(F)--cycle;
+  \fill[teallight] (L)--(I)--(F)--cycle (I)--(J)--(H)--cycle (J)--(K)--(M)--cycle;
+  \fill[tealdark] (F)--(G)--(I)--cycle (G)--(H)--(I)--cycle (K)--(N)--(M)--cycle;
 
-  % Cube outline over everything, in the backdrop color for crisp separation.
-  \draw[kkssbg, line width=1.9pt]
-    (0,11) -- (-9.5,5.5) -- (-9.5,-5.5) -- (0,-11) -- (9.5,-5.5) -- (9.5,5.5) -- cycle
-    (0,11) -- (9.5,5.5)  (0,0) -- (-9.5,5.5)  (0,0) -- (0,-11);
+  \draw[white,line width=0.20mm]
+    (A)--(U)--(B)--(V)--(C)--(W)--(D)
+    (E)--(W)
+    (F)--(I)--(G) (I)--(H)--(J)--(M)--(K)--(N);
+  % A stronger white silhouette echoes the Kratos reference and preserves the
+  % kiss shape at small sizes. The mouth opening remains the backdrop color.
+  \draw[white,line width=0.48mm]
+    (L)--(A)--(B)--(C)--(D)--(E)--(R)--(W)--(V)--(U)--cycle
+    (L)--(I)--(J)--(K)--(R)--(N)--(M)--(H)--(G)--(F)--cycle;
 \end{tikzpicture}
 \end{document}

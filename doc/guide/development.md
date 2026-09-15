@@ -370,7 +370,7 @@ PNGs land in `doc/public/screenshots/` (committed, kebab-case) and the two READM
 `icons/` holds TikZ-drawn icon sources, mirroring the submodules' pipeline (`pdflatex` + `pdftocairo` required — see `icons/README.md`):
 
 - `tikz-ui/*.tex` → `svg-ui/*.svg` → the generated (and committed) `app/renderer/shell/shellIcons.ts` — monochrome `currentColor` shell toolbar icons, tinted by the surrounding element's color.
-- `tikz-app/kkss.tex` → `icons/app/icon{,-256,-1024}.png` — the colored "split cube" application icon consumed by `electron-builder.yml` and the Linux window icon (`out/icon.png`).
+- `tikz-app/kkss.tex` → `icons/app/icon{,-256,-1024}.png` — the teal tessellated-kiss application icon consumed by `electron-builder.yml` and the Linux window icon (`out/icon.png`).
 
 Regenerate everything with `npm run build:icons` and commit the sources together with the regenerated artifacts.
 

@@ -28,8 +28,8 @@ All `tikz-ui` sources use the shared `tikzpicture` options (`line width=1.3pt,
 line cap=round, line join=round, >=Stealth, x=1mm,y=1mm`), canvas coordinates
 roughly −13..13, default/black strokes, and `fill=gray!N` only for shaded
 faces (the codegen turns those into proportional `fill-opacity`).
-`tikz-app/kkss.tex` is the one **colored** drawing — the "split cube" logo
-(solid blue CAD half, orange wireframe-mesh half) — and never goes through
+`tikz-app/kkss.tex` is the one **colored** drawing — the tessellated kiss logo
+(teal triangular lip facets with white mesh edges inspired by Kratos) — and never goes through
 the `currentColor` codegen.
 
 ## Pipeline
