@@ -91,9 +91,22 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # hosts, so a bind-mounted /workspace is writable without chown'ing it first.
 # The userdata directory is created here (not left to Docker) so a named volume
 # mounted over it inherits this ownership instead of root's.
+#
+# /tmp/.X11-unix is created here too, root-owned with the standard 1777 mode.
+# Left to Xvfb itself at container start it is created by a non-root process
+# (entrypoint.sh runs Xvfb as uid 1000), and xtrans's _XSERVTransmkdir refuses
+# that on principle (the directory must be root-owned for the X11 socket to
+# be trustworthy), logging "_XSERVTransmkdir: ERROR: euid != 0" and leaving
+# Xvfb without its usual listener. Observed once on v1.10.0's arm64 boot check
+# (openbox/x11vnc failing to open :99, container exiting before noVNC came
+# up) while the identical image built from the identical commit passed
+# moments earlier on the master-branch build — i.e. an intermittent race, not
+# a deterministic break. Pre-creating the directory at build time, while
+# still root, removes the race rather than relying on winning it.
 RUN groupadd --gid 1000 kkss \
  && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash kkss \
- && mkdir -p /workspace /home/kkss/.config/kkss \
+ && mkdir -p /workspace /home/kkss/.config/kkss /tmp/.X11-unix \
+ && chmod 1777 /tmp/.X11-unix \
  && chown -R kkss:kkss /workspace /home/kkss
 
 # The packaged app stays root-owned and read-only to the runtime user — it
