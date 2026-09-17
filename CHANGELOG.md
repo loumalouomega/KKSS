@@ -5,6 +5,19 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.11.0] - 2026-09-17
+
+- fix: pre-create `/tmp/.X11-unix` root-owned in the streamed-desktop Docker
+  image, removing an intermittent Xvfb startup race that could make the
+  container exit before noVNC came up (a non-root Xvfb is refused permission
+  to create that directory itself). `v1.10.0`'s release build hit this once
+  on the arm64 image and passed on retry — no functional change to the app
+  itself.
+- docs: expand the roadmap with a Web service tier — login, TLS, session
+  lifecycle, operator-provisioned settings, file transfer, cloud accounts
+  without a local browser, a Kratos-enabled image variant, GPU rendering, and
+  a reference per-user orchestrator for the streamed-desktop Docker image.
+
 ## [1.10.0] - 2026-09-17
 
 - feat: **CAD-Preview updated to 2.3.0** (from 1.13.0) and **VSCode-MDPA-Preview
@@ -57,6 +70,7 @@ full auto-generated compare links.
   HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
   functional change to the app itself
 
+[1.11.0]: https://github.com/loumalouomega/KKSS/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/loumalouomega/KKSS/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/loumalouomega/KKSS/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/loumalouomega/KKSS/compare/v1.7.1...v1.8.0
