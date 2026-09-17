@@ -5,6 +5,23 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.10.0] - 2026-09-17
+
+- feat: **CAD-Preview updated to 2.3.0** (from 1.13.0) and **VSCode-MDPA-Preview
+  to 3.27.0** — the interactive CAD viewer gains a **Clash panel** (Part-vs-Part
+  interference checks, single pair or all pairs at once), the Parts panel's
+  **Copy BOM** button, a **Primitives panel** (recognize a B-rep's solids and
+  export or save them as a reusable parametric macro), a **Mesh-operations
+  panel** for meshio-imported sources (clean/decimate/smooth/subdivide/refine/
+  agglomerate/convert-cells), an **Auto-decimate** opt-in when Mesh Health's
+  healability check hits its triangle ceiling, a bundled **starter macro
+  library** (three ready-to-run macros shipped with the app, shown read-only
+  alongside your own), and **File ▸ Export Drawing Sheet…** (several
+  orthographic/iso views on one scaled sheet with a title block). The
+  interactive viewer also now correctly respects a model already **baked**
+  in place by the assistant's `save_model` tool, instead of risking a
+  double-applied edit on reopen.
+
 ## [1.9.0] - 2026-09-15
 
 - feat: add a dedicated Kratos Jobs panel with active-job counts, progress,
@@ -40,6 +57,7 @@ full auto-generated compare links.
   HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
   functional change to the app itself
 
+[1.10.0]: https://github.com/loumalouomega/KKSS/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/loumalouomega/KKSS/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/loumalouomega/KKSS/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/loumalouomega/KKSS/compare/v1.7.0...v1.7.1
