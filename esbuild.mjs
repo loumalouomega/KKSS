@@ -262,6 +262,13 @@ function copyArtifacts() {
     // (extensionPath = out/cad-runtime).
     ["cad/dist/opencascade.wasm.wasm", out("cad-runtime/dist/opencascade.wasm.wasm")],
     ["cad/dist/gmsh-core.wasm", out("cad-runtime/dist/gmsh-core.wasm")],
+    // cad 2.3.0's bundled starter macro library — same <extensionPath>/dist/…
+    // convention as the WASM binaries above (bundledMacrosPath/getOcct both
+    // join extensionPath the same way).
+    [
+      "cad/dist/macros/starter-library.json",
+      out("cad-runtime/dist/macros/starter-library.json"),
+    ],
     // Stdio MCP servers for the chat sidebar. cad's sits beside its WASM so
     // its extensionPath (= dirname/..) resolves to out/cad-runtime; mesh's
     // sits beside out/mmg-core.wasm (it reads __dirname/mmg-core.wasm).

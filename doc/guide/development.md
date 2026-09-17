@@ -126,7 +126,7 @@ Tools come from three stdio MCP servers managed by `app/main/services/chat/mcpMa
 
 | Server | Bundle / command | Placement contract |
 | --- | --- | --- |
-| `cad-preview` (46 tools) | `out/cad-runtime/dist/mcp-server.js` | beside the OCCT/Gmsh WASM, so its `extensionPath` (= `dirname/..`) resolves to `out/cad-runtime` |
+| `cad-preview` (52 tools) | `out/cad-runtime/dist/mcp-server.js` | beside the OCCT/Gmsh WASM, so its `extensionPath` (= `dirname/..`) resolves to `out/cad-runtime` |
 | `kratos-mdpa` (21 tools) | `out/mcpServer.js` | beside `out/mmg-core.wasm` (the bundle reads `__dirname/mmg-core.wasm`) and the `out/meshio/` tree (meshio++'s `__dirname/meshio` fallback, for the extended-format tools) |
 | `kratos-mcp-server` (40 tools) | `uvx --with "mcp<2" kratos-mcp-server@<version>` (or `uv tool run`) | pinned to `KRATOS_MCP_VERSION`; app-local uv setup and independent retry available in chat |
 
@@ -146,7 +146,7 @@ API keys are entered via **Settings ▸ LLM Assistant** (`showInputBox` modals) 
 
 `app/main/services/chat/toolPolicy.ts` decides whether a tool the model asked for runs straight away or has to be approved. It is a **pure** module (no `electron`, no `node:*`, the approval mode passed in rather than read from the stateStore) so `test/` drives it directly — `test/chatToolPolicy.test.ts`.
 
-Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering all 72 tools the two bundled servers and the in-process `mcp__*` meta tools advertise. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (40 tools, resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
+Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering all 78 tools the two bundled servers and the in-process `mcp__*` meta tools advertise. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (40 tools, resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
 
 The gate sits in `chatService.ts`'s tool loop, between appending the `toolCall` entry (so the user can read the arguments they are approving) and `mcp.callTool`. Three rules are load-bearing and easy to break:
 

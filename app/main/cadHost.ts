@@ -35,6 +35,7 @@ import * as path from "node:path";
 import {
   routeFile,
   COMPARABLE_MESH_FORMATS,
+  matchExtension,
   type CadFormat,
   type FileRoute,
   type MeshParseFormat,
@@ -57,7 +58,12 @@ import {
   UNIT_CONVERTIBLE_FORMATS,
 } from "../../cad/src/exportTargets";
 import { parsePartsJson, serializePartsJson } from "../../cad/src/partsSidecar";
-import { parseEditsJson, serializeEditsJson, type ParsedEdits } from "../../cad/src/editsSidecar";
+import {
+  parseEditsJson,
+  serializeEditsJson,
+  replayTail,
+  type ParsedEdits,
+} from "../../cad/src/editsSidecar";
 import { parseMeshJson, serializeMeshJson, generateGeoScript } from "../../cad/src/meshOptionsSidecar";
 import { parseAnnotationsJson, serializeAnnotationsJson } from "../../cad/src/annotationsSidecar";
 import { parseViewStateJson, serializeViewStateJson } from "../../cad/src/viewStateSidecar";
@@ -83,6 +89,9 @@ import { scaleStlBytes } from "../../cad/src/stlParser";
 import { normalizeViewerDefaults } from "../../cad/src/viewerDefaults";
 import { validateEditOp, type EditOp } from "../../cad/src/editOps";
 import { resolvePlaneRefs } from "../../cad/src/planeRefs";
+import { emitPrimitiveOps } from "../../cad/src/primitiveEmit";
+import { validateMeshioOpSpec, type MeshioOpSpec } from "../../cad/src/meshioOps";
+import { PAPER_SIZES } from "../../cad/src/drawingSheet";
 import type { ParamVariable } from "../../cad/src/editVariables";
 import type { Annotation, ViewState, ConstructionPlane } from "../../cad/src/protocol";
 import { parsePlanesJson, serializePlanesJson } from "../../cad/src/planesSidecar";
@@ -93,12 +102,16 @@ import {
   scriptParameters,
   type ScriptLibrary,
 } from "../../cad/src/scriptLibrary";
+import { bundledMacrosPath, mergeScriptLibraries } from "../../cad/src/starterMacros";
 import { compileParametricScript } from "../../cad/src/parametricScript";
 import { evaluateVariables } from "../../cad/src/editVariables";
 import type { MeshGenerationInput } from "../../cad/src/gmshService";
 import {
   isMeshioFieldFailure,
   describeMeshioFieldFailure,
+  isHealableSizeError,
+  stlBytesForHeal,
+  AUTO_DECIMATE_TARGET_TRIANGLES,
 } from "../../cad/src/meshioService";
 import { cadCompute } from "./cadComputeClient";
 import { toKkssUrl, allowRoot } from "./protocol";
@@ -193,13 +206,18 @@ const readEdits = async (modelPath: string): Promise<ParsedEdits> => {
   try {
     return parseEditsJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.edits}`, "utf8"));
   } catch {
-    return { ops: [], variables: [] };
+    return { ops: [], variables: [], bakedThrough: 0 };
   }
 };
-const writeEdits = (modelPath: string, ops: EditOp[], variables: ParamVariable[]): Promise<void> =>
+const writeEdits = (
+  modelPath: string,
+  ops: EditOp[],
+  variables: ParamVariable[],
+  bakedThrough = 0
+): Promise<void> =>
   writeFileAtomic(
     `${modelPath}${CAD_SIDECAR.edits}`,
-    serializeEditsJson(path.basename(modelPath), ops, variables)
+    serializeEditsJson(path.basename(modelPath), ops, variables, bakedThrough)
   );
 
 const readAnnotations = async (modelPath: string): Promise<Annotation[]> => {
@@ -262,6 +280,17 @@ const readMacros = async (modelPath: string): Promise<ScriptLibrary> => {
 const writeMacros = (modelPath: string, library: ScriptLibrary): Promise<void> =>
   writeFileAtomic(macroLibraryPath(modelPath), serializeScriptLibraryJson(library));
 
+/** cad 2.3.0's bundled starter macros, shipped read-only beside the runtime
+ *  (dist/macros/starter-library.json) and shadow-merged under the folder's
+ *  own library — a missing/unreadable file degrades to no starters. */
+const readBundledMacros = async (runtimePath: string): Promise<ScriptLibrary> => {
+  try {
+    return parseScriptLibraryJson(await fs.readFile(bundledMacrosPath(runtimePath), "utf8"));
+  } catch {
+    return {};
+  }
+};
+
 const readMeshOptions = async (modelPath: string): Promise<MeshOptions> => {
   try {
     return parseMeshJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.meshOptions}`, "utf8"));
@@ -303,6 +332,11 @@ export class CadHost {
   private currentPlanes: ConstructionPlane[] = [];
   private currentEdits: EditOp[] = [];
   private currentVariables: ParamVariable[] = [];
+  /** ops[0..bakedThrough) are already baked into the CAD source file itself
+   *  (by `cad__save_model` or another process) — only the tail is ever
+   *  replayed against the loaded body. Read from the sidecar; never advanced
+   *  here, since KKSS has no interactive bake action of its own yet. */
+  private currentBakedThrough = 0;
   private currentParts: Part[] = [];
   private currentAnnotations: Annotation[] = [];
   private currentViewState: ViewState | undefined;
@@ -367,7 +401,7 @@ export class CadHost {
       await Promise.all([
         writeParts(this.doc.path, this.currentParts),
         writePlanes(this.doc.path, this.currentPlanes),
-        writeEdits(this.doc.path, this.currentEdits, this.currentVariables),
+        writeEdits(this.doc.path, this.currentEdits, this.currentVariables, this.currentBakedThrough),
         writeAnnotations(this.doc.path, this.currentAnnotations),
         ...(this.currentViewState ? [writeViewState(this.doc.path, this.currentViewState)] : []),
         ...(this.currentMeshOptions
@@ -430,6 +464,7 @@ export class CadHost {
     this.pending.clear();
     this.currentEdits = [];
     this.currentVariables = [];
+    this.currentBakedThrough = 0;
     this.currentParts = [];
     this.currentAnnotations = [];
     this.currentPlanes = [];
@@ -462,7 +497,7 @@ export class CadHost {
       void this.handleBRep(
         this.doc.path,
         this.doc.route.format as Extract<CadFormat, "step" | "iges" | "brep" | "csg" | "scad">,
-        this.currentEdits
+        replayTail(this.currentEdits, this.currentBakedThrough)
       );
     }
   }
@@ -477,8 +512,15 @@ export class CadHost {
   private async rebindPartsOnChange(previousOps: EditOp[], newOps: EditOp[]): Promise<void> {
     const doc = this.doc;
     if (!doc?.route || doc.route.strategy !== "occt") return;
-    if (this.currentParts.length === 0) return;
+    if (this.currentParts.length === 0 && this.currentAnnotations.length === 0) return;
     if (JSON.stringify(previousOps) === JSON.stringify(newOps)) return;
+    // Tier 0: both lists replay against the current (possibly baked) bytes,
+    // so both are tailed identically before the diff — otherwise a change
+    // confined to the already-baked prefix would trigger a pointless (and
+    // wrong, since the kernel never sees baked ops) replay.
+    const previousTail = replayTail(previousOps, this.currentBakedThrough);
+    const newTail = replayTail(newOps, this.currentBakedThrough);
+    if (JSON.stringify(previousTail) === JSON.stringify(newTail)) return;
     const epoch = this.epoch;
     try {
       const scadWarnings: string[] = [];
@@ -494,7 +536,7 @@ export class CadHost {
         this.runtimePath,
         bytes,
         format,
-        newOps,
+        newTail,
         this.currentParts
       );
       if (epoch !== this.epoch) return;
@@ -509,28 +551,35 @@ export class CadHost {
         this.runtimePath,
         bytes,
         format,
-        previousOps,
-        newOps,
-        this.currentParts
+        previousTail,
+        newTail,
+        this.currentParts,
+        this.currentAnnotations
       );
       if (epoch !== this.epoch) return; // document changed while replaying
       // The provider detects "nothing to do" by reference identity on the
       // returned array; structured clone across the worker RPC always yields a
       // fresh one, so gate on the stats instead — which also skips the
       // provider's own harmless-but-pointless write when every id mapped to
-      // itself.
-      if (result.stats.rebound === 0 && result.stats.dropped === 0) {
-        // No heuristic remap — but the selector pass above may still have
-        // rewritten the ids, and that has to be persisted and posted.
-        if (!selectorsChangedIds) return;
-      } else {
-        this.currentParts = result.parts;
+      // itself. Parts and annotations are independent: either can change
+      // without the other (rebindPartsAcrossOps's own doc comment — same
+      // idMap, zero extra OCCT cost either way).
+      const partsChanged = result.stats.rebound > 0 || result.stats.dropped > 0;
+      const annotationsChanged =
+        result.annotationStats.rebound > 0 || result.annotationStats.dropped > 0;
+      if (partsChanged) this.currentParts = result.parts;
+      if (annotationsChanged) this.currentAnnotations = result.annotations;
+      if (partsChanged || selectorsChangedIds) {
+        await writeParts(doc.path, this.currentParts);
+        this.post({ type: "parts", parts: this.currentParts });
       }
-      await writeParts(doc.path, this.currentParts);
-      this.post({ type: "parts", parts: this.currentParts });
+      if (annotationsChanged) {
+        await writeAnnotations(doc.path, this.currentAnnotations);
+        this.post({ type: "annotations", annotations: this.currentAnnotations });
+      }
     } catch (err) {
       if (epoch !== this.epoch) return;
-      this.post({ type: "error", message: `Could not rebind part entity ids: ${(err as Error).message}` });
+      this.post({ type: "error", message: `Could not rebind entity ids: ${(err as Error).message}` });
     }
   }
 
@@ -549,8 +598,14 @@ export class CadHost {
       const parsed = await readEdits(this.doc.path);
       this.currentEdits = parsed.ops;
       this.currentVariables = parsed.variables;
+      this.currentBakedThrough = parsed.bakedThrough;
       this.loadModel();
-      this.post({ type: "edits", ops: this.currentEdits, variables: this.currentVariables });
+      this.post({
+        type: "edits",
+        ops: this.currentEdits,
+        variables: this.currentVariables,
+        bakedThrough: this.currentBakedThrough,
+      });
       // The meshio route's own handleMeshio (in loadModel) owns the parts
       // round trip for that route — calling both would double-post "parts".
       if (this.doc.route.strategy !== "meshio") {
@@ -605,7 +660,12 @@ export class CadHost {
       this.currentVariables = msg.variables;
       if (this.editsSaveTimer) clearTimeout(this.editsSaveTimer);
       this.editsSaveTimer = setTimeout(() => {
-        void writeEdits(doc.path, this.currentEdits, this.currentVariables).then(undefined, (err) =>
+        void writeEdits(
+          doc.path,
+          this.currentEdits,
+          this.currentVariables,
+          this.currentBakedThrough
+        ).then(undefined, (err) =>
           this.post({ type: "error", message: `Could not save edits: ${(err as Error).message}` })
         );
       }, PARTS_SAVE_DEBOUNCE_MS);
@@ -841,7 +901,7 @@ export class CadHost {
           this.runtimePath,
           bytes,
           src.format as OcctSourceFormat,
-          this.currentEdits,
+          replayTail(this.currentEdits, this.currentBakedThrough),
           msg.entityId
         );
         this.post({ type: "massPropertiesResult", requestId: msg.requestId, properties });
@@ -866,7 +926,7 @@ export class CadHost {
           this.runtimePath,
           bytes,
           src.format as OcctSourceFormat,
-          this.currentEdits,
+          replayTail(this.currentEdits, this.currentBakedThrough),
           msg.kind,
           msg.entityIdA,
           msg.entityIdB
@@ -946,12 +1006,189 @@ export class CadHost {
           this.runtimePath,
           bytes,
           src.format as OcctSourceFormat,
-          this.currentEdits,
+          replayTail(this.currentEdits, this.currentBakedThrough),
           msg.entityId
         );
         this.post({ type: "entityFactsResult", requestId: msg.requestId, facts });
       } catch (err) {
         this.post({ type: "entityFactsError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "clashCheckRequest") {
+      try {
+        if (!doc.route || doc.route.strategy !== "occt") {
+          throw new Error(
+            "Clash detection needs a B-rep source; mesh sources have no exact boolean geometry to intersect."
+          );
+        }
+        // Mirror checkInterferenceTool's resolveOperand: volumes only
+        // (interference is a solid-only concept); unknown/empty degrades to
+        // a warning, never a throw.
+        const warnings: string[] = [];
+        const resolveOperand = async (label: "A" | "B", partName: string): Promise<string[]> => {
+          const parts = await readParts(doc.path);
+          const part = parts.find((p) => p.name === partName);
+          if (!part) {
+            warnings.push(`Part "${partName}" (operand ${label}) not found.`);
+            return [];
+          }
+          if (part.volumes.length === 0) {
+            warnings.push(`Part "${partName}" (operand ${label}) has no assigned solids (volumes).`);
+          }
+          return part.volumes;
+        };
+        const [idsA, idsB] = await Promise.all([
+          resolveOperand("A", msg.partA),
+          resolveOperand("B", msg.partB),
+        ]);
+        if (idsA.length === 0 || idsB.length === 0) {
+          for (const w of warnings) this.post({ type: "status", text: w });
+          this.post({
+            type: "clashCheckResult",
+            requestId: msg.requestId,
+            result: { hasOverlap: false, overlapVolume: 0, unresolvedA: [], unresolvedB: [] },
+          });
+          return;
+        }
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const result = await cadCompute.checkInterference(
+          this.runtimePath,
+          src.bytes,
+          src.format as OcctSourceFormat,
+          replayTail(this.currentEdits, this.currentBakedThrough),
+          idsA,
+          idsB
+        );
+        for (const w of warnings) this.post({ type: "status", text: w });
+        if (result.unresolvedA.length > 0) {
+          this.post({ type: "status", text: `Operand A: unresolved id(s) ${result.unresolvedA.join(", ")}.` });
+        }
+        if (result.unresolvedB.length > 0) {
+          this.post({ type: "status", text: `Operand B: unresolved id(s) ${result.unresolvedB.join(", ")}.` });
+        }
+        this.post({ type: "clashCheckResult", requestId: msg.requestId, result });
+      } catch (err) {
+        this.post({ type: "clashCheckError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    // Clash panel, all-pairs variant over checkInterferenceAll (one
+    // parse/replay total, AABB-pre-filtered) — mirrors checkInterferenceAllTool's
+    // selection: every Part with volumes. Pairs are named in the kernel's
+    // i<j enumeration order.
+    if (msg.type === "clashCheckAllRequest") {
+      try {
+        if (!doc.route || doc.route.strategy !== "occt") {
+          throw new Error(
+            "Clash detection needs a B-rep source; mesh sources have no exact boolean geometry to intersect."
+          );
+        }
+        const parts = await readParts(doc.path);
+        const usable = parts.filter((p) => p.volumes.length > 0);
+        if (usable.length < 2) {
+          throw new Error(
+            usable.length === 0
+              ? "No Parts with assigned solids — assign solids to at least two Parts first."
+              : "Only one Part has assigned solids — at least two are needed to check for clashes."
+          );
+        }
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const result = await cadCompute.checkInterferenceAll(
+          this.runtimePath,
+          src.bytes,
+          src.format as OcctSourceFormat,
+          replayTail(this.currentEdits, this.currentBakedThrough),
+          usable.map((p) => p.volumes)
+        );
+        const expected = (usable.length * (usable.length - 1)) / 2;
+        if (result.pairs.length !== expected) {
+          throw new Error(
+            `Interference pipeline returned ${result.pairs.length} pair(s) for ${usable.length} part(s) — expected ${expected}.`
+          );
+        }
+        for (const w of result.warnings) this.post({ type: "status", text: w });
+        const named: Array<(typeof result.pairs)[number] & { partA: string; partB: string }> = [];
+        for (let x = 0, n = 0; x < usable.length; x++) {
+          for (let y = x + 1; y < usable.length; y++, n++) {
+            named.push({ ...result.pairs[n], partA: usable[x].name, partB: usable[y].name });
+          }
+        }
+        this.post({ type: "clashCheckAllResult", requestId: msg.requestId, pairs: named, warnings: result.warnings });
+      } catch (err) {
+        this.post({ type: "clashCheckAllError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "bomRequest") {
+      try {
+        if (!doc.route || doc.route.strategy !== "occt") {
+          throw new Error(
+            "BOM rows are computed for B-rep sources on the host; mesh sources have no per-part rows to compute."
+          );
+        }
+        const parts = await readParts(doc.path);
+        if (parts.length === 0) {
+          this.post({
+            type: "bomResult",
+            requestId: msg.requestId,
+            rows: [],
+            warnings: ["No parts defined on this document."],
+          });
+          return;
+        }
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const result = await cadCompute.computeBom(
+          this.runtimePath,
+          src.bytes,
+          src.format as OcctSourceFormat,
+          replayTail(this.currentEdits, this.currentBakedThrough),
+          parts
+        );
+        this.post({
+          type: "bomResult",
+          requestId: msg.requestId,
+          rows: result.rows,
+          warnings: [...scadWarnings, ...result.warnings],
+        });
+      } catch (err) {
+        this.post({ type: "bomError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "primitiveRecognizeRequest") {
+      try {
+        if (!doc.route || doc.route.strategy !== "occt") {
+          throw new Error(
+            "Primitive recognition needs a B-rep source; mesh sources have no analytic surfaces to classify."
+          );
+        }
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const report = await cadCompute.recognizePrimitives(
+          this.runtimePath,
+          src.bytes,
+          src.format as OcctSourceFormat,
+          replayTail(this.currentEdits, this.currentBakedThrough)
+        );
+        this.post({ type: "primitiveRecognizeResult", requestId: msg.requestId, report });
+      } catch (err) {
+        this.post({
+          type: "primitiveRecognizeError",
+          requestId: msg.requestId,
+          message: (err as Error).message,
+        });
       }
       return;
     }
@@ -972,6 +1209,17 @@ export class CadHost {
         const scadWarnings: string[] = [];
         const src = await this.readOcctSource(doc.path, format, scadWarnings);
         for (const w of scadWarnings) this.post({ type: "status", text: w });
+        // msg.op addresses the persistent (baked-inclusive) history; the
+        // kernel only ever sees the replay tail, so it needs a tail-relative
+        // index — and an op inside the baked prefix can't be re-synthesized
+        // without rewriting the source file, since the kernel never replays it.
+        const tailEdits = replayTail(this.currentEdits, this.currentBakedThrough);
+        const replayOp = msg.op - this.currentBakedThrough;
+        if (!Number.isInteger(replayOp) || replayOp < 0 || replayOp >= tailEdits.length) {
+          throw new Error(
+            `Bucket op ${msg.op} is inside the baked prefix — it cannot be re-synthesized without rewriting the source file.`
+          );
+        }
         const results: SelectorSynthesizeResultEntry[] = [];
         for (const entityId of msg.entityIds) {
           try {
@@ -979,8 +1227,8 @@ export class CadHost {
               this.runtimePath,
               src.bytes,
               src.format as OcctSourceFormat,
-              this.currentEdits,
-              msg.op,
+              tailEdits,
+              replayOp,
               msg.role,
               entityId
             );
@@ -1011,13 +1259,28 @@ export class CadHost {
       try {
         const format = this.requireMesh("Mesh healability check requires an STL/OBJ/PLY/glTF source.");
         const bytes = await fs.readFile(doc.path);
-        const report = await cadCompute.checkMeshHealth(
-          this.runtimePath,
-          bytes,
-          format,
-          await this.gltfBuffers(format, bytes)
-        );
-        this.post({ type: "meshHealResult", requestId: msg.requestId, report });
+        const external = await this.gltfBuffers(format, bytes);
+        try {
+          const report = await cadCompute.checkMeshHealth(this.runtimePath, bytes, format, external);
+          this.post({ type: "meshHealResult", requestId: msg.requestId, report });
+        } catch (err) {
+          // Same autoDecimate opt-in as check_mesh_health's MCP tool: only a
+          // size refusal is decimation-shaped; anything else (corrupt file,
+          // unparseable content) rethrows untouched.
+          if (!msg.autoDecimate || !isHealableSizeError(err)) throw err;
+          const forHeal = stlBytesForHeal(bytes, format, external);
+          const ratio = Math.min(1, AUTO_DECIMATE_TARGET_TRIANGLES / forHeal.fromTriangles);
+          const decimated = await cadCompute.decimateStlBoundary(forHeal.stlBytes, ratio);
+          const report = await cadCompute.checkMeshHealth(this.runtimePath, decimated.bytes, "stl");
+          this.post({
+            type: "meshHealResult",
+            requestId: msg.requestId,
+            report: {
+              ...report,
+              decimated: { fromTriangles: decimated.fromTriangles, toTriangles: decimated.toTriangles, ratio },
+            },
+          });
+        }
       } catch (err) {
         this.post({ type: "meshHealError", requestId: msg.requestId, message: (err as Error).message });
       }
@@ -1038,6 +1301,41 @@ export class CadHost {
         this.post({ type: "fitRegionResult", requestId: msg.requestId, fit });
       } catch (err) {
         this.post({ type: "fitRegionError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "meshioOpsRequest") {
+      try {
+        if (!doc.route || doc.route.strategy !== "meshio") {
+          throw new Error(
+            "Mesh operations require a meshio++-imported source (VTK/MED/CGNS/Exodus/XDMF/MDPA/Gmsh/Abaqus/UNV/SU2/Medit/GiD)."
+          );
+        }
+        if (doc.route.format === "openfoam") {
+          throw new Error(
+            "Mesh operations are not available for OpenFOAM case markers — open the converted mesh instead."
+          );
+        }
+        const specs = (msg.ops ?? []).map((o) => validateMeshioOpSpec(o));
+        if (specs.length === 0 || specs.some((s) => s === null)) {
+          throw new Error(
+            "Unknown mesh operation — pick one of clean/decimate/smooth/subdivide/refine/agglomerate/convertCells."
+          );
+        }
+        const report = await this.handleMeshioOps(doc.path, doc.route, specs.map((s) => s!));
+        // A dismissed save dialog is a quiet no-op (no result post), mirroring
+        // every other save flow here.
+        if (report) {
+          this.post({
+            type: "meshioOpsResult",
+            requestId: msg.requestId,
+            steps: report.steps,
+            warnings: report.warnings,
+          });
+        }
+      } catch (err) {
+        this.post({ type: "meshioOpsError", requestId: msg.requestId, message: (err as Error).message });
       }
       return;
     }
@@ -1119,6 +1417,11 @@ export class CadHost {
       return;
     }
 
+    if (msg.type === "exportSheetRequest") {
+      if (doc.route) void this.handleExportSheet(doc.path, doc.route);
+      return;
+    }
+
     if (msg.type === "opPreviewRequest") {
       // Live preview of an in-progress edit: replays [...ops, draft] under a
       // SECOND cache key so the document's own cached B-rep is untouched, and
@@ -1131,7 +1434,10 @@ export class CadHost {
         if (!clean) throw new Error("The drafted operation is invalid and cannot be previewed.");
         const planes = await readPlanes(doc.path).catch(() => [] as ConstructionPlane[]);
         const resolvedDraft = resolvePlaneRefs([clean], planes).ops[0] ?? clean;
-        const resolvedOps = resolvePlaneRefs(this.currentEdits, planes).ops;
+        const resolvedOps = resolvePlaneRefs(
+          replayTail(this.currentEdits, this.currentBakedThrough),
+          planes
+        ).ops;
         const result = await cadCompute.loadBRepCachedInWorker(
           `${this.sessionId}::oppreview`,
           this.runtimePath,
@@ -1170,7 +1476,13 @@ export class CadHost {
 
     if (msg.type === "macroRun") {
       try {
-        const entry = (await readMacros(doc.path))[msg.name];
+        const library = await readMacros(doc.path);
+        const bundled = await readBundledMacros(this.runtimePath);
+        // Caller-owned entries shadow bundled starters of the same name — the
+        // same merge (and precedence) sendMacros displays, so Run and the
+        // panel list can never disagree about which script a name means.
+        const { merged } = mergeScriptLibraries(bundled, library);
+        const entry = merged[msg.name];
         if (!entry) throw new Error(`No saved macro named "${msg.name}".`);
         const { script, unknownNames } = mergeScriptOverrides(entry.script, msg.parameters);
         const { values } = evaluateVariables(this.currentVariables);
@@ -1224,6 +1536,18 @@ export class CadHost {
     if (msg.type === "macroDelete") {
       try {
         const library = await readMacros(doc.path);
+        if (!Object.prototype.hasOwnProperty.call(library, msg.name)) {
+          // Either a bundled starter (read-only — the panel hides its Delete
+          // button, so this is a backstop, not a normal path) or a name that
+          // was never saved here at all.
+          const bundled = await readBundledMacros(this.runtimePath);
+          if (Object.prototype.hasOwnProperty.call(bundled, msg.name)) {
+            throw new Error(
+              `"${msg.name}" is a bundled starter macro and cannot be deleted — save your own macro under a different name to override it.`
+            );
+          }
+          throw new Error(`No saved macro named "${msg.name}".`);
+        }
         delete library[msg.name];
         await writeMacros(doc.path, library);
         await this.sendMacros();
@@ -1243,6 +1567,16 @@ export class CadHost {
       await this.handleRepairMesh();
       return;
     }
+
+    if (msg.type === "decomposeExportClicked") {
+      if (doc.route) void this.handleDecomposeExport(doc.path, doc.route);
+      return;
+    }
+
+    if (msg.type === "decomposeSaveMacroClicked") {
+      if (doc.route) void this.handleDecomposeSaveMacro(doc.path, doc.route);
+      return;
+    }
   }
 
   /**
@@ -1260,11 +1594,17 @@ export class CadHost {
   private async sendMacros(): Promise<void> {
     if (!this.doc) return;
     const library = await readMacros(this.doc.path);
-    const macros = Object.values(library)
+    const bundled = await readBundledMacros(this.runtimePath);
+    const { merged } = mergeScriptLibraries(bundled, library);
+    const owned = new Set(Object.keys(library));
+    const macros = Object.values(merged)
       .map((entry) => ({
         name: entry.name,
         description: entry.description ?? null,
         parameters: scriptParameters(entry.script),
+        // A caller-owned entry shadows a bundled starter of the same name —
+        // the merged row is theirs (deletable), never the read-only starter.
+        readOnly: !owned.has(entry.name),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
     this.post({ type: "macros", macros });
@@ -1433,9 +1773,12 @@ export class CadHost {
     try {
       this.post({ type: "status", text: `Loading ${format.toUpperCase()}…` });
       const bytes = await fs.readFile(modelPath);
-      const [boundary, metadata, existingParts] = await Promise.all([
+      const [boundary, metadata, provenance, existingParts] = await Promise.all([
         cadCompute.convertToStlBoundaryWithRegions(bytes, format),
         cadCompute.readMeshioMetadata(bytes, format),
+        // Provenance block, if the file carries one — never throws, so a
+        // file without one simply yields nothing here.
+        cadCompute.readMeshioProvenance(bytes, format),
         readParts(modelPath),
       ]);
       if (epoch !== this.epoch) return [];
@@ -1470,6 +1813,9 @@ export class CadHost {
             }
           : undefined,
       });
+      if (provenance) {
+        this.post({ type: "status", text: `Provenance: ${provenance.lines.join(" | ")}` });
+      }
       this.post({ type: "parts", parts });
       return parts;
     } catch (err) {
@@ -1550,7 +1896,7 @@ export class CadHost {
         sourceBytes,
         src.format as OcctSourceFormat,
         "step",
-        this.currentEdits,
+        replayTail(this.currentEdits, this.currentBakedThrough),
         unit,
         false
       );
@@ -1617,7 +1963,7 @@ export class CadHost {
             sourceBytes,
             src.format as OcctSourceFormat,
             targetFormat as Extract<CadFormat, "step" | "iges" | "brep">,
-            this.currentEdits,
+            replayTail(this.currentEdits, this.currentBakedThrough),
             unit
           );
         }
@@ -1754,7 +2100,7 @@ export class CadHost {
         this.runtimePath,
         src.bytes,
         src.format as OcctSourceFormat,
-        this.currentEdits,
+        replayTail(this.currentEdits, this.currentBakedThrough),
         this.currentParts
       );
       if (epoch !== this.epoch) return; // document changed while resolving
@@ -1863,7 +2209,7 @@ export class CadHost {
       }
       if (contents.edits !== undefined) {
         const parsed = parseEditsJson(contents.edits);
-        await writeEdits(destPath, parsed.ops, parsed.variables);
+        await writeEdits(destPath, parsed.ops, parsed.variables, parsed.bakedThrough);
       }
       if (contents.meshOptions !== undefined) {
         const options = parseMeshJson(contents.meshOptions);
@@ -1956,7 +2302,7 @@ export class CadHost {
                 kind: "brep",
                 bytes,
                 format: src.format as OcctSourceFormat,
-                ops: this.currentEdits,
+                ops: replayTail(this.currentEdits, this.currentBakedThrough),
               }
             : route.format === "gltf"
               ? {
@@ -1976,6 +2322,83 @@ export class CadHost {
         });
         for (const warning of result.warnings) this.post({ type: "status", text: warning });
         return Buffer.from(format === "dxf" ? (result.dxf ?? result.svg) : result.svg, "utf8");
+      }
+    );
+  }
+
+  /**
+   * File ▸ Export Drawing Sheet… (provider.handleExportSheet, cad 2.3.0) —
+   * several orthographic/iso views of the model at one shared scale, inside
+   * a frame with a title block. Deliberately no unit quick-pick (the scale
+   * ratio must stay in real mm, unlike the plain silhouette export above).
+   * Pinned annotations are baked in via `dimensionDrawings`.
+   */
+  private async handleExportSheet(modelPath: string, route: FileRoute): Promise<void> {
+    if (route.strategy !== "occt" && !COMPARABLE_MESH_FORMATS.has(route.format)) {
+      this.post({
+        type: "error",
+        message: "Drawing sheet export requires a STEP/IGES/BREP/CSG/SCAD or STL/OBJ/PLY/glTF source.",
+      });
+      return;
+    }
+
+    const formatPick = await showQuickPick(
+      [
+        { label: "SVG", description: "vector drawing, prints at the sheet's physical size", format: "svg" as const },
+        { label: "DXF", description: "layers 0 / HIDDEN / DIMENSIONS / BORDER / TITLE", format: "dxf" as const },
+      ],
+      { placeHolder: "Drawing sheet format…" }
+    );
+    if (!formatPick) return;
+
+    const paperPick = await showQuickPick(
+      PAPER_SIZES.map((paper) =>
+        paper === "fit"
+          ? { label: "Fit (1:1)", description: "sheet sized to the views at full scale", paper }
+          : { label: paper, description: "landscape — largest standard scale that fits", paper }
+      ),
+      { placeHolder: "Paper size…" }
+    );
+    if (!paperPick) return;
+
+    const format = formatPick.format;
+    const name = path.basename(modelPath);
+    await this.promptSaveAndWrite(
+      modelPath,
+      format,
+      format === "dxf" ? "DXF Drawing" : "SVG Drawing",
+      async () => {
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(modelPath, route.format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const bytes = src.bytes;
+        const source: CompareSource =
+          route.strategy === "occt"
+            ? {
+                kind: "brep",
+                bytes,
+                format: src.format as OcctSourceFormat,
+                ops: replayTail(this.currentEdits, this.currentBakedThrough),
+              }
+            : route.format === "gltf"
+              ? { kind: "gltf", bytes, externalBuffers: await this.gltfBuffers("gltf", bytes) }
+              : { kind: route.format as "stl" | "obj" | "ply", bytes };
+        const views = (["front", "top", "right", "iso-ftr"] as const).map((view) => {
+          const key = view === "iso-ftr" ? "ISO" : view.toUpperCase();
+          return { name: view, ...SVG_VIEWS[key] };
+        });
+        const result = await cadCompute.exportDrawingSheet(this.runtimePath, source, {
+          views,
+          format,
+          paper: paperPick.paper,
+          projection: "first",
+          annotations: this.currentAnnotations,
+          title: name,
+          date: new Date().toISOString().slice(0, 10),
+        });
+        for (const warning of result.warnings) this.post({ type: "status", text: warning });
+        this.post({ type: "status", text: `Drawing sheet: ${result.views.length} views at ${result.scaleLabel}` });
+        return Buffer.from(result.content, "utf8");
       }
     );
   }
@@ -2046,6 +2469,168 @@ export class CadHost {
       );
       return result.stlBytes;
     });
+  }
+
+  /**
+   * Primitives panel (Tier 2 "Primitive-recognition panel") — the interactive
+   * half of `cad__decompose_to_primitives`. A ONE-SHOT EXPORT (recognize each
+   * solid, emit parametric creation ops, write them as a brand-new
+   * STEP/IGES/BREP file the user opens separately), not an in-place
+   * reclassification of this document — the same export model
+   * `handlePromoteToBrep` follows. Emission is computed fresh here rather
+   * than trusting a client snapshot. A document with zero recognized solids
+   * posts an explanatory error rather than writing an empty file.
+   */
+  private async handleDecomposeExport(modelPath: string, route: FileRoute): Promise<void> {
+    if (route.strategy !== "occt") {
+      this.post({
+        type: "error",
+        message: "Primitive export needs a B-rep source; mesh sources have no analytic surfaces to classify.",
+      });
+      return;
+    }
+    const picked = await showQuickPick(
+      [...BREP_FORMATS].map((format) => ({
+        label: EXPORT_LABEL[format],
+        description: `.${EXPORT_EXTENSION[format]}`,
+        format: format as Extract<CadFormat, "step" | "iges" | "brep">,
+      })),
+      { placeHolder: "Export recognized primitives as…" }
+    );
+    if (!picked) return;
+    const unit = await this.pickExportUnit();
+
+    await this.promptSaveAndWrite(
+      modelPath,
+      EXPORT_EXTENSION[picked.format],
+      EXPORT_LABEL[picked.format],
+      async () => {
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(modelPath, route.format, scadWarnings);
+        for (const w of scadWarnings) this.post({ type: "status", text: w });
+        const report = await cadCompute.recognizePrimitives(
+          this.runtimePath,
+          src.bytes,
+          src.format as OcctSourceFormat,
+          replayTail(this.currentEdits, this.currentBakedThrough)
+        );
+        const emission = emitPrimitiveOps(report, {
+          existingVariableNames: this.currentVariables.map((v) => v.name),
+        });
+        if (emission.ops.length === 0) {
+          throw new Error("No primitives recognized — nothing to export.");
+        }
+        const build = await cadCompute.buildPrimitivesFile(
+          this.runtimePath,
+          emission.ops,
+          picked.format,
+          unit
+        );
+        for (const w of [...emission.warnings, ...build.warnings]) this.post({ type: "status", text: w });
+        return build.bytes;
+      }
+    );
+  }
+
+  /**
+   * Primitives panel, Save-macro variant — the same emission as
+   * handleDecomposeExport, saved as a reusable parameterized macro into this
+   * document's folder macro library (the same file macroSaveCurrent and the
+   * MCP save_parametric_script tool write, so a macro recorded here is
+   * directly runnable by an agent and vice versa) instead of a B-rep file.
+   * The emitted script is dry-compiled against its own declared defaults
+   * before saving, so a broken macro never enters the library silently.
+   */
+  private async handleDecomposeSaveMacro(modelPath: string, route: FileRoute): Promise<void> {
+    try {
+      if (route.strategy !== "occt") {
+        throw new Error(
+          "Primitive macros need a B-rep source; mesh sources have no analytic surfaces to classify."
+        );
+      }
+      const scadWarnings: string[] = [];
+      const src = await this.readOcctSource(modelPath, route.format, scadWarnings);
+      for (const w of scadWarnings) this.post({ type: "status", text: w });
+      const report = await cadCompute.recognizePrimitives(
+        this.runtimePath,
+        src.bytes,
+        src.format as OcctSourceFormat,
+        replayTail(this.currentEdits, this.currentBakedThrough)
+      );
+      const emission = emitPrimitiveOps(report, {
+        existingVariableNames: this.currentVariables.map((v) => v.name),
+      });
+      if (emission.ops.length === 0) {
+        throw new Error("No primitives recognized — nothing to save.");
+      }
+      const name = await showInputBox({
+        title: "Save primitives as macro",
+        prompt: `Name for this macro (${emission.ops.length} op(s), ${emission.variables.length} variable(s))`,
+        placeHolder: "recognized-primitives",
+      });
+      if (name === undefined || name.trim() === "") return; // dismissed — a quiet no-op
+      const trimmed = name.trim();
+      const scriptDoc: Record<string, unknown> = {
+        variables: emission.variables,
+        steps: emission.ops.map((op) => ({ op })),
+      };
+      const probe = compileParametricScript(scriptDoc, {});
+      if (probe.ops.length === 0) {
+        throw new Error(`Refusing to save "${trimmed}": the emitted script compiled to no ops.`);
+      }
+      const library = await readMacros(modelPath);
+      const existed = Object.prototype.hasOwnProperty.call(library, trimmed);
+      library[trimmed] = { name: trimmed, script: scriptDoc };
+      await writeMacros(modelPath, library);
+      await this.sendMacros();
+      this.post({
+        type: "status",
+        text: `Saved macro "${trimmed}"${existed ? " (replaced existing)." : "."}`,
+      });
+    } catch (err) {
+      this.post({ type: "error", message: (err as Error).message });
+    }
+  }
+
+  /**
+   * Mesh-operations panel (Tier 2 "Mesh-operations panel for meshio
+   * sources") — runs one validated meshio++ operation over the current
+   * meshio++-imported source and writes the result to a NEW file at a
+   * save-dialog-chosen path (the export model, like `mesh__transform_mesh`'s
+   * `outputPath` — the source is never modified). Mirrors `handleRepairMesh`'s
+   * structure via the shared `promptSaveAndWrite`, but keeps the source's own
+   * extension (including the compound `.post.msh`) so the output stays in
+   * the same format family the user opened. Returns the per-step report for
+   * the `meshioOpsResult` post, or `null` when the save dialog was dismissed
+   * (a quiet no-op, never an error). A step that cannot run is reported and
+   * skipped by `runMeshioOps` itself, never silent — those warnings surface
+   * both in the result post and as status lines.
+   */
+  private async handleMeshioOps(
+    modelPath: string,
+    route: FileRoute,
+    ops: MeshioOpSpec[]
+  ): Promise<{ steps: Array<{ op: string; applied: boolean; detail: string }>; warnings: string[] } | null> {
+    const extKey = matchExtension(modelPath) ?? route.format;
+    // The save-dialog filter takes a bare extension; the compound GiD key
+    // (post.msh) is not one — fall back to the route format there.
+    const ext = extKey.includes(".") ? route.format : extKey;
+    let report: { steps: Array<{ op: string; applied: boolean; detail: string }>; warnings: string[] } | null =
+      null;
+    await this.promptSaveAndWrite(modelPath, ext, `${route.format.toUpperCase()} Mesh`, async () => {
+      const sourceBytes = await fs.readFile(modelPath);
+      const result = await cadCompute.runMeshioOps(sourceBytes, route.format, ops, ext);
+      report = { steps: result.steps, warnings: result.warnings };
+      for (const step of result.steps) {
+        this.post({
+          type: "status",
+          text: `Mesh op ${step.op}: ${step.applied ? step.detail : `skipped — ${step.detail}`}`,
+        });
+      }
+      for (const warning of result.warnings) this.post({ type: "status", text: warning });
+      return result.bytes;
+    });
+    return report;
   }
 
   private async promptSaveAndWrite(

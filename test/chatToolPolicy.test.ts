@@ -154,15 +154,15 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers every tool the two bundled servers register, and nothing else", () => {
-    // 46 cad + 22 mesh (verified against `grep -c 'registerTool('` in both
+    // 52 cad + 22 mesh (verified against `grep -c 'registerTool('` in both
     // submodules) + 4 in-process mcp__ meta tools. A bump that adds a tool
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(72);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(78);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
-    expect(cad).toHaveLength(46);
+    expect(cad).toHaveLength(52);
     expect(mesh).toHaveLength(22);
     expect(meta).toHaveLength(4);
     // No fourth namespace: kratos is deliberately unclassified.
@@ -179,16 +179,20 @@ describe("the table itself", () => {
       "cad__decompose_to_primitives",
       "cad__download_standard_part",
       "cad__export_brep",
+      "cad__export_drawing_sheet",
       "cad__export_mesh",
       "cad__export_svg_silhouette",
       "cad__export_technical_drawing",
       "cad__fit_mesh_region",
+      "cad__import_svg",
       "cad__load_preprocess",
+      "cad__pin_annotation",
       "cad__promote_mesh_to_brep",
       "cad__remove_edit_op",
       "cad__repair_mesh",
       "cad__run_parametric_script",
       "cad__run_saved_script",
+      "cad__save_model",
       "cad__save_parametric_script",
       "cad__save_preprocess",
       "cad__set_mesh_options",
@@ -222,6 +226,7 @@ describe("the table itself", () => {
     }
     expect(Object.keys(DRY_RUN_PARAM).sort()).toEqual([
       "cad__apply_edit_ops",
+      "cad__import_svg",
       "cad__run_parametric_script",
       "cad__run_saved_script",
     ]);

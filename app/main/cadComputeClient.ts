@@ -123,6 +123,7 @@ export const cadCompute = {
 
   // ---- Drawings, diffing, rendering, catalog ---------------------------
   exportSvgSilhouette: rpc<typeof svgSilhouetteHost.exportSvgSilhouette>("exportSvgSilhouette"),
+  exportDrawingSheet: rpc<typeof svgSilhouetteHost.exportDrawingSheet>("exportDrawingSheet"),
   compareModels: rpc<typeof modelDiffHost.compareModels>("compareModels"),
   searchStandardParts: rpc<typeof stepPartsService.searchStandardParts>("searchStandardParts"),
   downloadStandardPart: rpc<typeof stepPartsService.downloadStandardPart>("downloadStandardPart"),
@@ -136,6 +137,8 @@ export const cadCompute = {
   readMeshioMetadata: rpc<typeof meshio.readMeshioMetadata>("readMeshioMetadata"),
   readMeshioDataInfo: rpc<typeof meshio.readMeshioDataInfo>("readMeshioDataInfo"),
   readMeshioFieldValues: rpc<typeof meshio.readMeshioFieldValues>("readMeshioFieldValues"),
+  readMeshioProvenance: rpc<typeof meshio.readMeshioProvenance>("readMeshioProvenance"),
+  decimateStlBoundary: rpc<typeof meshio.decimateStlBoundary>("decimateStlBoundary"),
   runMeshioOps: rpc<typeof meshio.runMeshioOps>("runMeshioOps"),
   exportViaMeshio: rpc<typeof meshio.exportViaMeshio>("exportViaMeshio"),
   buildPartsFromMeshioRegions:

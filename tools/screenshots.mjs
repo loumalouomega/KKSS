@@ -95,8 +95,19 @@ async function click(page, sel) {
  * mode views' layout viewport stays at the same CSS-pixel count, so a
  * zoomed-out view paints into only that fraction of its bounds and the shot
  * comes back framed in dead space.
+ *
+ * Height grew again with cad 2.x: `#side` is a fixed-height flex column with
+ * `overflow: hidden` (no scrollbar), and its panels — three new ones (Clash,
+ * Primitives, plus Region Fit/Mesh Health's own growth) on top of the bundled
+ * starter macro library making the Macros panel non-empty by default — now
+ * total more height than 1000px holds. Flexbox's answer to that overflow is
+ * to silently squeeze SOME panels (Tree/Parts/Edits, at this width) to 0px
+ * rather than clipping evenly, so `cad-edits-panel.png`/`cad-parts-panel.png`
+ * timed out screenshotting an invisible element instead of looking merely
+ * cropped. 1600 was measured against the running app to fit every section's
+ * default-expanded state with room to spare.
  */
-const SHOT_SIZE = { width: 1760, height: 1000 };
+const SHOT_SIZE = { width: 1760, height: 1600 };
 
 /**
  * Sizes the window for capture and pins the interface scale to 100%.

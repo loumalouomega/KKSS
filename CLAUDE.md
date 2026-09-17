@@ -729,7 +729,7 @@ Concretely:
   bearer token only, since an external client has no user to prompt. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 72-name key set.
+  `test/chatToolPolicy.test.ts` pins the exact 78-name key set.
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -940,11 +940,79 @@ Concretely:
 
 ## Verified submodule integration (Tier 0)
 
-CAD v1.13.0 (`2ff65b1`) and mesh v3.21.0 through `kkss.dev` (`1232d49`)
+CAD v2.3.0 (`1587a12`) and mesh v3.27.0 through `kkss.dev` (`5ec1658`)
 are integrated without edits to either submodule. The recurring release-bump
 checklist lives in `doc/guide/development.md` under **Submodule release
 maintenance**; repeat it for every bump, including live MCP tool discovery
-(the current sets are 46 CAD + 22 mesh + 4 aggregation tools).
+(the current sets are 52 CAD + 22 mesh + 4 aggregation tools).
+
+**The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
+port, not just a gitlink bump.** Two classes of change, both in
+`app/main/cadHost.ts` (the 1:1 port of `cad/src/provider.ts`):
+
+- **Save-in-place's `bakedThrough` watermark had to be threaded through every
+  replay path, not just read.** cad 2.1.0 added baking the unbaked op tail
+  into the CAD source file itself (`cad__save_model`); the sidecar's
+  `bakedThrough` field says "ops[0..bakedThrough) are already IN the file —
+  only replay the tail." `cadHost.ts` had zero awareness of this (it predates
+  2.1.0), so every kernel-replay call site (mass properties, measure, entity
+  facts, op preview, export, mesh-input re-export, selector healing,
+  silhouette/sheet export — about a dozen sites) now wraps `this.currentEdits`
+  in `replayTail(this.currentEdits, this.currentBakedThrough)` before it
+  reaches the kernel, while the Edits-panel-facing full list (macro recording,
+  the `"edits"` message, the sidecar write itself) stays untouched. Getting
+  this wrong would silently double-apply already-baked ops on reopen — a
+  correctness bug, not a missing feature — so it was ported before anything
+  else. `rebindPartsOnChange` needed the same tail-diffing (both op lists
+  replay against the *current, possibly-baked* bytes) and, while already
+  there, picked up cad 1.9.0's annotation-rebinding parameter it had also
+  been missing (`rebindPartsAcrossOps`'s optional 7th arg). `writeEdits`'s
+  local wrapper defaulted `bakedThrough` to 0 on every write until fixed —
+  a second, independent way the watermark could have been silently dropped.
+  KKSS still has no *interactive* bake action of its own (no Ctrl+S-bakes,
+  no `rebindPartsAcrossSave` call) — it only has to correctly *respect* a
+  watermark another process (the MCP tool, or a future KKSS feature) wrote.
+- **Six new interactive panels/flows needed their own host handlers**, each
+  ported message-for-message against `provider.ts` (its protocol types are
+  imported directly from `cad/src/protocol.ts`, so a submodule bump changes
+  what `WebviewToHost`/`HostToWebview` narrow to without any KKSS-side type
+  duplication — only the *handlers* needed writing): the **Clash panel**
+  (`clashCheckRequest`/`clashCheckAllRequest`, over the already-bound
+  `checkInterference`/`checkInterferenceAll`), the Parts panel's **Copy BOM**
+  (`bomRequest`, over `computeBom`), the **Primitives panel**
+  (`primitiveRecognizeRequest` plus two button-clicked messages —
+  `decomposeExportClicked`/`decomposeSaveMacroClicked` — mirroring
+  `handlePromoteToBrep`/`macroSaveCurrent`'s existing structure), the
+  **Mesh-operations panel** for meshio sources (`meshioOpsRequest`, mirroring
+  `handleRepairMesh`'s save-flow shape), and **File ▸ Export Drawing
+  Sheet…** (`exportSheetRequest` — a webview-toolbar action like the existing
+  silhouette/technical-drawing exports, not a native menu item; cad's own
+  VS Code command counterpart has no KKSS analogue, same as every other
+  `cad-preview.*` command). Three kernel functions these needed
+  (`exportDrawingSheet`, `readMeshioProvenance`, `decimateStlBoundary` — the
+  last for Mesh Health's new **Auto-decimate** opt-in on an over-ceiling
+  mesh) were already exported by the already-imported worker modules (the
+  worker auto-spreads every export, per the `cadCompute.worker.ts` invariant
+  above) and needed only a one-line typed binding each in
+  `cadComputeClient.ts`. The **bundled starter macro library** (cad 2.2.0)
+  needed `sendMacros`/`macroRun`/`macroDelete` to shadow-merge
+  `dist/macros/starter-library.json` under the folder's own library
+  (`mergeScriptLibraries`, stamping `readOnly` on the bundled rows) — plus a
+  new `copyArtifacts()` entry, since that file is not part of any existing
+  copy pair. Verified live (Playwright-Electron driving the real app via
+  `window.__kkss.post`): Clash (single + all-pairs), Copy BOM, Primitives
+  Recognize, Primitives Save-as-macro (end to end — the saved macro reappears
+  correctly as non-read-only, with the right emitted variables), Auto-decimate
+  (with and without the flag), and the bundled-macro merge (three starters
+  list as read-only, a user save does not). Primitives Export and Export
+  Drawing Sheet were verified up to `showSaveDialog` — a **native** OS dialog
+  Playwright cannot drive, same limitation every pre-existing export flow
+  using `promptSaveAndWrite` already has. The Mesh-operations panel could not
+  be driven live: it needs a document opened through CAD mode's *own* Open
+  dialog specifically (any meshio-overlap format opened via the normal
+  file-open path routes to mesh mode instead, per `router.ts`'s
+  `modeForFile`), which is itself a native dialog — verified by typecheck and
+  line-by-line comparison against `provider.ts` instead.
 
 **The CAD MCP kernel must be bundled by KKSS.** The copied upstream worker
 requires external Gmsh/meshio/fTetWild packages from the extension's

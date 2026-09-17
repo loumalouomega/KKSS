@@ -109,6 +109,8 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__hit_test: "read",
   cad__list_standard_hole_sizes: "read",
   cad__generate_mesh: "read",
+  cad__generate_hole_table: "read",
+  cad__inspect_meshio_fields: "read",
   cad__download_standard_part: "write",
   cad__transform_mesh: "write",
   cad__decompose_to_primitives: "write",
@@ -117,6 +119,10 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__repair_mesh: "write",
   cad__export_technical_drawing: "write",
   cad__export_svg_silhouette: "write",
+  cad__export_drawing_sheet: "write",
+  cad__import_svg: "write",
+  cad__pin_annotation: "write",
+  cad__save_model: "write",
   cad__apply_edit_ops: "write",
   cad__run_parametric_script: "write",
   cad__remove_edit_op: "write",
@@ -183,6 +189,7 @@ export const DRY_RUN_PARAM: Readonly<Record<string, string>> = {
   cad__apply_edit_ops: "dryRun",
   cad__run_parametric_script: "dryRun",
   cad__run_saved_script: "dryRun",
+  cad__import_svg: "dryRun",
 };
 
 /**
