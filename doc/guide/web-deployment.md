@@ -214,4 +214,8 @@ behind an authenticating front (e.g. [Kasm Workspaces](https://kasmweb.com/),
 or Traefik/OAuth2-proxy plus a small session orchestrator), with per-user
 `/workspace` volumes. The container built here is the unit such an
 orchestrator would launch, but the orchestration and auth layer are
-deliberately out of scope for this single-user setup.
+deliberately out of scope for this single-user setup. The steps toward it —
+a login in front of the stream, TLS, session lifecycle, operator-provisioned
+settings, file transfer, a Kratos-enabled image variant and a reference
+per-user orchestrator — are queued as the *Web service* tier of the
+[roadmap](../roadmap).
