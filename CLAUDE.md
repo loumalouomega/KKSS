@@ -140,11 +140,13 @@ Concretely:
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (10.20.2, which adds the field-only
+  `@meshioplusplus/wasm` package (12.0.0; since 10.20 it has the field-only
   `.dex`/`.ip`/`.mff` formats — point fields, no geometry — the write-only
   SVG/TikZ figure formats exposed in the export menu's "Figures" group, and,
   since it statically links HDF5/netCDF, the Exodus/CGNS/H5M/HMF/MED family
-  plus `timeStep`/`timeValues` for the in-file Exodus timeline). **Both WASM
+  plus `timeStep`/`timeValues` for the in-file Exodus timeline — and, since
+  11.3.0/12.0.0, header-only in-file timelines for MED, CGNS and Tecplot too).
+  **Both WASM
   variants must ship**: since 8.8.0 the package carries
   `meshioplusplus_wasm_mt.{mjs,wasm}` beside the sequential pair (~+6.2 MB) and
   auto-selects the threaded one under Node — i.e. in the main process and
@@ -729,7 +731,7 @@ Concretely:
   bearer token only, since an external client has no user to prompt. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 78-name key set.
+  `test/chatToolPolicy.test.ts` pins the exact 83-name key set.
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -940,11 +942,11 @@ Concretely:
 
 ## Verified submodule integration (Tier 0)
 
-CAD v2.3.0 (`1587a12`) and mesh v3.27.0 through `kkss.dev` (`5ec1658`)
+CAD v2.7.0 (`fcce0e8`) and mesh v4.0.7 through `kkss.dev` (`16ca591`)
 are integrated without edits to either submodule. The recurring release-bump
 checklist lives in `doc/guide/development.md` under **Submodule release
 maintenance**; repeat it for every bump, including live MCP tool discovery
-(the current sets are 52 CAD + 22 mesh + 4 aggregation tools).
+(the current sets are 56 CAD + 23 mesh + 4 aggregation tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
 port, not just a gitlink bump.** Two classes of change, both in
@@ -1013,6 +1015,71 @@ port, not just a gitlink bump.** Two classes of change, both in
   file-open path routes to mesh mode instead, per `router.ts`'s
   `modeForFile`), which is itself a native dialog — verified by typecheck and
   line-by-line comparison against `provider.ts` instead.
+
+**The cad 2.3.0 → 2.7.0 jump (four releases) needed one correctness fix and
+four small ports; mesh 3.27.0 → 4.0.7 needed no code at all.**
+
+- **Plane refs must be resolved before the first tessellation, and again in
+  `loadModel`.** cad 2.5.0 lets a circle/rectangle/polygon profile be authored
+  on a named plane (`planeId` + offsets) and carry *no* `center`/`normal`/`up`
+  of its own; `occtOperations.addProfile` then skips it if it was never
+  resolved. `provider.ts`'s `ready` does `Promise.all([readEdits, readPlanes])`
+  → `resolvePlaneRefs` *before* `loadModel()`, and `loadModel` resolves the
+  replay tail once more. `cadHost.ts` had read planes in a separate
+  fire-and-forget after `loadModel()`, so a plane-authored profile **silently
+  vanished on reopen** (a negative control against the pre-fix host: 6 faces
+  vs 7, and the host posted unresolved ops). Both spots are now ported; keep them
+  in step with the provider.
+- **The four ports** (all in `cadHost.ts`, message-for-message against
+  `provider.ts`): `meshPresetApply`/`SaveCurrent`/`Delete` + `sendMeshPresets`
+  (the FE Mesh panel's saved presets), `standardPartsThumbsRequest`,
+  `clashCheckAllRequest`'s `maxPairs`/`maxBooleans` budget (the result now also
+  carries `totalPairs`/`checkedPairs`/`screenedPairs`/`partial`; the pair-count
+  assertion **stays** — a bounded run still returns one row per pair, the
+  over-budget ones flagged `unchecked` and never reported clash-free), and
+  `opBuckets` on `opPreviewResult`.
+- **The preset library is the second per-*folder* sidecar**
+  (`cad-preview-mesh-presets.json`, `MESH_PRESET_LIBRARY_NAME` beside
+  `MACRO_LIBRARY_NAME`), so it is written through `writeFileAtomic` (two tabs in
+  one directory share it) and is **excluded from cloud write-back** for the same
+  reason the macro library is. Its bundled starters ship at
+  `out/cad-runtime/dist/mesh-presets/starter-presets.json` — another
+  `<extensionPath>/dist/…` pair in `copyArtifacts()`, and what the chat's cad MCP
+  server reads for `list_mesh_presets`.
+- **The thumbnail cache is module-level, not per host.** The provider keeps one
+  `ThumbCache` for every open document (the catalog is document-independent), and
+  a `CadHost` is per tab — so it sits beside `liveHosts`. `lastPartsSearch` is
+  per-session, nulled in `disposeSession()` and re-checked before the post, so a
+  slow image fetch can never paint into a closed tab or a replaced document.
+- **Deliberately not ported: `cad-preview.zoomToSelection`** (the command and its
+  `zoomToSelection` relay) — like every `cad-preview.*` command it has no KKSS
+  analogue, and the Select menu's own button is purely webview-side. Recorded in
+  `cadHost.ts`'s header beside SpaceMouse and the Models view.
+- **mesh 4.0.7 is not a breaking release.** The `4.0.0` number was a hand edit in
+  an ordinary feature commit (no tag, no changelog entry; 4.0.1/4.0.2 were burned
+  by the submodule's own `reinstall-local.sh`). Audited: zero new `vscode.*`
+  APIs, `extension.ts` byte-identical, both provider constructors unchanged,
+  `buildPreviewHtml` unchanged (the new Variables section arrives through the
+  imported `SIDEBAR_HTML`), no new `globalState` key, no new external import.
+  What did move: one new MCP tool (`mesh_capabilities`), meshio++ 12.0.0
+  (same four files, and MED/CGNS/Tecplot now open with a real timeline scrubber),
+  vtk.js 37, and `toWireModel`, which copies every field array on every model post
+  to dodge a VS Code transport bug Electron does not have — pure overhead here,
+  and not fixable without editing the submodule.
+- **Known, pre-existing gap (not from this bump):** `handleBRep`'s `geometry`
+  post carries only meshes/edges/points. The provider also sends `autoFit`,
+  `opOutcomes` (rebased by `bakedThrough`), `guideIds` and `opBuckets`, so in KKSS
+  the Edits panel never flags an op the kernel skipped and `guide: true`
+  construction geometry is not dimmed. It predates 2.3.0; porting it means
+  threading `bakedKinds` through the load path.
+- **Verified live** (Playwright-Electron, message capture on the cad view's
+  `webContents.send`): plane-authored profile survives reopen; the four bundled
+  starters list read-only, Apply writes `<model>.mesh.json` + `.geo`, and Delete
+  of a starter is refused; a bounded clash run over `as1_pe.stp` reports
+  `checked=1 of total=6, partial`; the copied CAD and mesh MCP servers list
+  exactly 56 + 23 tools, matching `toolPolicy.ts` in both directions. Not driven:
+  the preset **Save** flow (its name prompt is a native modal) and thumbnail
+  fetching (needs the network catalog).
 
 **The CAD MCP kernel must be bundled by KKSS.** The copied upstream worker
 requires external Gmsh/meshio/fTetWild packages from the extension's

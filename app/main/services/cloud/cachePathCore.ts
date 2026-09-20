@@ -18,7 +18,12 @@
  */
 import { createHash } from "node:crypto";
 import { meshExtname, meshStem } from "../../../../mesh/src/parser/meshFormats";
-import { CAD_SIDECAR_SUFFIXES, MACRO_LIBRARY_NAME, MESH_RUN_SIDECAR } from "../sidecarSuffixes";
+import {
+  CAD_SIDECAR_SUFFIXES,
+  MACRO_LIBRARY_NAME,
+  MESH_PRESET_LIBRARY_NAME,
+  MESH_RUN_SIDECAR,
+} from "../sidecarSuffixes";
 import type { CloudRef, ProviderId } from "./cloudCore";
 
 /** Stable per (account, item). 16 hex chars — collision-free in practice for a
@@ -92,13 +97,14 @@ export function isStagingArtifact(name: string): boolean {
 /**
  * Whether `candidate` is a sidecar of the staged document `modelName`.
  *
- * Deliberately excludes the macro library: `cad-preview-macros.json` is a per
- * *folder* library while the cache is per *file*, so uploading it would let two
- * models from one remote folder overwrite each other's macros. It stays local.
+ * Deliberately excludes the macro and meshing-preset libraries:
+ * `cad-preview-macros.json` and `cad-preview-mesh-presets.json` are per *folder*
+ * libraries while the cache is per *file*, so uploading either would let two
+ * models from one remote folder overwrite each other's copy. They stay local.
  */
 export function isSidecarOf(modelName: string, candidate: string): boolean {
   if (candidate === modelName) return false;
-  if (candidate === MACRO_LIBRARY_NAME) return false;
+  if (candidate === MACRO_LIBRARY_NAME || candidate === MESH_PRESET_LIBRARY_NAME) return false;
   if (CAD_SIDECAR_SUFFIXES.some((suffix) => candidate === `${modelName}${suffix}`)) return true;
   return candidate === `${meshStem(modelName)}${MESH_RUN_SIDECAR}`;
 }

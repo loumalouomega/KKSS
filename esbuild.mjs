@@ -25,6 +25,8 @@ const required = [
   ["mesh/dist/mmg-core.wasm", "npm run package --prefix mesh"],
   ["cad/dist/opencascade.wasm.wasm", "npm run build --prefix cad"],
   ["cad/dist/gmsh-core.wasm", "npm run build --prefix cad"],
+  // cad 2.7.0's bundled starter meshing presets (cad/esbuild.mjs copyMeshPresets).
+  ["cad/dist/mesh-presets/starter-presets.json", "npm run build --prefix cad"],
   // Stdio MCP servers spawned by the chat sidebar (app/main/services/chat/).
   ["cad/dist/mcp-server.js", "npm run build --prefix cad"],
   ["mesh/dist/mcpServer.js", "npm run package --prefix mesh"],
@@ -268,6 +270,13 @@ function copyArtifacts() {
     [
       "cad/dist/macros/starter-library.json",
       out("cad-runtime/dist/macros/starter-library.json"),
+    ],
+    // cad 2.7.0's bundled starter meshing presets — same <extensionPath>/dist/…
+    // convention (bundledMeshPresetsPath), and also what the chat sidebar's
+    // cad MCP server reads for list/apply_mesh_preset.
+    [
+      "cad/dist/mesh-presets/starter-presets.json",
+      out("cad-runtime/dist/mesh-presets/starter-presets.json"),
     ],
     // Stdio MCP servers for the chat sidebar. cad's sits beside its WASM so
     // its extensionPath (= dirname/..) resolves to out/cad-runtime; mesh's

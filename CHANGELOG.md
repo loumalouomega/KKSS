@@ -5,6 +5,37 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [1.12.0] - 2026-09-20
+
+- feat: **CAD-Preview updated to 2.7.0** (from 2.3.0) and **VSCode-MDPA-Preview
+  to 4.0.7** (from 3.27.0). Pre-processing gains **saved view bookmarks** (name
+  a camera orientation, projection, display mode and clip plane, and restore it
+  from the View menu), **reusable meshing presets** (a *Saved presets* section
+  in the FE Mesh panel with four bundled starters and a per-folder library the
+  assistant shares), profiles that can be **sketched on a named construction
+  plane**, **volume and point selection filters** plus **Zoom to selection**,
+  per-band **operation-preview colouring**, **Standard Parts thumbnails**,
+  **bounded assembly clash checks** (pairs past a budget are reported as
+  unchecked, never as clash-free), a **resizable sidebar**, keyboard navigation
+  for dropdown menus, and clip caps that follow part visibility. Post-processing
+  gains a **Variables** sidebar section — named formulas, distances (to a file, a
+  SubModelPart or the mesh's own exterior skin) and **global reductions**
+  (min/max/mean/std/…) usable by name in any formula, including the remesh
+  sizing formula — a **Boundary-layer remesh preset** that prepares those
+  variables for you, remeshing that now **carries data fields** onto the new
+  mesh, and header-only in-file **timelines for MED, CGNS and Tecplot** through
+  meshio++ 12.0.0.
+- fix: a profile authored on a named plane **no longer disappears when its model
+  is reopened**. The viewer host resolved plane references only after the first
+  tessellation, so the kernel skipped a plane-authored profile that carried no
+  placement of its own.
+- feat: the AI assistant sees the new tools — `save_mesh_preset`,
+  `list_mesh_presets`, `apply_mesh_preset`, `compare_mesh_refinement` (which
+  meshes one model at several sizes and compares cost against element quality)
+  and `mesh_capabilities` — with the preset writers and the refinement sweep
+  behind the usual approval prompt. Its description of which formats report a
+  step count before a read is corrected: MED, CGNS and Tecplot now do too.
+
 ## [1.11.0] - 2026-09-17
 
 - fix: pre-create `/tmp/.X11-unix` root-owned in the streamed-desktop Docker
@@ -70,6 +101,7 @@ full auto-generated compare links.
   HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
   functional change to the app itself
 
+[1.12.0]: https://github.com/loumalouomega/KKSS/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/loumalouomega/KKSS/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/loumalouomega/KKSS/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/loumalouomega/KKSS/compare/v1.8.0...v1.9.0

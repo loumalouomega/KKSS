@@ -134,6 +134,7 @@ describe("isSidecarOf", () => {
     // Per FOLDER, not per model — syncing it would let two models from one
     // remote folder overwrite each other's macros.
     expect(isSidecarOf("bull.stp", "cad-preview-macros.json")).toBe(false);
+    expect(isSidecarOf("bull.stp", "cad-preview-mesh-presets.json")).toBe(false);
   });
 });
 
@@ -144,6 +145,7 @@ describe("sidecarNamesFor", () => {
     expect(names).toContain("bull.stp.geo");
     expect(names).toContain("bull.kratosrun.json");
     expect(names).not.toContain("cad-preview-macros.json");
+    expect(names).not.toContain("cad-preview-mesh-presets.json");
     // Everything it names must be recognised on the way back in.
     for (const name of names) expect(isSidecarOf("bull.stp", name)).toBe(true);
   });

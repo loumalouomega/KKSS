@@ -33,5 +33,12 @@ export const CAD_SIDECAR_SUFFIXES: readonly string[] = Object.values(CAD_SIDECAR
  */
 export const MACRO_LIBRARY_NAME = "cad-preview-macros.json";
 
+/**
+ * cad 2.7.0's meshing-preset library. Per **folder** like the macro library —
+ * one file shared by every model beside it — and for the same reason it is
+ * never cloud-synced (see `cachePathCore.ts`).
+ */
+export const MESH_PRESET_LIBRARY_NAME = "cad-preview-mesh-presets.json";
+
 /** mesh 3.8.0's RunManager sidecar, written as `<stem>.kratosrun.json`. */
 export const MESH_RUN_SIDECAR = ".kratosrun.json";
