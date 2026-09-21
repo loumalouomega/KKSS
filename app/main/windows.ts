@@ -24,6 +24,7 @@ export const SHELL_HEIGHT = 40;
 export const TAB_STRIP_HEIGHT = 34;
 export const TERMINAL_HEIGHT = 280;
 export const CHAT_WIDTH = 360;
+export const DEFAULT_WINDOW_TITLE = "KKSS — Keep Kratos Simple Stupid";
 
 /** Discrete interface-scale steps offered by the shell's zoom picker. */
 export const ZOOM_PRESETS = [0.75, 0.9, 1, 1.1, 1.25, 1.5] as const;
@@ -106,7 +107,7 @@ export function createMainWindow(
     height: 860,
     minWidth: 720,
     minHeight: 480,
-    title: "KKSS — Keep Kratos Simple Stupid",
+    title: DEFAULT_WINDOW_TITLE,
     backgroundColor: "#1e1e1e",
     // Window/taskbar icon (Linux; Windows/macOS use the packaged icon).
     icon: path.join(outDir, "icon.png"),
