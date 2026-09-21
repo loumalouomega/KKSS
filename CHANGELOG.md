@@ -5,6 +5,44 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.0.0] - 2026-09-21
+
+- feat: **a redesigned window, shared by both viewers and the app around them.**
+  This is a major version because nearly every control moved or changed look,
+  not because of file compatibility — existing models and sidecars open as
+  before. **CAD-Preview is updated to 3.0.0** and **VSCode-MDPA-Preview
+  (4.0.7 plus its UI redesign) now follows the same design**, so switching
+  between Pre- and Post-Processing no longer changes where things are: a
+  **document chip** in the menubar (file name, format badge, and a dot with
+  `N unsaved edits`), an icon on every sidebar section, a collapsed
+  **Advanced** group for the read-only sections, a floating toolbar, a one-row
+  **dock** along the bottom (reset/fit/zoom, display mode, clip plane,
+  perspective, with the rest behind **⋯**) and a full-width **status bar**.
+- feat: the CAD status bar shows which **kernels have loaded** (`OCCT ready ·
+  Gmsh ready`), the entity counts, the generated FE mesh and the live cursor
+  position in the units you chose. A document that needs no WebAssembly kernel,
+  such as a plain STL, honestly reads `Kernels idle`. The Post-Processing
+  status bar shows the meshio++ / MMG engine state, model counts, the timeline
+  frame and your last Inspect pick.
+- feat: the app's own screens use the same design — the toolbar and tab strip,
+  home screen, AI chat, Kratos jobs panel, text editor, terminal and dialogs
+  share one set of controls, spacing and icons. The **Terminal**, **Chat** and
+  **Jobs** buttons now show as pressed while their panel is open, and the chat
+  header's history, new-conversation and close controls are icon buttons.
+- feat: Post-Processing's dock and dropdown menus are keyboard-navigable (arrow
+  keys, `Esc` returns focus to the trigger), and the press-and-hold rotate and
+  zoom buttons now respond to `Enter` and `Space`.
+- fix: clicking the icon on a Post-Processing toolbar button did nothing; only
+  the label responded. The quick-pick dialog's text field was also always
+  visible because a content-security rule silently blocked the style that
+  hid it.
+- docs: an edited STEP, IGES, BREP, STL, OBJ or PLY keeps showing `N unsaved
+  edits`. That is accurate: KKSS writes your edits to the `<model>.edits.json`
+  sidecar (autosaved) and never into the source file, and **File ▸ Export…**
+  is what produces a standalone one. A part's target mesh size is now edited in
+  **FE Mesh ▸ Part sizes**, not in the Parts panel; the stored value is
+  unchanged.
+
 ## [1.12.0] - 2026-09-20
 
 - feat: **CAD-Preview updated to 2.7.0** (from 2.3.0) and **VSCode-MDPA-Preview
@@ -101,6 +139,7 @@ full auto-generated compare links.
   HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
   functional change to the app itself
 
+[2.0.0]: https://github.com/loumalouomega/KKSS/compare/v1.11.0...v2.0.0
 [1.12.0]: https://github.com/loumalouomega/KKSS/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/loumalouomega/KKSS/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/loumalouomega/KKSS/compare/v1.9.0...v1.10.0
