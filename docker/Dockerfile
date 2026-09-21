@@ -8,7 +8,7 @@ RUN go mod download
 COPY docker/web/ ./
 RUN CGO_ENABLED=0 go build -trimpath -o /kkss-web .
 
-FROM caddy:2.11.0 AS caddy-binary
+FROM caddy:2.11.4 AS caddy-binary
 FROM ghcr.io/astral-sh/uv:0.12.10 AS uv-binary
 #
 # KKSS streamed-desktop image: the unmodified Electron app runs headless under
@@ -175,4 +175,7 @@ COPY docker/kratos/check-licenses.py /opt/check-kratos-licenses.py
 RUN /opt/kkss-kratos/bin/python /opt/check-kratos-licenses.py > /opt/kratos-licenses.json
 USER 1000:1000
 
+# The runtime stage is intentionally selected by the build variant (base or
+# kratos); both names are defined above in this Dockerfile.
+# hadolint ignore=DL3006
 FROM runtime-${KKSS_VARIANT} AS runtime
