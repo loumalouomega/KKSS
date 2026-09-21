@@ -60,7 +60,9 @@ jobs:
           # the runtime apt-get RUN's own comment in the Dockerfile. The
           # scan step below (not this rule) is what actually gates a release
           # on a clean image; the rest of the ruleset still applies.
-          ignore: DL3005,DL3008
+          # DL3006: the final runtime stage is intentionally selected by the
+          # KKSS_VARIANT build arg (base or kratos).
+          ignore: DL3005,DL3006,DL3008
 
   image:
     name: image (${{ matrix.arch }})
