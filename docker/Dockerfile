@@ -17,10 +17,11 @@ ARG CADDY_SOURCE_SHA256=2c3d02078286a6282cdb4d1d8744077788d556659dac0b64d8ed5886
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/* \
  && curl -fsSL "https://github.com/caddyserver/caddy/archive/refs/tags/v${CADDY_VERSION}.tar.gz" -o /tmp/caddy.tar.gz \
- && echo "${CADDY_SOURCE_SHA256}  /tmp/caddy.tar.gz" | sha256sum -c - \
+ && echo "${CADDY_SOURCE_SHA256}  /tmp/caddy.tar.gz" > /tmp/caddy.sha256 \
+ && sha256sum -c /tmp/caddy.sha256 \
  && mkdir /src \
  && tar -xzf /tmp/caddy.tar.gz -C /src --strip-components=1 \
- && rm /tmp/caddy.tar.gz
+ && rm /tmp/caddy.tar.gz /tmp/caddy.sha256
 WORKDIR /src
 RUN go mod edit -require=golang.org/x/crypto@v0.55.0 \
  && go mod download \
