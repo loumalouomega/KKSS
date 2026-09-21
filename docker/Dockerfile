@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && rm /tmp/caddy.tar.gz /tmp/caddy.sha256
 WORKDIR /src
 RUN go mod edit -require=golang.org/x/crypto@v0.55.0 \
- && go mod download \
+ && go mod tidy \
  && CGO_ENABLED=0 go build -trimpath -o /caddy ./cmd/caddy
 
 FROM ghcr.io/astral-sh/uv:0.12.10 AS uv-binary
