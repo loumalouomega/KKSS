@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && rm /tmp/caddy.tar.gz /tmp/caddy.sha256
 WORKDIR /src
 RUN go mod edit -require=golang.org/x/crypto@v0.55.0 \
+ && go mod edit -require=google.golang.org/grpc@v1.83.2 \
  && go mod tidy \
  && CGO_ENABLED=0 go build -trimpath -o /caddy ./cmd/caddy
 
