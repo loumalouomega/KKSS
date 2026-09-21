@@ -1,4 +1,15 @@
 # syntax=docker/dockerfile:1
+ARG KKSS_VARIANT=base
+
+FROM golang:1.27.1-bookworm AS web-builder
+WORKDIR /web
+COPY docker/web/go.mod docker/web/go.sum ./
+RUN go mod download
+COPY docker/web/ ./
+RUN CGO_ENABLED=0 go build -trimpath -o /kkss-web .
+
+FROM caddy:2.11.0 AS caddy-binary
+FROM ghcr.io/astral-sh/uv:0.12.10 AS uv-binary
 #
 # KKSS streamed-desktop image: the unmodified Electron app runs headless under
 # Xvfb with SwiftShader software rendering (the same setup the CI smoke test
@@ -11,7 +22,7 @@
 #
 # Build context is the repo root and REQUIRES initialized submodules:
 #   git submodule update --init --recursive
-# Then: docker compose up --build   →   http://localhost:6080/vnc.html
+# Then: docker compose up --build   →   http://localhost:6080/
 
 # ---------------------------------------------------------------- builder ---
 FROM node:20-bookworm AS builder
@@ -49,7 +60,7 @@ RUN --mount=type=cache,target=/root/.cache/electron-builder \
  && test -x /packaged/kkss
 
 # ---------------------------------------------------------------- runtime ---
-FROM debian:bookworm-slim AS runtime
+FROM debian:bookworm-slim AS runtime-base
 
 # Same Debian release as the builder, so node-pty's compiled binary keeps its
 # glibc ABI.
@@ -84,7 +95,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libx11-xcb1 libxcb-dri3-0 libsecret-1-0 libnotify4 \
     xdg-utils fonts-liberation ca-certificates dbus-x11 \
     xvfb openbox x11vnc novnc websockify x11-utils \
-    tini xdotool procps curl \
+    tini xdotool procps curl openssl tigervnc-standalone-server tigervnc-tools mesa-utils libegl1 libgl1-mesa-dri \
  && rm -rf /var/lib/apt/lists/*
 
 # Non-root runtime user. uid/gid 1000 matches the first user on most Linux
@@ -105,7 +116,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # still root, removes the race rather than relying on winning it.
 RUN groupadd --gid 1000 kkss \
  && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash kkss \
- && mkdir -p /workspace /home/kkss/.config/kkss /tmp/.X11-unix \
+ && mkdir -p /workspace /home/kkss/.config/kkss /home/kkss/.config/caddy /home/kkss/.local/share/caddy /tmp/.X11-unix \
  && chmod 1777 /tmp/.X11-unix \
  && chown -R kkss:kkss /workspace /home/kkss
 
@@ -113,6 +124,8 @@ RUN groupadd --gid 1000 kkss \
 # never writes into its own directory, and a non-root process that cannot
 # modify its own binaries is the point of running non-root at all.
 COPY --from=builder /packaged /opt/kkss
+COPY --from=web-builder /kkss-web /opt/kkss-web
+COPY --from=caddy-binary /usr/bin/caddy /usr/bin/caddy
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -132,7 +145,7 @@ ENV LANG=C.UTF-8 \
     DISPLAY_SIZE=1920x1080 \
     NOVNC_PORT=6080 \
     KKSS_BIN=/opt/kkss/kkss
-EXPOSE 6080
+EXPOSE 6080 6443
 
 # Feature-level probe, not just "the port answers": noVNC has to serve, the X
 # display has to exist, and the app process has to be alive — otherwise a
@@ -142,6 +155,24 @@ EXPOSE 6080
 # at run time. The last command's status is the health verdict — no `|| exit 1`
 # needed.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=90s \
-  CMD ["/bin/sh", "-c", "curl -fsS \"http://localhost:${NOVNC_PORT}/\" >/dev/null && xdpyinfo -display \"$DISPLAY\" >/dev/null 2>&1 && pgrep -f \"$KKSS_BIN\" >/dev/null"]
+  CMD ["/bin/sh", "-c", "if [ \"${KKSS_TLS_TERMINATED:-0}\" != 1 ] && echo \"${KKSS_PUBLIC_URL:-}\" | grep -q '^https://'; then host=\"${KKSS_PUBLIC_URL#https://}\"; host=\"${host%%/*}\"; host=\"${host%%:*}\"; curl -kfsS --resolve \"$host:6443:127.0.0.1\" \"https://$host:6443/healthz\" >/dev/null; else curl -fsS \"http://127.0.0.1:${NOVNC_PORT}/healthz\" >/dev/null; fi && xdpyinfo -display \"$DISPLAY\" >/dev/null 2>&1 && pgrep -f \"$KKSS_BIN\" >/dev/null"]
 
 ENTRYPOINT ["tini", "--", "/entrypoint.sh"]
+
+
+FROM runtime-base AS runtime-kratos
+ARG TARGETARCH
+USER root
+COPY --from=uv-binary /uv /uvx /opt/uv/
+COPY docker/kratos/requirements.lock /opt/kratos-requirements.lock
+RUN test "$TARGETARCH" = amd64 \
+ && UV_PYTHON_INSTALL_DIR=/opt/python /opt/uv/uv python install 3.12 \
+ && UV_PYTHON_INSTALL_DIR=/opt/python /opt/uv/uv venv --python 3.12 /opt/kkss-kratos \
+ && /opt/uv/uv pip install --python /opt/kkss-kratos/bin/python --require-hashes --only-binary :all: -r /opt/kratos-requirements.lock \
+ && /opt/kkss-kratos/bin/python -c "import KratosMultiphysics; import KratosMultiphysics.StructuralMechanicsApplication; import KratosMultiphysics.FluidDynamicsApplication; import KratosMultiphysics.ConvectionDiffusionApplication; import KratosMultiphysics.CompressiblePotentialFlowApplication; import KratosMultiphysics.ShallowWaterApplication" \
+ && chmod -R a+rX /opt/python /opt/kkss-kratos
+COPY docker/kratos/check-licenses.py /opt/check-kratos-licenses.py
+RUN /opt/kkss-kratos/bin/python /opt/check-kratos-licenses.py > /opt/kratos-licenses.json
+USER 1000:1000
+
+FROM runtime-${KKSS_VARIANT} AS runtime

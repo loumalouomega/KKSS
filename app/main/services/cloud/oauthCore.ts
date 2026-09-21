@@ -104,3 +104,15 @@ export function parseTokenResponse(raw: unknown, now: number): TokenSet {
     refreshToken: typeof v.refresh_token === "string" ? v.refresh_token : undefined,
   };
 }
+
+/** Manual redirects must target the exact listener allocated for this attempt. */
+export function parseManualCallback(raw: string, redirectUri: string, state: string): string {
+  let url: URL;
+  try { url = new URL(raw); } catch { throw new CloudError("auth", "Paste the complete callback URL."); }
+  const expected = new URL(redirectUri);
+  if (url.origin !== expected.origin || url.pathname !== expected.pathname || url.username || url.password || url.hash ||
+      url.searchParams.getAll("state").length !== 1 || url.searchParams.getAll("code").length > 1) {
+    throw new CloudError("auth", "The callback does not belong to this sign-in attempt.");
+  }
+  return parseCallback(url.href, state);
+}

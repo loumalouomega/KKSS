@@ -159,6 +159,7 @@ const SHELL_CHOICES: Array<{ value: string | undefined; label: string }> =
 
 /** Secret entry: never prefills the stored value; empty input clears it. */
 async function promptSecret(key: string, title: string, placeHolder: string): Promise<void> {
+  if (stateStore.isManaged(key)) return;
   const value = await showInputBox({
     title,
     prompt: hasSecret(key) ? "Currently configured — enter a new key to replace it, or leave empty to clear." : undefined,
@@ -197,6 +198,7 @@ async function setApprovalMode(mode: ApprovalMode, deps: MenuDeps): Promise<void
 
 /** Plain setting entry, prefilled with the current (or default) value. */
 async function promptValue(key: string, title: string, defaultValue: string): Promise<void> {
+  if (stateStore.isManaged(key)) return;
   const value = await showInputBox({
     title,
     value: stateStore.get<string>(key) || defaultValue,
@@ -224,11 +226,14 @@ function cloudAccountsSubmenu(deps: MenuDeps): Electron.MenuItemConstructorOptio
         },
         { type: "separator" },
         {
-          label: "Client ID…",
+          label: "Client ID…" + (stateStore.isManaged(`cloud.${status.id}.clientId`) ? " (set by the environment)" : ""),
+          enabled: !stateStore.isManaged(`cloud.${status.id}.clientId`),
           click: () => void promptCloudClientId(deps, status),
         },
         {
-          label: status.needsClientSecret ? "Client Secret…" : "Client Secret… (optional)",
+          enabled: !stateStore.isManaged(`cloud.${status.id}.clientSecret`),
+          label: (status.needsClientSecret ? "Client Secret…" : "Client Secret… (optional)") +
+            (stateStore.isManaged(`cloud.${status.id}.clientSecret`) ? " (set by the environment)" : ""),
           click: () => void promptCloudSecret(deps, status),
         },
         { type: "separator" },
@@ -352,10 +357,10 @@ export function installMenu(deps: MenuDeps): void {
           click: () => deps.projectRoot.choose(),
         },
         {
-          label: "Clear Project Root",
+          label: "Clear Project Root" + (stateStore.isManaged("projectRoot") ? " (set by the environment)" : ""),
           // Stays available for a stored-but-missing root (deleted or unmounted),
           // which `current()` hides but the user still needs to be able to drop.
-          enabled: deps.projectRoot.isSet(),
+          enabled: deps.projectRoot.isSet() && !stateStore.isManaged("projectRoot"),
           click: () => deps.projectRoot.clear(),
         },
         { type: "separator" },
@@ -552,24 +557,28 @@ export function installMenu(deps: MenuDeps): void {
         {
           // Interface scale: applies to every view + the chrome, persisted.
           // Ctrl+0 is "Home", so Reset uses Ctrl+Shift+0.
-          label: "Zoom In",
+          label: "Zoom In" + (stateStore.isManaged("uiZoom") ? " (set by the environment)" : ""),
+          enabled: !stateStore.isManaged("uiZoom"),
           accelerator: "CmdOrCtrl+Plus",
           click: () => deps.zoom.stepIn(),
         },
         // Hidden twin so the unshifted "Ctrl+=" also zooms in (Plus needs Shift).
         {
-          label: "Zoom In",
+          label: "Zoom In" + (stateStore.isManaged("uiZoom") ? " (set by the environment)" : ""),
+          enabled: !stateStore.isManaged("uiZoom"),
           accelerator: "CmdOrCtrl+=",
           visible: false,
           click: () => deps.zoom.stepIn(),
         },
         {
-          label: "Zoom Out",
+          label: "Zoom Out" + (stateStore.isManaged("uiZoom") ? " (set by the environment)" : ""),
+          enabled: !stateStore.isManaged("uiZoom"),
           accelerator: "CmdOrCtrl+-",
           click: () => deps.zoom.stepOut(),
         },
         {
-          label: "Reset Zoom",
+          label: "Reset Zoom" + (stateStore.isManaged("uiZoom") ? " (set by the environment)" : ""),
+          enabled: !stateStore.isManaged("uiZoom"),
           accelerator: "CmdOrCtrl+Shift+0",
           click: () => deps.zoom.reset(),
         },
@@ -603,7 +612,8 @@ export function installMenu(deps: MenuDeps): void {
       label: "&Settings",
       submenu: [
         {
-          label: "Color Theme",
+          label: "Color Theme" + (stateStore.isManaged("sceneTheme") ? " (set by the environment)" : ""),
+          enabled: !stateStore.isManaged("sceneTheme"),
           submenu: SCENE_THEMES.map((t) => ({
             label: t.label,
             type: "radio" as const,
@@ -703,7 +713,8 @@ export function installMenu(deps: MenuDeps): void {
           // Reopens the last run's documents, screen and panels at launch.
           // Also skipped by KKSS_E2E (the harness launches the real app) and by
           // KKSS_NO_RESTORE=1 — see services/session.ts.
-          label: "Restore Last Session",
+          label: "Restore Last Session" + (stateStore.isManaged(RESTORE_SESSION_KEY) ? " (set by the environment)" : ""),
+          enabled: !stateStore.isManaged(RESTORE_SESSION_KEY),
           type: "checkbox" as const,
           checked: stateStore.get<boolean>(RESTORE_SESSION_KEY, true) !== false,
           click: (item) => void stateStore.update(RESTORE_SESSION_KEY, item.checked),
@@ -725,7 +736,8 @@ export function installMenu(deps: MenuDeps): void {
           label: "LLM Assistant",
           submenu: [
             {
-              label: "Provider",
+              label: "Provider" + (stateStore.isManaged("llmProvider") ? " (set by the environment)" : ""),
+              enabled: !stateStore.isManaged("llmProvider"),
               submenu: [
                 { value: "anthropic", label: "Anthropic (Claude)" },
                 { value: "openai", label: "OpenAI-compatible" },
@@ -756,24 +768,29 @@ export function installMenu(deps: MenuDeps): void {
             },
             { type: "separator" },
             {
-              label: "Anthropic API Key…",
+              label: "Anthropic API Key…" + (stateStore.isManaged("llmKeyAnthropic") ? " (set by the environment)" : ""),
+              enabled: !stateStore.isManaged("llmKeyAnthropic"),
               click: () => void promptSecret(LLM_KEYS.anthropicKey, "Anthropic API Key", "sk-ant-…"),
             },
             {
-              label: "Anthropic Model…",
+              label: "Anthropic Model…" + (stateStore.isManaged("llmModelAnthropic") ? " (set by the environment)" : ""),
+              enabled: !stateStore.isManaged("llmModelAnthropic"),
               click: () => void promptValue(LLM_KEYS.anthropicModel, "Anthropic Model", DEFAULT_ANTHROPIC_MODEL),
             },
             { type: "separator" },
             {
-              label: "OpenAI-compatible API Key…",
+              label: "OpenAI-compatible API Key…" + (stateStore.isManaged("llmKeyOpenai") ? " (set by the environment)" : ""),
+              enabled: !stateStore.isManaged("llmKeyOpenai"),
               click: () => void promptSecret(LLM_KEYS.openaiKey, "OpenAI-compatible API Key", "sk-… (leave empty for keyless backends like Ollama)"),
             },
             {
-              label: "OpenAI-compatible Base URL…",
+              label: "OpenAI-compatible Base URL…" + (stateStore.isManaged("llmOpenaiBaseUrl") ? " (set by the environment)" : ""),
+              enabled: !stateStore.isManaged("llmOpenaiBaseUrl"),
               click: () => void promptValue(LLM_KEYS.openaiBaseUrl, "OpenAI-compatible Base URL", DEFAULT_OPENAI_BASE_URL),
             },
             {
-              label: "OpenAI-compatible Model…",
+              label: "OpenAI-compatible Model…" + (stateStore.isManaged("llmModelOpenai") ? " (set by the environment)" : ""),
+              enabled: !stateStore.isManaged("llmModelOpenai"),
               click: () => void promptValue(LLM_KEYS.openaiModel, "OpenAI-compatible Model", DEFAULT_OPENAI_MODEL),
             },
           ],
@@ -785,14 +802,16 @@ export function installMenu(deps: MenuDeps): void {
           label: "MCP Server",
           submenu: [
             {
-              label: "Enable (external LLM access)",
+              label: "Enable (external LLM access)" + (stateStore.isManaged("metaServerEnabled") ? " (set by the environment)" : ""),
+              enabled: !stateStore.isManaged("metaServerEnabled"),
               type: "checkbox" as const,
               checked: deps.metaServer.enabled(),
               click: (item) => deps.metaServer.setEnabled(item.checked),
             },
             { type: "separator" },
             {
-              label: "Port…",
+              label: "Port…" + (stateStore.isManaged("metaServerPort") ? " (set by the environment)" : ""),
+              enabled: !stateStore.isManaged("metaServerPort"),
               // Applies on next enable (toggle off/on to rebind).
               click: () => void promptValue(META_SERVER_KEYS.port, "MCP Server Port", String(DEFAULT_META_SERVER_PORT)),
             },
@@ -801,7 +820,8 @@ export function installMenu(deps: MenuDeps): void {
               click: () => deps.metaServer.copyConfig(),
             },
             {
-              label: "Regenerate Token…",
+              label: "Regenerate Token…" + (stateStore.isManaged("metaServerToken") ? " (set by the environment)" : ""),
+              enabled: !stateStore.isManaged("metaServerToken"),
               click: () => deps.metaServer.regenerateToken(),
             },
           ],

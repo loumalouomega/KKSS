@@ -2,6 +2,7 @@
  * API-key storage: safeStorage-encrypted values inside the stateStore
  * (userData/state.json). Thin Electron binding over the pure secretCodec.
  */
+import { managedConfig } from "../managedConfig";
 import { safeStorage } from "electron";
 import { stateStore } from "../stateStore";
 import { decodeSecret, encodeSecret } from "./secretCodec";
@@ -12,7 +13,7 @@ export async function setSecret(key: string, value: string): Promise<void> {
 }
 
 export function getSecret(key: string): string | undefined {
-  return decodeSecret(safeStorage, stateStore.get(key));
+  return managedConfig().secrets.get(key) ?? decodeSecret(safeStorage, stateStore.get(key));
 }
 
 export function hasSecret(key: string): boolean {

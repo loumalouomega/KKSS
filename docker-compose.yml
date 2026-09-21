@@ -1,5 +1,5 @@
 # Run KKSS in the browser, built from this checkout:
-#   docker compose up --build   →   http://localhost:6080/vnc.html
+#   docker compose up --build   →   http://localhost:6080/
 #
 # Prereq: git submodule update --init --recursive (the image builds from the
 # checked-out submodules). To run the published image instead — no checkout, no
@@ -12,15 +12,31 @@ services:
       dockerfile: docker/Dockerfile
     image: kkss-web:local
     ports:
-      - "${KKSS_PORT:-6080}:6080" # noVNC — open http://localhost:6080/vnc.html
+      - "127.0.0.1:${KKSS_PORT:-6080}:6080" # noVNC — open http://localhost:6080/
     shm_size: "1gb" # belt-and-braces alongside --disable-dev-shm-usage
-    restart: unless-stopped
+    restart: on-failure
     # The entrypoint forwards SIGTERM to every child, so a stop is prompt; this
     # only bounds a wedged shutdown.
-    stop_grace_period: 20s
+    stop_grace_period: 40s
+    depends_on:
+      files:
+        condition: service_started
     environment:
+      KKSS_FILES_URL: http://files:8080
+      KKSS_PUBLIC_URL: "${KKSS_PUBLIC_URL:-http://localhost:6080}"
+      KKSS_BASE_PATH: "${KKSS_BASE_PATH:-}"
+      KKSS_IDLE_TIMEOUT: "${KKSS_IDLE_TIMEOUT:-0}"
+      KKSS_AUTH_USERS: "${KKSS_AUTH_USERS:-}"
+      KKSS_LLM_PROVIDER: "${KKSS_LLM_PROVIDER:-}"
+      KKSS_LLM_MODEL: "${KKSS_LLM_MODEL:-}"
+      KKSS_LLM_BASE_URL: "${KKSS_LLM_BASE_URL:-}"
+      KKSS_RESTORE_SESSION: "${KKSS_RESTORE_SESSION:-}"
+      KKSS_THEME: "${KKSS_THEME:-}"
+      KKSS_ZOOM: "${KKSS_ZOOM:-}"
+      KKSS_META_ENABLED: "${KKSS_META_ENABLED:-}"
+      KKSS_META_PORT: "${KKSS_META_PORT:-}"
       DISPLAY_SIZE: "${KKSS_DISPLAY_SIZE:-1920x1080}" # virtual screen geometry (fixed per start)
-      # VNC_PASSWORD: "changeme" # optional session password (set before exposing beyond localhost)
+      # Prefer a mounted KKSS_AUTH_USERS_FILE for operator-provisioned bcrypt accounts.
       # OPEN_FILE: /workspace/model.mdpa # optional file to open at launch
     volumes:
       # User simulation files — the in-app dialogs browse the container FS.
@@ -30,5 +46,18 @@ services:
       # Settings (state.json) persistence across container restarts. The app
       # runs as the non-root `kkss` user, so this lives under its home.
       - kkss-userdata:/home/kkss/.config/kkss
+  files:
+    build:
+      context: .
+      dockerfile: docker/files/Dockerfile
+    image: kkss-files:local
+    environment:
+      KKSS_BASE_PATH: "${KKSS_BASE_PATH:-}"
+    volumes:
+      - "${KKSS_WORKSPACE:-./mesh/example}:/srv"
+      - kkss-files:/database
+    restart: on-failure
+
 volumes:
+  kkss-files:
   kkss-userdata:

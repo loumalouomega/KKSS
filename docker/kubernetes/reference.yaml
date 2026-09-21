@@ -1,0 +1,187 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kkss
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kkss-auth-users
+  namespace: kkss
+type: Opaque
+stringData:
+  # Replace with newline-separated user:bcrypt-hash entries before applying.
+  users: "replace-me:$2a$10$replace-with-a-bcrypt-hash"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kkss-broker
+  namespace: kkss
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kkss-broker
+  namespace: kkss
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/status", "services", "secrets", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kkss-broker
+  namespace: kkss
+subjects:
+  - kind: ServiceAccount
+    name: kkss-broker
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kkss-broker
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kkss-broker-data
+  namespace: kkss
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kkss-broker
+  namespace: kkss
+spec:
+  selector:
+    app: kkss-broker
+  ports:
+    - name: http
+      port: 6082
+      targetPort: 6082
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kkss-broker
+  namespace: kkss
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kkss-broker
+  template:
+    metadata:
+      labels:
+        app: kkss-broker
+    spec:
+      serviceAccountName: kkss-broker
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: broker
+          image: ghcr.io/loumalouomega/kkss-broker:2.0.0
+          ports:
+            - containerPort: 6082
+          env:
+            - name: KKSS_BROKER
+              value: "1"
+            - name: KKSS_BACKEND
+              value: kubernetes
+            - name: KKSS_PUBLIC_URL
+              value: https://kkss.example.invalid
+            - name: KKSS_AUTH_USERS_FILE
+              value: /run/secrets/users
+            - name: KKSS_SESSION_IMAGE
+              value: ghcr.io/loumalouomega/kkss:2.0.0
+            - name: KKSS_FILES_IMAGE
+              value: filebrowser/filebrowser:v2.63.23
+          volumeMounts:
+            - name: state
+              mountPath: /data
+            - name: users
+              mountPath: /run/secrets
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: kkss-broker-data
+        - name: users
+          secret:
+            secretName: kkss-auth-users
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kkss-caddy
+  namespace: kkss
+data:
+  Caddyfile: |
+    :8080 {
+      reverse_proxy kkss-broker:6082
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kkss-web
+  namespace: kkss
+spec:
+  selector:
+    app: kkss-proxy
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kkss-proxy
+  namespace: kkss
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kkss-proxy
+  template:
+    metadata:
+      labels:
+        app: kkss-proxy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: caddy
+          image: caddy:2.11.0
+          ports:
+            - containerPort: 8080
+          args: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/caddy
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: kkss-caddy

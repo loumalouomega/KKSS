@@ -1,0 +1,7 @@
+# Existing TLS proxy: forward to loopback:6080 with Upgrade/Connection headers.
+services:
+  kkss:
+    environment:
+      KKSS_PUBLIC_URL: "${KKSS_PUBLIC_URL:?Set the externally visible https URL}"
+      KKSS_TLS_TERMINATED: "1"
+      KKSS_TRUSTED_PROXIES: "${KKSS_TRUSTED_PROXIES:?Set the proxy address/CIDR}"

@@ -12,6 +12,7 @@ import { BaseWindow, dialog, ipcMain, WebContents } from "electron";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { EditorLanguage, EditorToHost, EditorToWebview } from "../ipc";
+import { writeFileAtomic } from "./atomicWrite";
 import { toast } from "./notifications";
 import { projectRoot } from "./projectRoot";
 
@@ -55,6 +56,17 @@ export class EditorService {
   private lastDoc: EditorToWebview | null = null;
   /** A window close is waiting on the in-flight save. */
   private pendingClose = false;
+  private shutdownSave?: { directory: string; resolve: () => void; reject: (error: unknown) => void };
+
+  saveForShutdown(directory: string): Promise<void> {
+    if (!this.dirty) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.shutdownSave = undefined; reject(new Error("Editor did not supply its buffer during shutdown")); }, 5000);
+      this.shutdownSave = { directory, resolve: () => { clearTimeout(timer); resolve(); }, reject: (e) => { clearTimeout(timer); reject(e); } };
+      this.requestSave(false);
+    });
+  }
+
 
   constructor(private readonly deps: EditorDeps) {
     ipcMain.on("editor:toHost", (event, raw) => {
@@ -163,6 +175,30 @@ export class EditorService {
   }
 
   private async save(content: string, saveAs: boolean): Promise<void> {
+    if (this.shutdownSave) {
+      const pending = this.shutdownSave;
+      this.shutdownSave = undefined;
+      try {
+        if (!this.currentPath) throw new Error("Untitled buffer");
+        await writeFileAtomic(this.currentPath, content);
+        this.dirty = false;
+        pending.resolve();
+      } catch (error) {
+        try {
+          await fs.promises.mkdir(pending.directory, { recursive: true, mode: 0o700 });
+          const recovery = path.join(pending.directory, `editor-${Date.now()}.json`);
+          await writeFileAtomic(recovery, JSON.stringify({ originalPath: this.currentPath, content }));
+          this.dirty = false;
+          console.error(`Editor buffer recovered to ${recovery}`);
+          // The recovery file is the durable shutdown result. Keep the
+          // original write error in the log, but do not turn a successful
+          // recovery into a nonzero shutdown.
+          console.error("Editor save failed; buffer was recovered", error);
+          pending.resolve();
+        } catch (recoveryError) { pending.reject(recoveryError); }
+      }
+      return;
+    }
     let target = this.currentPath;
     if (saveAs || !target) {
       const result = await dialog.showSaveDialog(this.deps.getWindow(), {

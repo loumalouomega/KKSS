@@ -1,0 +1,38 @@
+# Build the desktop and files images first: docker compose build
+services:
+  broker:
+    build:
+      context: .
+      dockerfile: docker/broker/Dockerfile
+    image: kkss-broker:local
+    container_name: kkss-broker
+    user: "1000:${KKSS_DOCKER_GID:?Set KKSS_DOCKER_GID to the Docker socket group ID}"
+    environment:
+      KKSS_PUBLIC_URL: "${KKSS_PUBLIC_URL:-http://localhost:6080}"
+      KKSS_AUTH_USERS_FILE: /run/secrets/users
+      KKSS_SESSION_IMAGE: "${KKSS_SESSION_IMAGE:-kkss-web:local}"
+      KKSS_FILES_IMAGE: kkss-files:local
+      KKSS_USER_CAP: "${KKSS_USER_CAP:-1}"
+      KKSS_GLOBAL_CAP: "${KKSS_GLOBAL_CAP:-10}"
+      KKSS_BROKER_CONTAINER: kkss-broker
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - broker-data:/data
+    secrets: [users]
+    networks: [kkss-sessions]
+    restart: unless-stopped
+  proxy:
+    image: caddy:2.11.0
+    ports: ["127.0.0.1:${KKSS_PORT:-6080}:6080"]
+    volumes: ["./docker/broker/Caddyfile:/etc/caddy/Caddyfile:ro"]
+    depends_on: [broker]
+    networks: [kkss-sessions]
+    restart: unless-stopped
+volumes:
+  broker-data:
+networks:
+  kkss-sessions:
+    name: kkss-sessions
+secrets:
+  users:
+    file: "${KKSS_AUTH_USERS_PATH:?Set KKSS_AUTH_USERS_PATH to a bcrypt htpasswd file}"

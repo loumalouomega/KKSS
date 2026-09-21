@@ -23,12 +23,14 @@
  * here rather than a constant.
  */
 import * as http from "node:http";
-import { net, shell } from "electron";
+import { showQuickPick, showInputBox } from "../quickPick";
+import { net, shell, clipboard } from "electron";
 import { CloudError } from "./cloudCore";
 import {
   buildAuthUrl,
   createPkce,
   parseCallback,
+  parseManualCallback,
   parseTokenResponse,
   randomState,
   type TokenSet,
@@ -76,9 +78,7 @@ export async function runLoopbackAuth(config: OAuthConfig): Promise<TokenSet> {
   const redirectUri = `http://127.0.0.1:${port}${CALLBACK_PATH}`;
 
   try {
-    const codePromise = awaitCallback(server, port, state);
-    await shell.openExternal(
-      buildAuthUrl(config.authUrl, {
+    const consentUrl = buildAuthUrl(config.authUrl, {
         client_id: config.clientId,
         response_type: "code",
         redirect_uri: redirectUri,
@@ -87,9 +87,28 @@ export async function runLoopbackAuth(config: OAuthConfig): Promise<TokenSet> {
         code_challenge: pkce.challenge,
         code_challenge_method: pkce.method,
         ...config.extraAuthParams,
-      })
-    );
-    const code = await codePromise;
+      });
+    const mode = await showQuickPick([
+      { label: "Open browser", manual: false },
+      { label: "Copy URL and paste callback (browser session)", manual: true },
+    ], { title: "Connect cloud account" });
+    if (!mode) throw new CloudError("auth", "Sign-in cancelled.");
+    let code: string;
+    if (mode.manual) {
+      clipboard.writeText(consentUrl);
+      const raw = await Promise.race([
+        showInputBox({ title: "Complete cloud sign-in", prompt: "Consent URL copied. Open it in your browser, then paste the full localhost callback URL here (even if the browser cannot load it)." }),
+        new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), CALLBACK_TIMEOUT_MS)),
+      ]);
+      if (!raw) throw new CloudError("auth", "Sign-in cancelled or timed out.");
+      code = parseManualCallback(raw, redirectUri, state);
+    } else {
+      const codePromise = awaitCallback(server, port, state);
+      // Attach a handler before launching so a failed launch never leaves an unhandled rejection.
+      void codePromise.catch(() => undefined);
+      await shell.openExternal(consentUrl);
+      code = await codePromise;
+    }
     return await exchange(config, {
       grant_type: "authorization_code",
       code,
@@ -153,13 +172,18 @@ function awaitCallback(server: http.Server, port: number, state: string): Promis
         res.writeHead(403).end();
         return;
       }
-      if (!url.startsWith(CALLBACK_PATH)) {
+      let callback: URL;
+      try { callback = new URL(url, `http://127.0.0.1:${port}`); }
+      catch { res.writeHead(400).end(); return; }
+      const loopbackOrigins = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
+      if (!loopbackOrigins.has(callback.origin) || callback.pathname !== CALLBACK_PATH ||
+          callback.searchParams.getAll("state").length !== 1 || callback.searchParams.getAll("code").length > 1) {
         res.writeHead(404).end();
         return;
       }
       // The response body is fixed text — it never echoes the query string.
       try {
-        const code = parseCallback(url, state);
+        const code = parseCallback(callback.href, state);
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         res.end(DONE_PAGE("Signed in."));
         finish(() => resolve(code));

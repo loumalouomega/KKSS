@@ -112,10 +112,14 @@ jobs:
           }
           trap diagnose EXIT
 
-          docker run -d --name kkss --shm-size=1g -p 6080:6080 kkss-web:ci
+          docker run -d --name kkss --shm-size=1g -p 6080:6080 \
+            -e 'KKSS_AUTH_USERS=ci:$2a$10$bEzSzT1YxBCO6YbLDlsEEu3xfDTB.ufafYDCmj.DAlCP6dC73T6MS' \
+            -e OPEN_FILE=/workspace/cube_with_5_faces.mdpa \
+            -v "$GITHUB_WORKSPACE/mesh/src/test/fixtures/applications/MeshingApplication/tests:/workspace:ro" \
+            kkss-web:ci
           ok=0
           for i in $(seq 1 60); do
-            if curl -fsS http://localhost:6080/ >/dev/null; then ok=1; break; fi
+            if curl -fsS http://localhost:6080/healthz >/dev/null; then ok=1; break; fi
             # An exited container will never answer — fail fast instead of
             # burning the full two minutes on a corpse.
             if [ "$(docker inspect --format '{{.State.Running}}' kkss)" != "true" ]; then
@@ -125,7 +129,19 @@ jobs:
             sleep 2
           done
           [ "$ok" = "1" ]
-          curl -fsS http://localhost:6080/vnc.html >/dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:6080/)" = 401
+          curl -fsS -c /tmp/kkss.cookies -b /tmp/kkss.cookies -L \
+            -d 'username=ci&password=password' \
+            -H 'Origin: http://localhost:6080' \
+            http://localhost:6080/auth/login >/dev/null
+          curl -fsS -b /tmp/kkss.cookies http://localhost:6080/ >/dev/null
+          curl -fsS -b /tmp/kkss.cookies http://localhost:6080/api/bootstrap >/dev/null
+          title_ok=0
+          for i in $(seq 1 30); do
+            if docker exec kkss xdotool search --onlyvisible --name cube_with_5_faces >/dev/null 2>&1; then title_ok=1; break; fi
+            sleep 1
+          done
+          [ "$title_ok" = "1" ]
           # The same three signals the image's own HEALTHCHECK asserts
           # (rendering itself is covered by the smoke test in ci.yml).
           docker exec kkss xdpyinfo -display :99 >/dev/null
@@ -149,8 +165,9 @@ jobs:
           docker stop kkss >/dev/null
           elapsed=$(( $(date +%s) - start ))
           echo "docker stop took ${elapsed}s"
-          # A container that ignores SIGTERM is SIGKILLed at the 10s timeout.
-          [ "$elapsed" -lt 10 ]
+          # Compose gives the app 40 seconds; the entrypoint's persistence
+          # budget is 29 seconds, leaving room for Docker cleanup.
+          [ "$elapsed" -lt 40 ]
 
       - name: Scan for vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
@@ -159,8 +176,8 @@ jobs:
           format: table
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          # Report on PRs/branches; only a release is gated on a clean scan.
-          exit-code: ${{ github.ref_type == 'tag' && '1' || '0' }}
+          # A fixable HIGH/CRITICAL finding gates every branch and release.
+          exit-code: 1
 
       # ---- publish (release tags only, after the checks above) ----
       - name: Log in to GHCR
@@ -284,3 +301,94 @@ jobs:
             docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' \
               | jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] | (index("amd64") and index("arm64"))'
           done
+
+  kratos:
+    name: Kratos image (amd64)
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        if: github.ref_type == 'tag'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        if: github.ref_type == 'tag'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: runtime-kratos
+          build-args: KKSS_VARIANT=kratos
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: kkss-web:kratos-ci
+          cache-from: type=gha,scope=docker-kratos-amd64
+          cache-to: type=gha,mode=max,scope=docker-kratos-amd64
+      - name: Verify the offline solver environment
+        run: |
+          docker run --rm --entrypoint /opt/kkss-kratos/bin/python kkss-web:kratos-ci \
+            -c 'import KratosMultiphysics; import KratosMultiphysics.StructuralMechanicsApplication; import KratosMultiphysics.FluidDynamicsApplication; import KratosMultiphysics.ConvectionDiffusionApplication; import KratosMultiphysics.CompressiblePotentialFlowApplication; import KratosMultiphysics.ShallowWaterApplication'
+      - name: Kratos image metadata
+        if: github.ref_type == 'tag'
+        id: kratos-meta
+        uses: docker/metadata-action@v6
+        with:
+          images: |
+            ghcr.io/loumalouomega/kkss
+            vmataix/kkss
+          tags: |
+            type=semver,pattern={{version}}-kratos
+      - name: Publish Kratos variant
+        if: github.ref_type == 'tag'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: runtime-kratos
+          build-args: KKSS_VARIANT=kratos
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.kratos-meta.outputs.tags }}
+          cache-from: type=gha,scope=docker-kratos-amd64
+          cache-to: type=gha,mode=max,scope=docker-kratos-amd64
+
+  broker:
+    name: Session broker
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        if: github.ref_type == 'tag'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/broker/Dockerfile
+          push: ${{ github.ref_type == 'tag' }}
+          tags: ghcr.io/loumalouomega/kkss-broker:${{ github.ref_name }}
+          platforms: linux/amd64,linux/arm64

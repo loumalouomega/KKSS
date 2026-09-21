@@ -1,0 +1,8 @@
+# Intel/AMD hardware path. Keep separate from the software-tested default.
+services:
+  kkss:
+    environment:
+      KKSS_GPU: "1"
+      KKSS_DISPLAY_BACKEND: tigervnc
+    devices: ["/dev/dri:/dev/dri"]
+    group_add: ["${KKSS_RENDER_GID:?Set the host render-device group ID}"]
