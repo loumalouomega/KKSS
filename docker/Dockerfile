@@ -162,7 +162,7 @@ ENTRYPOINT ["tini", "--", "/entrypoint.sh"]
 
 FROM runtime-base AS runtime-kratos
 ARG TARGETARCH
-USER root
+USER 0:0
 COPY --from=uv-binary /uv /uvx /opt/uv/
 COPY docker/kratos/requirements.lock /opt/kratos-requirements.lock
 RUN test "$TARGETARCH" = amd64 \
