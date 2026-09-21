@@ -28,6 +28,21 @@
  *   - The Models activity-bar view (cad/src/modelsView.ts): a VS Code TreeView
  *     over the workspace folders, which KKSS has no analogue of and whose job
  *     the home screen and the Open dialog already do.
+ *
+ * Deliberately NOT ported from cad 2.5.0:
+ *   - The `cad-preview.zoomToSelection` command (and the provider's
+ *     `zoomToSelection()` → `{type:"zoomToSelection"}` relay). Like every other
+ *     `cad-preview.*` command it has no KKSS analogue; the Select menu's own
+ *     "Zoom to selection" button is purely webview-side and works unchanged.
+ *
+ * cad 3.0.0's chrome redesign added two host → webview messages, both ported
+ * here: `kernelStatus` (readiness, fed by cadComputeClient's tracker and fanned
+ * out to every tab — the provider's constructor subscription) and
+ * `documentInfo` (the menubar chip). The chip is a FAITHFUL port of the
+ * provider's predicate: KKSS never advances `bakedThrough` (no interactive
+ * bake), so an edited STEP/IGES/BREP/STL/OBJ/PLY reads "N unsaved edits" for
+ * good. That is accurate by cad's own definition — the source file does not yet
+ * contain what is on screen — and is documented rather than special-cased.
  */
 import { ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs/promises";
@@ -55,6 +70,7 @@ import {
   exportTargetsFor,
   EXPORT_EXTENSION,
   EXPORT_LABEL,
+  MESH_SAVE_IN_PLACE_FORMATS,
   UNIT_CONVERTIBLE_FORMATS,
 } from "../../cad/src/exportTargets";
 import { parsePartsJson, serializePartsJson } from "../../cad/src/partsSidecar";
@@ -93,7 +109,12 @@ import { emitPrimitiveOps } from "../../cad/src/primitiveEmit";
 import { validateMeshioOpSpec, type MeshioOpSpec } from "../../cad/src/meshioOps";
 import { PAPER_SIZES } from "../../cad/src/drawingSheet";
 import type { ParamVariable } from "../../cad/src/editVariables";
-import type { Annotation, ViewState, ConstructionPlane } from "../../cad/src/protocol";
+import type {
+  Annotation,
+  ViewState,
+  ConstructionPlane,
+  MeshPresetSummary,
+} from "../../cad/src/protocol";
 import { parsePlanesJson, serializePlanesJson } from "../../cad/src/planesSidecar";
 import {
   parseScriptLibraryJson,
@@ -103,6 +124,15 @@ import {
   type ScriptLibrary,
 } from "../../cad/src/scriptLibrary";
 import { bundledMacrosPath, mergeScriptLibraries } from "../../cad/src/starterMacros";
+import { ThumbCache, fetchThumbnail } from "../../cad/src/standardPartsThumbs";
+import {
+  bundledMeshPresetsPath,
+  effectivePresetOptions,
+  mergePresetLibraries,
+  parseMeshPresetsJson,
+  serializeMeshPresetsJson,
+  type MeshPresetLibrary,
+} from "../../cad/src/meshPresets";
 import { compileParametricScript } from "../../cad/src/parametricScript";
 import { evaluateVariables } from "../../cad/src/editVariables";
 import type { MeshGenerationInput } from "../../cad/src/gmshService";
@@ -113,14 +143,14 @@ import {
   stlBytesForHeal,
   AUTO_DECIMATE_TARGET_TRIANGLES,
 } from "../../cad/src/meshioService";
-import { cadCompute } from "./cadComputeClient";
+import { cadCompute, kernelState, onKernelState } from "./cadComputeClient";
 import { toKkssUrl, allowRoot } from "./protocol";
 import { projectRoot } from "./services/projectRoot";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
 import { showQuickPick, showInputBox } from "./services/quickPick";
 import { stateStore } from "./services/stateStore";
 import { writeFileAtomic } from "./services/atomicWrite";
-import { CAD_SIDECAR, MACRO_LIBRARY_NAME } from "./services/sidecarSuffixes";
+import { CAD_SIDECAR, MACRO_LIBRARY_NAME, MESH_PRESET_LIBRARY_NAME } from "./services/sidecarSuffixes";
 
 /**
  * stateStore keys backing the viewer defaults the extension gets from its
@@ -185,6 +215,23 @@ interface PendingExport {
  * registry instead. Entries are added on construction and removed on dispose.
  */
 const liveHosts = new Set<CadHost>();
+
+// cad 3.0.0's status bar. The provider subscribes once in its constructor and
+// posts to every session; the same shape here, since one worker serves every
+// tab. Module-level and never unsubscribed: it is process-lifetime, like the
+// worker itself, and a host that is gone has left `liveHosts`.
+onKernelState((state) => {
+  for (const host of liveHosts) host.postKernelStatus(state);
+});
+
+/**
+ * cad 2.5.0's Standard-Parts thumbnails. The provider keeps one `ThumbCache`
+ * for every open document (the catalog is document-independent); each tab is
+ * its own CadHost here, so it is module-level like `liveHosts`. Session-scoped
+ * by construction, and only successful fetches are stored.
+ */
+const thumbsCache = new ThumbCache();
+const THUMB_FETCH_CONCURRENCY = 4;
 let camerasLinked = false;
 
 // ---- The three cad *Store.ts files, re-implemented on node:fs --------------
@@ -291,6 +338,31 @@ const readBundledMacros = async (runtimePath: string): Promise<ScriptLibrary> =>
   }
 };
 
+/**
+ * cad 2.7.0's meshing-preset library — per folder like the macro library, and
+ * the very file the MCP preset tools take as an explicit `libraryPath`, so a
+ * preset saved here is appliable by the assistant and vice versa. Missing or
+ * unreadable reads as empty; writes go through writeFileAtomic for the same
+ * two-tabs-one-folder reason as the macros.
+ */
+const meshPresetLibraryPath = (modelPath: string): string =>
+  path.join(path.dirname(modelPath), MESH_PRESET_LIBRARY_NAME);
+
+const readTextOrEmpty = async (file: string): Promise<string> => {
+  try {
+    return await fs.readFile(file, "utf8");
+  } catch {
+    return "";
+  }
+};
+const readMeshPresets = async (modelPath: string): Promise<MeshPresetLibrary> =>
+  parseMeshPresetsJson(await readTextOrEmpty(meshPresetLibraryPath(modelPath)));
+const writeMeshPresets = (modelPath: string, library: MeshPresetLibrary): Promise<void> =>
+  writeFileAtomic(meshPresetLibraryPath(modelPath), serializeMeshPresetsJson(library));
+/** The bundled starters (dist/mesh-presets/starter-presets.json), read-only. */
+const readBundledMeshPresets = async (runtimePath: string): Promise<MeshPresetLibrary> =>
+  parseMeshPresetsJson(await readTextOrEmpty(bundledMeshPresetsPath(runtimePath)));
+
 const readMeshOptions = async (modelPath: string): Promise<MeshOptions> => {
   try {
     return parseMeshJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.meshOptions}`, "utf8"));
@@ -341,8 +413,13 @@ export class CadHost {
   private currentAnnotations: Annotation[] = [];
   private currentViewState: ViewState | undefined;
   private currentMeshOptions: MeshOptions | undefined;
+  /** The latest Standard-Parts search page, so a thumbnails request can be
+   *  validated against it (stale pages ignored) and mapped id → image URL. */
+  private lastPartsSearch: { requestId: string; pngById: Map<string, string> } | null = null;
   /** Guards stale async completions after the document changes. */
   private epoch = 0;
+  /** Last `documentInfo` actually posted (serialized), so syncing is idempotent. */
+  private lastDocumentInfo = "";
 
   constructor(
     private readonly view: WebContentsView,
@@ -367,6 +444,56 @@ export class CadHost {
     if (process.env.KKSS_E2E) console.log(`[cad] host → webview: ${msg.type}`);
     this.view.webContents.send("cad:toWebview", msg);
   };
+
+  /** Called by the module-level readiness subscription above. */
+  postKernelStatus(state: ReturnType<typeof kernelState>): void {
+    this.post({ type: "kernelStatus", state });
+  }
+
+  // ---- cad 3.0.0 document chip (provider.ts isDocumentDirty … postEdits) ----
+  // ONE predicate feeds both "dirty" and "N unsaved edits" so they cannot
+  // disagree. Only sources that can bake count (B-rep, and the three mesh
+  // formats with an in-place writer); an unbaked tail on anything else is
+  // sidecar-only and autosaved.
+  private isDocumentDirty(): boolean {
+    const route = this.doc?.route;
+    return (
+      !!route &&
+      this.currentEdits.length > this.currentBakedThrough &&
+      ((route.strategy === "occt" && BREP_FORMATS.has(route.format)) ||
+        (route.strategy === "three" && MESH_SAVE_IN_PLACE_FORMATS.has(route.format)))
+    );
+  }
+
+  /** Deduplicated, so it is safe to call wherever the op list can change. */
+  private syncDocumentInfo(): void {
+    if (!this.doc) return;
+    const dirty = this.isDocumentDirty();
+    const info = {
+      type: "documentInfo" as const,
+      name: path.basename(this.doc.path),
+      path: this.doc.path,
+      format: this.doc.route?.format ?? null,
+      dirty,
+      unsavedEdits: dirty ? this.currentEdits.length - this.currentBakedThrough : 0,
+    };
+    const serialized = JSON.stringify(info);
+    if (serialized === this.lastDocumentInfo) return;
+    this.lastDocumentInfo = serialized;
+    this.post(info);
+  }
+
+  /** Every place the host tells the webview about the op list also settles the
+   *  watermark, so post + chip resync are one call. */
+  private postEdits(): void {
+    this.post({
+      type: "edits",
+      ops: this.currentEdits,
+      variables: this.currentVariables,
+      bakedThrough: this.currentBakedThrough,
+    });
+    this.syncDocumentInfo();
+  }
 
   /** Opens `fsPath` in this mode's view (replaces any current document). */
   openPath(fsPath: string): void {
@@ -470,6 +597,9 @@ export class CadHost {
     this.currentPlanes = [];
     this.currentViewState = undefined;
     this.currentMeshOptions = undefined;
+    this.lastPartsSearch = null;
+    // A reopened page must receive the chip again even for an identical value.
+    this.lastDocumentInfo = "";
     // The provider frees its per-document BRepCacheEntry in onDidDispose; here
     // the entry lives in the worker, so ask it to. Fire-and-forget: a failure
     // only costs the next load a fresh parse. TWO keys since cad 1.7.0 — the
@@ -497,7 +627,10 @@ export class CadHost {
       void this.handleBRep(
         this.doc.path,
         this.doc.route.format as Extract<CadFormat, "step" | "iges" | "brep" | "csg" | "scad">,
-        replayTail(this.currentEdits, this.currentBakedThrough)
+        // cad 2.5.0: a profile op may be authored on a named plane and carry
+        // no center/normal/up of its own — resolve against the current planes
+        // before every replay, or the kernel skips it (provider.loadModel).
+        resolvePlaneRefs(replayTail(this.currentEdits, this.currentBakedThrough), this.currentPlanes).ops
       );
     }
   }
@@ -586,6 +719,9 @@ export class CadHost {
   // Port of provider.ts onDidReceiveMessage, branch for branch.
   private async onMessage(msg: WebviewToHost): Promise<void> {
     if (msg.type === "ready") {
+      // First, before any early return: the status bar shows readiness even for
+      // a blank tab (provider.ts posts it ahead of the `!route` check too).
+      this.post({ type: "kernelStatus", state: kernelState() });
       if (!this.doc) {
         this.post({ type: "status", text: "No file open — use Open… in the toolbar" });
         return;
@@ -595,17 +731,20 @@ export class CadHost {
         return;
       }
       // Load edits before the model so a B-rep source is tessellated already-edited.
-      const parsed = await readEdits(this.doc.path);
-      this.currentEdits = parsed.ops;
+      // Planes are loaded alongside them so any `planeId` resolves before the
+      // first tessellation (provider.ready): since cad 2.5.0 a plane-authored
+      // profile op may carry no cached vectors, and the kernel skips one that
+      // was never resolved — it would silently vanish on reopen.
+      const [parsed, planesInitial] = await Promise.all([
+        readEdits(this.doc.path),
+        readPlanes(this.doc.path),
+      ]);
+      this.currentEdits = resolvePlaneRefs(parsed.ops, planesInitial).ops;
       this.currentVariables = parsed.variables;
       this.currentBakedThrough = parsed.bakedThrough;
+      this.currentPlanes = planesInitial;
       this.loadModel();
-      this.post({
-        type: "edits",
-        ops: this.currentEdits,
-        variables: this.currentVariables,
-        bakedThrough: this.currentBakedThrough,
-      });
+      this.postEdits();
       // The meshio route's own handleMeshio (in loadModel) owns the parts
       // round trip for that route — calling both would double-post "parts".
       if (this.doc.route.strategy !== "meshio") {
@@ -628,11 +767,9 @@ export class CadHost {
         this.currentViewState = view ?? undefined;
         this.post({ type: "viewState", view });
       });
-      void readPlanes(this.doc.path).then((planes) => {
-        this.currentPlanes = planes;
-        this.post({ type: "planes", planes });
-      });
+      this.post({ type: "planes", planes: this.currentPlanes });
       void this.sendMacros();
+      void this.sendMeshPresets();
       // A view opened while linking is on must learn about it (provider.ready).
       if (camerasLinked) this.post({ type: "camerasLinked", enabled: true });
       this.sendViewerDefaults();
@@ -658,6 +795,9 @@ export class CadHost {
       const previousOps = this.currentEdits;
       this.currentEdits = msg.ops;
       this.currentVariables = msg.variables;
+      // On EVERY edit, not only when dirty: undoing back to the save point
+      // empties the tail, which must clear the chip's dot (provider L1656).
+      this.syncDocumentInfo();
       if (this.editsSaveTimer) clearTimeout(this.editsSaveTimer);
       this.editsSaveTimer = setTimeout(() => {
         void writeEdits(
@@ -1105,7 +1245,13 @@ export class CadHost {
           src.bytes,
           src.format as OcctSourceFormat,
           replayTail(this.currentEdits, this.currentBakedThrough),
-          usable.map((p) => p.volumes)
+          usable.map((p) => p.volumes),
+          // cad 2.5.0's bounded run: pairs past the budget come back as
+          // `unchecked` placeholders (still one row per pair, so the count
+          // check below holds) and are never reported as clash-free.
+          msg.maxPairs !== undefined || msg.maxBooleans !== undefined
+            ? { maxPairs: msg.maxPairs, maxBooleans: msg.maxBooleans }
+            : undefined
         );
         const expected = (usable.length * (usable.length - 1)) / 2;
         if (result.pairs.length !== expected) {
@@ -1120,7 +1266,16 @@ export class CadHost {
             named.push({ ...result.pairs[n], partA: usable[x].name, partB: usable[y].name });
           }
         }
-        this.post({ type: "clashCheckAllResult", requestId: msg.requestId, pairs: named, warnings: result.warnings });
+        this.post({
+          type: "clashCheckAllResult",
+          requestId: msg.requestId,
+          pairs: named,
+          warnings: result.warnings,
+          totalPairs: result.totalPairs,
+          checkedPairs: result.checkedPairs,
+          screenedPairs: result.screenedPairs,
+          partial: result.uncheckedCount > 0,
+        });
       } catch (err) {
         this.post({ type: "clashCheckAllError", requestId: msg.requestId, message: (err as Error).message });
       }
@@ -1344,6 +1499,10 @@ export class CadHost {
       try {
         const result = await cadCompute.searchStandardParts({ q: msg.q, page: msg.page, pageSize: 20 });
         if (!result.available) throw new Error(result.reason);
+        this.lastPartsSearch = {
+          requestId: msg.requestId,
+          pngById: new Map(result.value.items.map((i) => [i.id, i.pngUrl ?? ""])),
+        };
         this.post({
           type: "standardPartsSearchResult",
           requestId: msg.requestId,
@@ -1359,6 +1518,45 @@ export class CadHost {
           message: (err as Error).message,
         });
       }
+      return;
+    }
+
+    if (msg.type === "standardPartsThumbsRequest") {
+      // Fire-and-forget: fetch this rendered page's thumbnails with bounded
+      // concurrency and post back only the successes — failures stay absent
+      // (text fallback), never an error. Must not hold the message loop:
+      // search/insert round trips behind a slow image fetch would read as a
+      // hung panel.
+      void (async () => {
+        const seen = this.lastPartsSearch;
+        if (!seen || seen.requestId !== msg.searchId) return; // stale page
+        const ids = msg.ids.filter((id) => seen.pngById.has(id)).slice(0, 25);
+        const thumbs: Array<{ id: string; dataUrl: string }> = [];
+        for (let i = 0; i < ids.length; i += THUMB_FETCH_CONCURRENCY) {
+          const batch = ids.slice(i, i + THUMB_FETCH_CONCURRENCY);
+          const results = await Promise.all(
+            batch.map(async (id) => {
+              const url = seen.pngById.get(id) ?? "";
+              if (!url) return null;
+              const hit = thumbsCache.get(url);
+              if (hit) return { id, dataUrl: hit };
+              const dataUrl = await fetchThumbnail(url);
+              if (!dataUrl) return null; // never cached, never posted
+              thumbsCache.set(url, dataUrl);
+              return { id, dataUrl };
+            })
+          );
+          for (const r of results) if (r) thumbs.push(r);
+        }
+        // Re-check after the awaits: a newer search, a document replaced in
+        // this tab or a closed tab (disposeSession nulls it) all make this
+        // page's thumbnails stale, and the view may already be gone.
+        if (thumbs.length === 0 || this.lastPartsSearch !== seen) return;
+        this.post({ type: "standardPartsThumbsResult", searchId: msg.searchId, thumbs });
+      })().catch(() => {
+        // `fetchThumbnail` and the cache never throw, but a floating promise
+        // must never take down the handler; the text fallback already covers it.
+      });
       return;
     }
 
@@ -1467,6 +1665,9 @@ export class CadHost {
             pointId: p.pointId,
           })),
           opOutcomes: result.opOutcomes,
+          // cad 2.5.0's per-band colouring: the draft op's own bucket
+          // (replay-tail-relative, like opOutcomes — the webview translates).
+          opBuckets: result.opBuckets,
         });
       } catch (err) {
         this.post({ type: "opPreviewError", requestId: msg.requestId, message: (err as Error).message });
@@ -1496,6 +1697,91 @@ export class CadHost {
         const skipped =
           unknownNames.length > 0 ? ` (ignored unknown parameter(s): ${unknownNames.join(", ")})` : "";
         this.post({ type: "status", text: `Ran "${msg.name}" — ${compiled.ops.length} op(s)${skipped}.` });
+      } catch (err) {
+        this.post({ type: "error", message: (err as Error).message });
+      }
+      return;
+    }
+
+    // ---- cad 2.7.0: meshing presets ---------------------------------------
+
+    if (msg.type === "meshPresetApply") {
+      try {
+        const library = await readMeshPresets(doc.path);
+        const bundled = await readBundledMeshPresets(this.runtimePath);
+        // Same merge (and precedence) sendMeshPresets displays, so Apply and
+        // the panel list can never disagree about what a name means.
+        const { merged } = mergePresetLibraries(bundled, library);
+        const entry = merged[msg.name];
+        if (!entry) throw new Error(`No saved mesh preset named "${msg.name}".`);
+        const { options, warnings } = effectivePresetOptions(entry);
+        // Exactly what set_mesh_options writes: `.mesh.json` + regenerated
+        // `.geo`, with the session copy updated so a later Save flushes the
+        // applied values rather than stale ones.
+        this.currentMeshOptions = options;
+        await Promise.all([writeMeshOptions(doc.path, options), writeGeoScript(doc.path, options)]);
+        this.post({ type: "meshingOptions", options });
+        const suffix = warnings.length > 0 ? ` (${warnings.join(" ")})` : "";
+        this.post({ type: "status", text: `Applied mesh preset "${msg.name}".${suffix}` });
+      } catch (err) {
+        this.post({ type: "error", message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "meshPresetSaveCurrent") {
+      try {
+        const name = await showInputBox({
+          title: "Save meshing preset",
+          prompt: "Name for this preset (current FE Mesh options, stored in mm)",
+          placeHolder: "my-coarse",
+        });
+        if (name === undefined || name.trim() === "") return; // dismissed — a quiet no-op
+        const trimmed = name.trim();
+        // Current options are mm-native, so the preset is stored at `unit: "mm"`
+        // — conversion on a later apply is then a no-op, and the stored numbers
+        // always match what the panel showed.
+        const options = this.currentMeshOptions ?? (await readMeshOptions(doc.path));
+        const library = await readMeshPresets(doc.path);
+        const existed = Object.prototype.hasOwnProperty.call(library, trimmed);
+        library[trimmed] = {
+          name: trimmed,
+          description: "Saved from current options",
+          unit: "mm",
+          engine: options.engine,
+          options,
+        };
+        await writeMeshPresets(doc.path, library);
+        await this.sendMeshPresets();
+        this.post({
+          type: "status",
+          text: `Saved mesh preset "${trimmed}"${existed ? " (replaced existing)." : "."}`,
+        });
+      } catch (err) {
+        this.post({ type: "error", message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "meshPresetDelete") {
+      try {
+        const library = await readMeshPresets(doc.path);
+        if (!Object.prototype.hasOwnProperty.call(library, msg.name)) {
+          // Either a bundled starter (read-only — the panel hides its Delete
+          // button, so this is a backstop, not a normal path) or a name that
+          // was never saved here at all.
+          const bundled = await readBundledMeshPresets(this.runtimePath);
+          if (Object.prototype.hasOwnProperty.call(bundled, msg.name)) {
+            throw new Error(
+              `"${msg.name}" is a bundled starter preset and cannot be deleted — save your own preset under a different name to override it.`
+            );
+          }
+          throw new Error(`No saved mesh preset named "${msg.name}".`);
+        }
+        delete library[msg.name];
+        await writeMeshPresets(doc.path, library);
+        await this.sendMeshPresets();
+        this.post({ type: "status", text: `Deleted mesh preset "${msg.name}".` });
       } catch (err) {
         this.post({ type: "error", message: (err as Error).message });
       }
@@ -1608,6 +1894,31 @@ export class CadHost {
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
     this.post({ type: "macros", macros });
+  }
+
+  /**
+   * Posts the saved meshing-preset list for this document's folder
+   * (provider.sendMeshPresets, cad 2.7.0). Bundled starters merge under the
+   * folder's own library and are stamped `readOnly` — the sendMacros precedent.
+   */
+  private async sendMeshPresets(): Promise<void> {
+    if (!this.doc) return;
+    const library = await readMeshPresets(this.doc.path);
+    const bundled = await readBundledMeshPresets(this.runtimePath);
+    const { merged } = mergePresetLibraries(bundled, library);
+    const owned = new Set(Object.keys(library));
+    const presets: MeshPresetSummary[] = Object.values(merged)
+      .map((entry) => ({
+        name: entry.name,
+        description: entry.description ?? null,
+        unit: entry.unit,
+        engine: entry.engine,
+        // A caller-owned entry shadows a bundled starter of the same name —
+        // the merged row is theirs (deletable), never the read-only starter.
+        readOnly: !owned.has(entry.name),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    this.post({ type: "meshingPresets", presets });
   }
 
   /**

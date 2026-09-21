@@ -2,10 +2,18 @@
  *  title, toasts, tab strip. */
 import type { Mode, Screen, ShellTabInfo, ShellToWebview } from "../../main/ipc";
 import { TOOLBAR_ICONS, type ToolbarIconId } from "./shellIcons";
+import { glyph } from "../glyphs";
 
 /** Same wrapper the submodule providers use for their generated icons. */
 function icon(id: ToolbarIconId): string {
   return `<span class="toolbar-icon">${TOOLBAR_ICONS[id]}</span>`;
+}
+
+/** Icon markup + label text. The label is a static string, and it sits in its
+ *  own node so a button's `textContent` is exactly the label (the e2e harness
+ *  reads it: "Jobs (1)"). The gap between the two comes from `.btn`. */
+function withLabel(iconHtml: string, label: string): string {
+  return `${iconHtml}<span class="btn-label">${label}</span>`;
 }
 
 declare global {
@@ -54,13 +62,13 @@ function setZoomValue(factor: number): void {
 }
 
 // TikZ-generated, currentColor-based glyphs (icons/tikz-ui — see icons/README.md).
-homeBtn.innerHTML = `${icon("home")} Home`;
-btnCad.innerHTML = `${icon("preMode")} Pre-Processing`;
-btnMesh.innerHTML = `${icon("postMode")} Post-Processing`;
-openBtn.innerHTML = `${icon("open")} Open…`;
-editBtn.innerHTML = `${icon("edit")} Edit`;
-terminalBtn.innerHTML = `${icon("terminal")} Terminal`;
-chatBtn.innerHTML = `${icon("chat")} Chat`;
+homeBtn.innerHTML = withLabel(icon("home"), "Home");
+btnCad.innerHTML = withLabel(icon("preMode"), "Pre-Processing");
+btnMesh.innerHTML = withLabel(icon("postMode"), "Post-Processing");
+openBtn.innerHTML = withLabel(icon("open"), "Open…");
+editBtn.innerHTML = withLabel(icon("edit"), "Edit");
+terminalBtn.innerHTML = withLabel(icon("terminal"), "Terminal");
+chatBtn.innerHTML = withLabel(icon("chat"), "Chat");
 
 let editorTitle: string | null = null;
 let editorDirty = false;
@@ -72,11 +80,22 @@ const tabState: Record<Mode, { tabs: ShellTabInfo[]; activeTabId: string | undef
   mesh: { tabs: [], activeTabId: undefined },
 };
 
+/** The unsaved-changes marker (replaces the " ●" text glyph). */
+function dirtyDot(): HTMLSpanElement {
+  const dot = document.createElement("span");
+  dot.className = "ui-dot";
+  dot.title = "Unsaved changes";
+  return dot;
+}
+
 function renderMode(): void {
   btnCad.classList.toggle("active", screen === "cad");
   btnMesh.classList.toggle("active", screen === "mesh");
+  btnCad.setAttribute("aria-selected", String(screen === "cad"));
+  btnMesh.setAttribute("aria-selected", String(screen === "mesh"));
   if (screen === "editor") {
-    fileTitle.textContent = editorTitle ? `${editorTitle}${editorDirty ? " ●" : ""}` : "Text editor";
+    fileTitle.textContent = editorTitle ?? "Text editor";
+    if (editorTitle && editorDirty) fileTitle.append(dirtyDot());
     return;
   }
   // cad/mesh titles live in the tab strip now — this spacer stays blank there.
@@ -108,13 +127,15 @@ function renderTabStrip(): void {
     const label = document.createElement("span");
     label.className = "tab-label";
     const cloudMark = tab.cloud ? "☁ " : "";
-    label.textContent = `${cloudMark}${tab.fileName ?? "Untitled"}${tab.dirty ? " ●" : ""}`;
+    label.textContent = `${cloudMark}${tab.fileName ?? "Untitled"}`;
     row.appendChild(label);
+    if (tab.dirty) row.appendChild(dirtyDot());
 
     const close = document.createElement("button");
-    close.className = "tab-close";
-    close.textContent = "✕";
+    close.className = "tab-close icon-btn";
+    close.innerHTML = glyph("x", "sm");
     close.title = "Close tab";
+    close.setAttribute("aria-label", "Close tab");
     close.addEventListener("click", (event) => {
       event.stopPropagation();
       api.post({ type: "closeTab", mode, tabId: tab.id });
@@ -125,8 +146,9 @@ function renderTabStrip(): void {
   }
 
   const add = document.createElement("button");
-  add.className = "tab-new";
-  add.textContent = "+";
+  add.className = "tab-new icon-btn";
+  add.innerHTML = glyph("plus");
+  add.setAttribute("aria-label", "New tab");
   add.title = mode === "cad" ? "New pre-processing tab" : "New post-processing tab";
   add.addEventListener("click", () => api.post({ type: "newTab", mode }));
   tabStrip.appendChild(add);
@@ -158,7 +180,7 @@ api.onMessage((raw) => {
       // Shown only when a root is explicitly set — an inferred one changes with
       // the focused tab, so a chip for it would be noise.
       if (msg.label) {
-        rootBtn.innerHTML = `${icon("open")}<span id="root-btn-label"></span>`;
+        rootBtn.innerHTML = `${glyph("folder")}<span id="root-btn-label"></span>`;
         (rootBtn.querySelector("#root-btn-label") as HTMLElement).textContent = msg.label;
         rootBtn.title = `Project root: ${msg.display ?? msg.label}\nClick to change`;
       }
@@ -186,6 +208,7 @@ api.onMessage((raw) => {
       el.appendChild(text);
       for (const label of msg.buttons ?? []) {
         const b = document.createElement("button");
+        b.className = "btn btn-secondary btn-sm";
         b.textContent = label;
         b.addEventListener("click", () =>
           api.post({ type: "toastButton", id: msg.id, button: label })
@@ -216,13 +239,25 @@ renderMode();
 
 
 const jobsBtn = byId<HTMLButtonElement>("jobs-btn");
+const jobsIcon = glyph("listChecks");
+jobsBtn.innerHTML = withLabel(jobsIcon, "Jobs");
 jobsBtn.addEventListener("click", () => api.post({ type: "toggleJobs" }));
 api.onMessage((raw) => {
   const msg = raw as ShellToWebview;
   if (msg.type !== "jobs") return;
-  jobsBtn.textContent = msg.active ? `Jobs (${msg.active})` : "Jobs";
+  jobsBtn.innerHTML = withLabel(jobsIcon, msg.active ? `Jobs (${msg.active})` : "Jobs");
   jobsBtn.setAttribute("aria-pressed", String(msg.visible));
   jobsBtn.title = msg.stale ? "Kratos jobs — status unavailable; showing last known count" : "Kratos background jobs";
+});
+
+// Terminal and Chat are plain toggles: the main process is the source of truth
+// (menu, shortcut, session restore and Hide buttons all flip them), so the
+// buttons only ever reflect what it reports.
+api.onMessage((raw) => {
+  const msg = raw as ShellToWebview;
+  if (msg.type !== "panels") return;
+  terminalBtn.setAttribute("aria-pressed", String(msg.terminal));
+  chatBtn.setAttribute("aria-pressed", String(msg.chat));
 });
 
 api.post({ type: "shellReady" });

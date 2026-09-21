@@ -83,6 +83,16 @@
   --vscode-textCodeBlock-background: rgba(10, 10, 10, 0.4);
   --vscode-textLink-foreground: #3794ff;
   --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
+
+  /* Added for cad 3.0.0's chrome redesign (status bar, document chip, badges). */
+  --vscode-badge-background: #616161;
+  --vscode-badge-foreground: #f8f8f8;
+  --vscode-charts-yellow: #cca700;
+  --vscode-disabledForeground: rgba(204, 204, 204, 0.5);
+  --vscode-gitDecoration-modifiedResourceForeground: #e2c08d;
+  --vscode-list-inactiveSelectionBackground: #37373d;
+  --vscode-sideBarSectionHeader-background: transparent;
+  --vscode-testing-iconPassed: #73c991;
 }
 
 /* The webview pages have no VS Code body classes; give them the editor look. */

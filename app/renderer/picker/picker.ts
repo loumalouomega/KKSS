@@ -56,7 +56,7 @@ api.onInit((raw) => {
     selected = 0;
     renderList();
   } else {
-    inputEl.style.display = "";
+    inputEl.hidden = false;
     inputEl.value = init.value ?? "";
     inputEl.placeholder = init.placeholder ?? "";
     if (init.prompt) titleEl.textContent = init.prompt;

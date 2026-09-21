@@ -1,5 +1,6 @@
 import type { JobsSnapshot, JobsToHost, KratosJob } from "../../main/ipc";
 import { kratosStatusView } from "../chat/serverStatus";
+import { glyph } from "../glyphs";
 declare global {
   interface Window { jobsApi: { post(message: JobsToHost): void; onMessage(handler: (message: JobsSnapshot) => void): void } }
 }
@@ -13,6 +14,10 @@ el("hide").onclick = () => api.post({ type: "hide" });
 el("recovery").onclick = () => api.post({ type: recovery });
 el("cancel").onclick = () => { if (snapshot.selected) api.post({ type: "cancel", jobId: snapshot.selected }); };
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") api.post({ type: "hide" }); });
+// The header's glyphs (buttons ship empty in index.html).
+el("jobs-icon").innerHTML = glyph("listChecks");
+el("refresh").innerHTML = glyph("refresh");
+el("hide").innerHTML = glyph("x");
 const rows = new Map<string, HTMLButtonElement>();
 function render(state: JobsSnapshot) {
   snapshot = state;

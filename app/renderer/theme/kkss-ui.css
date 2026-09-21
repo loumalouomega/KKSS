@@ -1,0 +1,400 @@
+/*
+ * KKSS chrome design layer — the app's own pages (shell, home, editor, terminal,
+ * chat, jobs, dialogs) share one look, and it is CAD-Preview v3.0.0's.
+ *
+ * Link it AFTER vscode-vars.css and BEFORE the page's own stylesheet. It holds:
+ *   - the `--ui-*` METRIC tokens (radii, spacing, elevation, type, control
+ *     heights), copied from cad/media/viewer.css and mesh's design-system.css so
+ *     the two viewers and the app around them read as one product;
+ *   - shared component recipes (buttons, segmented control, section header,
+ *     cards, badges, toasts, spinner) that every page used to re-declare by hand.
+ *
+ * Colour never lives in `--ui-*`: every colour is `var(--vscode-*)`, defined for
+ * the page by vscode-vars.css. There is no web font (the pages' CSP has no
+ * font-src) and no transition or animation apart from the spinner.
+ *
+ * tools/check-theme-vars.mjs scans this file too, so a `--vscode-*` variable used
+ * here must exist in vscode-vars.css.
+ */
+
+:root {
+  /* Native scrollbars, select popups and form controls follow the Dark+ chrome. */
+  color-scheme: dark;
+
+  --ui-r-xs: 3px;
+  --ui-r-sm: 5px;   /* buttons, segments, inputs */
+  --ui-r-md: 8px;   /* cards: menus, toasts, panels */
+  --ui-r-lg: 12px;
+  --ui-r-pill: 999px;
+
+  --ui-s-0: 2px;
+  --ui-s-1: 4px;
+  --ui-s-2: 6px;
+  --ui-s-3: 8px;
+  --ui-s-4: 12px;
+  --ui-s-5: 16px;
+  --ui-s-6: 24px;
+
+  --ui-elev-1: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --ui-elev-2: 0 2px 8px rgba(0, 0, 0, 0.36);
+  --ui-elev-3: 0 6px 20px rgba(0, 0, 0, 0.44);
+
+  --ui-font: var(--vscode-font-family, sans-serif);
+  --ui-font-mono: var(--vscode-editor-font-family, ui-monospace, monospace);
+  --ui-fs-micro: 9px;
+  --ui-fs-label: 10px;
+  --ui-fs-sm: 11px;
+  --ui-fs-md: 12px;
+  --ui-fs-lg: 13px;
+  --ui-fs-xl: 14px;
+  --ui-lh: 1.45;
+  --ui-track-caps: 0.06em;
+
+  --ui-h-ctl: 24px;   /* compact control (icon button, input, select) */
+  --ui-h-btn: 28px;   /* toolbar-sized button */
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* `hidden` must beat any author `display` rule; without this an `#id { display:
+   flex }` silently defeats the attribute (the defect class cad's 3.0.0 changelog
+   lists three times). One global rule closes it for every page. */
+[hidden] {
+  display: none !important;
+}
+
+/* A visible keyboard ring on every interactive control (only the jobs page had one). */
+:is(button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.ui-num {
+  font-family: var(--ui-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Line glyphs (cad/src/uiGlyphs.ts, re-exported by app/renderer/glyphs.ts). Sized
+   in px, not em: they sit in controls of different font sizes and must read alike. */
+.ui-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+.ui-glyph svg {
+  width: 14px;
+  height: 14px;
+}
+.ui-glyph.lg svg {
+  width: 15px;
+  height: 15px;
+}
+.ui-glyph.sm svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+/* Ghost is the default toolbar button: transparent until hovered, like cad's. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-s-2);
+  height: var(--ui-h-btn);
+  padding: 0 var(--ui-s-3);
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: var(--ui-r-sm);
+  background: transparent;
+  color: var(--vscode-foreground);
+  font-size: var(--ui-fs-md);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* Toggled-on plain button (a pressed panel toggle): the filled accent. */
+.btn.on,
+.btn[aria-pressed="true"] {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+.btn-secondary {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+.btn-primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  font-weight: 600;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground);
+}
+.btn-outline {
+  border-color: var(--vscode-editorWidget-border, var(--vscode-panel-border));
+}
+.btn-sm {
+  height: var(--ui-h-ctl);
+  padding: 0 var(--ui-s-3);
+  font-size: var(--ui-fs-sm);
+}
+
+/* A button that reads as a link (home's Change / Clear). No box, no height. */
+.btn-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  font-size: var(--ui-fs-sm);
+  cursor: pointer;
+}
+.btn-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+/* 24px square ghost button that holds one glyph (header actions, close, new-tab). */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ui-h-ctl);
+  height: var(--ui-h-ctl);
+  padding: 0;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: var(--ui-r-sm);
+  background: transparent;
+  color: var(--vscode-foreground);
+  opacity: 0.85;
+  cursor: pointer;
+}
+.icon-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground);
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.icon-btn.on {
+  background: var(--vscode-inputValidation-infoBackground);
+  border-color: var(--vscode-focusBorder);
+  opacity: 1;
+}
+
+/* A thin divider between button groups in a toolbar. */
+.tb-div {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 18px;
+  background: var(--vscode-editorWidget-border, var(--vscode-panel-border));
+}
+
+/* ── Segmented control (mode toggle, tabs, pickers) ───────────────────────── */
+
+.seg {
+  display: inline-flex;
+  gap: var(--ui-s-0);
+  padding: var(--ui-s-0);
+  border-radius: var(--ui-r-sm);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+}
+.seg > button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-s-2);
+  height: 22px;
+  padding: 0 var(--ui-s-3);
+  border: 0;
+  border-radius: var(--ui-r-xs);
+  background: transparent;
+  color: var(--vscode-foreground);
+  font-size: var(--ui-fs-md);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.seg > button:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+/* Selected 1-of-N: the accent fill (cad's clip-axis idiom). */
+.seg > button.active,
+.seg > button[aria-selected="true"] {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+/* ── Section header (cad's .panel-header) ─────────────────────────────────── */
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s-2);
+  padding: var(--ui-s-2) var(--ui-s-3);
+  border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border));
+  background: var(--vscode-sideBarSectionHeader-background);
+  color: var(--vscode-sideBarSectionHeader-foreground);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.section-header .title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The 22px tile behind a header glyph. */
+.panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: var(--ui-r-sm);
+  background: var(--vscode-input-background);
+}
+
+/* A quiet uppercase label above a group of rows. */
+.eyebrow {
+  font-size: var(--ui-fs-label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* ── Surfaces ─────────────────────────────────────────────────────────────── */
+
+.card {
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  border-radius: var(--ui-r-md);
+  background: var(--vscode-editorWidget-background);
+}
+.card-float {
+  box-shadow: var(--ui-elev-2);
+}
+
+/* Text input / select. */
+.field {
+  height: var(--ui-h-ctl);
+  padding: 0 var(--ui-s-3);
+  box-sizing: border-box;
+  border: 1px solid var(--vscode-input-border, var(--vscode-editorWidget-border, transparent));
+  border-radius: var(--ui-r-sm);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--vscode-focusBorder);
+}
+
+/* A short pill: a count, a format, a state. */
+.ui-badge {
+  flex-shrink: 0;
+  padding: 0 var(--ui-s-2);
+  border-radius: var(--ui-r-pill);
+  font-size: var(--ui-fs-micro);
+  font-weight: 600;
+  line-height: 1.6;
+  text-transform: uppercase;
+  letter-spacing: var(--ui-track-caps);
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+.ui-badge:empty {
+  display: none;
+}
+
+.ui-dot {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+.ui-dot-ok {
+  background: var(--vscode-testing-iconPassed);
+}
+.ui-dot-accent {
+  background: var(--vscode-focusBorder);
+}
+
+/* Transient message chip (shell toasts). */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s-2);
+  padding: 3px var(--ui-s-3);
+  border-radius: var(--ui-r-md);
+  font-size: var(--ui-fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  color: var(--vscode-foreground);
+  box-shadow: var(--ui-elev-2);
+}
+.toast.warning {
+  border-color: var(--vscode-inputValidation-warningBorder);
+  background: var(--vscode-inputValidation-warningBackground);
+}
+.toast.error {
+  border-color: var(--vscode-errorForeground);
+}
+
+/* The one animation the chrome has. */
+.spinner {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border: 2px solid var(--vscode-progressBar-background);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: kkss-spin 0.9s linear infinite;
+}
+@keyframes kkss-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 3s;
+  }
+}

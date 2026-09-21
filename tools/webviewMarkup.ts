@@ -23,6 +23,7 @@ import {
   LOADING_HTML,
   MENUBAR_HTML,
   SIDEBAR_HTML,
+  STATUSBAR_HTML,
   TOOLBAR_HTML,
   VIEW_MENU_HTML,
 } from "../mesh/src/webviewChrome";
@@ -104,10 +105,14 @@ const MESH_CSP = [
  * BEFORE the bundle. Everything that can come from `webviewChrome.ts` does; the
  * only markup written out here is what that module inlines rather than exports.
  *
- * `MENUBAR_HTML` is emitted even though KKSS hides it (mesh-overrides.css):
- * `webview/main.ts` looks its nodes up by id — including `#theme-select`, which
- * the shared `sceneTheme` setting drives through `initialState` — so dropping
- * it would leave those lookups null.
+ * `MENUBAR_HTML` is emitted in full, but KKSS hides only its File pill and the
+ * scene-theme picker (mesh-overrides.css) — the native menu owns both — while
+ * the strip and its document chip (`#doc-chip`, fed by `documentInfo`) stay
+ * visible. `webview/main.ts` looks the hidden nodes up by id, including
+ * `#theme-select`, which the shared `sceneTheme` setting drives through
+ * `initialState`, so dropping them would leave those lookups null.
+ * `STATUSBAR_HTML` is the last child of `#app`, after `#main`, exactly as in
+ * `buildPreviewHtml`.
  *
  * Deliberately NOT mirrored: `buildPreviewHtml`'s `startEmpty` branch (the
  * `data-start-empty` body attribute and the `#empty-hint` overlay, added in
@@ -121,7 +126,7 @@ function meshBody(): string {
     ${MENUBAR_HTML}
     <div id="main">
     ${SIDEBAR_HTML}
-    <div id="sidebar-resizer" title="Drag to resize the sidebar"></div>
+    <div id="sidebar-resizer" role="separator" aria-orientation="vertical" tabindex="0" title="Drag or press ArrowLeft/ArrowRight to resize the sidebar"></div>
     <div id="viewport">
       <div id="vtk-sub">
       <div id="cut-panel" class="hidden">${CUT_PANEL_HTML}
@@ -147,6 +152,7 @@ function meshBody(): string {
       ${FLOWGRAPH_PANE_HTML}
     </div>
     </div>
+    ${STATUSBAR_HTML}
   </div>`;
 }
 

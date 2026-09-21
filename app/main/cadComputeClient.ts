@@ -24,6 +24,7 @@ import type * as svgSilhouetteHost from "../../cad/src/svgSilhouetteHost";
 import type * as modelDiffHost from "../../cad/src/modelDiffHost";
 import type * as stepPartsService from "../../cad/src/stepPartsService";
 import type * as brepCache from "./cadBRepCache";
+import { createKernelTracker } from "./cadKernelStatus";
 
 interface PendingCall {
   resolve: (value: unknown) => void;
@@ -33,6 +34,13 @@ interface PendingCall {
 let worker: Worker | undefined;
 let nextId = 1;
 const pending = new Map<number, PendingCall>();
+
+// One worker serves every CAD tab, so kernel readiness is app-wide state — the
+// analogue of the per-provider `kernelState()` cad 3.0.0 exposes. Inferred from
+// calls (see cadKernelStatus.ts); cadHost fans changes out as `kernelStatus`.
+const kernels = createKernelTracker();
+export const kernelState = kernels.state;
+export const onKernelState = kernels.subscribe;
 
 function ensureWorker(): Worker {
   if (worker) return worker;
@@ -46,11 +54,13 @@ function ensureWorker(): Worker {
   });
   worker.on("error", (err) => {
     const error = err instanceof Error ? err : new Error(String(err));
+    kernels.reset(); // the WASM kernels died with the worker
     for (const call of pending.values()) call.reject(error);
     pending.clear();
     worker = undefined;
   });
   worker.on("exit", () => {
+    kernels.reset();
     for (const call of pending.values()) call.reject(new Error("cadCompute worker exited"));
     pending.clear();
     worker = undefined;
@@ -61,8 +71,25 @@ function ensureWorker(): Worker {
 function call<T>(method: string, args: unknown[]): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const id = nextId++;
-    pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
-    ensureWorker().postMessage({ id, method, args });
+    kernels.start(method);
+    pending.set(id, {
+      resolve: (value) => {
+        kernels.success(method);
+        resolve(value as T);
+      },
+      reject: (err) => {
+        kernels.failure(method);
+        reject(err);
+      },
+    });
+    try {
+      ensureWorker().postMessage({ id, method, args });
+    } catch (err) {
+      // A worker that cannot even spawn must not leave the kernel "loading".
+      pending.delete(id);
+      kernels.failure(method);
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
   });
 }
 

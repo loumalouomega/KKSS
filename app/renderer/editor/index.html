@@ -8,14 +8,16 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'none'; style-src kkss: 'unsafe-inline'; script-src kkss:" />
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
+  <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./editor.css" rel="stylesheet" />
   <title>KKSS Editor</title>
 </head>
 <body>
   <div id="editor-bar">
-    <button id="open-btn" title="Open a file in the editor">Open&hellip;</button>
-    <button id="save-btn" title="Save (Ctrl+S)">Save</button>
-    <button id="save-as-btn" title="Save As (Ctrl+Shift+S)">Save As&hellip;</button>
+    <button id="open-btn" class="btn" title="Open a file in the editor">Open&hellip;</button>
+    <span class="tb-div"></span>
+    <button id="save-btn" class="btn" title="Save (Ctrl+S)">Save</button>
+    <button id="save-as-btn" class="btn" title="Save As (Ctrl+Shift+S)">Save As&hellip;</button>
     <span id="editor-path">No file open — use Open…</span>
   </div>
   <div id="editor-host"></div>

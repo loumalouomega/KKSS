@@ -132,6 +132,9 @@ check_tolerance answer part-count and fit questions, hit_test resolves a ray to 
 and export_svg_silhouette / export_technical_drawing produce 2D SVG or DXF (the latter with hidden-line \
 removal). set_plane persists a named construction plane beside the model; save_parametric_script / \
 list_parametric_scripts / run_saved_script are the macro library the viewer's Macros panel shares. \
+save_mesh_preset / list_mesh_presets / apply_mesh_preset are the meshing-preset library the FE Mesh panel \
+shares (bundled starters plus your own, per folder), and compare_mesh_refinement meshes one model at several \
+explicit sizes to compare cost against element quality — density trends are not solver convergence. \
 resolve_selector and synthesize_selector persist a re-executable QUERY for an op operand instead of a \
 positional entity id, so an edit keeps naming the right face after the op list is spliced — prefer them \
 over a bare face-N whenever an op's operand has to survive later edits; a null query with a reason is an \
@@ -147,9 +150,9 @@ Netgen, SU2, XDMF, Exodus .e/.exo/.ex2, CGNS, MOAB .h5m, Salome .med, tetgen, En
 postprocess .post.msh/.post.res/.post.bin/.post.h5, OpenFOAM .foam (reads a case's constant/polyMesh/ tree, \
 recovering named boundary SubModelParts; writes one too, but in-place save is refused — a .foam marker is \
 0 bytes, the mesh lives in sibling files), …), 37 of them writable, format conversion (pass inputFormat/outputFormat to force a meshio++ reader/writer when \
-the extension is ambiguous; pass timeStep to pick a step of a multi-step file — Exodus and Salome MED, but \
-only Exodus reports its available times as mesh__mesh_info's timeValues, so a MED step count is discoverable \
-only by asking for one), boundary-skin extraction, and Kratos case setup \
+the extension is ambiguous; pass timeStep to pick a step of a multi-step file — Exodus, Salome MED, CGNS, Tecplot, GiD postprocess, \
+XDMF and OpenFOAM time directories; mesh__mesh_info's timeValues says how many steps there are; mesh__mesh_capabilities reports which readers/writers the installed meshio++ build \
+actually has), boundary-skin extraction, and Kratos case setup \
 (problemtypes, ProjectParameters, materials). mesh__mesh_transform applies an undoable op list: MMG remeshing \
 (incl. mode "expr", a formula over the nodal size h, the whole-mesh size statistics and the coordinates, with \
 optional per-SubModelPart overrides, and mode "aniso", which differentiates a scalar nodal field twice \
@@ -165,13 +168,18 @@ selected cells split fully and their neighbours get the smallest partial split t
 conforming, so there are no hanging nodes; triangles and tetrahedra only), linear↔quadratic conversion, simplexification, box/plane \
 cropping, a field calculator and nodal↔elemental averaging, mesh merging (N files in one op), id renumbering, \
 the five SubModelPart-tree ops (create/move/merge/add/remove entities), field gradient, Hessian, \
-Zienkiewicz-Zhu error estimation, signed distance to an external surface, mass-preserving field transfer, \
+Zienkiewicz-Zhu error estimation, signed distance to an external surface, a SubModelPart of the same mesh \
+or the mesh's own exterior skin ("skin": true — volume meshes only), global scalar reductions of a field \
+(reduceField: min/max/mean/std/median/sum/… — usable by name in every formula, including a remesh sizing \
+formula, and recomputed live so they never go stale; ops in one mesh_transform call run in order, so a later \
+op can use a field an earlier one made, and a remesh now carries data fields onto the new mesh), \
+mass-preserving field transfer, \
 and the RADIUS of SPHERE/particle elements (mesh__mesh_info's spheres section tells you whether a particle \
 file carries one; its beams section does the same for CROSS_AREA-carrying line elements, and its \
 constraints section for multi-point constraints, which every op now maintains rather than drops, and its \
 isolatedNodes section for nodes no cell references). mesh__mesh_info also takes metadataOnly: true, which \
-answers from the file header alone — available only for .xdmf/.xmf/.msh and the GiD .post.* set, and \
-refused elsewhere rather than served at full-parse cost, so use it when you need counts/blocks/fields/time \
+answers from the file header alone — available only for .xdmf/.xmf/.msh, .med, .cgns, .dat/.tec and the GiD \
+.post.* set, and refused elsewhere rather than served at full-parse cost, so use it when you need counts/blocks/fields/time \
 values for one of those and not the mesh itself; summary: true is the looser sibling — the same shape of \
 report (counts, blocks, field names, regions, time steps) for ANY supported format, at whatever cost that \
 format's header/scan/full-read actually takes (a cost field says which), so prefer it when metadataOnly \

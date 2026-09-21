@@ -33,7 +33,7 @@ The toolbar at the top of the window holds the mode toggle:
 - **🔷 Pre-Processing** — CAD geometry and model preparation ([details](/guide/cad-mode)). Opens STEP, IGES, BREP, STL, OBJ, PLY, glTF, and OpenSCAD `.csg`/`.scad` (a `.scad` needs a local `openscad` binary). **File ▸ New Blank Model…** starts an empty one instead.
 - **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 39 extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, Exodus, CGNS, MED, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and an **Advanced** toolbar menu holds the Mesh Size panel (nodal/element size statistics), sphere glyphs for particle meshes, face normals for spotting inverted elements, and boundary-skin export.
 
-Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved.
+Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved. The two viewers share one layout — a document chip in the menubar, an icon-headed sidebar with a collapsed **Advanced** group, a floating toolbar and dock, and a status bar — described in [Pre-Processing](/guide/cad-mode#reading-the-window-at-a-glance) and [Post-Processing](/guide/mesh-mode#reading-the-window-at-a-glance). The app's own toolbar, home screen, chat and jobs panels use the same look, and the **Terminal**, **Chat** and **Jobs** buttons show as pressed while their panel is open.
 
 ### The project folder
 
@@ -110,7 +110,7 @@ After an update, the next launch automatically pops up a **What's New** window l
 
 ## Embedded terminal
 
-The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**) opens a shell panel below the viewer — handy for launching Kratos runs (`python MainKratos.py`) while watching the model. The session starts in the current file's directory, runs PowerShell on Windows and your `$SHELL` on macOS/Linux (changeable under **Settings ▸ Terminal Shell**), keeps running while hidden (hide it with the **✕ Hide** button in the panel's corner, the toolbar button, or ``Ctrl+` ``), and offers a restart when the shell exits. The panel is shared by both modes; its height is fixed in this version.
+The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**) opens a shell panel below the viewer — handy for launching Kratos runs (`python MainKratos.py`) while watching the model. The session starts in the current file's directory, runs PowerShell on Windows and your `$SHELL` on macOS/Linux (changeable under **Settings ▸ Terminal Shell**), keeps running while hidden (hide it with the **Hide** button in the panel's corner, the toolbar button, or ``Ctrl+` ``), and offers a restart when the shell exits. The panel is shared by both modes; its height is fixed in this version.
 
 ## AI assistant
 
@@ -155,7 +155,7 @@ What it checks is narrower than a preview: it tells you which operations parse a
 
 The sidebar header shows how much of the model's context window your last message filled, and roughly what the conversation has cost so far — for example `12.4k/1M · $0.03`. Hover it for the full breakdown: the model, the split between fresh and cached input, and the output total.
 
-It turns amber as the window fills up. That is worth acting on: when a conversation no longer fits, the provider rejects it outright, and the fix is to start a new one with **⟳ New** (the old conversation is saved, not lost).
+It turns amber as the window fills up. That is worth acting on: when a conversation no longer fits, the provider rejects it outright, and the fix is to start a new one with the header's **+** (New conversation) button (the old conversation is saved, not lost).
 
 Cost is an estimate from published per-token prices for the Claude models KKSS knows about. Point the OpenAI-compatible provider at your own gateway — Ollama, OpenRouter, a local model — and KKSS has no way to know what it charges, so you get token counts and nothing else rather than a made-up figure. None of this leaves your machine; it is calculated from what the provider returned with your response.
 
@@ -165,7 +165,7 @@ Every message you send includes the whole conversation so far, so a long one eve
 
 Your transcript is not changed: every result is still there in full, and it is still saved. Only what the assistant is re-sent shrinks, and it can always re-run a tool if it needs an older result again.
 
-If even that is not enough, you will get the "start a new conversation" message. The old one is saved and one click away in **☰**.
+If even that is not enough, you will get the "start a new conversation" message. The old one is saved and one click away in the header's **history** button.
 
 ### Seeing what the assistant sees
 
@@ -175,13 +175,13 @@ Images live for as long as the app is running. They are not written into the sav
 
 ### Conversations
 
-Conversations are saved as you go and survive quitting the app — including the tool calls that record what the assistant actually did to your files, which is often the only account of it. **⟳ New** starts a fresh one and keeps the current one; nothing is discarded, so there is nothing to confirm.
+Conversations are saved as you go and survive quitting the app — including the tool calls that record what the assistant actually did to your files, which is often the only account of it. The header's **+** button starts a fresh one and keeps the current one; nothing is discarded, so there is nothing to confirm.
 
-The **☰** button in the sidebar header lists your saved conversations, newest first, each named after its first message and showing when you last used it:
+The **history** button in the sidebar header lists your saved conversations, newest first, each named after its first message and showing when you last used it:
 
 - click a row to switch to it — the full transcript comes back;
-- **✎** renames it (`Enter` to confirm, `Esc` to cancel);
-- **🗑** deletes it, and asks once (the button turns into *Delete?*) because that is the one thing here you cannot undo.
+- the **pencil** renames it (`Enter` to confirm, `Esc` to cancel);
+- the **trash can** deletes it, and asks once (the button turns into *Delete?*) because that is the one thing here you cannot undo.
 
 The 50 most recently used conversations are kept; older ones are dropped, except the one you currently have open. Switching away from a conversation while the assistant is still working stops that response first and records how far it got, so the transcript you come back to reads honestly.
 
@@ -235,7 +235,7 @@ This panel covers `kratos__run_simulation` jobs. Runs started from the mesh Prob
 
 ## Text editor
 
-The **Edit** toolbar button opens the file currently loaded in the active mode (`.mdpa`, `.stp`, …) as plain text — handy for touching up an input deck without leaving the app. **Text Editor** on the home screen (or **File ▸ Open in Text Editor…**) opens any file via a dialog instead. It's a lightweight editor for input files, scripts and configuration — `.json` and `.py` get syntax highlighting; binary or very large files are refused with a notice. `Ctrl+S` saves, `Ctrl+Shift+S` saves as, and the toolbar has Open/Save/Save As buttons. Unsaved changes show a ● next to the file name; switching screens never loses the buffer, and closing the window with unsaved changes prompts to save. Pair it with the terminal panel (``Ctrl+` ``) to edit and launch a Kratos case side by side.
+The **Edit** toolbar button opens the file currently loaded in the active mode (`.mdpa`, `.stp`, …) as plain text — handy for touching up an input deck without leaving the app. **Text Editor** on the home screen (or **File ▸ Open in Text Editor…**) opens any file via a dialog instead. It's a lightweight editor for input files, scripts and configuration — `.json` and `.py` get syntax highlighting; binary or very large files are refused with a notice. `Ctrl+S` saves, `Ctrl+Shift+S` saves as, and the toolbar has Open/Save/Save As buttons. Unsaved changes show a dot next to the file name; switching screens never loses the buffer, and closing the window with unsaved changes prompts to save. Pair it with the terminal panel (``Ctrl+` ``) to edit and launch a Kratos case side by side.
 
 ## Settings
 
@@ -258,7 +258,7 @@ Viewer actions (mesh quality, field visualization, find entity…) are *not* in 
 
 ### Tabs — several open documents at once
 
-Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the toolbar, one per open document. Click **+** at the end of the strip, or **File ▸ New CAD Tab** / **New Mesh Tab**, to open a second document alongside the first — each tab keeps its own camera position, edit history, and (in Post-Processing) its own Flowgraph session, completely independent of the others. Click a tab to switch to it; click its **✕** to close it (closing needs no confirmation — nothing about tabs is unsaved in the way a text buffer can be, since both viewers autosave their sidecars). A mesh exported from a Pre-Processing tab (**File ▸ Export…** to `.mdpa`/`.vtk`/…) opens in a *new* Post-Processing tab rather than replacing whatever you're currently viewing there.
+Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the toolbar, one per open document. Click **+** at the end of the strip, or **File ▸ New CAD Tab** / **New Mesh Tab**, to open a second document alongside the first — each tab keeps its own camera position, edit history, and (in Post-Processing) its own Flowgraph session, completely independent of the others. Click a tab to switch to it; click its **×** to close it (closing needs no confirmation — nothing about tabs is unsaved in the way a text buffer can be, since both viewers autosave their sidecars). A mesh exported from a Pre-Processing tab (**File ▸ Export…** to `.mdpa`/`.vtk`/…) opens in a *new* Post-Processing tab rather than replacing whatever you're currently viewing there.
 
 ## Keyboard shortcuts
 
@@ -290,5 +290,5 @@ File…** are also in the native menu: the mesh viewer contributes the first two
 strip (which KKSS hides in favour of the native menu bar), and the third is reachable upstream only
 from the Command Palette and the Kratos Runs tree — neither of which KKSS runs.
 
-A mesh tab with unsaved operations shows a `●` in the tab strip; closing it, or quitting with one
+A mesh tab with unsaved operations shows a dot in the tab strip; closing it, or quitting with one
 open, prompts Save / Don't Save / Cancel.

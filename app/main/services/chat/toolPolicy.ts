@@ -83,7 +83,7 @@ export function isApprovalMode(value: unknown): value is ApprovalMode {
  * reviewed edit rather than a silent change in what runs unasked.
  */
 export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
-  // ---- cad-preview (46) ---------------------------------------------------
+  // ---- cad-preview (56) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",
   cad__get_mass_properties: "read",
@@ -108,6 +108,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__screenshot_shape: "read",
   cad__hit_test: "read",
   cad__list_standard_hole_sizes: "read",
+  cad__list_mesh_presets: "read",
   cad__generate_mesh: "read",
   cad__generate_hole_table: "read",
   cad__inspect_meshio_fields: "read",
@@ -135,10 +136,17 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__export_mesh: "write",
   cad__export_brep: "write",
   cad__save_preprocess: "write",
+  // cad 2.7.0: presets write the folder's library file (save) or the model's
+  // mesh options + .geo (apply); the refinement sweep can write per-run mesh
+  // files and, with applyIndex, persist one run's options.
+  cad__save_mesh_preset: "write",
+  cad__apply_mesh_preset: "write",
+  cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
 
-  // ---- kratos-mdpa (22) ---------------------------------------------------
+  // ---- kratos-mdpa (23) ---------------------------------------------------
   mesh__mesh_info: "read",
+  mesh__mesh_capabilities: "read",
   mesh__mesh_quality: "read",
   mesh__mesh_field_integrate: "read",
   mesh__mesh_size: "read",

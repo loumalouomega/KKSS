@@ -2,6 +2,7 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import type { TermToWebview } from "../../main/ipc";
+import { glyph } from "../glyphs";
 
 declare global {
   interface Window {
@@ -14,6 +15,7 @@ declare global {
 
 const api = window.termApi;
 const container = document.getElementById("terminal") as HTMLDivElement;
+document.getElementById("hide-btn")!.innerHTML = `${glyph("x", "sm")}<span>Hide</span>`;
 
 /** xterm theme from the same --vscode-* variables the rest of the app uses. */
 function themeFromCss(): { background: string; foreground: string; cursor: string } {

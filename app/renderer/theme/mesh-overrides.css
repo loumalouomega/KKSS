@@ -3,16 +3,21 @@
  * design-system.css + style.css (tools/webviewMarkup.ts). The submodule is
  * consumed verbatim, so anything KKSS needs to look different lives here.
  *
- * mesh 3.0.0 introduced an in-flow menu bar (`#menubar`) holding the webview's
- * File menu and scene-theme picker. KKSS already owns both: File ▸ Open / Save /
- * Save As / Export in the native menu (app/main/menu.ts) and Settings ▸ Color
- * Theme, persisted through `stateStore` and pushed into the view as
- * `initialState.sceneTheme`. Showing the strip too would put the same actions in
- * two places and eat 34px of viewport, so it is emitted (webview/main.ts queries
- * `#file-menu-btn`, `#theme-select`, … by id and would break on missing nodes)
- * but hidden. The Problem-zip and Screenshot entries that live *only* in that
- * menu have native equivalents — keep them in sync when the menu grows.
+ * mesh's in-flow menu bar (`#menubar`) holds three things: the File pill, the
+ * scene-theme picker and — since mesh 4.x — the document chip (`#doc-chip`: file
+ * name, format badge, "N unsaved edits"). KKSS already owns the first two: File
+ * ▸ Open / Save / Save As / Export in the native menu (app/main/menu.ts) and
+ * Settings ▸ Color Theme, persisted through `stateStore` and pushed into the view
+ * as `initialState.sceneTheme`. Showing them too would put the same actions in
+ * two places, so they are emitted (webview/main.ts queries `#file-menu-btn`,
+ * `#theme-select`, … by id and would break on missing nodes) but hidden. The
+ * chip has no native equivalent and stays visible, which is why the strip itself
+ * is no longer hidden: with the pill gone it is just a 34px bar carrying the chip
+ * on the right, like CAD mode's. The Problem-zip and Screenshot entries that live
+ * *only* in the hidden File menu have native equivalents — keep them in sync when
+ * the menu grows.
  */
-#menubar {
+#file-menu,
+#theme-select {
   display: none;
 }

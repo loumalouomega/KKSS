@@ -378,6 +378,9 @@ export interface ShellTabInfo {
 /** Messages sent to the shell toolbar renderer. */
 export type ShellToWebview =
   | { type: "jobs"; active: number; visible: boolean; stale: boolean }
+  /** Which toggleable side/bottom panels are showing — the toolbar buttons'
+   *  pressed state. Jobs has its own message above because it also carries a count. */
+  | { type: "panels"; terminal: boolean; chat: boolean }
   | { type: "screen"; screen: Screen }
   /** Editor-only — cad/mesh report their per-tab titles via `tabs` instead. */
   | { type: "title"; view: "editor"; fileName: string | null; dirty?: boolean }

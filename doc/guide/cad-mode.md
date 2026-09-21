@@ -27,12 +27,33 @@ Pre-Processing mode embeds the full [CAD-Preview](https://loumalouomega.github.i
 - **Open OpenSCAD models**: `.csg` (OpenSCAD's fully evaluated form) is parsed and built into a solid like any other imported source. A `.scad` source is converted to `.csg` first by a **user-installed `openscad` binary** — point **Settings ▸ CAD Viewer Defaults ▸ OpenSCAD Binary…** at it, or leave it unset to resolve `openscad` on `PATH`. Both are import-only: export goes to STEP/IGES/BREP or any mesh target, never back to `.csg`. Anything the importer has to approximate or skip (a `hull()`, a faceted cylinder) is reported on the status line rather than silently dropped.
 - **Pin an operand as a query**: instead of baking a positional face id into an edit, the extrude/revolve/shell/draft forms' **Pin query** row records a re-executable *query* for the selected face — re-matched geometrically on every replay, so the op keeps naming the right surface after the op list is spliced. A query that can no longer be derived freezes on its cached ids with a status line rather than silently resolving to the wrong entity. Parts carry the same mechanism and are re-resolved on open.
 - **Collapse what you're not using**: every sidebar section — Components, Parts, Edits, FE Mesh, Mass Properties, Mesh Health, Region fit, Macros, Standard Parts — has a chevron that collapses it to just its header, independently. The layout is remembered per document in `<model>.view.json`.
+- **Resize the sidebar**: drag its edge (or focus the handle and press `←`/`→`, `Home`/`End`) between 176 and 420 px; the width is remembered per document. Dropdown menus navigate with the arrow keys and close on `Esc`.
+- **Bookmark views**: **View ▾ ▸ Save current view…** names the camera orientation, projection, display mode and clip plane, and lists it in the same menu to restore, replace, rename or delete. Bookmarks live per document in `<model>.view.json`; a restore reframes from the model's *current* extents, so it stays meaningful after an edit.
+- **Reuse meshing presets**: the FE Mesh panel's **Saved presets** section applies or saves a named bundle of mesh options (stored in mm, with a pinned engine). Four starters — `coarse-preview`, `balanced`, `fine-detail`, `robust-repair` — ship read-only; your own live in a folder-level `cad-preview-mesh-presets.json` shared by every model beside it, and the assistant reads and writes the same file. The assistant can also **compare refinement**: it meshes one model at several explicit sizes and reports cost against element quality (density trends are not solver convergence).
+- **Sketch on a named plane**: a circle, rectangle or polygon profile can be placed from a construction plane plus in-plane offsets (and a rotation), so moving the plane moves everything authored on it.
+- **Select by volume or point, and zoom to it**: **Select ▾** filters also cover volumes (size, centre, largest/smallest N) and points (near a plane, near or inside the selection), and **Zoom to selection** frames the current selection. **Clash ▸ Check all** takes a pair/boolean budget; pairs past it are reported as *unchecked*, never as clash-free.
+- **Find standard parts faster**: search results show a thumbnail beside each part; the text row stays if an image can't be fetched.
 
 | Components tree | File menu | FE Mesh panel |
 | --- | --- | --- |
 | ![Components tree](/screenshots/cad-components-tree.png) | ![File menu](/screenshots/cad-file-menu.png) | ![FE Mesh panel](/screenshots/cad-fe-mesh-panel.png) |
 
 The toolbar is **Fit · Tree · FE Mesh** plus four dropdowns — **View ▾** (Grid, Edges, Screenshot), **Select ▾** (selection mode + Point/Vol/Surf/Line), **Measure ▾** and **Markup ▾** — with the display modes, clip, appearance and unit controls in the view-controls panel.
+
+## Reading the window at a glance
+
+A CAD tab is laid out the same way in every version of the viewer:
+
+- **Menubar** — the **File** menu, and on the right a **document chip** with the open file's name, a format badge (`STEP`, `STL`, …) and, when it has edits the source file does not yet contain, a dot and a count (`3 unsaved edits`). Hover the chip for the full path.
+- **Sidebar** — the four sections that edit the document (**Components**, **Parts**, **Edits**, **FE Mesh**) sit at the top, each with an icon. The read-only analysis sections (Mass Properties, Clash, Mesh Health, Region fit, Primitives) and the two libraries (Macros, Standard Parts) are folded into one collapsed **Advanced** group, with a count of how many it holds.
+- **Toolbar and dock** — the toolbar floats at the top right; the dock along the bottom holds navigation, display mode, the clip plane and perspective, with less-used controls behind its **⋯** button.
+- **Status bar** — along the bottom: which **kernels** have loaded (`OCCT ready · Gmsh ready`), the entity counts (`36 faces · 98 edges · 64 points`), the generated FE mesh (`mesh 10,000 el · min SICN 0.412`) and the live cursor position on the model, in the units chosen in the dock.
+
+### Why "unsaved edits" does not go away
+
+CAD-Preview keeps your edits in the `<model>.edits.json` sidecar and only writes them into the source file when it *bakes* them. KKSS never bakes — there is no save-into-the-source action — so an edited STEP, IGES, BREP, STL, OBJ or PLY keeps reading **N unsaved edits**. That is accurate rather than a fault: the *source file* does not contain what is on screen, while the sidecar (autosaved) does, and **File ▸ Export…** or **Save Preprocess…** is what writes a standalone file. Undoing back to the file's own state clears the chip.
+
+**Kernels idle** is also normal: the OCCT and Gmsh engines load lazily and the line only reports one after a call that needed it has succeeded, so a plain STL open, which uses neither, honestly reads idle.
 
 ## Viewer defaults
 
@@ -51,11 +72,12 @@ Pre-Processing mode never writes your CAD file. State lives beside it:
 | `<model>.parts.json` | Part definitions (entity ids, colors, mesh sizes) |
 | `<model>.edits.json` | Replayable edit operations + parametric variables |
 | `<model>.annotations.json` | Pinned measurements |
-| `<model>.view.json` | Camera, display mode, projection, clip plane |
+| `<model>.view.json` | Camera, display mode, projection, clip plane, split layout, sidebar width, view bookmarks |
 | `<model>.mesh.json` | Gmsh meshing options |
 | `<model>.planes.json` | Named construction planes (resolved point + normal, never a face reference) |
 | `<model>.geo` | Generated Gmsh script (one-way; regenerated on change) |
 | `<dir>/cad-preview-macros.json` | The macro library — **per folder**, shared by every model beside it |
+| `<dir>/cad-preview-mesh-presets.json` | Your saved meshing presets — **per folder**, like the macro library (the four bundled starters ship inside the app and are not written here) |
 
 **Save** (`Ctrl+S`) flushes all sidecars immediately; otherwise they autosave half a second after each change. Every sidecar write is atomic — a temp file, then a rename — so a reader can never see a half-written one. That matters most when the model lives in a folder a desktop sync client is watching (Drive, Dropbox, OneDrive): it can no longer upload a truncated sidecar or raise a spurious "conflicted copy".
 

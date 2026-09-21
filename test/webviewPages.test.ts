@@ -36,6 +36,11 @@ describe.skipIf(!built)("generated webview pages", () => {
     // them by class, so a stale page would leave all nine inert).
     expect(html).toContain('id="menu-new"');
     expect(html).toContain('class="panel-chevron"');
+    // cad 3.0.0's chrome: the host fills these through `documentInfo` and
+    // `kernelStatus`, so a page missing them would silently drop both messages.
+    for (const anchor of ['id="statusbar"', 'id="doc-chip"', 'id="advanced-group"', 'id="kernel-status-text"']) {
+      expect(html).toContain(anchor);
+    }
   });
 
   it("carries the mesh provider skeleton", () => {
@@ -53,6 +58,29 @@ describe.skipIf(!built)("generated webview pages", () => {
     ]) {
       expect(html).toContain(anchor);
     }
+    // The redesigned sidebar (mesh 4.x on the CAD v3 chrome): webview/sidebar.ts
+    // wires each section's collapse by the chevron BUTTON, and the read-only
+    // sections live in the collapsed Advanced group. A stale page would leave
+    // every section header inert.
+    for (const anchor of [
+      'class="panel-chevron"',
+      'id="advanced-group"',
+      'id="advanced-count"',
+      'id="sidebar-resizer" role="separator"',
+    ]) {
+      expect(html).toContain(anchor);
+    }
+    // #stats is filled by renderStats() wherever it sits — it must still exist.
+    expect(html).toContain('id="stats"');
+    // mesh 4.x's document chip and status bar: the providers post `documentInfo`
+    // and `engineStatus` and statusBar.ts looks these up by id, so a stale
+    // meshBody() would silently drop both in KKSS only.
+    for (const anchor of ['id="statusbar"', 'id="doc-chip"', 'id="engine-status"', 'id="sb-cursor"']) {
+      expect(html).toContain(anchor);
+    }
+    // The status bar is the LAST child of #app, after #main.
+    expect(html.indexOf('id="statusbar"')).toBeGreaterThan(html.indexOf('id="main"'));
+    expect(html.indexOf('id="statusbar"')).toBeGreaterThan(html.indexOf('id="render-root"'));
   });
 
   it("carries the View and Advanced menus (meshBody() replicates the providers' toolbar)", () => {
@@ -75,8 +103,9 @@ describe.skipIf(!built)("generated webview pages", () => {
   });
 
   it("carries the redesigned Clip controls", () => {
-    // mesh 3.0.0 reparents #cut-panel into the nav card; its Off/On toggle and
-    // the Free oblique-normal inputs are new ids main.ts wires by hand.
+    // mesh 3.0.0 reparents #cut-panel's controls into the nav dock (the inline
+    // CLIP group and its ⋯ popover); the Off/On toggle and the Free
+    // oblique-normal inputs are ids main.ts wires by hand.
     const html = read("mesh");
     for (const anchor of ['id="cut-toggle"', 'id="cut-free-inputs"', 'id="cut-normal-x"']) {
       expect(html).toContain(anchor);
@@ -85,7 +114,7 @@ describe.skipIf(!built)("generated webview pages", () => {
 
   it("links design-system.css before style.css, then the KKSS overrides", () => {
     // style.css resolves 37 --ds-* tokens defined only in design-system.css, and
-    // mesh-overrides.css hides the menubar — order decides all three.
+    // mesh-overrides.css hides the File pill and theme picker — order decides all three.
     const html = read("mesh");
     const ds = html.indexOf("design-system.css");
     const style = html.indexOf("./style.css");

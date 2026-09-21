@@ -17,6 +17,7 @@ import type {
 } from "../../main/ipc";
 
 import { kratosStatusView } from "./serverStatus";
+import { glyph } from "../glyphs";
 
 declare global {
   interface Window {
@@ -41,6 +42,18 @@ const newBtn = byId<HTMLButtonElement>("new-btn");
 const hideBtn = byId<HTMLButtonElement>("hide-btn");
 const usageEl = byId<HTMLSpanElement>("usage");
 const compactionEl = byId<HTMLDivElement>("compaction");
+
+// Static header glyphs (the buttons ship empty in index.html so the markup
+// stays free of SVG).
+byId<HTMLElement>("chat-icon").innerHTML = glyph("messageSquare");
+historyBtn.innerHTML = glyph("history");
+newBtn.innerHTML = glyph("plus");
+hideBtn.innerHTML = glyph("x");
+
+/** Markup for the composer's one button: Send or Stop. */
+function sendLabel(stop: boolean): string {
+  return stop ? `${glyph("square", "sm")}<span>Stop</span>` : `${glyph("send", "sm")}<span>Send</span>`;
+}
 
 let busy = false;
 /** The assistant bubble currently receiving stream deltas. */
@@ -256,7 +269,7 @@ function showApproval(pending: ChatPendingApproval): void {
   // the prompt armed, so the user answers it with the report in front of them.
   if (pending.dryRunnable) {
     const dry = document.createElement("button");
-    dry.className = "dryrun";
+    dry.className = "dryrun btn btn-secondary btn-sm";
     dry.textContent = "Validate (dry run)";
     dry.addEventListener("click", () => {
       dry.disabled = true;
@@ -273,7 +286,7 @@ function showApproval(pending: ChatPendingApproval): void {
   ];
   for (const [label, decision, cls] of choices) {
     const button = document.createElement("button");
-    button.className = cls;
+    button.className = `${cls} btn btn-sm ${decision === "allow" ? "btn-primary" : "btn-secondary"}`;
     button.textContent = label;
     button.addEventListener("click", () => {
       post({ type: "approveTool", callId: pending.callId, decision });
@@ -359,7 +372,7 @@ function addError(entry: Extract<ChatWireEntry, { kind: "error" }>): void {
   // text. Both have an action the user can actually take right now.
   const advice =
     entry.errorKind === "context"
-      ? "Start a new conversation (⟳ New) to continue — this one is too long to send."
+      ? "Start a new conversation (the + button) to continue — this one is too long to send."
       : entry.errorKind === "rateLimit"
         ? "The provider is throttling requests. Wait a moment and send again."
         : "";
@@ -371,6 +384,7 @@ function addError(entry: Extract<ChatWireEntry, { kind: "error" }>): void {
   }
   if (entry.errorKind === "auth" || entry.errorKind === "noKey") {
     const button = document.createElement("button");
+    button.className = "btn btn-primary btn-sm";
     button.textContent = "Open Settings…";
     button.addEventListener("click", () => post({ type: "openSettings" }));
     el.appendChild(button);
@@ -431,7 +445,7 @@ function relativeTime(updatedAt: number): string {
 /** Swaps the title for an input in place; Enter commits, Escape/blur cancels. */
 function startRename(convo: ChatConversationInfo, titleSpan: HTMLSpanElement): void {
   const field = document.createElement("input");
-  field.className = "convo-rename";
+  field.className = "convo-rename field";
   field.value = convo.title;
   let done = false;
   const finish = (commit: boolean) => {
@@ -479,17 +493,19 @@ function conversationRow(convo: ChatConversationInfo): HTMLDivElement {
   });
 
   const rename = document.createElement("button");
-  rename.className = "convo-act";
-  rename.textContent = "✎";
+  rename.className = "convo-act icon-btn";
+  rename.innerHTML = glyph("pencil", "sm");
+  rename.setAttribute("aria-label", "Rename");
   rename.title = "Rename";
   rename.addEventListener("click", () => startRename(convo, title));
 
   // Two-click armed rather than a modal: this renderer has no dialog, and
   // deleting a conversation is the only irreversible thing in the sidebar.
   const del = document.createElement("button");
-  del.className = "convo-act";
-  del.textContent = "🗑";
+  del.className = "convo-act icon-btn";
+  del.innerHTML = glyph("trash", "sm");
   del.title = "Delete";
+  del.setAttribute("aria-label", "Delete");
   del.addEventListener("click", () => {
     if (del.classList.contains("armed")) {
       post({ type: "deleteConversation", id: convo.id });
@@ -509,7 +525,7 @@ function conversationRow(convo: ChatConversationInfo): HTMLDivElement {
 function disarmAll(): void {
   for (const armed of historyEl.querySelectorAll<HTMLButtonElement>("button.convo-act.armed")) {
     armed.classList.remove("armed");
-    armed.textContent = "🗑";
+    armed.innerHTML = glyph("trash", "sm");
   }
 }
 
@@ -540,6 +556,7 @@ function renderServers(servers: ChatServerStatus[]): void {
     panel.appendChild(text);
     if (view.action) {
       const button = document.createElement("button");
+      button.className = "btn btn-primary btn-sm";
       const action = view.action;
       button.textContent = action === "installKratosRuntime" ? "Install uv for KKSS" : "Retry";
       button.addEventListener("click", () => {
@@ -635,7 +652,7 @@ function renderCompaction(count: number | undefined): void {
 
 function setBusy(value: boolean): void {
   busy = value;
-  sendBtn.textContent = busy ? "Stop" : "Send";
+  sendBtn.innerHTML = sendLabel(busy);
   sendBtn.classList.toggle("stop", busy);
   // The turn ended with a prompt still open — Stop, a conversation switch, a
   // delete or a quit. One line here covers every one of them without the
@@ -654,6 +671,7 @@ function submit(): void {
   post({ type: "send", text });
 }
 
+sendBtn.innerHTML = sendLabel(false);
 sendBtn.addEventListener("click", submit);
 input.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {

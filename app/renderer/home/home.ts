@@ -25,7 +25,7 @@ const menu = document.getElementById("menu") as HTMLDivElement;
 
 for (const { action, icon, label, description } of HOME_BUTTONS) {
   const button = document.createElement("button");
-  button.className = "menu-btn";
+  button.className = "menu-btn card";
   button.title = description;
 
   const glyph = document.createElement("span");
