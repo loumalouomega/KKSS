@@ -8,11 +8,12 @@
         content="default-src 'none'; style-src kkss: 'unsafe-inline'; script-src kkss:; font-src kkss:" />
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
   <link href="./xterm.css" rel="stylesheet" />
+  <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./terminal.css" rel="stylesheet" />
   <title>KKSS Terminal</title>
 </head>
 <body>
-  <button id="hide-btn" title="Hide terminal (Ctrl+`) — the shell keeps running">✕ Hide</button>
+  <button id="hide-btn" class="btn btn-secondary btn-sm" title="Hide terminal (Ctrl+`) — the shell keeps running"></button>
   <div id="terminal"></div>
   <script src="./terminal.js"></script>
 </body>

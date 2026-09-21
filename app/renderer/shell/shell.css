@@ -1,8 +1,12 @@
+/*
+ * Shell page: the 40px toolbar (SHELL_HEIGHT) and the 34px tab strip
+ * (TAB_STRIP_HEIGHT) — both heights are constants in app/main/windows.ts, which
+ * multiplies them by the zoom factor, so they are fixed here too. Buttons,
+ * segmented control, toasts, spinner and dividers come from ../theme/kkss-ui.css;
+ * this file holds only the layout and the tab strip.
+ */
 html,
 body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
   overflow: hidden;
   user-select: none;
 }
@@ -10,116 +14,94 @@ body {
 #shell {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ui-s-2);
   height: 40px;
-  padding: 0 10px;
+  padding: 0 var(--ui-s-4);
   box-sizing: border-box;
   background: var(--vscode-editorGroupHeader-tabsBackground);
   border-bottom: 1px solid var(--vscode-panel-border);
+  /* Keep every toolbar command reachable when interface scaling narrows it. */
+  overflow-x: auto;
+}
+#shell > button,
+#shell > .seg,
+#shell > .tb-div {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 #brand {
+  margin-right: var(--ui-s-2);
   font-weight: 700;
   letter-spacing: 1px;
   color: var(--vscode-textLink-foreground);
 }
 
-/* TikZ-generated inline SVG icons (shellIcons.ts) — sized by font, tinted by
-   the surrounding element's color, same convention as the submodules. */
+/* TikZ-generated inline SVG icons (shellIcons.ts) — sized to match the line
+   glyphs beside them, tinted by the surrounding element's color. */
+.toolbar-icon {
+  display: inline-flex;
+}
 .toolbar-icon svg {
-  width: 1em;
-  height: 1em;
-  vertical-align: -0.125em;
-}
-
-#mode-toggle {
-  display: flex;
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.mode-btn {
-  background: transparent;
-  color: var(--vscode-foreground);
-  border: none;
-  padding: 5px 14px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.mode-btn:hover {
-  background: var(--vscode-toolbar-hoverBackground);
-}
-
-.mode-btn.active {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-}
-
-#home-btn,
-#open-btn,
-#edit-btn,
-#terminal-btn,
-#chat-btn,
-#jobs-btn,
-#root-btn {
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-  border: none;
-  border-radius: 3px;
-  padding: 5px 12px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-#home-btn:hover,
-#open-btn:hover,
-#edit-btn:hover,
-#terminal-btn:hover,
-#chat-btn:hover,
-#jobs-btn:hover,
-#root-btn:hover {
-  background: var(--vscode-button-secondaryHoverBackground);
+  width: 14px;
+  height: 14px;
 }
 
 #file-title {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--ui-fs-md);
   color: var(--vscode-descriptionForeground);
+}
+#file-title .ui-dot {
+  margin-left: var(--ui-s-2);
 }
 
 #zoom-select {
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 3px;
-  padding: 3px 4px;
-  font-size: 12px;
-  cursor: pointer;
   flex: 0 0 auto;
+  cursor: pointer;
 }
 
 #toasts {
   display: flex;
-  gap: 6px;
+  gap: var(--ui-s-2);
   max-width: 45%;
   overflow: hidden;
 }
+.toast .btn {
+  height: 20px;
+  padding: 0 var(--ui-s-2);
+  font-size: var(--ui-fs-sm);
+}
 
-/* Row of open-document tabs for the active mode screen (cad/mesh only —
-   hidden on home/editor). Painted inside this same shell page rather than a
-   separate WebContentsView; app/main/windows.ts reserves its height
-   (TAB_STRIP_HEIGHT) only while a mode screen is active. */
+/* Project-root chip. Hidden entirely unless a root is explicitly set (the global
+   [hidden] rule), so the toolbar is unchanged for anyone who never picks one. */
+#root-btn {
+  max-width: 220px;
+}
+#root-btn .ui-glyph {
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+#root-btn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Row of open-document tabs for the active mode screen (cad/mesh only — hidden
+   on home/editor). Painted inside this same shell page rather than a separate
+   WebContentsView; app/main/windows.ts reserves its height only while a mode
+   screen is active. The active tab lifts quietly and carries a 2px accent rule. */
 #tab-strip {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  gap: var(--ui-s-0);
   height: 34px;
-  padding: 0 6px;
-  gap: 4px;
+  padding: var(--ui-s-1) var(--ui-s-2) 0;
   box-sizing: border-box;
   background: var(--vscode-editorGroupHeader-tabsBackground);
   border-bottom: 1px solid var(--vscode-panel-border);
@@ -129,146 +111,35 @@ body {
 .tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  max-width: 220px;
-  padding: 4px 6px 4px 10px;
-  border-radius: 3px;
-  font-size: 12px;
-  white-space: nowrap;
-  color: var(--vscode-foreground);
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
+  gap: var(--ui-s-2);
   flex: 0 0 auto;
+  max-width: 220px;
+  padding: 0 var(--ui-s-1) 0 var(--ui-s-4);
+  border-bottom: 2px solid transparent;
+  border-radius: var(--ui-r-sm) var(--ui-r-sm) 0 0;
+  font-size: var(--ui-fs-md);
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
 }
-
 .tab:hover {
   background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
 }
-
 .tab.active {
-  background: var(--vscode-button-secondaryBackground);
-  border-color: var(--vscode-panel-border);
+  background: var(--vscode-list-inactiveSelectionBackground);
+  border-bottom-color: var(--vscode-focusBorder);
+  color: var(--vscode-foreground);
 }
-
 .tab-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.tab-close {
-  background: transparent;
-  border: none;
-  color: var(--vscode-descriptionForeground);
-  cursor: pointer;
-  font-size: 11px;
-  line-height: 1;
-  padding: 2px 4px;
-  border-radius: 2px;
-  flex: 0 0 auto;
+.tab .icon-btn {
+  width: 20px;
+  height: 20px;
 }
-
-.tab-close:hover {
-  background: var(--vscode-toolbar-hoverBackground);
-  color: var(--vscode-foreground);
-}
-
 .tab-new {
-  flex: 0 0 auto;
-  background: transparent;
-  border: none;
-  color: var(--vscode-descriptionForeground);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  padding: 5px 10px;
-  border-radius: 3px;
+  align-self: center;
 }
-
-.tab-new:hover {
-  background: var(--vscode-toolbar-hoverBackground);
-  color: var(--vscode-foreground);
-}
-
-.toast {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  border-radius: 3px;
-  font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background: var(--vscode-editorWidget-background);
-  border: 1px solid var(--vscode-editorWidget-border);
-  color: var(--vscode-foreground);
-}
-
-.toast.warning {
-  border-color: var(--vscode-inputValidation-warningBorder);
-  background: var(--vscode-inputValidation-warningBackground);
-}
-
-.toast.error {
-  border-color: var(--vscode-errorForeground);
-}
-
-.toast button {
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-  border: none;
-  border-radius: 2px;
-  font-size: 11px;
-  padding: 1px 6px;
-  cursor: pointer;
-}
-
-.toast .spinner {
-  width: 10px;
-  height: 10px;
-  border: 2px solid var(--vscode-progressBar-background);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.9s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Project-root chip. Hidden entirely unless a root is explicitly set, so the
-   toolbar is unchanged for anyone who never picks one. */
-/* `hidden` must win over the display below — an explicit `display` in a later
-   rule beats the UA stylesheet's [hidden] { display: none }. */
-#root-btn[hidden] {
-  display: none;
-}
-
-#root-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 220px;
-}
-
-#root-btn .toolbar-icon {
-  width: 13px;
-  height: 13px;
-  flex: 0 0 auto;
-  opacity: 0.85;
-}
-
-#root-btn-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Keep every toolbar command reachable when interface scaling narrows it. */
-#shell { overflow-x: auto; gap: 6px; }
-#shell > button, #mode-toggle { flex-shrink: 0; white-space: nowrap; }
-#jobs-btn[aria-pressed="true"] { outline: 1px solid var(--vscode-focusBorder); }

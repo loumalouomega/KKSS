@@ -34,6 +34,15 @@
  *     `zoomToSelection()` → `{type:"zoomToSelection"}` relay). Like every other
  *     `cad-preview.*` command it has no KKSS analogue; the Select menu's own
  *     "Zoom to selection" button is purely webview-side and works unchanged.
+ *
+ * cad 3.0.0's chrome redesign added two host → webview messages, both ported
+ * here: `kernelStatus` (readiness, fed by cadComputeClient's tracker and fanned
+ * out to every tab — the provider's constructor subscription) and
+ * `documentInfo` (the menubar chip). The chip is a FAITHFUL port of the
+ * provider's predicate: KKSS never advances `bakedThrough` (no interactive
+ * bake), so an edited STEP/IGES/BREP/STL/OBJ/PLY reads "N unsaved edits" for
+ * good. That is accurate by cad's own definition — the source file does not yet
+ * contain what is on screen — and is documented rather than special-cased.
  */
 import { ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs/promises";
@@ -61,6 +70,7 @@ import {
   exportTargetsFor,
   EXPORT_EXTENSION,
   EXPORT_LABEL,
+  MESH_SAVE_IN_PLACE_FORMATS,
   UNIT_CONVERTIBLE_FORMATS,
 } from "../../cad/src/exportTargets";
 import { parsePartsJson, serializePartsJson } from "../../cad/src/partsSidecar";
@@ -133,7 +143,7 @@ import {
   stlBytesForHeal,
   AUTO_DECIMATE_TARGET_TRIANGLES,
 } from "../../cad/src/meshioService";
-import { cadCompute } from "./cadComputeClient";
+import { cadCompute, kernelState, onKernelState } from "./cadComputeClient";
 import { toKkssUrl, allowRoot } from "./protocol";
 import { projectRoot } from "./services/projectRoot";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
@@ -205,6 +215,14 @@ interface PendingExport {
  * registry instead. Entries are added on construction and removed on dispose.
  */
 const liveHosts = new Set<CadHost>();
+
+// cad 3.0.0's status bar. The provider subscribes once in its constructor and
+// posts to every session; the same shape here, since one worker serves every
+// tab. Module-level and never unsubscribed: it is process-lifetime, like the
+// worker itself, and a host that is gone has left `liveHosts`.
+onKernelState((state) => {
+  for (const host of liveHosts) host.postKernelStatus(state);
+});
 
 /**
  * cad 2.5.0's Standard-Parts thumbnails. The provider keeps one `ThumbCache`
@@ -400,6 +418,8 @@ export class CadHost {
   private lastPartsSearch: { requestId: string; pngById: Map<string, string> } | null = null;
   /** Guards stale async completions after the document changes. */
   private epoch = 0;
+  /** Last `documentInfo` actually posted (serialized), so syncing is idempotent. */
+  private lastDocumentInfo = "";
 
   constructor(
     private readonly view: WebContentsView,
@@ -424,6 +444,56 @@ export class CadHost {
     if (process.env.KKSS_E2E) console.log(`[cad] host → webview: ${msg.type}`);
     this.view.webContents.send("cad:toWebview", msg);
   };
+
+  /** Called by the module-level readiness subscription above. */
+  postKernelStatus(state: ReturnType<typeof kernelState>): void {
+    this.post({ type: "kernelStatus", state });
+  }
+
+  // ---- cad 3.0.0 document chip (provider.ts isDocumentDirty … postEdits) ----
+  // ONE predicate feeds both "dirty" and "N unsaved edits" so they cannot
+  // disagree. Only sources that can bake count (B-rep, and the three mesh
+  // formats with an in-place writer); an unbaked tail on anything else is
+  // sidecar-only and autosaved.
+  private isDocumentDirty(): boolean {
+    const route = this.doc?.route;
+    return (
+      !!route &&
+      this.currentEdits.length > this.currentBakedThrough &&
+      ((route.strategy === "occt" && BREP_FORMATS.has(route.format)) ||
+        (route.strategy === "three" && MESH_SAVE_IN_PLACE_FORMATS.has(route.format)))
+    );
+  }
+
+  /** Deduplicated, so it is safe to call wherever the op list can change. */
+  private syncDocumentInfo(): void {
+    if (!this.doc) return;
+    const dirty = this.isDocumentDirty();
+    const info = {
+      type: "documentInfo" as const,
+      name: path.basename(this.doc.path),
+      path: this.doc.path,
+      format: this.doc.route?.format ?? null,
+      dirty,
+      unsavedEdits: dirty ? this.currentEdits.length - this.currentBakedThrough : 0,
+    };
+    const serialized = JSON.stringify(info);
+    if (serialized === this.lastDocumentInfo) return;
+    this.lastDocumentInfo = serialized;
+    this.post(info);
+  }
+
+  /** Every place the host tells the webview about the op list also settles the
+   *  watermark, so post + chip resync are one call. */
+  private postEdits(): void {
+    this.post({
+      type: "edits",
+      ops: this.currentEdits,
+      variables: this.currentVariables,
+      bakedThrough: this.currentBakedThrough,
+    });
+    this.syncDocumentInfo();
+  }
 
   /** Opens `fsPath` in this mode's view (replaces any current document). */
   openPath(fsPath: string): void {
@@ -528,6 +598,8 @@ export class CadHost {
     this.currentViewState = undefined;
     this.currentMeshOptions = undefined;
     this.lastPartsSearch = null;
+    // A reopened page must receive the chip again even for an identical value.
+    this.lastDocumentInfo = "";
     // The provider frees its per-document BRepCacheEntry in onDidDispose; here
     // the entry lives in the worker, so ask it to. Fire-and-forget: a failure
     // only costs the next load a fresh parse. TWO keys since cad 1.7.0 — the
@@ -647,6 +719,9 @@ export class CadHost {
   // Port of provider.ts onDidReceiveMessage, branch for branch.
   private async onMessage(msg: WebviewToHost): Promise<void> {
     if (msg.type === "ready") {
+      // First, before any early return: the status bar shows readiness even for
+      // a blank tab (provider.ts posts it ahead of the `!route` check too).
+      this.post({ type: "kernelStatus", state: kernelState() });
       if (!this.doc) {
         this.post({ type: "status", text: "No file open — use Open… in the toolbar" });
         return;
@@ -669,12 +744,7 @@ export class CadHost {
       this.currentBakedThrough = parsed.bakedThrough;
       this.currentPlanes = planesInitial;
       this.loadModel();
-      this.post({
-        type: "edits",
-        ops: this.currentEdits,
-        variables: this.currentVariables,
-        bakedThrough: this.currentBakedThrough,
-      });
+      this.postEdits();
       // The meshio route's own handleMeshio (in loadModel) owns the parts
       // round trip for that route — calling both would double-post "parts".
       if (this.doc.route.strategy !== "meshio") {
@@ -725,6 +795,9 @@ export class CadHost {
       const previousOps = this.currentEdits;
       this.currentEdits = msg.ops;
       this.currentVariables = msg.variables;
+      // On EVERY edit, not only when dirty: undoing back to the save point
+      // empties the tail, which must clear the chip's dot (provider L1656).
+      this.syncDocumentInfo();
       if (this.editsSaveTimer) clearTimeout(this.editsSaveTimer);
       this.editsSaveTimer = setTimeout(() => {
         void writeEdits(

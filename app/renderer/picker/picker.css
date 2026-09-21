@@ -1,7 +1,9 @@
+/*
+ * Modal quick-pick / input box (a frameless dialog window). The input is a shared
+ * `.field`; this file holds layout and the list rows.
+ */
 html,
 body {
-  margin: 0;
-  padding: 0;
   overflow: hidden;
   user-select: none;
 }
@@ -9,7 +11,7 @@ body {
 #picker {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--ui-s-2);
   padding: 10px;
   box-sizing: border-box;
   height: 100vh;
@@ -18,22 +20,13 @@ body {
 }
 
 #picker-title {
-  font-size: 13px;
+  font-size: var(--ui-fs-lg);
   font-weight: 600;
 }
 
 #picker-input {
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border);
-  border-radius: 2px;
-  padding: 5px 8px;
-  font-size: 13px;
-  outline: none;
-}
-
-#picker-input:focus {
-  border-color: var(--vscode-focusBorder);
+  height: 28px;
+  font-size: var(--ui-fs-lg);
 }
 
 #picker-list {
@@ -42,17 +35,17 @@ body {
 }
 
 .picker-item {
-  padding: 5px 8px;
-  border-radius: 3px;
+  padding: var(--ui-s-2) var(--ui-s-3);
+  border-radius: var(--ui-r-sm);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--ui-fs-lg);
   display: flex;
-  gap: 8px;
+  gap: var(--ui-s-3);
   align-items: baseline;
 }
 
 .picker-item .desc {
-  font-size: 11px;
+  font-size: var(--ui-fs-sm);
   color: var(--vscode-descriptionForeground);
 }
 
@@ -64,8 +57,12 @@ body {
   background: var(--vscode-list-activeSelectionBackground);
   color: var(--vscode-list-activeSelectionForeground);
 }
+.picker-item.selected .desc {
+  color: inherit;
+  opacity: 0.8;
+}
 
 #picker-hint {
-  font-size: 10px;
+  font-size: var(--ui-fs-label);
   color: var(--vscode-descriptionForeground);
 }

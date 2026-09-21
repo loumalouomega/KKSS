@@ -32,7 +32,13 @@ function languageExtension(lang: EditorLanguage): Extension {
 }
 
 function renderPath(): void {
-  pathEl.textContent = currentPath ? `${currentPath}${dirty ? " ●" : ""}` : "No file open — use Open…";
+  pathEl.textContent = currentPath ?? "No file open — use Open…";
+  if (currentPath && dirty) {
+    const dot = document.createElement("span");
+    dot.className = "ui-dot";
+    dot.title = "Unsaved changes";
+    pathEl.append(dot);
+  }
 }
 
 function setDirty(value: boolean): void {

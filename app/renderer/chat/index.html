@@ -5,27 +5,29 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'none'; style-src kkss:; script-src kkss:; img-src kkss: data:" />
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
+  <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./chat.css" rel="stylesheet" />
   <title>KKSS AI Chat</title>
 </head>
 <body>
   <div id="chat">
-    <header id="chat-header">
-      <span id="chat-title" title="AI assistant">AI Chat</span>
+    <header id="chat-header" class="section-header">
+      <span class="panel-icon" id="chat-icon"></span>
+      <span id="chat-title" class="title" title="AI assistant">AI Chat</span>
       <span id="servers" title="MCP tool servers"></span>
-      <span id="usage" hidden></span>
-      <button id="history-btn" title="Conversations">☰</button>
-      <button id="new-btn" title="Start a new conversation (this one is saved)">⟳ New</button>
-      <button id="hide-btn" title="Hide chat (Ctrl+Shift+L)">✕</button>
-      <div id="history" hidden></div>
+      <span id="usage" class="ui-num" hidden></span>
+      <button id="history-btn" class="icon-btn" title="Conversations" aria-label="Conversations"></button>
+      <button id="new-btn" class="icon-btn" title="Start a new conversation (this one is saved)" aria-label="New conversation"></button>
+      <button id="hide-btn" class="icon-btn" title="Hide chat (Ctrl+Shift+L)" aria-label="Hide chat"></button>
+      <div id="history" class="card card-float" hidden></div>
     </header>
     <section id="kratos-status" role="status" aria-live="polite" hidden></section>
     <div id="compaction" hidden></div>
     <div id="messages" aria-live="polite"></div>
     <footer id="composer">
-      <textarea id="input" rows="3"
+      <textarea id="input" class="field" rows="3"
         placeholder="Ask about the open model, meshing, or running Kratos… (Enter to send, Shift+Enter for a new line)"></textarea>
-      <button id="send-btn" title="Send (Enter)">Send</button>
+      <button id="send-btn" class="btn btn-primary" title="Send (Enter)"></button>
     </footer>
   </div>
   <script src="./chat.js"></script>

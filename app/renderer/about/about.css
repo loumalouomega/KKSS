@@ -1,7 +1,9 @@
+/*
+ * About / update dialog (a frameless dialog window). Buttons and the spinner are
+ * the shared `.btn` / `.spinner` from ../theme/kkss-ui.css.
+ */
 html,
 body {
-  margin: 0;
-  padding: 0;
   overflow: hidden;
   user-select: none;
 }
@@ -10,14 +12,12 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 18px 16px 14px;
+  gap: var(--ui-s-1);
+  padding: 18px var(--ui-s-5) 14px;
   box-sizing: border-box;
   height: 100vh;
   background: var(--vscode-editorWidget-background);
   border: 1px solid var(--vscode-editorWidget-border);
-  color: var(--vscode-foreground);
-  font-family: var(--vscode-font-family);
 }
 
 #logo {
@@ -26,7 +26,7 @@ body {
 }
 
 #title {
-  margin: 4px 0 0;
+  margin: var(--ui-s-1) 0 0;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 1px;
@@ -34,17 +34,17 @@ body {
 }
 
 #subtitle {
-  margin: 0 0 8px;
-  font-size: 11px;
+  margin: 0 0 var(--ui-s-3);
+  font-size: var(--ui-fs-sm);
   color: var(--vscode-descriptionForeground);
 }
 
 #facts {
   display: grid;
   grid-template-columns: auto auto;
-  gap: 2px 12px;
+  gap: var(--ui-s-0) var(--ui-s-4);
   margin: 0 0 10px;
-  font-size: 12px;
+  font-size: var(--ui-fs-md);
 }
 
 #facts dt {
@@ -60,9 +60,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--ui-s-2);
   min-height: 74px;
-  font-size: 12px;
+  font-size: var(--ui-fs-md);
 }
 
 #update-text {
@@ -73,49 +73,12 @@ body {
   width: 260px;
 }
 
-#update-actions {
+#update-actions,
+#footer {
   display: flex;
-  gap: 8px;
-}
-
-#update-actions button,
-#footer button {
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-  border: none;
-  border-radius: 3px;
-  padding: 5px 12px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-#update-actions button:hover,
-#footer button:hover {
-  background: var(--vscode-button-secondaryHoverBackground);
-}
-
-#update-actions button.primary {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  gap: var(--ui-s-3);
 }
 
 #footer {
-  display: flex;
-  gap: 8px;
   margin-top: auto;
-}
-
-.spinner {
-  width: 10px;
-  height: 10px;
-  border: 2px solid var(--vscode-progressBar-background);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.9s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }

@@ -1,8 +1,10 @@
+/*
+ * Terminal page. xterm.css owns the terminal's inner layout and the xterm theme
+ * comes from terminal.ts — both out of scope of the shared chrome layer; only the
+ * Hide button (a shared `.btn`) is styled from it.
+ */
 html,
 body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
   overflow: hidden;
   background: var(--vscode-editor-background);
 }
@@ -11,27 +13,18 @@ body {
   height: 100%;
   box-sizing: border-box;
   border-top: 1px solid var(--vscode-panel-border);
-  padding: 4px 6px 0;
+  padding: var(--ui-s-1) var(--ui-s-2) 0;
 }
 
 #hide-btn {
   position: absolute;
-  top: 6px;
-  right: 16px; /* clear of the scrollbar */
+  top: var(--ui-s-2);
+  right: var(--ui-s-5); /* clear of the scrollbar */
   z-index: 10;
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 3px;
-  padding: 2px 8px;
-  font-size: 11px;
-  cursor: pointer;
   opacity: 0.75;
 }
-
-#hide-btn:hover {
+#hide-btn:hover:not(:disabled) {
   opacity: 1;
-  background: var(--vscode-button-secondaryHoverBackground);
 }
 
 /* Let the fit addon own the size; xterm.css sets its own inner layout. */

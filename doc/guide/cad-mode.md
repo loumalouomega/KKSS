@@ -40,6 +40,21 @@ Pre-Processing mode embeds the full [CAD-Preview](https://loumalouomega.github.i
 
 The toolbar is **Fit · Tree · FE Mesh** plus four dropdowns — **View ▾** (Grid, Edges, Screenshot), **Select ▾** (selection mode + Point/Vol/Surf/Line), **Measure ▾** and **Markup ▾** — with the display modes, clip, appearance and unit controls in the view-controls panel.
 
+## Reading the window at a glance
+
+A CAD tab is laid out the same way in every version of the viewer:
+
+- **Menubar** — the **File** menu, and on the right a **document chip** with the open file's name, a format badge (`STEP`, `STL`, …) and, when it has edits the source file does not yet contain, a dot and a count (`3 unsaved edits`). Hover the chip for the full path.
+- **Sidebar** — the four sections that edit the document (**Components**, **Parts**, **Edits**, **FE Mesh**) sit at the top, each with an icon. The read-only analysis sections (Mass Properties, Clash, Mesh Health, Region fit, Primitives) and the two libraries (Macros, Standard Parts) are folded into one collapsed **Advanced** group, with a count of how many it holds.
+- **Toolbar and dock** — the toolbar floats at the top right; the dock along the bottom holds navigation, display mode, the clip plane and perspective, with less-used controls behind its **⋯** button.
+- **Status bar** — along the bottom: which **kernels** have loaded (`OCCT ready · Gmsh ready`), the entity counts (`36 faces · 98 edges · 64 points`), the generated FE mesh (`mesh 10,000 el · min SICN 0.412`) and the live cursor position on the model, in the units chosen in the dock.
+
+### Why "unsaved edits" does not go away
+
+CAD-Preview keeps your edits in the `<model>.edits.json` sidecar and only writes them into the source file when it *bakes* them. KKSS never bakes — there is no save-into-the-source action — so an edited STEP, IGES, BREP, STL, OBJ or PLY keeps reading **N unsaved edits**. That is accurate rather than a fault: the *source file* does not contain what is on screen, while the sidecar (autosaved) does, and **File ▸ Export…** or **Save Preprocess…** is what writes a standalone file. Undoing back to the file's own state clears the chip.
+
+**Kernels idle** is also normal: the OCCT and Gmsh engines load lazily and the line only reports one after a call that needed it has succeeded, so a plain STL open, which uses neither, honestly reads idle.
+
 ## Viewer defaults
 
 **Settings ▸ CAD Viewer Defaults** seeds a newly opened document: **Up Axis** (Y or Z), **Default Mesh Size** (Coarse/Medium/Fine), **Tessellation Quality** (Draft/Standard/Fine — how finely a B-rep is triangulated, traded against load time) and **Show Grid & Axes on Open**. They are only the starting point — a per-document `<model>.mesh.json` or `<model>.view.json` value, or a runtime toggle in the view controls, always wins once set. Tessellation quality is re-read on every B-rep load, so a change applies at the next edit or reopen.

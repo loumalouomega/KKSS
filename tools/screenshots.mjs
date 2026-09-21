@@ -87,8 +87,8 @@ async function click(page, sel) {
 
 /**
  * The viewers' chrome grew with cad 1.2 / mesh 3.0 (toolbar dropdowns, the
- * unified nav card with its Clip/Appearance/Display groups), and no longer
- * fits the default 1360×860 window — the nav card and the sidebar labels clip.
+ * one-row nav dock with its inline Clip group and ⋯ popover), and no longer
+ * fits the default 1360×860 window — the nav dock and the sidebar labels clip.
  *
  * The fix is a bigger capture window, NOT a smaller interface scale: measured
  * against the running app, `setZoomFactor` scales the rendered content but the
@@ -197,7 +197,8 @@ async function sessionMdpa() {
     await shoot(page, "mesh-toolbar.png", "#toolbar");
 
     // mesh 3.0.0 moved the webview's own File menu into an in-flow menubar
-    // that KKSS hides in favour of the native one (mesh-overrides.css), so the
+    // whose File pill KKSS hides in favour of the native one (mesh-overrides.css;
+    // the strip itself stays, carrying the document chip), so the
     // View ▾ dropdown — the toolbar menu that IS reachable here — is what this
     // documents instead.
     await click(page, '[data-action="viewMenu"]');

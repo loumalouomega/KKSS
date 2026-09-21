@@ -871,11 +871,18 @@ function restoreSession(hasLaunchFile: boolean): boolean {
   return true;
 }
 
+/** Tells the shell which panels are showing, so the toolbar toggles read as pressed. */
+function pushPanels(): void {
+  if (!main) return;
+  sendShell({ type: "panels", terminal: main.terminalVisible(), chat: main.chatVisible() });
+}
+
 /** Shows/hides the shared terminal panel, attaching the pty session on first use. */
 function toggleTerminal(): void {
   if (!main || !terminal) return;
   const { view } = main.toggleTerminal();
   terminal.attach(view.webContents);
+  pushPanels();
   saveSessionSoon();
 }
 
@@ -885,6 +892,7 @@ function toggleChat(): void {
   const { view, visible } = main.toggleChat();
   chat.attach(view.webContents);
   jobs?.setVisible(main.jobsVisible());
+  pushPanels();
   if (visible) chat.ensureStarted();
   saveSessionSoon();
 }
@@ -894,6 +902,7 @@ function toggleJobs(): void {
   const { view, visible } = main.toggleJobs();
   jobs.attach(view.webContents);
   jobs.setVisible(visible);
+  pushPanels(); // opening Jobs closes Chat (mutually exclusive right-hand views)
   if (!visible) (main.screen() === "home" ? main.home : main.shell).webContents.focus();
   saveSessionSoon();
 }
@@ -1258,6 +1267,7 @@ app.whenReady().then(() => {
     switch (msg.type) {
       case "shellReady":
         jobs?.publish();
+        pushPanels();
         shellUp = true;
         // The shell page may finish loading after a CLI file-open already ran
         // (or after a reload) — replay the current screen + tab strips + zoom.

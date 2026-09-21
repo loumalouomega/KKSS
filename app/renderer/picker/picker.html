@@ -5,13 +5,14 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'none'; style-src kkss:; script-src kkss:" />
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
+  <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./picker.css" rel="stylesheet" />
   <title>KKSS Picker</title>
 </head>
 <body>
   <div id="picker">
     <div id="picker-title"></div>
-    <input id="picker-input" type="text" style="display:none" />
+    <input id="picker-input" class="field" type="text" hidden />
     <div id="picker-list"></div>
     <div id="picker-hint">Enter to confirm · Esc to cancel</div>
   </div>

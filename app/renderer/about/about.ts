@@ -32,7 +32,7 @@ function actions(buttons: Array<{ label: string; message: unknown; primary?: boo
   for (const { label, message, primary } of buttons) {
     const b = document.createElement("button");
     b.textContent = label;
-    if (primary) b.className = "primary";
+    b.className = primary ? "btn btn-primary" : "btn btn-secondary";
     b.addEventListener("click", () => api.post(message));
     actionsEl.appendChild(b);
   }

@@ -205,12 +205,35 @@ Concretely:
   always holds at least one tab. Mesh links **three** stylesheets in order: `design-system.css` (the
   `--ds-*` token layer `style.css` builds on — copy it in `esbuild.mjs` too),
   `style.css`, then `app/renderer/theme/mesh-overrides.css`.
-- **The mesh menubar is emitted, then hidden.** mesh 3.0.0 put the viewer's
-  File menu + scene-theme picker in an in-flow `#menubar` strip. KKSS's native
-  menu already owns both, so `mesh-overrides.css` hides it — but the markup
+- **KKSS's own pages share one design layer, and it is cad v3.0.0's.** Every
+  hand-written page (shell, home, editor, terminal, chat, jobs, About, What's
+  New, picker) links `app/renderer/theme/kkss-ui.css` right after
+  `vscode-vars.css` and before its own stylesheet: `--ui-*` metric tokens
+  (never colour) plus the shared `.btn`/`.icon-btn`/`.seg`/`.section-header`/
+  `.card`/`.field`/`.toast`/`.spinner` recipes, the global `[hidden]` rule and
+  the `:focus-visible` ring. A page's own CSS holds layout only — a
+  hand-rolled button/spinner/uppercase-header recipe means the shared one was
+  missed. Icons come from `app/renderer/glyphs.ts` (`glyph(id)`, cad's
+  `uiGlyphs.ts` re-exported + KKSS extras); the generated TikZ `shellIcons.ts`
+  stays for the mode/home/toolbar icons. `SHELL_HEIGHT`/`TAB_STRIP_HEIGHT`/
+  `CHAT_WIDTH` are constants in `windows.ts` (zoom-multiplied), so the shell's
+  40px/34px stay fixed in CSS. `check-theme-vars.mjs` scans these stylesheets
+  too. A page with a strict CSP (`style-src kkss:`) must not gain an inline
+  `style=` attribute (the picker's used to be silently blocked) — use `hidden`.
+- **The mesh menubar is emitted; only its File pill and theme picker are
+  hidden.** mesh 3.0.0 put the viewer's File menu + scene-theme picker in an
+  in-flow `#menubar` strip. KKSS's native menu already owns both, so
+  `mesh-overrides.css` hides `#file-menu` and `#theme-select` — but the markup
   still ships, because `webview/main.ts` looks those nodes up by id. Anything
-  reachable **only** from that strip needs a native menu entry (that is why
-  File ▸ Save/Load Problem… exist).
+  reachable **only** from that menu needs a native menu entry (that is why
+  File ▸ Save/Load Problem… exist). The strip itself stays visible since mesh
+  the UI redesign: it carries the **document chip** (`#doc-chip`, fed by the `documentInfo`
+  message), which has no native equivalent. The same release added a full-width
+  `#statusbar` (last child of `#app`; engine activity, counts, frame, last pick)
+  fed by `engineStatus`; `MeshHost`'s `postMessage` relays every host→webview
+  message unfiltered, so neither needed KKSS-side plumbing — only the
+  `meshBody()` mirror. The chip's dirty state is deliberately **not** VS Code's
+  tab dot (a latch): it is the applied ops differing from the last save.
 - **Theme variables are guarded.** The submodule stylesheets consume
   `--vscode-*` variables; `app/renderer/theme/vscode-vars.css` defines them
   and `tools/check-theme-vars.mjs` fails the build if a submodule update uses
@@ -942,8 +965,8 @@ Concretely:
 
 ## Verified submodule integration (Tier 0)
 
-CAD v2.7.0 (`fcce0e8`) and mesh v4.0.7 through `kkss.dev` (`16ca591`)
-are integrated without edits to either submodule. The recurring release-bump
+CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
+(`55cf1ca`, also the `redesign` branch) are integrated without edits to either submodule. The recurring release-bump
 checklist lives in `doc/guide/development.md` under **Submodule release
 maintenance**; repeat it for every bump, including live MCP tool discovery
 (the current sets are 56 CAD + 23 mesh + 4 aggregation tools).
@@ -1080,6 +1103,51 @@ four small ports; mesh 3.27.0 → 4.0.7 needed no code at all.**
   exactly 56 + 23 tools, matching `toolPolicy.ts` in both directions. Not driven:
   the preset **Save** flow (its name prompt is a native modal) and thumbnail
   fetching (needs the network catalog).
+
+**The cad 2.7.0 → 3.0.0 jump (a chrome redesign) needed two host messages, one
+readiness tracker and eight theme variables — no CAD behaviour changed — and
+mesh was then redesigned to match it.**
+
+- **`kernelStatus` and `documentInfo` are the only new protocol.** Without them
+  the page is inert: the status bar reads "Kernels idle" forever and `#doc-chip`
+  never unhides (and the build fails first, on eight `--vscode-*` variables cad
+  3.0.0 uses — `badge-*`, `charts-yellow`, `disabledForeground`,
+  `gitDecoration-modifiedResourceForeground`, `list-inactiveSelectionBackground`,
+  `sideBarSectionHeader-background`, `testing-iconPassed` — now in
+  `vscode-vars.css`). `CadHost` ports the provider message for message.
+- **Kernel readiness is inferred from calls, and the tracker lives outside
+  Electron.** `app/main/cadKernelStatus.ts` feeds cad's own pure reducer
+  (`kernelActivity.ts`); `cadComputeClient.ts` emits `start`/`success`/`failure`
+  around every RPC and `reset` when the worker dies, and `cadHost.ts` fans one
+  module-level subscription out to every `liveHosts` entry (one worker serves
+  every tab). **`KKSS_FN_ALIAS` is load-bearing:** cad keys `kernelsFor()` on its
+  `DocumentPipeline` names, and KKSS spells two differently —
+  `loadBRepCachedInWorker` (the main B-rep load) must map to
+  `loadBRepCachedForDocument` or OCCT never reads ready after a plain open.
+  `test/cadKernelStatus.test.ts` fails on any `cadCompute` method that is neither
+  known to cad's table, aliased, nor explicitly kernel-free. The chat's separate
+  `kernel-worker.js` child is a different process and does not feed this.
+- **The document chip is a faithful port, and that has a visible consequence.**
+  `isDocumentDirty()` is cad's predicate: unbaked tail on a source that can bake
+  (STEP/IGES/BREP, STL/OBJ/PLY). KKSS never advances `bakedThrough` (no
+  interactive bake), so an edited such file reads "N unsaved edits" for good — true
+  by cad's definition (the source file does not contain what is on screen),
+  documented in `doc/guide/cad-mode.md` rather than special-cased.
+  `syncDocumentInfo()` is deduplicated and reset in `disposeSession()`.
+- **The shell learns panel state from main, never from its own clicks.** A
+  `panels {terminal, chat}` message (`pushPanels()` in `index.ts`, called from all
+  three toggle functions and replayed on `shellReady`) drives `aria-pressed` on the
+  Terminal and Chat buttons; Jobs keeps its own `jobs` message because it carries a
+  count. `toggleJobs` must push too — opening Jobs closes Chat.
+- **mesh was redesigned onto cad's language on its own `redesign` branch** (six
+  commits over `kkss.dev`, fast-forwarded into it; the plan is to port them to mesh
+  master). Same rules as cad: `--ui-*` metrics only, colour via `--ds-*`/`--vscode-*`,
+  `uiGlyphs.ts` for chrome and the generated TikZ set for menus/ops, no
+  transitions. mesh's `src/test/styleTokens.test.ts` fails on a literal
+  font-size/radius. Structural additions the parent depends on: `#statusbar`
+  (`STATUSBAR_HTML`, last child of `#app`), `#doc-chip`, `#advanced-group`, the
+  one-row dock (`#nav-controls`), and `--side-width`/`--nav-height` custom
+  properties. `meshBody()` mirrors all of it via the shared exports.
 
 **The CAD MCP kernel must be bundled by KKSS.** The copied upstream worker
 requires external Gmsh/meshio/fTetWild packages from the extension's

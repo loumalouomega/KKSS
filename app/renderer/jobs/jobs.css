@@ -1,22 +1,110 @@
-* { box-sizing: border-box; }
-body { margin: 0; padding: 12px; font: 13px var(--vscode-font-family, sans-serif); color: var(--vscode-foreground); background: var(--vscode-sideBar-background); overflow-wrap: anywhere; }
-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-h1 { font-size: 15px; margin: 0 auto 0 0; }
-h2 { font-size: 14px; }
-button { font: inherit; color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: 1px solid transparent; padding: 5px 8px; border-radius: 3px; cursor: pointer; }
-button:hover { background: var(--vscode-button-hoverBackground); }
-button:focus-visible, pre:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
-button:disabled { opacity: .55; cursor: default; }
-.hint, #selected-id { color: var(--vscode-descriptionForeground); font-size: 12px; }
-#status { margin: 12px 0; }
-#jobs { display: grid; gap: 8px; }
-.job { display: block; text-align: left; width: 100%; color: var(--vscode-foreground); background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); overflow-wrap: anywhere; }
-.job:hover { background: var(--vscode-toolbar-hoverBackground); }
-.job[aria-pressed="true"] { border-color: var(--vscode-focusBorder); }
-.job span { display: block; margin-top: 4px; font-size: 12px; }
-.job .state { font-weight: 600; }
-.job .active::before { content: "● "; color: var(--vscode-progressBar-background); }
-#details { margin-top: 16px; border-top: 1px solid var(--vscode-panel-border); }
-#cancel-error, #log-error { color: var(--vscode-errorForeground); }
-pre { font: 11px var(--vscode-editor-font-family, monospace); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; background: var(--vscode-editor-background); padding: 8px; }
-[hidden] { display: none !important; }
+/*
+ * Kratos Jobs sidebar. Header, icon buttons and buttons come from
+ * ../theme/kkss-ui.css (which also supplies the global focus ring and [hidden]
+ * rule); this file holds layout and the job rows.
+ */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+  background: var(--vscode-sideBar-background);
+}
+
+main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--ui-s-4);
+}
+
+.section-header {
+  flex: none;
+  flex-wrap: wrap;
+}
+
+/* The header is a title row, not a heading level of its own weight. */
+.section-header h1 {
+  margin: 0;
+  font-size: inherit;
+}
+
+.hint,
+#selected-id {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: var(--ui-fs-md);
+}
+
+#status {
+  margin: var(--ui-s-4) 0;
+}
+
+#jobs {
+  display: grid;
+  gap: var(--ui-s-3);
+}
+
+/* One job = one pressable card; the selected one keeps the focus-coloured border. */
+.job {
+  display: block;
+  width: 100%;
+  padding: var(--ui-s-3) 10px;
+  text-align: left;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--ui-r-md);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.job:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+.job[aria-pressed="true"] {
+  border-color: var(--vscode-focusBorder);
+}
+.job span {
+  display: block;
+  margin-top: var(--ui-s-1);
+  font-size: var(--ui-fs-md);
+}
+.job .state {
+  font-weight: 600;
+}
+.job .active::before {
+  content: "● ";
+  color: var(--vscode-progressBar-background);
+}
+
+#details {
+  margin-top: var(--ui-s-5);
+  padding-top: var(--ui-s-4);
+  border-top: 1px solid var(--vscode-panel-border);
+}
+#details h2 {
+  margin: 0 0 var(--ui-s-2);
+}
+#details .btn {
+  margin: var(--ui-s-3) 0;
+}
+
+#cancel-error,
+#log-error {
+  color: var(--vscode-errorForeground);
+}
+
+pre {
+  margin: 0;
+  padding: var(--ui-s-3);
+  max-height: 300px;
+  overflow: auto;
+  font: var(--ui-fs-sm) var(--ui-font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--vscode-editor-background);
+  border-radius: var(--ui-r-sm);
+}

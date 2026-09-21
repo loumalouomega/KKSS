@@ -1,12 +1,10 @@
+/*
+ * Text editor page: a toolbar (shared `.btn`s) over the CodeMirror host. The
+ * oneDark theme is CodeMirror's own and deliberately not restyled here.
+ */
 html,
 body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
   overflow: hidden;
-  background: var(--vscode-editor-background);
-  color: var(--vscode-foreground);
-  font-family: var(--vscode-font-family);
   display: flex;
   flex-direction: column;
 }
@@ -14,25 +12,11 @@ body {
 #editor-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: var(--ui-s-2);
+  padding: var(--ui-s-2) var(--ui-s-4);
   border-bottom: 1px solid var(--vscode-panel-border);
   background: var(--vscode-editorGroupHeader-tabsBackground);
   user-select: none;
-}
-
-#editor-bar button {
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-  border: none;
-  border-radius: 3px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-#editor-bar button:hover {
-  background: var(--vscode-button-secondaryHoverBackground);
 }
 
 #editor-path {
@@ -40,8 +24,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--ui-fs-md);
   color: var(--vscode-descriptionForeground);
+}
+#editor-path .ui-dot {
+  margin-left: var(--ui-s-2);
 }
 
 #editor-host {
@@ -51,7 +38,7 @@ body {
 
 #editor-host .cm-editor {
   height: 100%;
-  font-size: 13px;
+  font-size: var(--ui-fs-lg);
 }
 
 #editor-host .cm-editor.cm-focused {

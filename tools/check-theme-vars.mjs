@@ -20,6 +20,20 @@ const themeFile = "app/renderer/theme/vscode-vars.css";
 const dsConsumer = "mesh/webview/style.css";
 const dsDefiner = "mesh/webview/design-system.css";
 
+// KKSS's own pages consume the same variables (they share kkss-ui.css and the
+// Dark+ definitions), so they are held to the same rule — an undefined variable
+// there renders as an unset property, i.e. silently transparent/inherited.
+function ownStylesheets(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+    const rel = path.posix.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...ownStylesheets(rel));
+    else if (entry.name.endsWith(".css") && rel !== "app/renderer/theme/vscode-vars.css") out.push(rel);
+  }
+  return out;
+}
+sources.push(...ownStylesheets("app/renderer"));
+
 const used = new Set();
 for (const rel of sources) {
   const css = fs.readFileSync(path.join(root, rel), "utf8");
