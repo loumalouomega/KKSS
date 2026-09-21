@@ -1,14 +1,31 @@
 # syntax=docker/dockerfile:1
 ARG KKSS_VARIANT=base
 
-FROM golang:1.27.1-bookworm AS web-builder
+FROM golang:1.26.8-bookworm AS web-builder
 WORKDIR /web
 COPY docker/web/go.mod docker/web/go.sum ./
 RUN go mod download
 COPY docker/web/ ./
 RUN CGO_ENABLED=0 go build -trimpath -o /kkss-web .
 
-FROM caddy:2.11.4 AS caddy-binary
+# Build Caddy from its pinned source so the runtime carries the current
+# x/crypto security fixes instead of the older dependency in the upstream
+# convenience image.
+FROM golang:1.26.8-bookworm AS caddy-builder
+ARG CADDY_VERSION=2.11.4
+ARG CADDY_SOURCE_SHA256=2c3d02078286a6282cdb4d1d8744077788d556659dac0b64d8ed5886a7e5aeb9
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/* \
+ && curl -fsSL "https://github.com/caddyserver/caddy/archive/refs/tags/v${CADDY_VERSION}.tar.gz" -o /tmp/caddy.tar.gz \
+ && echo "${CADDY_SOURCE_SHA256}  /tmp/caddy.tar.gz" | sha256sum -c - \
+ && mkdir /src \
+ && tar -xzf /tmp/caddy.tar.gz -C /src --strip-components=1 \
+ && rm /tmp/caddy.tar.gz
+WORKDIR /src
+RUN go mod edit -require=golang.org/x/crypto@v0.55.0 \
+ && go mod download \
+ && CGO_ENABLED=0 go build -trimpath -o /caddy ./cmd/caddy
+
 FROM ghcr.io/astral-sh/uv:0.12.10 AS uv-binary
 #
 # KKSS streamed-desktop image: the unmodified Electron app runs headless under
@@ -125,7 +142,7 @@ RUN groupadd --gid 1000 kkss \
 # modify its own binaries is the point of running non-root at all.
 COPY --from=builder /packaged /opt/kkss
 COPY --from=web-builder /kkss-web /opt/kkss-web
-COPY --from=caddy-binary /usr/bin/caddy /usr/bin/caddy
+COPY --from=caddy-builder /caddy /usr/bin/caddy
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
