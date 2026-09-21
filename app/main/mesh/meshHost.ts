@@ -368,6 +368,22 @@ export class MeshHost {
     this.setDirty(false);
   }
 
+  /** Save without a modal prompt; retain the upstream operation recipe on failure. */
+  async saveForShutdown(directory: string): Promise<void> {
+    try { await this.saveDocument(); }
+    catch (error) {
+      if (this.currentProvider && this.currentDocument) {
+        await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 });
+        const file = path.join(directory, `mesh-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+        await this.currentProvider.backupCustomDocument(this.currentDocument as never, { destination: Uri.file(file) as never }, DUMMY_TOKEN);
+        await fs.promises.writeFile(file + ".source.json", JSON.stringify({ originalPath: this.currentFile, backup: file }), { mode: 0o600 });
+        console.error("Mesh save failed; operation recipe recovered", error, file);
+        return;
+      }
+      throw error;
+    }
+  }
+
   /** Paths this tab's VTK provider currently has open (extension.ts openPanelPaths). */
   openPanelPaths(): string[] {
     return this.vtkProvider.openPanelPaths();

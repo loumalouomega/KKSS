@@ -18,7 +18,7 @@ npm run smoke          # headless e2e (Linux: xvfb-run -a npm run smoke)
 npm start              # full build + launch
 npm run dist           # package installers into release/
 npm run docker:build   # build the streamed-desktop web image (docker compose build)
-npm run docker:up      # serve the app to a browser at http://localhost:6080/vnc.html
+npm run docker:up      # serve the app to a browser at http://localhost:6080/
 npm run docker:up:ghcr # same, from the published image (no checkout/build needed)
 npm run dist:dir       # package to release/linux-unpacked (what the image ships)
 npm run build:icons    # TikZ → SVG/PNG icons (needs pdflatex + pdftocairo)
@@ -451,6 +451,25 @@ Concretely:
     (`ghcr.io/loumalouomega/kkss`, built-in `GITHUB_TOKEN`) and **Docker Hub**
     (`vmataix/kkss`, `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets).
     User docs live in `doc/guide/web-deployment.md`.
+  - The browser gateway is `/opt/kkss-web`: local bcrypt users and OIDC are
+    mutually validated, sessions are HttpOnly and CSRF-protected, and identity
+    forwarding headers are stripped before proxying. `/healthz` is the only
+    unauthenticated application route. The gateway's internal activity and
+    shutdown calls use a per-start token on loopback; it must never be exposed
+    through Caddy.
+  - `managedConfig.ts` is an in-memory startup overlay. Environment and
+    secret-file values win over `state.json`, managed Settings controls are
+    disabled, and `stateStore.update` rejects writes for managed keys. A
+    streamed session is a trusted-user deployment: a terminal user can inspect
+    process environment values.
+  - `docker-compose.multi.yml` uses the broker's Docker socket only; user
+    containers receive no socket, privileged mode, or arbitrary host mounts.
+    Session IDs and owner hashes are persisted and Docker labels are checked on
+    every restart before a session is reused. The Kubernetes reference applies
+    the same ownership contract with PVCs, Secrets and non-root Pods.
+  - `docker-compose.gpu.yml` is an opt-in Intel/AMD path. The default SwiftShader
+    Electron flags must remain byte-stable; the EGL/TigerVNC path is incomplete
+    until a render-device CI runner proves it.
 - **One instance, and one queue for "open this path".** `app/main/index.ts`
   takes `app.requestSingleInstanceLock()` at module load; the loser prints a
   diagnostic and quits, and its argv reaches the winner via `second-instance`

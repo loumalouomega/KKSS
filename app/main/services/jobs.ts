@@ -145,7 +145,7 @@ export class JobsService {
     this.loading = true;
     this.publish();
     this.pending = this.poll(generation, forceLogs).catch((e) => {
-      if (!this.disposed && generation === this.generation) { this.error = message(e); this.stale = this.jobs.size > 0; }
+      if (!this.disposed && generation === this.generation) { this.error = message(e); this.stale = true; }
     }).finally(() => {
       this.pending = undefined;
       this.loading = this.servers.find((s) => s.key === "kratos")?.state === "starting";

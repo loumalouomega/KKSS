@@ -2,6 +2,8 @@
 import { app, clipboard, dialog, ipcMain, Menu } from "electron";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
+import { managedConfig } from "./services/managedConfig";
+import { startHeadlessControl, prepareHeadlessShutdown } from "./services/headless";
 import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
 import { createMainWindow, MainWindow, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash } from "./windows";
@@ -48,6 +50,7 @@ import type { HomeToHost, HomeToWebview, Mode, Screen, ShellTabInfo, ShellToHost
 
 // Must happen before app is ready.
 registerSchemes();
+managedConfig(); // Validate operator configuration before opening any documents.
 
 /**
  * Single-instance lock. A second launch must hand its file to the running app
@@ -230,7 +233,7 @@ const UI_ZOOM_KEY = "uiZoom";
 /** Applies an interface scale, persists it, and reflects it back to the shell picker. */
 function setUiZoom(factor: number): void {
   if (!main) return;
-  const applied = main.setZoom(factor);
+  const applied = main.setZoom(stateStore.isManaged(UI_ZOOM_KEY) ? stateStore.get<number>(UI_ZOOM_KEY, factor)! : factor);
   void stateStore.update(UI_ZOOM_KEY, applied);
   sendShell({ type: "zoom", factor: applied });
 }
@@ -926,6 +929,7 @@ async function ensureMetaServerToken(): Promise<string> {
 /** Persists the opt-in and starts/stops the listener (surfaces bind errors). */
 async function setMetaServerEnabled(enabled: boolean): Promise<void> {
   if (!metaServer) return;
+  if (stateStore.isManaged(META_SERVER_KEYS.enabled)) enabled = stateStore.get<boolean>(META_SERVER_KEYS.enabled)!;
   await stateStore.update(META_SERVER_KEYS.enabled, enabled);
   if (!enabled) {
     await metaServer.disable();
@@ -962,6 +966,7 @@ async function copyMetaServerConfig(): Promise<void> {
 
 /** Rotates the bearer token, restarting the listener if it is running. */
 async function regenerateMetaServerToken(): Promise<void> {
+  if (stateStore.isManaged(META_SERVER_KEYS.token)) return;
   await setSecret(META_SERVER_KEYS.token, randomUUID());
   if (metaServer?.isRunning()) {
     await metaServer.disable();
@@ -1047,6 +1052,7 @@ app.whenReady().then(() => {
   // it finishes (the pendingClose flag); otherwise this destroys the window
   // itself once every mesh tab has resolved.
   main.win.on("close", (event) => {
+    if (headlessStopping) return;
     const dirtyMeshTabs = [...meshHosts.values()].filter((host) => host.isDirty());
     if (!editor?.isDirty() && dirtyMeshTabs.length === 0) return;
     event.preventDefault();
@@ -1354,10 +1360,60 @@ app.whenReady().then(() => {
   }
 });
 
+let headlessStopping = false;
+let headlessPrepared = false;
+let headlessExitCode = 0;
+async function stopHeadless(): Promise<void> {
+  if (headlessStopping) return;
+  headlessStopping = true;
+  const timeout = setTimeout(() => { console.error("Headless shutdown exceeded its persistence budget"); app.exit(1); }, 29000);
+  const failures = await prepareHeadlessShutdown([
+    ...[...cadHosts.values()].map(host => () => host.flushSidecars()),
+    ...[...meshHosts.values()].filter(host => host.isDirty()).map(host => () => host.saveForShutdown(path.join(app.getPath("userData"), "recovery"))),
+    () => editor?.saveForShutdown(path.join(app.getPath("userData"), "recovery")) ?? Promise.resolve(),
+  ], async () => {
+    if (cloud?.hasPending()) await Promise.race([
+      cloud.flushPending(),
+      new Promise<void>((_, reject) => setTimeout(() => reject(new Error("Cloud upload drain timed out; pending uploads retained")), CLOUD_DRAIN_TIMEOUT_MS)),
+    ]);
+  });
+  cloudDrainAttempted = true;
+  if (failures.length) { headlessExitCode = 1; console.error("Headless persistence failures:", failures); }
+  if (app.isReady()) {
+    if (main) saveSession(currentSession());
+    try { await stateStore.flush(); } catch (error) { headlessExitCode = 1; console.error("State flush failed", error); }
+  }
+  headlessPrepared = true;
+  clearTimeout(timeout);
+  app.quit();
+}
+if (process.env.KKSS_HEADLESS === "1") {
+  process.on("SIGTERM", () => void stopHeadless());
+  process.on("SIGINT", () => void stopHeadless());
+  void app.whenReady().then(async () => {
+    if (headlessStopping) return;
+    const token = process.env.KKSS_CONTROL_TOKEN;
+    if (!token) return;
+    const controlPort = Number(process.env.KKSS_CONTROL_PORT ?? 6083);
+    if (!Number.isInteger(controlPort) || controlPort < 1 || controlPort > 65535) throw new Error("KKSS_CONTROL_PORT must be an integer from 1 to 65535");
+    await startHeadlessControl(token, controlPort, () => {
+      const snapshot = jobs?.snapshot();
+      const local = runs?.list() ?? [];
+      return {
+        ready: !!main && !!editor, connectedBrowsers: 0, shuttingDown: headlessStopping,
+        jobs: (snapshot?.jobs.filter(j => ['queued', 'running'].includes(j.state)).length ?? 0) + local.filter(r => ['starting', 'running'].includes(r.status)).length,
+        unknownJobs: !jobs || !!snapshot?.stale || !!snapshot?.loading || !!snapshot?.error || local.some(r => ['orphaned', 'detached'].includes(r.status)),
+        uploads: cloud?.hasPending() ?? false,
+      };
+    }, () => void stopHeadless());
+  }).catch(error => { console.error("Headless control failed", error); app.exit(1); });
+}
+
 // Single teardown for the shared MCP manager + the HTTP meta server + the
 // Flowgraph child process (the chat service only aborts its in-flight turn).
 // A renderer dying during teardown is not worth reviving.
 app.on("before-quit", (event) => {
+  if (process.env.KKSS_HEADLESS === "1" && !headlessPrepared) { event.preventDefault(); void stopHeadless(); return; }
   quitting = true;
   // `will-quit` cannot await and an HTTPS upload cannot finish synchronously,
   // so this is the only window Electron gives an async task at shutdown. Held
@@ -1408,3 +1464,5 @@ app.on("will-quit", () => {
 app.on("window-all-closed", () => {
   app.quit();
 });
+
+app.on("quit", () => { if (headlessExitCode) process.exitCode = headlessExitCode; });

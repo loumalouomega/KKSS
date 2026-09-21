@@ -288,7 +288,7 @@ export class McpManager {
           }
         }
         const runtime = await this.runtime.discover(this.abort.signal);
-        spec = { ...spec, command: runtime.command, args: [...runtime.args, ...spec.args], env: { ...process.env } as Record<string, string> };
+        spec = { ...spec, command: runtime.command, args: runtime.bundled ? runtime.args : [...runtime.args, ...spec.args], env: { ...process.env } as Record<string, string> };
       }
       this.abort.signal.throwIfAborted();
       status("preparing");

@@ -9,7 +9,7 @@ export type StartupFailure = NonNullable<ChatServerStatus["failure"]>;
 export class RuntimeFailure extends Error {
   constructor(public readonly failure: StartupFailure, message: string) { super(message); }
 }
-export interface RuntimeCommand { command: string; args: string[] }
+export interface RuntimeCommand { command: string; args: string[]; bundled?: boolean }
 export interface RuntimeDeps {
   run(command: string, args: string[], options: { signal: AbortSignal; timeout: number; env?: NodeJS.ProcessEnv }): Promise<string>;
   download(url: string, signal: AbortSignal): Promise<string>;
@@ -91,6 +91,12 @@ export class KratosRuntime {
   }
 
   async discover(signal: AbortSignal): Promise<RuntimeCommand> {
+    const bundled = process.env.KKSS_KRATOS_PYTHON;
+    if (bundled) {
+      if (!path.isAbsolute(bundled)) throw new RuntimeFailure("runtime", "KKSS_KRATOS_PYTHON must be absolute.");
+      await this.deps.run(bundled, ["-c", "import KratosMultiphysics; import importlib.metadata as m; assert m.version('kratos-mcp-server') == '0.3.0'"], { signal, timeout: 15000 });
+      return { command: path.join(path.dirname(bundled), "kratos-mcp-server"), args: [], bundled: true };
+    }
     const exe = this.platform === "win32" ? ".exe" : "";
     const candidates = [
       { command: path.join(this.directory, `uv${exe}`), args: ["tool", "run"] },

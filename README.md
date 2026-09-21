@@ -54,24 +54,27 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, testing, an
 ### Run in a browser (Docker)
 
 The unmodified app can also be streamed to a browser tab from a Docker
-container (Xvfb + noVNC; single-user/demo scope). Every release publishes a
+container (Xvfb + noVNC, behind an authenticated gateway). Every release publishes a
 **linux/amd64 + linux/arm64** image to
 [GHCR](https://github.com/loumalouomega/KKSS/pkgs/container/kkss) and
 [Docker Hub](https://hub.docker.com/r/vmataix/kkss):
 
 ```bash
-docker run -d -p 6080:6080 --shm-size=1g ghcr.io/loumalouomega/kkss:latest
-# then open http://localhost:6080/vnc.html
+docker run -d -p 127.0.0.1:6080:6080 --shm-size=1g ghcr.io/loumalouomega/kkss:latest
+# then open http://localhost:6080/ and sign in
 ```
 
 Or build it yourself from a checkout with initialized submodules:
 
 ```bash
 git submodule update --init --recursive
-docker compose up --build     # then open http://localhost:6080/vnc.html
+docker compose up --build     # then open http://localhost:6080/
 ```
 
 See the [web deployment guide](https://loumalouomega.github.io/KKSS/guide/web-deployment) for volumes, environment variables, and security caveats.
+For an offline preinstalled solver environment, releases also provide an amd64
+`<version>-kratos` image variant with Python 3.12, Kratos 10.4.3, and the
+pinned Kratos MCP server and application wheels.
 
 ## Licensing
 

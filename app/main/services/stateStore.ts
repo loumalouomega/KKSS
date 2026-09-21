@@ -11,6 +11,7 @@
  */
 import { app } from "electron";
 import * as path from "node:path";
+import { managedConfig } from "./managedConfig";
 import { JsonStore } from "./jsonStore";
 
 let store: JsonStore | undefined;
@@ -22,10 +23,15 @@ function backing(): JsonStore {
 }
 
 export const stateStore = {
+  isManaged(key: string): boolean {
+    const c = managedConfig(); return c.values.has(key) || c.secrets.has(key);
+  },
   get<T>(key: string, defaultValue?: T): T | undefined {
-    return backing().get(key, defaultValue);
+    const c = managedConfig();
+    return c.values.has(key) ? c.values.get(key) as T : backing().get(key, defaultValue);
   },
   update(key: string, value: unknown): Promise<void> {
+    if (stateStore.isManaged(key)) return Promise.resolve();
     return backing().update(key, value);
   },
   /** Resolves once every queued write is on disk. */

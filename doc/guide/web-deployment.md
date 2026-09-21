@@ -3,12 +3,23 @@
 KKSS can run "as a web app": the unmodified desktop application runs headless
 inside a Docker container (Xvfb virtual display + SwiftShader software
 rendering — the same configuration the CI smoke test exercises) and the desktop
-is streamed to a browser tab via [noVNC](https://novnc.com/). Nothing in the
-app changes; the browser shows the real Electron window.
+is streamed to a browser tab via [noVNC](https://novnc.com/). The browser is
+fronted by an authenticated gateway; Caddy handles TLS and WebSocket proxying.
+Nothing in the app viewer changes; the browser shows the real Electron window.
 
-This is a **single-user / demo** deployment: one container is one session.
-Multi-tenant SaaS hosting is out of scope for now (see
-[outlook](#saas-outlook) below).
+The default Compose file is a single-user deployment. For multiple users, the
+reference broker in `docker-compose.multi.yml` starts one isolated container,
+workspace volume and file-browser companion per authenticated session.
+
+The gateway uses Caddy for the public edge because its
+[automatic HTTPS](https://caddyserver.com/docs/automatic-https) and
+[WebSocket-capable reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)
+cover both edge concerns in one component. nginx would require a separate
+certificate lifecycle configuration here, while
+oauth2-proxy covers OIDC but leaves local accounts, stream tracking and broker
+ownership to another service. The direct TLS overlay accepts mounted
+`KKSS_TLS_CERT`/`KKSS_TLS_KEY` files or uses `KKSS_PUBLIC_URL` for ACME; the
+proxy overlay is for operators who already terminate TLS upstream.
 
 ## Three ways to start it
 
@@ -53,11 +64,34 @@ source, and packages the app); later builds reuse cached layers.
 `npm run docker:build` / `docker:up` / `docker:down` / `docker:logs` are
 shorthands.
 
-**Then, whichever path you took**: open <http://localhost:6080/vnc.html> and
-click *Connect*. You should see the KKSS home screen.
+**Then, whichever path you took**: open <http://localhost:6080/>. Sign in with
+the generated startup credential printed by the container, or with the bcrypt
+user file supplied through `KKSS_AUTH_USERS_FILE`. The page reconnects the VNC
+stream automatically and provides Files and Sign out links.
+
+For Compose, mount the user file with a small override (the multi-user
+reference already does this with a Docker secret):
+
+```yaml
+services:
+  kkss:
+    environment:
+      KKSS_AUTH_USERS_FILE: /run/secrets/users
+    secrets: [users]
+secrets:
+  users:
+    file: ./users.htpasswd
+```
 
 Tags are the release version (`1.2.0`, …) plus a `latest` alias. Pin a version
 with `KKSS_TAG` (compose) or by using the full tag in `docker run`.
+
+The default image keeps the desktop image lean and uses app-local `uv` for the
+Kratos MCP server when it is available. Releases also publish an amd64-only
+`<version>-kratos` variant with Python 3.12, Kratos 10.4.3, the pinned MCP
+server, and the five supported application wheels preinstalled. It runs
+without package downloads; use it on an x86-64 host when browser sessions need
+the solver environment.
 
 ## Where it runs
 
@@ -76,9 +110,22 @@ block of either compose file:
 | Variable       | Default     | Meaning                                                                 |
 | -------------- | ----------- | ----------------------------------------------------------------------- |
 | `DISPLAY_SIZE` | `1920x1080` | Virtual screen geometry, fixed per container start                      |
-| `VNC_PASSWORD` | *(unset)*   | Session password; without it the stream is unauthenticated              |
-| `OPEN_FILE`    | *(unset)*   | Absolute container path of a file to open at launch (e.g. `/workspace/model.mdpa`) |
-| `NOVNC_PORT`   | `6080`      | Port noVNC listens on inside the container                              |
+| `KKSS_AUTH_USERS_FILE` | *(unset)* | Newline-separated `user:bcrypt-hash` entries; mount this as a Docker secret |
+| `KKSS_OIDC_ISSUER` | *(unset)* | OIDC issuer; pair with client ID/secret and an email/group allowlist |
+| `KKSS_PUBLIC_URL` | `http://localhost:6080` | Public origin used for OIDC callbacks and TLS selection |
+| `KKSS_IDLE_TIMEOUT` | `0` | Disconnected idle timeout in seconds; tracked jobs and uploads inhibit it |
+| `KKSS_BASE_PATH` | *(empty)* | URL prefix used when a reverse proxy mounts KKSS below a path |
+| `KKSS_GPU` | `0` | Set to `1` only with the Intel/AMD `/dev/dri` overlay |
+| `KKSS_DISPLAY_BACKEND` | `xvfb` | `tigervnc` enables remote desktop resize after hardware validation |
+| `OPEN_FILE` | *(unset)* | Absolute container path of a file to open at launch (for example `/workspace/model.mdpa`) |
+| `NOVNC_PORT` | `6080` | Port noVNC listens on inside the container |
+
+The LLM and application overlay accepts `KKSS_LLM_PROVIDER`,
+`KKSS_LLM_MODEL`, `KKSS_LLM_BASE_URL`, `KKSS_LLM_API_KEY_FILE`,
+`KKSS_PROJECT_ROOT`, `KKSS_RESTORE_SESSION`, `KKSS_THEME`, `KKSS_ZOOM`,
+`KKSS_META_ENABLED`, `KKSS_META_PORT`, and `KKSS_META_TOKEN_FILE`. Secret files
+must be mounted read-only into the container. The gateway never logs their
+contents; the application does not write them to `state.json`.
 
 Compose settings — read from your shell (or a `.env` file beside the compose
 file), not from the container:
@@ -121,7 +168,13 @@ build compose file defaults to the repo's `mesh/example/` so there is something
 to open out of the box.
 
 App settings (`state.json` — theme, zoom, LLM provider, …) persist across
-restarts through a named volume at `/home/kkss/.config/kkss`.
+restarts through a named volume at `/home/kkss/.config/kkss`. Operator-managed
+values such as `KKSS_LLM_API_KEY_FILE`, `KKSS_PROJECT_ROOT`,
+`KKSS_RESTORE_SESSION`, `KKSS_THEME`, `KKSS_ZOOM`, and `KKSS_META_*` override
+the stored value, are shown as “set by the environment” in Settings, and are
+never written to that volume. A trusted session user can still inspect runtime
+environment values from the embedded terminal; hiding an operator key from an
+untrusted user requires an external LLM gateway.
 
 ::: warning Upgrading from 1.1.0 or earlier
 The container used to run as root and kept its settings in
@@ -139,8 +192,10 @@ only loss is UI preferences and any stored API key.
 
 ## Access from another machine
 
-The compose files publish on all interfaces, so any machine on the same network
-can connect once you know the host's IP:
+The compose files publish on localhost by default. Keep that binding for a
+private deployment. To allow another machine on the same network, override the
+port mapping in a Compose override (for example `0.0.0.0:${KKSS_PORT:-6080}:6080`)
+and put TLS and an operator-managed login in front of it:
 
 ```bash
 hostname -I | awk '{print $1}'   # Linux/macOS
@@ -150,9 +205,9 @@ hostname -I | awk '{print $1}'   # Linux/macOS
 ipconfig     # use the IPv4 Address of your active adapter
 ```
 
-Then browse to `http://<that-ip>:6080/vnc.html` — using your own address, not
-the example. Read the security caveats below first: without `VNC_PASSWORD` the
-session (and the embedded terminal) is open to anyone who can reach the port.
+Then browse to `http://<that-ip>:6080/` — using your own address, not the
+example. Sign in before opening the desktop; the embedded terminal is available
+to authenticated session users.
 
 ## Troubleshooting
 
@@ -181,24 +236,30 @@ session (and the embedded terminal) is open to anyone who can reach the port.
 ## Caveats
 
 - **The embedded terminal is a real shell inside the container.** Anyone who
-  can reach the noVNC page can run commands in the container. It is an
-  unprivileged shell (uid 1000, and the app's own files are root-owned and not
-  writable by it), but it still reads and writes everything under `/workspace`.
-  Never expose port 6080 beyond localhost without at least `VNC_PASSWORD`, and
-  prefer a reverse proxy with TLS + auth for anything non-local.
-- **The chat's Kratos MCP server is unavailable in the container.** It is
-  fetched on demand with `uvx`, which the image does not ship; the CAD and mesh
-  tool servers are built in and work normally.
+  can reach an authenticated desktop can run commands in the container. It is
+  an unprivileged shell (uid 1000, and the app's own files are root-owned and
+  not writable by it), but it still reads and writes everything under
+  `/workspace`. Keep the default localhost bind for a private deployment, or
+  use TLS and an operator-managed local/OIDC login before publishing it.
+- **The base image's Kratos MCP server needs a runtime.** It uses the ordinary
+  app-local `uv` discovery path and does not download packages during image
+  startup. Use the amd64 `-kratos` variant when an offline, preinstalled solver
+  environment is required; the CAD and mesh tool servers are built in to both.
 - **Chat API keys:** inside the container there is no OS keychain, so
   Electron's `safeStorage` falls back to basic (plaintext-equivalent)
   encryption of the stored key. Treat the userdata volume accordingly.
-- **Software rendering:** the viewers run on SwiftShader (no GPU). Small and
-  medium models are fine; very large meshes render slowly. On weak hosts the
-  WebGL renderer can occasionally crash mid-frame — the container restarts
-  automatically (`restart: unless-stopped`); reload the browser tab.
-- **Fixed display size:** x11vnc streams the virtual display at the geometry
-  set by `DISPLAY_SIZE`; the browser scales it but cannot resize it. Restart
-  the container with a different `DISPLAY_SIZE` to change resolution.
+- **File Browser maintenance:** the pinned v2.63.23 companion is the final
+  upstream release, which was archived on 2026-09-01. Keep it behind the KKSS
+  gateway, leave command execution disabled, and review or replace the
+  companion before exposing file transfer to an untrusted network.
+- **Software rendering:** the default viewers run on SwiftShader (no GPU).
+  Small and medium models are fine; very large meshes render slowly. On weak
+  hosts the WebGL renderer can occasionally crash mid-frame — the Compose
+  service restarts on failure; reload the browser tab.
+- **Display size:** Xvfb keeps the existing fixed `DISPLAY_SIZE` behavior.
+  `docker-compose.gpu.yml` selects the separately validated TigerVNC/EGL path,
+  where `resizeSession` can request a new desktop size. Treat that overlay as
+  hardware-dependent until its Intel/AMD runner passes the rendering checks.
 - **Clipboard** works through the noVNC sidebar panel, not the native
   Ctrl+C/Ctrl+V bridge.
 
@@ -207,15 +268,23 @@ session (and the embedded terminal) is open to anyone who can reach the port.
 The image additionally distributes x11vnc (GPL-2.0) and noVNC (MPL-2.0),
 both compatible with distributing alongside the AGPL-3.0 application.
 
-## SaaS outlook
+## Multi-user reference deployment
 
-A true multi-tenant deployment would spawn **one container per user session**
-behind an authenticating front (e.g. [Kasm Workspaces](https://kasmweb.com/),
-or Traefik/OAuth2-proxy plus a small session orchestrator), with per-user
-`/workspace` volumes. The container built here is the unit such an
-orchestrator would launch, but the orchestration and auth layer are
-deliberately out of scope for this single-user setup. The steps toward it —
-a login in front of the stream, TLS, session lifecycle, operator-provisioned
-settings, file transfer, a Kratos-enabled image variant and a reference
-per-user orchestrator — are queued as the *Web service* tier of the
-[roadmap](../roadmap).
+The reference broker is deliberately operator-facing rather than a hosted
+service. Build `docker-compose.multi.yml` with a bcrypt users file and a Docker
+socket mount restricted to the broker. It applies one-running-session-per-user
+and ten-running-sessions-global defaults, persists session metadata under
+`broker-data`, reconciles labeled containers after restart, and never deletes a
+workspace when a session is stopped. Each desktop gets a companion File Browser
+at `/files/`; execution is disabled and external symlinks are rejected.
+
+For clusters, `docker/web/kubernetes.go` uses the in-cluster service account to
+create a Pod, Service, PVCs and Secret with `runAsNonRoot`, dropped capabilities,
+resource limits and no service-account token in the user Pod. Apply equivalent
+namespace-scoped RBAC and network policy in the operator's cluster before using
+that reference backend.
+
+The Kratos image is a separate amd64 build target (`runtime-kratos`). It pins
+Kratos 10.4.3 and `kratos-mcp-server` 0.3.0 with a hash-locked wheel set; the
+base multi-architecture image remains solver-free. `tools/lock-kratos.sh`
+regenerates the lock when these versions change.

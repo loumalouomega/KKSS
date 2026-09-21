@@ -1,0 +1,6 @@
+{
+ admin off
+}
+:6080 {
+ reverse_proxy broker:6082
+}

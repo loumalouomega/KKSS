@@ -1,0 +1,9 @@
+# Direct TLS. ACME requires host ports 80/443 reachable from the internet.
+services:
+  kkss:
+    environment:
+      KKSS_PUBLIC_URL: "${KKSS_PUBLIC_URL:?Set an https public URL}"
+    ports: ["80:6080", "443:6443"]
+    volumes: ["kkss-caddy:/home/kkss/.local/share/caddy"]
+volumes:
+  kkss-caddy:
