@@ -54,7 +54,13 @@ drain() {
 trap 'shutdown TERM' TERM
 trap 'shutdown INT' INT
 
-Xvfb "$DISPLAY" -screen 0 "${DISPLAY_SIZE}x24" -nolisten tcp &
+# -noreset: by default an X server resets when its LAST client disconnects, and
+# the readiness probe below is the first client to do exactly that. Openbox and
+# x11vnc, started immediately after the probe, can land in the reset window and
+# die with "Failed to open the display" while Xvfb itself stays up — observed on
+# the amd64 boot check of a push to master (same commit passed on re-run), the
+# same symptom the Dockerfile's /tmp/.X11-unix pre-creation was meant to fix.
+Xvfb "$DISPLAY" -screen 0 "${DISPLAY_SIZE}x24" -nolisten tcp -noreset &
 track $! Xvfb
 
 # Wait for the display to accept connections before starting anything that
