@@ -13,6 +13,7 @@ RUN CGO_ENABLED=0 go build -trimpath -o /kkss-web .
 # those patched modules so the runtime image remains covered by Trivy.
 FROM golang:1.27.1-bookworm AS caddy-binary
 ARG CADDY_VERSION=2.11.4
+ENV GOPROXY=https://proxy.golang.org|direct
 WORKDIR /caddy
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates \
