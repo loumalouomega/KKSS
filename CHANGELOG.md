@@ -5,6 +5,39 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.1.0] - 2026-09-22
+
+- feat: the AI chat gains **Claude and Codex subscription agents** — a new
+  `agents/` runtime (environment management + RPC session/tool execution)
+  wired into the chat service and transcript store, with menu entries, managed
+  configuration support and tests.
+- feat: **channel-aware in-app updates** — a persisted stable/prerelease
+  channel, full SemVer comparison and clearer error handling — plus macOS
+  entitlements for JIT/unsigned executable memory. The download docs now list
+  `.rpm` alongside the other Linux packages.
+- feat: **native file associations follow the routing tables** —
+  `electron-builder.yml` declares every routed CAD/mesh suffix plus the `kkss`
+  protocol and Linux MIME entries, guarded by `npm run check:packaging`, with
+  external launch (CLI, Finder, second-instance, `kkss://open`) centralized in
+  `app/main/launch.ts` and covered by tests. `npm run flatpak:probe` inspects
+  Flatpak feasibility without publishing an artifact.
+- feat: the streamed-desktop deployment grows a **Go gateway/broker** (login +
+  desktop pages, session lifecycle, operator-provisioned managed config) with
+  a Kubernetes pod reference, multi-user/TLS/proxy/GPU compose variants, and a
+  **Kratos-enabled image variant on prebuilt wheels** with a locked
+  requirements file.
+- feat: streamed-desktop hardening — Xvfb `-noreset`, single-viewer VNC
+  session policy, and entrypoint supervision fixes; the Docker CI image and
+  lint checks are restored, with follow-up fixes for PR image tags, the smoke
+  test's window-title match, and Go gateway builds (patched dependencies,
+  direct module downloads).
+- fix: bump `golang.org/x/crypto` and `go-jose` past their patched CVEs (17
+  Dependabot alerts), and take the npm minor-and-patch group (Anthropic SDK,
+  Electron 44.4.3, `@types/node`, `@types/vscode`, vitest).
+- chore: sync the cad/mesh submodule references; roadmap updates (Magnusim
+  review, guided simulation workflows, distribution metadata, deployment
+  validation).
+
 ## [2.0.0] - 2026-09-21
 
 - feat: **a redesigned window, shared by both viewers and the app around them.**
@@ -139,6 +172,7 @@ full auto-generated compare links.
   HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
   functional change to the app itself
 
+[2.1.0]: https://github.com/loumalouomega/KKSS/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/loumalouomega/KKSS/compare/v1.11.0...v2.0.0
 [1.12.0]: https://github.com/loumalouomega/KKSS/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/loumalouomega/KKSS/compare/v1.10.0...v1.11.0

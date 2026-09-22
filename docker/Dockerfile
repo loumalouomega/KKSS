@@ -8,7 +8,24 @@ RUN go mod download
 COPY docker/web/ ./
 RUN CGO_ENABLED=0 go build -trimpath -o /kkss-web .
 
-FROM caddy:2.11.4 AS caddy-binary
+# The upstream Caddy image currently embeds Go modules with fixes that are
+# newer than its published binary. Build the same pinned Caddy release with
+# those patched modules so the runtime image remains covered by Trivy.
+FROM golang:1.27.1-bookworm AS caddy-binary
+ARG CADDY_VERSION=2.11.4
+ENV GOPROXY=https://proxy.golang.org|direct
+WORKDIR /caddy
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch "v${CADDY_VERSION}" https://github.com/caddyserver/caddy.git . \
+ && go mod edit \
+      -require=golang.org/x/crypto@v0.55.0 \
+      -require=golang.org/x/net@v0.56.0 \
+      -require=golang.org/x/text@v0.39.0 \
+      -require=google.golang.org/grpc@v1.83.2 \
+ && go mod tidy \
+ && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /usr/bin/caddy ./cmd/caddy
 FROM ghcr.io/astral-sh/uv:0.12.10 AS uv-binary
 #
 # KKSS streamed-desktop image: the unmodified Electron app runs headless under
