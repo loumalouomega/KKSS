@@ -243,6 +243,24 @@ async function sessionHome() {
     await page.mouse.move(0, 0);
     await sleep(800);
     await shoot(page, "home-screen.png");
+
+    // The Settings page, opened the way a user does (the same MenuItem.click()
+    // handler as Ctrl+,), then a light-theme shot of the home screen driven
+    // through it. The profile is this script's temp one, so nothing leaks.
+    await app.evaluate(({ Menu }) => {
+      const settings = Menu.getApplicationMenu().items.find((i) => i.label === "&Settings");
+      settings.submenu.items.find((i) => i.label === "Open Settings…").click();
+    });
+    const settings = await appWindow(app, "/renderer/settings/", deadline);
+    await settings.waitForSelector('.row[data-id="appearance.uiTheme"]', { timeout: 15_000 });
+    await settings.mouse.move(0, 0);
+    await sleep(600);
+    await shoot(settings, "settings.png");
+    await settings.selectOption('.row[data-id="appearance.uiTheme"] select', "light");
+    await page.waitForFunction(() => document.body.classList.contains("vscode-light"), null, { timeout: 10_000 });
+    await sleep(600);
+    await shoot(page, "home-screen-light.png");
+    await settings.selectOption('.row[data-id="appearance.uiTheme"] select', "dark");
   } finally {
     await closeApp(app);
   }

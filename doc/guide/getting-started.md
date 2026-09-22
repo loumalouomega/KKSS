@@ -250,14 +250,24 @@ The **Edit** toolbar button opens the file currently loaded in the active mode (
 
 ## Settings
 
-The **Settings** menu (also reachable from the home screen's Settings button) holds app-level preferences, persisted across runs (including **Restore Last Session**, above):
+**Settings ▸ Open Settings…** (`Ctrl+,`) opens the Settings page. The home screen's Settings button and the chat sidebar's gear open it too. It is KKSS's equivalent of VS Code's settings editor: everything the two embedded extensions would read from VS Code's settings, and everything KKSS adds on top, on one searchable page. Each row shows its id (for example `kratos.pythonPath`), when a change takes effect, and a reset icon once it differs from the default. A value locked by a `KKSS_*` environment variable (see [Web deployment](/guide/web-deployment)) shows as *Set by the environment* and cannot be edited.
 
-- **Color Theme** — Auto / Dark / Light / Scientific. The same scene theme the mesh viewer's own picker controls; viewers apply it when they next load a file.
-- **CAD Viewer Defaults** — up axis, default mesh-size preset, B-rep tessellation quality, and whether the grid and axes show on open. These seed a newly opened CAD document; a per-document sidecar value or a runtime toggle wins once set.
-- **Terminal Shell** — the shell the embedded terminal launches (takes effect for the next terminal session).
-- **LLM Assistant** — provider (Anthropic / OpenAI-compatible), API keys, model names, the OpenAI-compatible base URL, and **Tool Approval** (whether the assistant asks before running a tool that changes files — see *AI assistant ▸ Approving what the assistant does* above). Keys are encrypted with the OS keychain (Electron `safeStorage`) when one is available; changes apply to the next message, no restart needed. In a streamed deployment, operator values supplied through `KKSS_LLM_*` and secret files are shown as **set by the environment**, cannot be edited, and never enter `state.json`.
-- **MCP Server** — enable the localhost HTTP endpoint that exposes KKSS's toolset to an external MCP client, set its port, and copy or regenerate the bearer token (see *AI assistant ▸ Use your own MCP client* above). Off by default.
-- **Include prerelease updates** — opt into prerelease GitHub releases. Stable is the default, and changing this setting starts a fresh update check.
+![Settings page](/screenshots/settings.png)
+
+| Category | What it holds |
+|---|---|
+| **Appearance** | **UI Theme**: Follow system / Dark / Light / High contrast (dark) / High contrast (light). It applies immediately to the whole app, both viewers' panels and both 3D scenes. The mesh scene follows it while its **3D Scene Theme** is *Auto*; Dark / Light / Scientific pin the scene instead. The same row also covers UI font family and size, and the interface scale. |
+| **General** | Project folder, **Restore Last Session**, whether What's New is shown after an update, and the update channel (stable, or including prereleases). |
+| **CAD Viewer** | The `cadPreview.*` defaults for newly opened models: background colour, up axis, grid and axes on open, default mesh size, B-rep tessellation quality, and the OpenSCAD binary. A per-document sidecar value or a runtime toggle wins once set. |
+| **Mesh Viewer** | Large-mesh summary threshold, and where the Flowgraph editor opens (below or beside the 3D view). |
+| **Kratos** | The Python interpreter, the compiled Kratos install and the extra environment variables used when a problemtype case is **Run**. A folder that does not look like a Kratos install is flagged. The same row holds the problemtype folders scanned under the project folder and whether solvers are stopped when KKSS quits. The install path and environment also reach the assistant's Kratos tools; **Restart with current environment** applies a change without restarting KKSS. |
+| **Text Editor** | Font size and family, tab size, word wrap, line numbers. All apply immediately. |
+| **Terminal** | Shell (applies to the next session), font size and family, scrollback, cursor style and blink. |
+| **LLM Assistant** | Provider, **Tool Approval**, API keys, models, the OpenAI-compatible base URL, and the Codex / Claude Code model and executable. Keys are write-only: the page shows whether one is stored, never the key itself. |
+| **MCP Server** | Enable the localhost endpoint, its port, and copying or regenerating the token (see *AI assistant ▸ Use your own MCP client* above). |
+| **Cloud Accounts** | Per provider: client ID, client secret, and connect / disconnect. Also the cache size limit, and clearing the cache. |
+
+The **Settings** menu keeps quick radios for **UI Theme**, **3D Scene Theme** and **Terminal Shell**, plus the checkboxes and actions it always had. Every menu entry and its row on the page stay in sync both ways. Three VS Code-only extension settings have no row, because KKSS never reaches the code that reads them: `kratos.showWhatsNew`, `kratos.preview.autoSave` and `kratos.run.launchMode`.
 
 Viewer actions (mesh quality, field visualization, find entity…) are *not* in the menu bar — they live in each viewer's own toolbar.
 

@@ -7,6 +7,7 @@
  * the standard "message" event both extension bundles already listen for.
  */
 import { contextBridge, ipcRenderer } from "electron";
+import "./appearance";
 
 const arg = process.argv.find((a) => a.startsWith("--kkss-channel="));
 const mode = arg ? arg.split("=")[1] : "cad";

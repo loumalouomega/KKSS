@@ -2,10 +2,12 @@
 import { basicSetup } from "codemirror";
 import { EditorView, keymap } from "@codemirror/view";
 import { EditorState, Compartment, type Extension } from "@codemirror/state";
+import { indentUnit } from "@codemirror/language";
 import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
 import { oneDark } from "@codemirror/theme-one-dark";
 import type { EditorLanguage, EditorToWebview } from "../../main/ipc";
+import type { Appearance } from "../appearance";
 
 declare global {
   interface Window {
@@ -21,6 +23,28 @@ const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) 
 const pathEl = byId<HTMLSpanElement>("editor-path");
 
 const language = new Compartment();
+/** Settings ▸ Text Editor + the UI theme's light/dark syntax palette. */
+const preferences = new Compartment();
+let appearance = window.kkssAppearance?.current();
+
+function preferenceExtensions(a: Appearance | undefined): Extension {
+  const e = a?.editor;
+  const light = a?.kind === "vscode-light" || a?.kind === "vscode-high-contrast-light";
+  const tab = e?.tabSize ?? 4;
+  return [
+    // basicSetup's default highlight style is the light one; oneDark replaces it.
+    light ? [] : oneDark,
+    EditorState.tabSize.of(tab),
+    indentUnit.of(" ".repeat(tab)),
+    e?.wordWrap ? EditorView.lineWrapping : [],
+    EditorView.theme({
+      "&": { fontSize: `${e?.fontSize ?? 13}px` },
+      ".cm-content, .cm-gutters": e?.fontFamily ? { fontFamily: e.fontFamily } : {},
+      // basicSetup always installs the gutter; hiding it is the switch-off.
+      ".cm-lineNumbers": e?.lineNumbers === false ? { display: "none" } : {},
+    }),
+  ];
+}
 let currentPath: string | null = null;
 let dirty = false;
 let loading = false;
@@ -59,7 +83,7 @@ const extensions = (lang: EditorLanguage): Extension[] => [
     { key: "Mod-Shift-s", run: () => (save(true), true) },
   ]),
   basicSetup,
-  oneDark,
+  preferences.of(preferenceExtensions(appearance)),
   language.of(languageExtension(lang)),
   EditorView.updateListener.of((update) => {
     if (update.docChanged && !loading) setDirty(true);
@@ -69,6 +93,11 @@ const extensions = (lang: EditorLanguage): Extension[] => [
 const view = new EditorView({
   parent: byId<HTMLDivElement>("editor-host"),
   state: EditorState.create({ doc: "", extensions: extensions("plain") }),
+});
+
+window.kkssAppearance?.onChange((a) => {
+  appearance = a;
+  view.dispatch({ effects: preferences.reconfigure(preferenceExtensions(a)) });
 });
 
 api.onMessage((raw) => {

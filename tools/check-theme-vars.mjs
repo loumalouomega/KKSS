@@ -52,6 +52,35 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
+// Settings ▸ UI Theme: every theme-kind block (.vscode-light & co.) must
+// redefine every colour variable :root defines, or that colour would silently
+// stay Dark+ under a light theme. Font variables are theme-independent.
+const blockRe = /(^|\n)([^{}\n]+)\{([^}]*)\}/g;
+const blocks = [...theme.matchAll(blockRe)].map((m) => ({
+  selector: m[2].trim(),
+  vars: new Set([...m[3].matchAll(/(--vscode-[a-zA-Z-]+)\s*:/g)].map((v) => v[1])),
+}));
+const rootBlock = blocks.find((b) => b.selector === ":root");
+const isFont = (v) => /font-(family|size)$/.test(v);
+const rootColours = [...(rootBlock?.vars ?? [])].filter((v) => !isFont(v));
+const kinds = blocks.filter((b) => /^\.vscode-/.test(b.selector));
+if (kinds.length !== 3) {
+  console.error(`check-theme-vars: expected 3 theme-kind blocks in ${themeFile}, found ${kinds.length}`);
+  process.exit(1);
+}
+for (const kind of kinds) {
+  const lacking = rootColours.filter((v) => !kind.vars.has(v));
+  const extra = [...kind.vars].filter((v) => !rootBlock.vars.has(v) || isFont(v));
+  if (lacking.length || extra.length) {
+    console.error(
+      `check-theme-vars: ${kind.selector} in ${themeFile} must define exactly :root's colour variables.` +
+        (lacking.length ? `\n  missing: ${lacking.join(", ")}` : "") +
+        (extra.length ? `\n  unexpected: ${extra.join(", ")}` : "")
+    );
+    process.exit(1);
+  }
+}
+
 // A token written as var(--ds-x, <fallback>) still renders when design-system.css
 // never defines it, so only the bare var(--ds-x) form is a hard failure. mesh
 // 3.12.0's style.css uses var(--ds-border, var(--vscode-widget-border)) that way.

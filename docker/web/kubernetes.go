@@ -148,7 +148,7 @@ func (k *kubernetes) start(b *broker, s *instance, g *gateway) error {
 	for key, value := range map[string]string{"KKSS_PUBLIC_URL": g.public, "KKSS_BASE_PATH": g.base + "/s/" + s.ID, "KKSS_IDLE_TIMEOUT": env("KKSS_SESSION_IDLE_TIMEOUT", "1800"), "KKSS_PROJECT_ROOT": "/workspace", "KKSS_FILES_URL": "http://127.0.0.1:8080", "KKSS_TLS_TERMINATED": "1"} {
 		vars = append(vars, map[string]string{"name": key, "value": value})
 	}
-	for _, key := range []string{"KKSS_LLM_PROVIDER", "KKSS_LLM_MODEL", "KKSS_LLM_BASE_URL", "KKSS_RESTORE_SESSION", "KKSS_THEME", "KKSS_ZOOM"} {
+	for _, key := range []string{"KKSS_LLM_PROVIDER", "KKSS_LLM_MODEL", "KKSS_LLM_BASE_URL", "KKSS_RESTORE_SESSION", "KKSS_THEME", "KKSS_UI_THEME", "KKSS_ZOOM"} {
 		if v := os.Getenv(key); v != "" {
 			vars = append(vars, map[string]string{"name": key, "value": v})
 		}

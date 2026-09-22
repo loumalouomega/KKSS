@@ -4,6 +4,8 @@
  *  - cad:  cad/src/protocol.ts  (HostToWebview / WebviewToHost)
  *  - mesh: the message table in mesh/CLAUDE.md ("Message protocol")
  */
+import type { SettingCategory, SettingEntry, SettingValue } from "./services/settings/registry";
+
 export type Mode = "cad" | "mesh";
 
 /** Top-level screens: the launch home menu, the two mode views, the editor. */
@@ -420,3 +422,37 @@ export interface JobsSnapshot {
 export type JobsToHost =
   | { type: "jobsReady" | "refresh" | "hide" | "retryKratos" | "installKratosRuntime" }
   | { type: "select" | "cancel"; jobId: string };
+
+// ---- Settings page (services/settings/settingsWindow.ts) ---------------------
+
+/**
+ * Per-row live state. A `secret` row carries only `isSet` — the renderer never
+ * receives a secret value, only the fact that one is stored.
+ */
+export interface SettingsRowState {
+  /** The effective value (stored if valid, else the default). */
+  value?: SettingValue;
+  /** Whether a (non-default) value is stored — drives the reset icon. */
+  modified: boolean;
+  /** Locked by a KKSS_* environment variable (managedConfig.ts). */
+  managed: boolean;
+  isSet?: boolean;
+  /** One-line status under the control (the project folder, a cloud account). */
+  status?: string;
+  /** A warning under the control (e.g. an install path that is not Kratos). */
+  warning?: string;
+  /** Action ids currently unavailable (e.g. Disconnect while not connected). */
+  disabledActions?: string[];
+}
+
+export type SettingsToWebview =
+  | { type: "schema"; categories: readonly SettingCategory[]; entries: SettingEntry[] }
+  | { type: "rows"; rows: Record<string, SettingsRowState> }
+  | { type: "error"; id: string; message: string };
+
+export type SettingsToHost =
+  | { type: "settingsReady" }
+  | { type: "set"; id: string; value: unknown }
+  | { type: "reset"; id: string }
+  | { type: "browse"; id: string }
+  | { type: "action"; id: string; action: string };

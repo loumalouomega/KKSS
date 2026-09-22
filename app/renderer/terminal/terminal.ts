@@ -2,6 +2,7 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import type { TermToWebview } from "../../main/ipc";
+import type { Appearance } from "../appearance";
 import { glyph } from "../glyphs";
 
 declare global {
@@ -17,30 +18,48 @@ const api = window.termApi;
 const container = document.getElementById("terminal") as HTMLDivElement;
 document.getElementById("hide-btn")!.innerHTML = `${glyph("x", "sm")}<span>Hide</span>`;
 
-/** xterm theme from the same --vscode-* variables the rest of the app uses. */
-function themeFromCss(): { background: string; foreground: string; cursor: string } {
+/** xterm theme from the same --vscode-* variables the rest of the app uses —
+ *  re-read on every appearance change, since the UI theme swaps them. */
+function themeFromCss(): { background: string; foreground: string; cursor: string; selectionBackground: string } {
   const css = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
   return {
     background: v("--vscode-editor-background", "#1e1e1e"),
     foreground: v("--vscode-editor-foreground", "#cccccc"),
     cursor: v("--vscode-editor-foreground", "#cccccc"),
+    selectionBackground: v("--vscode-list-inactiveSelectionBackground", "#37373d"),
   };
 }
 
-const term = new Terminal({
-  fontSize: 13,
-  fontFamily: "Consolas, 'Courier New', monospace",
-  theme: themeFromCss(),
-  cursorBlink: true,
-  scrollback: 5000,
-});
+const DEFAULT_FONT = "Consolas, 'Courier New', monospace";
+
+/** Settings ▸ Terminal (font, scrollback, cursor), applied live. */
+function terminalOptions(a: Appearance | undefined) {
+  const t = a?.terminal;
+  return {
+    fontSize: t?.fontSize ?? 13,
+    fontFamily: t?.fontFamily || DEFAULT_FONT,
+    scrollback: t?.scrollback ?? 5000,
+    cursorStyle: t?.cursorStyle ?? "block",
+    cursorBlink: t?.cursorBlink ?? true,
+    theme: themeFromCss(),
+  };
+}
+
+const term = new Terminal(terminalOptions(window.kkssAppearance?.current()));
 const fit = new FitAddon();
 term.loadAddon(fit);
 term.open(container);
 fit.fit();
 
 let exited = false;
+
+window.kkssAppearance?.onChange((a) => {
+  Object.assign(term.options, terminalOptions(a));
+  // A font change alters the cell size, so the grid must be refitted.
+  fit.fit();
+  api.post({ type: "resize", cols: term.cols, rows: term.rows });
+});
 
 term.onData((data) => {
   if (exited) {

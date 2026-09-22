@@ -8,16 +8,8 @@ import { setUpdateChannel, updateChannel } from "./services/updates";
  */
 import { app, dialog, Menu, shell } from "electron";
 import type { MainWindow } from "./windows";
-import { CAD_DEFAULT_KEYS, type CadHost } from "./cadHost";
-import {
-  DEFAULT_VIEWER_DEFAULTS,
-  type MeshSizePreset,
-  type UpAxis,
-} from "../../cad/src/viewerDefaults";
-import {
-  DEFAULT_TESSELLATION_QUALITY,
-  type TessellationQuality,
-} from "../../cad/src/tessellationQuality";
+import type { CadHost } from "./cadHost";
+import { effective, entryById } from "./services/settings/registry";
 import type { MeshHost } from "./mesh/meshHost";
 import type { Mode, Screen } from "./ipc";
 import { showQuickPick, showInputBox } from "./services/quickPick";
@@ -35,8 +27,6 @@ import { DEFAULT_ANTHROPIC_MODEL } from "./services/chat/providers/anthropic";
 import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./services/chat/providers/openaiCompat";
 import { DEFAULT_META_SERVER_PORT, META_SERVER_KEYS } from "./services/metaServer/metaServer";
 import type { EditorService } from "./services/editor";
-import { MESH_SUMMARY_THRESHOLD_MB_KEY } from "./vscodeShim";
-import { SUMMARY_THRESHOLD_MB_DEFAULT } from "../../mesh/src/parser/meshSummary";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
 // The mesh submodule's recents core is vscode-free, so its label/folder
 // formatting is reused verbatim for KKSS's own app-wide list.
@@ -113,6 +103,8 @@ export interface MenuDeps {
     setCacheLimitMb(value: number | undefined): void;
     clearCache(): void;
   };
+  /** Settings ▸ Open Settings… (Ctrl+,) — the full Settings page. */
+  openSettings(): void;
   /** HTTP meta MCP server controls (see index.ts). */
   metaServer: {
     enabled(): boolean;
@@ -122,43 +114,27 @@ export interface MenuDeps {
   };
 }
 
-/** Scene themes understood by the viewers (mesh provider's own value set). */
-const SCENE_THEMES: Array<{ value: string; label: string }> = [
-  { value: "auto", label: "Auto" },
-  { value: "dark", label: "Dark" },
-  { value: "light", label: "Light" },
-  { value: "scientific", label: "Scientific" },
-];
-
-/** CAD viewer default up-axis / mesh-size preset (cad's ViewerDefaults). */
-const CAD_UP_AXES: Array<{ value: UpAxis; label: string }> = [
-  { value: "y", label: "Y up" },
-  { value: "z", label: "Z up" },
-];
-const CAD_MESH_SIZE_PRESETS: Array<{ value: MeshSizePreset; label: string }> = [
-  { value: "coarse", label: "Coarse" },
-  { value: "medium", label: "Medium" },
-  { value: "fine", label: "Fine" },
-];
-/** B-rep tessellation quality (cad 1.2.6) — trades detail against load time. */
-const CAD_TESSELLATION_QUALITIES: Array<{ value: TessellationQuality; label: string }> = [
-  { value: "draft", label: "Draft (fastest)" },
-  { value: "standard", label: "Standard" },
-  { value: "fine", label: "Fine (most detail)" },
-];
-
-/** Shell choices for the embedded terminal, per platform. */
-const SHELL_CHOICES: Array<{ value: string | undefined; label: string }> =
-  process.platform === "win32"
-    ? [
-        { value: undefined, label: "PowerShell (default)" },
-        { value: "cmd.exe", label: "Command Prompt" },
-      ]
-    : [
-        { value: undefined, label: "System default ($SHELL)" },
-        { value: "/bin/bash", label: "bash" },
-        { value: "/bin/zsh", label: "zsh" },
-      ];
+/**
+ * A registry enum as a radio submenu — the quick toggles kept in the native
+ * menu read the same entry the Settings page renders, so the two cannot drift
+ * (and the menu is rebuilt on every stateStore change, see index.ts).
+ */
+function enumRadio(id: string): Electron.MenuItemConstructorOptions {
+  const entry = entryById(id)!;
+  const key = entry.storeKey!;
+  const managed = stateStore.isManaged(key);
+  const current = effective(entry, stateStore.get(key));
+  return {
+    label: entry.label + (managed ? " (set by the environment)" : ""),
+    enabled: !managed,
+    submenu: (entry.enum ?? []).map((value, i) => ({
+      label: entry.enumLabels?.[i] ?? String(value),
+      type: "radio" as const,
+      checked: current === value,
+      click: () => void stateStore.update(key, value === entry.default ? undefined : value),
+    })),
+  };
+}
 
 /** Secret entry: never prefills the stored value; empty input clears it. */
 async function promptSecret(key: string, title: string, placeHolder: string): Promise<void> {
@@ -175,26 +151,29 @@ async function promptSecret(key: string, title: string, placeHolder: string): Pr
 /**
  * "Never ask" is the only setting that turns the gate off outright, so it is
  * confirmed once — the same warning the MCP server's copy-config dialog uses,
- * for the same tools. The other two modes are set without ceremony.
+ * for the same tools. Shared with the Settings page (settingsWindow.ts).
  */
+export async function confirmApprovalOff(): Promise<boolean> {
+  const { response } = await dialog.showMessageBox({
+    type: "warning",
+    buttons: ["Cancel", "Turn Approval Off"],
+    defaultId: 0,
+    cancelId: 0,
+    message: "Run every tool without asking?",
+    detail:
+      "The assistant will run every tool it chooses, with no prompt. These tools read and " +
+      "write files on disk and can run simulations, and some overwrite the file they are " +
+      "given when no output path is set. Only turn this off for a session you are watching.",
+  });
+  return response === 1;
+}
+
+/** The other two modes are set without ceremony. */
 async function setApprovalMode(mode: ApprovalMode, deps: MenuDeps): Promise<void> {
-  if (mode === "never") {
-    const { response } = await dialog.showMessageBox({
-      type: "warning",
-      buttons: ["Cancel", "Turn Approval Off"],
-      defaultId: 0,
-      cancelId: 0,
-      message: "Run every tool without asking?",
-      detail:
-        "The assistant will run every tool it chooses, with no prompt. These tools read and " +
-        "write files on disk and can run simulations, and some overwrite the file they are " +
-        "given when no output path is set. Only turn this off for a session you are watching.",
-    });
-    if (response !== 1) {
-      // The radio already moved on click; rebuilding puts it back.
-      installMenu(deps);
-      return;
-    }
+  if (mode === "never" && !(await confirmApprovalOff())) {
+    // The radio already moved on click; rebuilding puts it back.
+    installMenu(deps);
+    return;
   }
   await stateStore.update(LLM_KEYS.toolApproval, mode);
 }
@@ -615,103 +594,16 @@ export function installMenu(deps: MenuDeps): void {
       label: "&Settings",
       submenu: [
         {
-          label: "Color Theme" + (stateStore.isManaged("sceneTheme") ? " (set by the environment)" : ""),
-          enabled: !stateStore.isManaged("sceneTheme"),
-          submenu: SCENE_THEMES.map((t) => ({
-            label: t.label,
-            type: "radio" as const,
-            checked: stateStore.get("sceneTheme", "auto") === t.value,
-            // Shared with the mesh viewer's own theme toggle (same stateStore
-            // key); viewers pick it up when they next load a file.
-            click: () => void stateStore.update("sceneTheme", t.value),
-          })),
+          label: "Open Settings…",
+          accelerator: "CmdOrCtrl+,",
+          click: () => deps.openSettings(),
         },
-        {
-          // The `cadPreview.*` settings the CAD viewer reads as its
-          // cross-document defaults (CadHost.sendViewerDefaults). They only seed
-          // a newly opened document — a per-document sidecar value or a runtime
-          // toggle still wins. Background is intentionally absent: it needs a
-          // colour picker, and the view-controls Appearance group already
-          // offers one per session.
-          label: "CAD Viewer Defaults",
-          submenu: [
-            {
-              label: "Up Axis",
-              submenu: CAD_UP_AXES.map((a) => ({
-                label: a.label,
-                type: "radio" as const,
-                checked:
-                  stateStore.get(CAD_DEFAULT_KEYS.upAxis, DEFAULT_VIEWER_DEFAULTS.upAxis) === a.value,
-                click: () => void stateStore.update(CAD_DEFAULT_KEYS.upAxis, a.value),
-              })),
-            },
-            {
-              label: "Default Mesh Size",
-              submenu: CAD_MESH_SIZE_PRESETS.map((p) => ({
-                label: p.label,
-                type: "radio" as const,
-                checked:
-                  stateStore.get(CAD_DEFAULT_KEYS.meshSizePreset, DEFAULT_VIEWER_DEFAULTS.meshSizePreset) ===
-                  p.value,
-                click: () => void stateStore.update(CAD_DEFAULT_KEYS.meshSizePreset, p.value),
-              })),
-            },
-            {
-              // Tessellation is re-read per B-rep load, so this applies on the
-              // next edit or reopen — no restart.
-              label: "Tessellation Quality",
-              submenu: CAD_TESSELLATION_QUALITIES.map((q) => ({
-                label: q.label,
-                type: "radio" as const,
-                checked:
-                  stateStore.get(CAD_DEFAULT_KEYS.tessellationQuality, DEFAULT_TESSELLATION_QUALITY) ===
-                  q.value,
-                click: () => void stateStore.update(CAD_DEFAULT_KEYS.tessellationQuality, q.value),
-              })),
-            },
-            {
-              // cad 1.12.0's cadPreview.openscadBinary. Only consulted when a
-              // .scad is opened; unset resolves `openscad` on PATH.
-              label: "OpenSCAD Binary…",
-              click: () =>
-                void promptValue(
-                  CAD_DEFAULT_KEYS.openscadBinary,
-                  "OpenSCAD binary used to convert .scad sources to .csg on open (bare name = resolved on PATH)",
-                  "openscad"
-                ),
-            },
-            {
-              label: "Show Grid && Axes on Open",
-              type: "checkbox" as const,
-              checked: stateStore.get(
-                CAD_DEFAULT_KEYS.showGridAndAxes,
-                DEFAULT_VIEWER_DEFAULTS.showGridAndAxes
-              ),
-              click: (item) => void stateStore.update(CAD_DEFAULT_KEYS.showGridAndAxes, item.checked),
-            },
-          ],
-        },
-        {
-          label: "Mesh Viewer Defaults",
-          submenu: [
-            {
-              // mesh 3.16.0's kratos.preview.summaryThresholdMb, made
-              // user-settable by the vscodeShim's getConfiguration
-              // special-case (see MESH_SUMMARY_THRESHOLD_MB_KEY) — every
-              // other kratos.* configuration key stays at its schema default.
-              // A mesh above this size opens as a header summary (counts,
-              // blocks, field names) with an "Open full mesh anyway" button,
-              // instead of loading in full.
-              label: "Large-Mesh Summary Threshold…",
-              click: () =>
-                void promptValue(
-                  MESH_SUMMARY_THRESHOLD_MB_KEY,
-                  "Meshes above this size (MB) open as a header summary instead of loading in full",
-                  String(SUMMARY_THRESHOLD_MB_DEFAULT)
-                ),
-            },
-          ],
-        },
+        { type: "separator" },
+        enumRadio("appearance.uiTheme"),
+        // Shared with the mesh viewer's own theme toggle (same stateStore key);
+        // viewers pick it up when they next load a file.
+        enumRadio("appearance.sceneTheme"),
+        { type: "separator" },
         {
           // Reopens the last run's documents, screen and panels at launch.
           // Also skipped by KKSS_E2E (the harness launches the real app) and by
@@ -729,17 +621,9 @@ export function installMenu(deps: MenuDeps): void {
           checked: updateChannel() === "prerelease",
           click: item => void setUpdateChannel(item.checked ? "prerelease" : "stable"),
         },
-        {
-          label: "Terminal Shell",
-          submenu: SHELL_CHOICES.map((s) => ({
-            label: s.label,
-            type: "radio" as const,
-            checked: stateStore.get<string>("terminalShell") === s.value,
-            // Applies to the next terminal session (exit the current shell or
-            // restart the app to switch).
-            click: () => void stateStore.update("terminalShell", s.value),
-          })),
-        },
+        // Applies to the next terminal session (exit the current shell or
+        // restart the app to switch).
+        enumRadio("terminal.shell"),
         {
           // All values are read per chat request — changes apply immediately,
           // no restart. API keys are stored safeStorage-encrypted (secrets.ts).

@@ -19,6 +19,9 @@ import { showOpenDialog } from "./services/dialogs";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
 import { configureWhatsNew, checkForNewVersion } from "./services/whatsNew";
+import { configureAppearance, windowBackground } from "./services/appearance";
+import { configureSettings, refreshSettingsRows, showSettings } from "./services/settings/settingsWindow";
+import { effective, entryById, registry } from "./services/settings/registry";
 import { TerminalService } from "./services/terminal";
 import { EditorService } from "./services/editor";
 import { ChatService } from "./services/chat/chatService";
@@ -958,11 +961,9 @@ async function regenerateMetaServerToken(): Promise<void> {
   toast("info", "MCP server token regenerated — update any connected clients.");
 }
 
-/** Settings live in the native menu bar — pop its submenu up (home + chat). */
-function openSettingsMenu(): void {
-  if (!main) return;
-  const settings = Menu.getApplicationMenu()?.items.find((i) => i.label === "&Settings");
-  settings?.submenu?.popup({ window: main.win });
+/** Settings ▸ Open Settings… — also the home card and the chat's gear. */
+function openSettings(): void {
+  showSettings();
 }
 
 app.whenReady().then(() => {
@@ -973,9 +974,12 @@ app.whenReady().then(() => {
   configurePicker(__dirname);
   configureAbout(__dirname);
   configureWhatsNew(__dirname);
+  // Before the first view: every preload fetches the theme synchronously.
+  configureAppearance();
   main = createMainWindow(__dirname, stateStore.get<number>(UI_ZOOM_KEY, DEFAULT_ZOOM) ?? DEFAULT_ZOOM, {
     onViewCrash,
   });
+  main.win.setBackgroundColor(windowBackground());
   configureNotifications(sendShell);
   // The inferred half of the root: the focused document's folder, which is what
   // every consumer used before this concept existed — so with no explicit root
@@ -1007,7 +1011,12 @@ app.whenReady().then(() => {
 
   for (const mode of ["cad", "mesh"] as Mode[]) {
     ipcMain.on(`${mode}:initialState`, (event) => {
-      event.returnValue = { mode, theme: stateStore.get("sceneTheme", "auto") };
+      const orientation = entryById("kratos.flowgraph.splitOrientation")!;
+      event.returnValue = {
+        mode,
+        theme: stateStore.get("sceneTheme", "auto"),
+        flowgraphOrientation: effective(orientation, stateStore.get(orientation.storeKey!)),
+      };
     });
   }
 
@@ -1102,7 +1111,7 @@ app.whenReady().then(() => {
         ...[...meshHosts.values()].map((h) => h.currentFile),
       ].filter((f): f is string => !!f)),
     }),
-    openSettings: openSettingsMenu,
+    openSettings,
     onHide: () => {
       if (main?.chatVisible()) toggleChat();
     },
@@ -1153,6 +1162,7 @@ app.whenReady().then(() => {
       setCacheLimitMb: (value) => void cloud?.setCacheLimitMb(value),
       clearCache: () => void clearCloudCache(),
     },
+    openSettings,
     metaServer: {
       enabled: () => stateStore.get(META_SERVER_KEYS.enabled, false) ?? false,
       setEnabled: (enabled) => void setMetaServerEnabled(enabled),
@@ -1162,6 +1172,28 @@ app.whenReady().then(() => {
   };
   refreshMenu = () => installMenu(menuDeps);
   refreshMenu();
+  configureSettings(__dirname, {
+    setZoom: (factor) => setUiZoom(factor),
+    projectRoot: {
+      explicit: () => projectRoot.explicit(),
+      choose: () => void chooseProjectRoot(),
+      clear: () => projectRoot.clear(),
+    },
+    metaServer: menuDeps.metaServer,
+    cloud: menuDeps.cloud,
+    restartKratos: () => {
+      void mcpHub?.restartKratos();
+      toast("info", "Restarting the Kratos tools with the current environment.");
+    },
+  });
+  // The native menu's quick toggles mirror registry settings, and an Electron
+  // menu is static once built — so a change from the Settings page (or the
+  // shim) rebuilds it. Only registry keys: mesh's globalState and the session
+  // also write through the store and must not rebuild the menu on every write.
+  const settingKeys = new Set(registry().map((e) => e.storeKey).filter((k): k is string => !!k));
+  stateStore.onDidChange((key) => {
+    if (settingKeys.has(key)) installMenu(menuDeps);
+  });
   // An Electron menu is static once built, so the Open Recent submenu only
   // tracks the store by rebuilding the whole template. `record()` fires once
   // per file open and `clear()` once per click, so this is not a hot path.
@@ -1171,11 +1203,15 @@ app.whenReady().then(() => {
   });
   // Connect/disconnect changes the Cloud Accounts status rows and whether
   // File ▸ Open from Cloud… is enabled — same static-menu reason as above.
-  cloud?.onDidChange(() => installMenu(menuDeps));
+  cloud?.onDidChange(() => {
+    installMenu(menuDeps);
+    refreshSettingsRows();
+  });
   // The root shows in the File menu's label, and changes how recents describe
   // their folders, so both surfaces are rebuilt with it.
   projectRoot.onDidChange(() => {
     installMenu(menuDeps);
+    refreshSettingsRows();
     pushProjectRoot();
     pushRecents();
   });
@@ -1240,7 +1276,7 @@ app.whenReady().then(() => {
         void editor?.open();
         break;
       case "settings":
-        openSettingsMenu();
+        openSettings();
         break;
       case "help":
         showAbout();

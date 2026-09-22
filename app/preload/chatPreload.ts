@@ -1,5 +1,6 @@
 /** Preload for the chat-sidebar renderer. */
 import { contextBridge, ipcRenderer } from "electron";
+import "./appearance";
 
 contextBridge.exposeInMainWorld("chatApi", {
   post: (message: unknown) => ipcRenderer.send("chat:toHost", message),

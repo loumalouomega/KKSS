@@ -1,5 +1,6 @@
 /** Preload for the modal picker window (quick-pick / input-box replacement). */
 import { contextBridge, ipcRenderer } from "electron";
+import "./appearance";
 
 contextBridge.exposeInMainWorld("pickerApi", {
   post: (message: unknown) => ipcRenderer.send("picker:toHost", message),

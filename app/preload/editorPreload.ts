@@ -1,5 +1,6 @@
 /** Preload for the text-editor renderer. */
 import { contextBridge, ipcRenderer } from "electron";
+import "./appearance";
 
 contextBridge.exposeInMainWorld("editorApi", {
   post: (message: unknown) => ipcRenderer.send("editor:toHost", message),
