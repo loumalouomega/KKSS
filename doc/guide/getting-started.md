@@ -128,10 +128,19 @@ If Kratos cannot start, a message below the chat header explains the failure. **
 
 This installs the uv launcher, not a bundled Kratos engine or Python runtime. uv keeps its usual cache and Python locations. A compatible Python MCP dependency is selected alongside the pinned Kratos tool server.
 
-Before first use, pick a provider and set an API key under **Settings ▸ LLM Assistant**:
+Before first use, pick a provider under **Settings ▸ LLM Assistant**. API-backed providers use a key:
 
 - **Anthropic (Claude)** — the default; set *Anthropic API Key* (and optionally the model, default `claude-opus-4-8`).
 - **OpenAI-compatible** — any `chat/completions` backend: set the *Base URL* (e.g. `https://api.openai.com/v1` or `http://localhost:11434/v1` for Ollama), the model name, and a key if the backend needs one.
+
+You can also use a subscription account through the official local agent tools:
+
+- **ChatGPT subscription (Codex)** — install the Codex CLI, run `codex login`, then select this provider. KKSS uses Codex App Server with only KKSS's MCP tools enabled.
+- **Claude subscription (Claude Code)** — install Claude Code, run `claude auth login`, then select this provider. KKSS uses the Claude Agent SDK with a private KKSS MCP bridge.
+
+Use each provider's **Check installation and sign-in…** action to verify the executable and account. Subscription mode uses the account managed by the official tool, removes inherited API-key and gateway variables, and never falls back to paid API requests. Provider subscription limits and model availability still apply. The *Executable path…* action is available when automatic detection cannot find the installed tool.
+
+Subscription runtimes are restricted to KKSS tools; their shell, file, web, plugin, connector, and sub-agent tools are disabled. The same KKSS approval dialog still appears before tools that change files. Conversations retain a provider session when possible; if a provider session has expired or is missing, KKSS starts a new session from the saved transcript without replaying historical tool calls.
 
 Keys are stored encrypted with your OS keychain when available. Edits made by the assistant land in the same sidecar files the viewers use — reload the file to see them. Send with `Enter` and stop a running response with the same button.
 

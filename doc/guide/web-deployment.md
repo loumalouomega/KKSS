@@ -122,6 +122,7 @@ block of either compose file:
 
 The LLM and application overlay accepts `KKSS_LLM_PROVIDER`,
 `KKSS_LLM_MODEL`, `KKSS_LLM_BASE_URL`, `KKSS_LLM_API_KEY_FILE`,
+`KKSS_CODEX_EXECUTABLE`, and `KKSS_CLAUDE_CODE_EXECUTABLE`,
 `KKSS_PROJECT_ROOT`, `KKSS_RESTORE_SESSION`, `KKSS_THEME`, `KKSS_ZOOM`,
 `KKSS_META_ENABLED`, `KKSS_META_PORT`, and `KKSS_META_TOKEN_FILE`. Secret files
 must be mounted read-only into the container. The gateway never logs their

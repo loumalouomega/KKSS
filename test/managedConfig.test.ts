@@ -15,3 +15,12 @@ describe('operator settings', () => {
     expect(() => parseManagedConfig({ KKSS_META_TOKEN_FILE: '/secret' }, () => { throw new Error('secret data'); })).toThrow('Invalid operator setting KKSS_META_TOKEN_FILE');
   });
 });
+
+it('supports managed subscription providers without API billing credentials', () => {
+  const config = parseManagedConfig({ KKSS_LLM_PROVIDER: 'codex', KKSS_LLM_MODEL: 'model', KKSS_CODEX_EXECUTABLE: '/opt/codex' });
+  expect(config.values.get('llmProvider')).toBe('codex');
+  expect(config.values.get('llmModelCodex')).toBe('model');
+  expect(config.values.get('llmCodexExecutable')).toBe('/opt/codex');
+  expect(() => parseManagedConfig({ KKSS_LLM_PROVIDER: 'claude-code', KKSS_LLM_API_KEY_FILE: '/secret' })).toThrow();
+  expect(() => parseManagedConfig({ KKSS_CODEX_EXECUTABLE: 'relative' })).toThrow();
+});

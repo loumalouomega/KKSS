@@ -1305,3 +1305,59 @@ describe("transcript compaction", () => {
     expect(lastState(messages).compactedResults).toBe(1);
   });
 });
+
+describe('subscription sessions in the sidebar', () => {
+  it('routes subscription tool calls through the existing denial gate', async () => {
+    stateValues.llmProvider = 'codex';
+    const h = makeService();
+    let received: any;
+    (h.service as any).deps.agent = () => ({ run: async (options: any) => {
+      options.onSession({ provider: 'codex', id: 'thread', model: '', toolSignature: '[]' });
+      options.onTextDelta('Checking'); options.onTextDone();
+      received = await options.executeTool({ id: 'subscription-call', name: 'cad__save_model', argsJson: '{}' });
+      options.onUsage({ input: 10, output: 5, cacheRead: 0, cacheWrite: 0 });
+    } });
+    h.post({ type: 'send', text: 'Save this' });
+    await settle();
+    expect(h.mcp.calls).toEqual([]);
+    const prompt = h.messages.find((m: any) => m.type === 'approvalRequest') as any;
+    expect(prompt).toBeDefined();
+    h.post({ type: 'approveTool', callId: 'subscription-call', decision: 'deny' });
+    await settle();
+    expect(received.ok).toBe(false);
+    expect(h.mcp.calls).toEqual([]);
+    const usage = h.messages.find((m: any) => m.type === 'usage') as any;
+    expect(usage.usage.billingMode).toBe('subscription');
+    expect(usage.usage.costUsd).toBeUndefined();
+    h.service.dispose(); h.service.flushSync();
+  });
+});
+
+it('cancels a subscription session waiting for tool approval', async () => {
+  stateValues.llmProvider = 'codex';
+  const h = makeService();
+  let aborted = false;
+  (h.service as any).deps.agent = () => ({ run: async (options: any) => {
+    options.onSession({ provider: 'codex', id: 'thread', model: '', toolSignature: '[]' });
+    options.signal.addEventListener('abort', () => { aborted = true; });
+    await options.executeTool({ id: 'cancel-call', name: 'cad__save_model', argsJson: '{}' });
+  } });
+  h.post({ type: 'send', text: 'Save' }); await settle();
+  h.post({ type: 'stop' }); await settle();
+  expect(aborted).toBe(true); expect(h.mcp.calls).toEqual([]);
+  expect(h.messages.filter((m: any) => m.type === 'busy').pop()).toMatchObject({ busy: false });
+  h.service.flushSync(); h.service.dispose();
+});
+
+it('does not apply API pricing to mixed subscription and API usage', async () => {
+  stateValues.llmProvider = 'codex';
+  const h = makeService();
+  (h.service as any).deps.agent = () => ({ run: async (options: any) => { options.onUsage({ input: 10, output: 2, cacheRead: 0, cacheWrite: 0 }); } });
+  h.post({ type: 'send', text: 'Hello' }); await settle();
+  stateValues.llmProvider = 'anthropic'; stateValues.llmModelAnthropic = 'claude-sonnet-4-6';
+  h.post({ type: 'send', text: 'Hello again' }); await settle();
+  h.provider.finish('Hello', undefined, { input: 10, output: 2, cacheRead: 0, cacheWrite: 0 }); await settle();
+  const usage = h.messages.filter((m: any) => m.type === 'usage').pop() as any;
+  expect(usage.usage.billingMode).toBe('mixed'); expect(usage.usage.costUsd).toBeUndefined();
+  h.service.flushSync(); h.service.dispose();
+});
