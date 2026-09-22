@@ -6,7 +6,7 @@ import { managedConfig } from "./services/managedConfig";
 import { startHeadlessControl, prepareHeadlessShutdown } from "./services/headless";
 import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
-import { createMainWindow, MainWindow, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash } from "./windows";
+import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash } from "./windows";
 import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
 import { FlowgraphController } from "../../mesh/src/flowgraphController";
@@ -391,6 +391,9 @@ function saveSessionSoon(): void {
 function syncTabs(mode: Mode): void {
   if (!main) return;
   const hosts = mode === "cad" ? cadHosts : meshHosts;
+  const active = main.activeTabId(mode);
+  const activeFile = active ? hosts.get(active)?.currentFile : undefined;
+  main.win.setTitle(activeFile ? `${path.basename(activeFile)} — KKSS` : DEFAULT_WINDOW_TITLE);
   const tabs: ShellTabInfo[] = main.tabs(mode).map((t) => {
     const host = hosts.get(t.id);
     const file = host?.currentFile;

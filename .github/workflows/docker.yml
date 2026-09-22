@@ -60,7 +60,9 @@ jobs:
           # the runtime apt-get RUN's own comment in the Dockerfile. The
           # scan step below (not this rule) is what actually gates a release
           # on a clean image; the rest of the ruleset still applies.
-          ignore: DL3005,DL3008
+          # DL3006: the final runtime stage is intentionally selected by the
+          # KKSS_VARIANT build arg (base or kratos).
+          ignore: DL3005,DL3006,DL3008
 
   image:
     name: image (${{ matrix.arch }})
@@ -138,9 +140,9 @@ jobs:
           curl -fsS -b /tmp/kkss.cookies http://localhost:6080/api/bootstrap >/dev/null
           title_ok=0
           for i in $(seq 1 30); do
-            # The fixture is passed as a launch argument; Electron keeps the
-            # native window title at the stable KKSS application title.
-            if docker exec kkss xdotool search --onlyvisible --name KKSS >/dev/null 2>&1; then title_ok=1; break; fi
+            # The fixture is passed as a launch argument; the native window
+            # title names the focused document once it has opened.
+            if docker exec kkss xdotool search --onlyvisible --name cube_with_5_faces >/dev/null 2>&1; then title_ok=1; break; fi
             sleep 1
           done
           [ "$title_ok" = "1" ]

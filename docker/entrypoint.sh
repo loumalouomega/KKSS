@@ -56,7 +56,7 @@ for _ in $(seq 1 50); do if xdpyinfo >/dev/null 2>&1; then ready=1; break; fi; s
 openbox &
 track $! openbox
 if [ "${KKSS_DISPLAY_BACKEND:-xvfb}" = xvfb ]; then
-  x11vnc -display "$DISPLAY" -forever -noshared -dontdisconnect -localhost -rfbport 5900 -noxdamage -passwdfile "$X11VNC_PASSWORD_FILE" &
+  x11vnc -display "$DISPLAY" -forever -noshared -dontdisconnect -localhost -rfbport 5900 -noxdamage -rfbauth "$X11VNC_PASSWORD_FILE" &
   track $! x11vnc
 fi
 websockify --web /usr/share/novnc 127.0.0.1:6081 localhost:5900 &
