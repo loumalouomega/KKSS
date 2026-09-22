@@ -116,7 +116,7 @@ block of either compose file:
 | `KKSS_IDLE_TIMEOUT` | `0` | Disconnected idle timeout in seconds; tracked jobs and uploads inhibit it |
 | `KKSS_BASE_PATH` | *(empty)* | URL prefix used when a reverse proxy mounts KKSS below a path |
 | `KKSS_GPU` | `0` | Set to `1` only with the Intel/AMD `/dev/dri` overlay |
-| `KKSS_DISPLAY_BACKEND` | `xvfb` | `tigervnc` enables remote desktop resize after hardware validation |
+| `KKSS_DISPLAY_BACKEND` | `xvfb` | `tigervnc` enables remote desktop resize after hardware validation; one active viewer is allowed |
 | `OPEN_FILE` | *(unset)* | Absolute container path of a file to open at launch (for example `/workspace/model.mdpa`) |
 | `NOVNC_PORT` | `6080` | Port noVNC listens on inside the container |
 
@@ -258,8 +258,10 @@ to authenticated session users.
   service restarts on failure; reload the browser tab.
 - **Display size:** Xvfb keeps the existing fixed `DISPLAY_SIZE` behavior.
   `docker-compose.gpu.yml` selects the separately validated TigerVNC/EGL path,
-  where `resizeSession` can request a new desktop size. Treat that overlay as
-  hardware-dependent until its Intel/AMD runner passes the rendering checks.
+  where `resizeSession` can request a new desktop size. Both VNC backends
+  reject a second viewer while preserving the first connection. Treat that
+  overlay as hardware-dependent until its Intel/AMD runner passes the rendering
+  checks.
 - **Clipboard** works through the noVNC sidebar panel, not the native
   Ctrl+C/Ctrl+V bridge.
 

@@ -21,6 +21,8 @@ npm run docker:build   # build the streamed-desktop web image (docker compose bu
 npm run docker:up      # serve the app to a browser at http://localhost:6080/
 npm run docker:up:ghcr # same, from the published image (no checkout/build needed)
 npm run dist:dir       # package to release/linux-unpacked (what the image ships)
+npm run check:packaging # verify native associations match CAD/mesh routing tables
+npm run flatpak:probe   # inspect Flatpak feasibility without publishing an artifact
 npm run build:icons    # TikZ → SVG/PNG icons (needs pdflatex + pdftocairo)
 npm run docs:screenshots  # regenerate doc screenshots from the live app (see below)
 npm run docs:dev / docs:build  # VitePress site in doc/
@@ -954,8 +956,18 @@ Concretely:
   uploads `release/latest*.yml` + `release/*.blockmap` to the GitHub Release.
   electron-updater (About dialog, `app/main/services/updates.ts`) needs both;
   it and `semver` are devDeps **bundled into out/main.js** — the package
-  still ships no node_modules. In-app install only on win-NSIS/AppImage;
-  everything else falls back to the releases page.
+  still ships no node_modules. The selected stable/prerelease channel is
+  persisted as `updateChannel`; stable excludes prerelease tags and all
+  comparisons use full SemVer. In-app install remains limited to win-NSIS and
+  AppImage (and a future verified signed macOS build); deb, rpm and unsigned
+  macOS installs fall back to the releases page.
+
+- **External launch and native associations share one router.** `app/main/launch.ts`
+  validates command-line, Finder, second-instance and `kkss://open?file=…`
+  inputs against `modeForFile`, while `LaunchQueue` keeps them until the main
+  window and restored tabs are ready. `electron-builder.yml` registers the
+  same extension families plus the `kkss` protocol and Linux MIME entries;
+  compound suffixes such as `.post.msh` remain intact.
 - **Screens vs modes.** `Screen = "home" | "editor" | Mode`
   (`app/main/ipc.ts`): the home screen (`app/renderer/home/`, config-driven
   buttons in `homeConfig.ts`; full-window) and the text editor

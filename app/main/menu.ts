@@ -1,3 +1,4 @@
+import { setUpdateChannel, updateChannel } from "./services/updates";
 /**
  * Native application menu. Mirrors the two extensions' contributed commands:
  *   cad:  cad-preview.open/save/saveAs/export  (Ctrl+O/S/Shift+S/E)
@@ -718,6 +719,13 @@ export function installMenu(deps: MenuDeps): void {
           type: "checkbox" as const,
           checked: stateStore.get<boolean>(RESTORE_SESSION_KEY, true) !== false,
           click: (item) => void stateStore.update(RESTORE_SESSION_KEY, item.checked),
+        },
+        {
+          label: "Include prerelease updates" + (stateStore.isManaged("updateChannel") ? " (set by the environment)" : ""),
+          enabled: !stateStore.isManaged("updateChannel"),
+          type: "checkbox",
+          checked: updateChannel() === "prerelease",
+          click: item => void setUpdateChannel(item.checked ? "prerelease" : "stable"),
         },
         {
           label: "Terminal Shell",

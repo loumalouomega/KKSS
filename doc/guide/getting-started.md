@@ -8,12 +8,12 @@ Grab the installer for your platform and architecture from the [download page](/
 
 | Platform | Architectures | Artifact |
 | --- | --- | --- |
-| Linux | x86-64, ARM 64 | `.AppImage` (portable) or `.deb` |
+| Linux | x86-64, ARM 64 | `.AppImage` (portable), `.deb` or `.rpm` |
 | Windows | x86-64, ARM 64 | NSIS `.exe` installer |
 | macOS | Apple Silicon (ARM 64) | `.dmg` / `.zip` |
 
 ::: tip macOS Gatekeeper
-Release builds are currently unsigned. On macOS, right-click the app and choose **Open** the first time to bypass Gatekeeper.
+Release builds are currently unsigned. On macOS, right-click the app and choose **Open** the first time to bypass Gatekeeper. A signed/notarized macOS release will remove that first-launch step when Apple credentials are enabled in release CI.
 :::
 
 ## The home screen
@@ -104,7 +104,9 @@ The toolbar also has an **interface-scale** picker on the right (75 %–150 %) f
 
 ## About & updates
 
-**Help** on the home screen (or **Help ▸ About KKSS…**) shows the app version and checks GitHub for a newer release. When an update exists, **Update now** downloads and installs it in place on Windows and on the Linux AppImage — restart when prompted. `.deb` and macOS installs instead get a button to the releases page (those package types can't self-update; macOS builds are unsigned). No network? The dialog still shows your version and offers a Retry.
+**Help** on the home screen (or **Help ▸ About KKSS…**) shows the app version and checks GitHub for a newer release. **Include prerelease updates** in Settings controls whether stable-only or prerelease releases are selected. When an update exists, **Update now** downloads and installs it in place on Windows and on the Linux AppImage — restart when prompted. `.deb`, `.rpm` and unsigned macOS installs instead get a button to the releases page. No network? The dialog still shows your version and offers a Retry.
+
+Installing a supported file type (`.stp`, `.mdpa`, `.vtk`, `.post.msh` and the other formats shown in the Open dialog) opens it in KKSS when the file is double-clicked. The `kkss://open?file=…` link form accepts the same local files; links to application pages, relative paths and unsupported files are rejected.
 
 After an update, the next launch automatically pops up a **What's New** window listing what changed since the version you last ran — no popup on a first install, and it only ever shows entries newer than what you'd already seen. Dismiss it with **Got it** (or Esc); reopen the full history any time from **Help ▸ What's New…**.
 
@@ -246,6 +248,7 @@ The **Settings** menu (also reachable from the home screen's Settings button) ho
 - **Terminal Shell** — the shell the embedded terminal launches (takes effect for the next terminal session).
 - **LLM Assistant** — provider (Anthropic / OpenAI-compatible), API keys, model names, the OpenAI-compatible base URL, and **Tool Approval** (whether the assistant asks before running a tool that changes files — see *AI assistant ▸ Approving what the assistant does* above). Keys are encrypted with the OS keychain (Electron `safeStorage`) when one is available; changes apply to the next message, no restart needed. In a streamed deployment, operator values supplied through `KKSS_LLM_*` and secret files are shown as **set by the environment**, cannot be edited, and never enter `state.json`.
 - **MCP Server** — enable the localhost HTTP endpoint that exposes KKSS's toolset to an external MCP client, set its port, and copy or regenerate the bearer token (see *AI assistant ▸ Use your own MCP client* above). Off by default.
+- **Include prerelease updates** — opt into prerelease GitHub releases. Stable is the default, and changing this setting starts a fresh update check.
 
 Viewer actions (mesh quality, field visualization, find entity…) are *not* in the menu bar — they live in each viewer's own toolbar.
 
