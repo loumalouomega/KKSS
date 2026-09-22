@@ -390,5 +390,8 @@ jobs:
           context: .
           file: docker/broker/Dockerfile
           push: ${{ github.ref_type == 'tag' }}
-          tags: ghcr.io/loumalouomega/kkss-broker:${{ github.ref_name }}
+          # Pull-request refs are named like 56/merge, which is not a valid
+          # Docker tag. Keep release tags readable and use the commit SHA for
+          # build-only refs.
+          tags: ghcr.io/loumalouomega/kkss-broker:${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
           platforms: linux/amd64,linux/arm64
