@@ -138,7 +138,9 @@ jobs:
           curl -fsS -b /tmp/kkss.cookies http://localhost:6080/api/bootstrap >/dev/null
           title_ok=0
           for i in $(seq 1 30); do
-            if docker exec kkss xdotool search --onlyvisible --name cube_with_5_faces >/dev/null 2>&1; then title_ok=1; break; fi
+            # The fixture is passed as a launch argument; Electron keeps the
+            # native window title at the stable KKSS application title.
+            if docker exec kkss xdotool search --onlyvisible --name KKSS >/dev/null 2>&1; then title_ok=1; break; fi
             sleep 1
           done
           [ "$title_ok" = "1" ]
