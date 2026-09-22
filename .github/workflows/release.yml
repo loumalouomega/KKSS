@@ -124,7 +124,24 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: npx electron-builder ${{ matrix.args }} --publish never
+        # Explicit: this step also runs on the Windows runners, whose default
+        # shell is pwsh, not bash — the unset loop below needs bash everywhere.
+        shell: bash
+        run: |
+          # An unconfigured repo secret still comes through as CSC_LINK="" (the
+          # env: map always sets the key), not an absent variable. electron-builder's
+          # getCscLink() treats that as "a csc link was explicitly given" rather
+          # than "unset" (chooseNotNull only excludes null/undefined) — it then
+          # resolves "" against the project directory and tries to codesign with
+          # the repo root itself, failing with "<repo root> not a file". Unset
+          # (not just blank) every optional signing var Apple/electron-builder
+          # would otherwise mis-treat as configured, so an unsigned run stays
+          # unsigned end to end, exactly like the other steps' `-z` checks assume.
+          for var in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_TEAM_ID \
+            APPLE_APP_SPECIFIC_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER; do
+            if [ -z "${!var}" ]; then unset "$var"; fi
+          done
+          npx electron-builder ${{ matrix.args }} --publish never
 
       - name: Validate macOS signing configuration
         if: matrix.os == 'macos-latest'
