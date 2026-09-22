@@ -27,6 +27,161 @@ publish:
 # release assets by the "-<os>-<arch>." substring, so keep this pattern.
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
+# Keep this list aligned with app/main/router.ts. Compound suffixes use the
+# exact suffix accepted by the router; the generated desktop MIME entry uses
+# the same association records on Linux.
+fileAssociations:
+  - ext: step
+    name: KKSS STEP document
+    description: KKSS STEP document
+    mimeType: model/step
+  - ext: stp
+    name: KKSS STEP document
+    description: KKSS STEP document
+    mimeType: model/step
+  - ext: iges
+    name: KKSS IGES document
+    description: KKSS IGES document
+    mimeType: model/iges
+  - ext: igs
+    name: KKSS IGES document
+    description: KKSS IGES document
+    mimeType: model/iges
+  - ext: brep
+    name: KKSS BREP document
+  - ext: csg
+    name: KKSS CSG document
+  - ext: scad
+    name: KKSS OpenSCAD document
+  - ext: stl
+    name: KKSS STL document
+    mimeType: model/stl
+  - ext: obj
+    name: KKSS OBJ document
+  - ext: ply
+    name: KKSS PLY document
+  - ext: gltf
+    name: KKSS glTF document
+  - ext: glb
+    name: KKSS glTF document
+  - ext: med
+    name: KKSS MED document
+    mimeType: application/x-kkss-med
+  - ext: cgns
+    name: KKSS CGNS document
+  - ext: exo
+    name: KKSS Exodus document
+  - ext: e
+    name: KKSS Exodus document
+  - ext: dat
+    name: KKSS Tecplot document
+  - ext: node
+    name: KKSS TetGen document
+  - ext: xdmf
+    name: KKSS XDMF document
+    mimeType: application/x-kkss-xdmf
+  - ext: mdpa
+    name: KKSS MDPA document
+    mimeType: application/x-kkss-mdpa
+  - ext: foam
+    name: KKSS OpenFOAM document
+  - ext: msh
+    name: KKSS Gmsh document
+    mimeType: application/x-kkss-msh
+  - ext: msh2
+    name: KKSS Gmsh document
+  - ext: inp
+    name: KKSS Abaqus document
+  - ext: unv
+    name: KKSS UNV document
+  - ext: su2
+    name: KKSS SU2 document
+  - ext: mesh
+    name: KKSS Medit document
+  - ext: post.msh
+    name: KKSS GiD document
+    mimeType: application/x-kkss-post-msh
+  - ext: vtk
+    name: KKSS VTK document
+    mimeType: model/vtk
+  - ext: vtu
+    name: KKSS VTK XML document
+    mimeType: model/vtu
+  - ext: vtp
+    name: KKSS VTK XML document
+  - ext: vti
+    name: KKSS VTK XML document
+  - ext: vts
+    name: KKSS VTK XML document
+  - ext: vtr
+    name: KKSS VTK XML document
+  - ext: vtm
+    name: KKSS VTK multiblock document
+  - ext: avs
+    name: KKSS AVS document
+  - ext: bdf
+    name: KKSS Nastran document
+  - ext: case
+    name: KKSS EnSight document
+  - ext: dato
+    name: KKSS PERMAS document
+  - ext: dex
+    name: KKSS field document
+  - ext: ele
+    name: KKSS TetGen document
+  - ext: ex2
+    name: KKSS Exodus document
+  - ext: f3grid
+    name: KKSS FLAC3D document
+  - ext: fem
+    name: KKSS Nastran document
+  - ext: geo
+    name: KKSS EnSight document
+  - ext: h5m
+    name: KKSS MOAB document
+  - ext: hmf
+    name: KKSS HMF document
+  - ext: ip
+    name: KKSS field document
+  - ext: mff
+    name: KKSS field document
+  - ext: mfm
+    name: KKSS MFM document
+  - ext: mphtxt
+    name: KKSS COMSOL document
+  - ext: nas
+    name: KKSS Nastran document
+  - ext: off
+    name: KKSS OFF document
+  - ext: pf3
+    name: KKSS Flux document
+  - ext: poly
+    name: KKSS Triangle document
+  - ext: post
+    name: KKSS PERMAS document
+  - ext: post.res
+    name: KKSS GiD results document
+  - ext: post.bin
+    name: KKSS GiD document
+  - ext: post.h5
+    name: KKSS GiD document
+  - ext: tec
+    name: KKSS Tecplot document
+  - ext: ugrid
+    name: KKSS UGRID document
+  - ext: vol
+    name: KKSS Netgen document
+  - ext: wkt
+    name: KKSS WKT document
+  - ext: xmf
+    name: KKSS XDMF document
+  - ext: xml
+    name: KKSS DOLFIN document
+protocols:
+  - name: KKSS document link
+    schemes:
+      - kkss
+
 files:
   - out/**
   - "!out/**/*.map"
@@ -48,6 +203,7 @@ linux:
   target:
     - AppImage
     - deb
+    - rpm
   category: Science
   maintainer: tote1989@gmail.com
   synopsis: Pre- and post-processing desktop app for Kratos Multiphysics
@@ -79,6 +235,9 @@ mac:
     - dmg
     - zip
   category: public.app-category.developer-tools
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
   files:
     - "!node_modules/node-pty/prebuilds/win32-*/**"
 

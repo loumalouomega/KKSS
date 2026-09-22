@@ -63,12 +63,43 @@ jobs:
         shell: bash
         run: rm -rf release
 
+      - name: Check optional macOS signing inputs
+        if: matrix.os == 'macos-latest'
+        env:
+          MACOS_SIGNING_ENABLED: ${{ secrets.MACOS_SIGNING_ENABLED }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          if [ "$MACOS_SIGNING_ENABLED" = 1 ]; then
+            test -n "$CSC_LINK" -a -n "$CSC_KEY_PASSWORD" \
+              || { echo 'MACOS_SIGNING_ENABLED requires a Developer ID certificate and password'; exit 1; }
+            if [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+              test -n "$APPLE_API_KEY" -a -n "$APPLE_API_KEY_ID" -a -n "$APPLE_API_ISSUER" \
+                || { echo 'MACOS_SIGNING_ENABLED requires Apple ID credentials or an App Store Connect API key'; exit 1; }
+            fi
+          fi
+
       - name: Install system fpm
         if: matrix.system_fpm
         run: |
           sudo apt-get update
           sudo apt-get install -y ruby ruby-dev build-essential
           sudo gem install --no-document fpm
+
+      - name: Mark signed macOS package
+        if: matrix.os == 'macos-latest'
+        env:
+          MACOS_SIGNING_ENABLED: ${{ secrets.MACOS_SIGNING_ENABLED }}
+        run: |
+          if [ "$MACOS_SIGNING_ENABLED" = 1 ]; then
+            node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json","utf8")); p.kkssSignedRelease=true; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\\n")'
+          fi
 
       - name: Package installers
         # electron-builder/builder-util auto-enables hard-link copying on CI
@@ -84,22 +115,47 @@ jobs:
         env:
           USE_HARD_LINKS: 'false'
           USE_SYSTEM_FPM: ${{ matrix.system_fpm && 'true' || 'false' }}
+          MACOS_SIGNING_ENABLED: ${{ secrets.MACOS_SIGNING_ENABLED }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: npx electron-builder ${{ matrix.args }} --publish never
 
-      # latest*.yml + *.blockmap are electron-updater's update feed — the
-      # packaged app checks them on the GitHub Release (About ▸ Update now).
-      # Names never collide across platforms (latest.yml / latest-mac.yml /
-      # latest-linux*.yml), so merge-multiple below is safe.
+      - name: Validate macOS signing configuration
+        if: matrix.os == 'macos-latest'
+        env:
+          MACOS_SIGNING_ENABLED: ${{ secrets.MACOS_SIGNING_ENABLED }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          if [ "$MACOS_SIGNING_ENABLED" = 1 ]; then
+            test -n "$APPLE_ID" -a -n "$APPLE_TEAM_ID" -a -n "$APPLE_APP_SPECIFIC_PASSWORD" \
+              || { echo 'MACOS_SIGNING_ENABLED requires Apple notarization credentials'; exit 1; }
+            xcrun stapler validate release/*.dmg
+          else
+            echo 'MACOS_SIGNING_ENABLED is not set; retaining unsigned macOS artifacts'
+          fi
+
+      # Channel yml files + *.blockmap are electron-updater's update feed —
+      # the packaged app checks them on the GitHub Release (About ▸ Update
+      # now). Names never collide across platforms, so merge-multiple is safe.
       - uses: actions/upload-artifact@v7
         with:
           name: kkss-${{ matrix.os }}
           path: |
             release/*.AppImage
             release/*.deb
+            release/*.rpm
             release/*.exe
             release/*.dmg
             release/*.zip
-            release/latest*.yml
+            release/*.yml
             release/*.blockmap
           if-no-files-found: error
 

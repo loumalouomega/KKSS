@@ -14,6 +14,7 @@ import { RunManager } from "../../mesh/src/runManager";
 import { RecentMeshStore } from "../../mesh/src/recentMeshes";
 import { installMenu } from "./menu";
 import { modeForFile, modeForViewType } from "./router";
+import { LaunchQueue, launchFiles, localLaunchFile } from "./launch";
 import { showOpenDialog } from "./services/dialogs";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
@@ -76,32 +77,34 @@ if (!gotInstanceLock) {
   app.quit();
 }
 
-/** A file to open once the window exists — a CLI argument, or a macOS
- *  `open-file` that arrived before the app was ready. */
-let pendingOpen: string | undefined;
+const launchQueue = new LaunchQueue();
+launchQueue.enqueue(launchFiles(process.argv, app.isPackaged, process.cwd()));
 
-/** Opens `fsPath` now if the window is up, otherwise queues it for launch. */
-function openFileWhenReady(fsPath: string): void {
-  if (main) openFile(fsPath);
-  else pendingOpen = fsPath;
-}
-
-// macOS: Finder "Open With", or a file dropped on the dock icon. This fires
-// *before* app.whenReady(), so an early one has to be queued and flushed at
-// the end of the ready block.
-app.on("open-file", (event, fsPath) => {
+app.on("open-file", (event, value) => {
   event.preventDefault();
+  const file = localLaunchFile(value, process.cwd());
+  if (file) launchQueue.enqueue([file]);
+  else console.warn("Rejected unsupported external open request");
   focusMainWindow();
-  openFileWhenReady(fsPath);
+});
+app.on("open-url", (event, value) => {
+  event.preventDefault();
+  const file = localLaunchFile(value, process.cwd());
+  if (file) launchQueue.enqueue([file]);
+  else console.warn("Rejected unsupported external open request");
+  focusMainWindow();
 });
 
-// Windows/Linux: a second launch (file association, CLI, launcher) delivers its
-// argv here instead of starting a second app.
 app.on("second-instance", (_event, argv, workingDirectory) => {
   focusMainWindow();
-  // A relative path must resolve against the *loser's* cwd, not ours.
-  const fsPath = fileArgFrom(argv, workingDirectory);
-  if (fsPath) openFileWhenReady(fsPath);
+  launchQueue.enqueue(launchFiles(argv, app.isPackaged, workingDirectory));
+});
+
+app.whenReady().then(() => {
+  // electron-builder registers this in installed desktop files. Development
+  // launches use explicit CLI arguments and must not alter the host desktop's
+  // default application during tests.
+  if (app.isPackaged) app.setAsDefaultProtocolClient("kkss");
 });
 
 /** Brings the existing window forward — a forwarded open must be visible. */
@@ -137,29 +140,6 @@ let metaServer: MetaMcpServer | null = null;
 let cloud: CloudService | null = null;
 /** `before-quit` may hold the quit open exactly once to drain uploads. */
 let cloudDrainAttempted = false;
-
-/**
- * The first real file path in an argv array — our own launch arguments, or the
- * argv a second instance forwards. Skips flags and the dev-mode "." app path.
- * The count-based slice is deliberate: in the dev layout the app can be started
- * as `electron out/main.js`, where argv[1] is a real file that must not be
- * opened as a document. `resolveFrom` is the cwd that argv came from, which for
- * a forwarded launch is the *other* process's working directory.
- */
-function fileArgFrom(argv: string[], resolveFrom = process.cwd()): string | undefined {
-  const args = argv.slice(app.isPackaged ? 1 : 2);
-  const candidate = args.find((a) => {
-    if (a.startsWith("-") || a === ".") return false;
-    const full = path.resolve(resolveFrom, a);
-    return fsSync.existsSync(full) && fsSync.statSync(full).isFile();
-  });
-  return candidate === undefined ? undefined : path.resolve(resolveFrom, candidate);
-}
-
-/** A file path passed on the command line (also used by the e2e smoke test). */
-function cliFileArg(): string | undefined {
-  return fileArgFrom(process.argv);
-}
 
 function sendShell(message: unknown): void {
   main?.shell.webContents.send("shell:toWebview", message);
@@ -1203,9 +1183,7 @@ app.whenReady().then(() => {
   // Reopen the last session (same "honor what was persisted" shape as above).
   // The launch file is resolved first because a restore must yield the screen
   // to it — but it is still opened by the single deferred open at the end.
-  const launchFile = cliFileArg() ?? pendingOpen;
-  pendingOpen = undefined;
-  const restored = restoreSession(launchFile !== undefined);
+  restoreSession(launchQueue.size > 0);
 
   // Off the launch critical path: report anything a crash or a timed-out drain
   // left unsynced, then trim the staging cache. Eviction must never take a file
@@ -1342,22 +1320,14 @@ app.whenReady().then(() => {
   // install and under the e2e smoke test — see services/whatsNew.ts).
   checkForNewVersion();
 
-  // One deferred-open path for both sources: the command line, and any macOS
-  // `open-file` that landed before the window existed. (Resolved above, since
-  // the restore needs to know whether one is coming.)
-  if (launchFile) {
-    // Give the views a beat to finish their first load; openPath reloads anyway.
-    setTimeout(() => {
-      // openFile replaces the focused tab's document, which after a restore
-      // holds a restored one — so give the launch file a tab of its own first.
-      // Without a restore this is skipped, leaving launch behavior unchanged.
-      if (restored) {
-        const mode = modeForFile(path.resolve(launchFile), main!.mode());
-        if (mode) createTab(mode);
-      }
-      openFile(launchFile);
-    }, 300);
-  }
+  // Each external open gets an empty tab, preserving restored and active work.
+  launchQueue.ready(file => {
+    const mode = modeForFile(file, main!.mode());
+    if (!mode) return;
+    const host = mode === "cad" ? activeCadHost() : activeMeshHost();
+    if (host?.currentFile) createTab(mode);
+    openFile(file);
+  });
 });
 
 let headlessStopping = false;

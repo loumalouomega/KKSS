@@ -8,7 +8,7 @@ RUN go mod download
 COPY docker/web/ ./
 RUN CGO_ENABLED=0 go build -trimpath -o /kkss-web .
 
-FROM caddy:2.11.0 AS caddy-binary
+FROM caddy:2.11.4 AS caddy-binary
 FROM ghcr.io/astral-sh/uv:0.12.10 AS uv-binary
 #
 # KKSS streamed-desktop image: the unmodified Electron app runs headless under
@@ -162,7 +162,7 @@ ENTRYPOINT ["tini", "--", "/entrypoint.sh"]
 
 FROM runtime-base AS runtime-kratos
 ARG TARGETARCH
-USER root
+USER 0
 COPY --from=uv-binary /uv /uvx /opt/uv/
 COPY docker/kratos/requirements.lock /opt/kratos-requirements.lock
 RUN test "$TARGETARCH" = amd64 \
@@ -175,4 +175,6 @@ COPY docker/kratos/check-licenses.py /opt/check-kratos-licenses.py
 RUN /opt/kkss-kratos/bin/python /opt/check-kratos-licenses.py > /opt/kratos-licenses.json
 USER 1000:1000
 
+# The runtime stage is selected by the KKSS_VARIANT build argument.
+# hadolint ignore=DL3006
 FROM runtime-${KKSS_VARIANT} AS runtime

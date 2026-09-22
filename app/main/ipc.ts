@@ -142,6 +142,7 @@ export interface ChatImage {
  * for** — the sidebar then shows token counts alone rather than a wrong number.
  */
 export interface ChatUsage {
+  billingMode?: "api" | "subscription" | "mixed";
   /** Cumulative over the conversation. `input` is uncached input only. */
   input: number;
   output: number;

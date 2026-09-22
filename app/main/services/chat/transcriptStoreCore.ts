@@ -15,6 +15,7 @@
  * tool results would change what a resumed conversation means to the model.
  */
 import type { ChatErrorKind } from "../../ipc";
+import type { AgentSessionRef } from "./agents/types";
 import type { ChatEntry } from "./transcript";
 
 /** Bumped when the stored shape changes; another version is ignored wholesale
@@ -79,6 +80,9 @@ export interface StoredConversation {
    * reset on every restart would be worse than showing none at all.
    */
   usage?: StoredUsage;
+  usageBillingMode?: "api" | "subscription" | "mixed";
+  usageIdentity?: string;
+  agentSession?: AgentSessionRef;
   /**
    * How many of the oldest successful tool results are cleared from *requests*
    * (compaction.ts). Optional for the same reason `usage` is — an unknown field
@@ -215,6 +219,10 @@ export function parseConversation(raw: unknown): StoredConversation | undefined 
     updatedAt: num(raw.updatedAt, createdAt),
     entries: capEntries(entries, CONVERSATION_ENTRY_CAP),
     ...(usage ? { usage } : {}),
+    ...(["api", "subscription", "mixed"].includes(String(raw.usageBillingMode)) ? { usageBillingMode: raw.usageBillingMode as "api" | "subscription" | "mixed" } : {}),
+    ...(typeof raw.usageIdentity === "string" ? { usageIdentity: raw.usageIdentity } : {}),
+    ...(isRecord(raw.agentSession) && ["codex", "claude-code"].includes(String(raw.agentSession.provider)) && typeof raw.agentSession.id === "string" && typeof raw.agentSession.model === "string" && typeof raw.agentSession.toolSignature === "string"
+      ? { agentSession: raw.agentSession as unknown as AgentSessionRef } : {}),
     ...(compacted > 0 ? { compactedResults: compacted } : {}),
   };
 }
