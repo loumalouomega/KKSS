@@ -173,7 +173,7 @@ spec:
         runAsGroup: 1000
       containers:
         - name: caddy
-          image: caddy:2.11.0
+          image: caddy:2.11.4
           ports:
             - containerPort: 8080
           args: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
