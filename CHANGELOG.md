@@ -5,6 +5,33 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.2.0] - 2026-09-22
+
+- feat: a **Settings page** (`Ctrl+,`) replaces most of the old Settings menu
+  with a searchable, VS Code-style editor built on a single settings registry.
+  It now surfaces every setting the CAD and mesh extensions expose in VS Code
+  — previously only 1 of 11 mesh settings and 5 of 6 CAD settings were
+  reachable — including the CAD background colour, the Kratos Python
+  interpreter/install path/extra environment/problemtype folders, and the
+  Flowgraph split orientation, with zero submodule modifications.
+- feat: a full **UI theme** (Follow system / Dark / Light / High contrast
+  dark / High contrast light), resolved from Electron's `nativeTheme` and
+  applied via VS Code's own webview theme classes, so the CAD viewer's
+  existing theme reactivity and the mesh viewer's chrome and "auto" 3D scene
+  now follow it live. A new `KKSS_UI_THEME` managed-config variable locks it
+  in streamed deployments.
+- feat: the configured Kratos install path and extra environment now also
+  reach the chat sidebar's Kratos MCP server on (re)start, with a "Restart
+  with current environment" action on the Settings page.
+- feat: Text Editor and Terminal settings (font size/family, tab size, word
+  wrap, line numbers, scrollback, cursor style) apply live.
+- fix: the opened document's path shows in the window title.
+- fix: x11vnc's encrypted auth file is passed correctly in the streamed-web
+  image.
+- fix/ci: a round of Docker/CI hardening — patched Caddy and gateway Go
+  dependencies for security scans, resolved Caddy module checksums, a
+  numeric build-stage root user, and assorted CI tag/lint fixes.
+
 ## [2.1.0] - 2026-09-22
 
 - feat: the AI chat gains **Claude and Codex subscription agents** — a new
@@ -172,6 +199,7 @@ full auto-generated compare links.
   HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
   functional change to the app itself
 
+[2.2.0]: https://github.com/loumalouomega/KKSS/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/loumalouomega/KKSS/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/loumalouomega/KKSS/compare/v1.11.0...v2.0.0
 [1.12.0]: https://github.com/loumalouomega/KKSS/compare/v1.11.0...v1.12.0
