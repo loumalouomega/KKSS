@@ -1,105 +1,121 @@
-/**
- * Update availability + delivery for the About dialog.
- *
- * Availability is checked against the GitHub REST API (releases/latest) with
- * a semver compare, so it works everywhere — dev runs included. Delivery uses
- * electron-updater's GitHub provider, which only works on install types that
- * ship an update feed and can self-replace: the NSIS install on Windows and
- * the AppImage on Linux (deb installs and the unsigned macOS builds fall back
- * to the releases page). electron-updater reads resources/app-update.yml,
- * emitted by electron-builder because electron-builder.yml has a `publish`
- * block, and expects the latest*.yml feed files attached to each GitHub
- * Release (uploaded by .github/workflows/release.yml).
- */
+/** Channel-aware, explicitly requested updates; each check owns its updater. */
 import { app, net } from "electron";
-import { autoUpdater } from "electron-updater";
+import { AppImageUpdater, MacUpdater, NsisUpdater, type AppUpdater } from "electron-updater";
+import { readFileSync } from "node:fs";
+import * as path from "node:path";
 import type { AboutToWebview } from "../ipc";
-import { LATEST_RELEASE_API_URL } from "../urls";
-import { evaluateReleaseTag } from "./updateCheck";
+import { RELEASES_URL } from "../urls";
+import { stateStore } from "./stateStore";
+import { evaluateReleaseTag, selectRelease, type Release, type UpdateChannel } from "./updateCheck";
 
 type StatusSink = (status: AboutToWebview) => void;
-
 let sink: StatusSink | null = null;
-let latestVersion: string | undefined;
-let updaterWired = false;
-
-/** Points update statuses at the currently open About dialog (null on close). */
-export function attachUpdateSink(s: StatusSink | null): void {
-  sink = s;
+let generation = 0;
+let active: { updater: AppUpdater; version: string; generation: number; downloading: boolean; downloaded: boolean; cancel: () => void } | undefined;
+export function attachUpdateSink(s: StatusSink | null): void { sink = s; }
+export function updateChannel(): UpdateChannel {
+  return stateStore.get("updateChannel") === "prerelease" ? "prerelease" : "stable";
 }
-
-/** In-app download+install is only possible where the app can self-replace. */
+function invalidate(): number {
+  generation++;
+  if (active) {
+    active.cancel();
+    active.updater.autoInstallOnAppQuit = false;
+    active.updater.removeAllListeners();
+    active = undefined;
+  }
+  return generation;
+}
+export async function setUpdateChannel(channel: UpdateChannel): Promise<void> {
+  invalidate();
+  sink?.({ type: "status", state: "checking" });
+  await stateStore.update("updateChannel", channel);
+  await checkForUpdate();
+}
 export function canAutoUpdate(): boolean {
   if (!app.isPackaged) return false;
   if (process.platform === "win32") return true;
   if (process.platform === "linux") return Boolean(process.env.APPIMAGE);
-  return false; // macOS: unsigned builds fail Squirrel.Mac signature validation
+  if (process.platform === "darwin") {
+    try {
+      const marker = JSON.parse(readFileSync(path.join(app.getAppPath(), "package.json"), "utf8")).kkssSignedRelease;
+      return marker === true || marker === "1" || marker === "true";
+    } catch { return false; }
+  }
+  return false;
 }
 
 export async function checkForUpdate(): Promise<void> {
+  if (active?.downloading || active?.downloaded) return;
+  const epoch = invalidate();
+  const channel = updateChannel();
   sink?.({ type: "status", state: "checking" });
-  let tag: string;
+  let offered: string | undefined;
   try {
-    const res = await net.fetch(LATEST_RELEASE_API_URL, {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "KKSS" },
-      signal: AbortSignal.timeout(10_000),
+    const releases: Release[] = [];
+    // Follow pagination so prerelease-heavy histories do not hide stable releases.
+    for (let page = 1; ; page++) {
+      const res = await net.fetch(`https://api.github.com/repos/loumalouomega/KKSS/releases?per_page=100&page=${page}`, {
+        headers: { Accept: "application/vnd.github+json", "User-Agent": "KKSS" },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (epoch !== generation) return;
+      if (!res.ok) throw new Error(`GitHub API responded ${res.status}`);
+      const rows = await res.json() as Release[];
+      if (!Array.isArray(rows)) throw new Error("Invalid release response");
+      releases.push(...rows);
+      if (!res.headers.get("link")?.includes('rel="next"')) break;
+    }
+    const release = selectRelease(releases, app.getVersion(), channel);
+    if (epoch !== generation) return;
+    if (!release) { sink?.({ type: "status", state: "upToDate" }); return; }
+    const result = evaluateReleaseTag(release.tag_name, app.getVersion());
+    if (result.state !== "available") return;
+    offered = result.latestVersion;
+    if (!canAutoUpdate()) {
+      sink?.({ type: "status", state: "available", latestVersion: offered, canAutoUpdate: false });
+      return;
+    }
+    const updater = process.platform === "win32" ? new NsisUpdater() :
+      process.platform === "darwin" ? new MacUpdater() : new AppImageUpdater();
+    updater.autoDownload = false;
+    updater.autoInstallOnAppQuit = false;
+    updater.allowPrerelease = channel === "prerelease";
+    updater.allowDowngrade = false;
+    // Pin the feed to the selected immutable release, including its channel.
+    updater.setFeedURL({ provider: "generic", url: `${RELEASES_URL}/download/${encodeURIComponent(release.tag_name)}/` });
+    updater.on("error", () => {}); // async calls below own user-facing errors
+    const selected = await updater.checkForUpdates();
+    if (epoch !== generation) return;
+    if (!selected || selected.updateInfo.version !== offered) throw new Error("Release metadata does not match the offered version");
+    active = { updater, version: offered, generation: epoch, downloading: false, downloaded: false, cancel: () => {} };
+    updater.on("download-progress", progress => {
+      if (epoch === generation) sink?.({ type: "status", state: "downloading", latestVersion: offered, percent: Math.round(progress.percent) });
     });
-    if (!res.ok) throw new Error(`GitHub API responded ${res.status}`);
-    tag = ((await res.json()) as { tag_name?: string }).tag_name ?? "";
-  } catch {
-    sink?.({ type: "status", state: "error", message: "Couldn't check for updates — are you offline?" });
-    return;
+    sink?.({ type: "status", state: "available", latestVersion: selected.updateInfo.version, canAutoUpdate: true });
+  } catch (error) {
+    if (epoch !== generation) return;
+    sink?.(offered ? { type: "status", state: "available", latestVersion: offered, canAutoUpdate: false, message: `Automatic update unavailable (${String(error)})` }
+      : { type: "status", state: "error", message: "Couldn't check for updates — are you offline?" });
   }
-  const result = evaluateReleaseTag(tag, app.getVersion());
-  if (result.state === "invalid") {
-    sink?.({ type: "status", state: "error", message: `Unrecognized release tag "${tag}"` });
-    return;
-  }
-  if (result.state === "upToDate") {
-    sink?.({ type: "status", state: "upToDate" });
-    return;
-  }
-  latestVersion = result.latestVersion;
-  sink?.({ type: "status", state: "available", latestVersion, canAutoUpdate: canAutoUpdate() });
-}
-
-/** Any updater failure degrades to the releases-page button, never a crash. */
-function wireUpdaterEvents(): void {
-  if (updaterWired) return;
-  updaterWired = true;
-  autoUpdater.autoDownload = false;
-  autoUpdater.on("download-progress", (progress) => {
-    sink?.({ type: "status", state: "downloading", latestVersion, percent: Math.round(progress.percent) });
-  });
-  autoUpdater.on("update-downloaded", () => {
-    sink?.({ type: "status", state: "downloaded", latestVersion });
-  });
-  autoUpdater.on("error", (err) => {
-    sink?.({
-      type: "status",
-      state: "available",
-      latestVersion,
-      canAutoUpdate: false,
-      message: `Automatic update failed (${err.message})`,
-    });
-  });
 }
 
 export async function downloadUpdate(): Promise<void> {
-  if (!canAutoUpdate()) {
-    sink?.({ type: "status", state: "available", latestVersion, canAutoUpdate: false });
-    return;
-  }
-  wireUpdaterEvents();
-  sink?.({ type: "status", state: "downloading", latestVersion, percent: 0 });
+  const request = active;
+  if (!request || request.downloading || request.downloaded) return;
+  request.downloading = true;
+  sink?.({ type: "status", state: "downloading", latestVersion: request.version, percent: 0 });
   try {
-    await autoUpdater.checkForUpdates(); // loads the feed's UpdateInfo first
-    await autoUpdater.downloadUpdate();
-  } catch {
-    // The "error" event above already reported it to the dialog.
-  }
+    await request.updater.downloadUpdate();
+    if (request.generation !== generation) return;
+    request.downloaded = true;
+    sink?.({ type: "status", state: "downloaded", latestVersion: request.version });
+  } catch (error) {
+    if (request.generation !== generation) return;
+    active = undefined;
+    sink?.({ type: "status", state: "available", latestVersion: request.version, canAutoUpdate: false, message: `Automatic update failed (${String(error)})` });
+  } finally { request.downloading = false; }
 }
-
 export function installUpdate(): void {
-  autoUpdater.quitAndInstall();
+  if (active?.downloaded && active.generation === generation) active.updater.quitAndInstall();
 }

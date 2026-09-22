@@ -613,6 +613,8 @@ function renderUsage(usage: ChatUsage | undefined): void {
     usage.contextWindow ? `${compactTokens(usage.lastInput)}/${compactTokens(usage.contextWindow)}` : compactTokens(usage.lastInput),
   ];
   if (usage.costUsd !== undefined) parts.push(usage.costUsd < 0.01 ? "<$0.01" : `$${usage.costUsd.toFixed(2)}`);
+  if (usage.billingMode === "subscription") parts.push("Subscription");
+  if (usage.billingMode === "mixed") parts.push("Mixed providers");
   usageEl.textContent = parts.join(" · ");
 
   const share = usage.contextWindow ? usage.lastInput / usage.contextWindow : 0;
@@ -624,7 +626,7 @@ function renderUsage(usage: ChatUsage | undefined): void {
     `This conversation: ${usage.input.toLocaleString()} in, ${usage.output.toLocaleString()} out`,
     `Cache: ${usage.cacheRead.toLocaleString()} read, ${usage.cacheWrite.toLocaleString()} written`,
   ];
-  if (usage.costUsd === undefined) detail.push("No pricing on record for this model — token counts only.");
+  if (usage.costUsd === undefined) detail.push(usage.billingMode === "subscription" ? "Subscription usage; provider limits apply. API prices do not represent your bill." : usage.billingMode === "mixed" ? "Mixed providers or billing modes — token counts only." : "No pricing on record for this model — token counts only.");
   usageEl.title = detail.join("\n");
 }
 

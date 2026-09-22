@@ -17,6 +17,11 @@
  * deleting the *active* conversation therefore aborts the turn and waits for it
  * to unwind first; deleting a background one leaves it running.
  */
+import * as path from "node:path";
+import { createCodexAgent } from "./agents/codex";
+import { createClaudeAgent } from "./agents/claude";
+import type { AgentSession, ToolOutcome } from "./agents/types";
+import type { ToolCallRequest } from "./providers/types";
 import { app, ipcMain, WebContents } from "electron";
 import type {
   ChatConversationInfo,
@@ -60,7 +65,11 @@ import { createOpenAiCompatProvider, DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MOD
 
 /** Settings ▸ LLM Assistant — stateStore keys. */
 export const LLM_KEYS = {
-  provider: "llmProvider", // "anthropic" | "openai"
+  provider: "llmProvider",
+  codexModel: "llmModelCodex",
+  claudeCodeModel: "llmModelClaudeCode",
+  codexExecutable: "llmCodexExecutable",
+  claudeCodeExecutable: "llmClaudeCodeExecutable",
   anthropicModel: "llmModelAnthropic",
   anthropicKey: "llmKeyAnthropic",
   openaiModel: "llmModelOpenai",
@@ -70,7 +79,8 @@ export const LLM_KEYS = {
 } as const;
 
 export interface LlmSettings {
-  provider: "anthropic" | "openai";
+  provider: "anthropic" | "openai" | "codex" | "claude-code";
+  executable?: string;
   model: string;
   baseUrl: string;
   apiKey?: string;
@@ -88,7 +98,12 @@ export function readApprovalMode(): ApprovalMode {
 }
 
 export function readLlmSettings(): LlmSettings {
-  const provider = stateStore.get<string>(LLM_KEYS.provider, "anthropic") === "openai" ? "openai" : "anthropic";
+  const stored = stateStore.get<string>(LLM_KEYS.provider, "anthropic");
+  const provider = stored === "openai" || stored === "codex" || stored === "claude-code" ? stored : "anthropic";
+  if (provider === "codex" || provider === "claude-code") {
+    return { provider, baseUrl: "", model: stateStore.get<string>(provider === "codex" ? LLM_KEYS.codexModel : LLM_KEYS.claudeCodeModel, "") ?? "",
+      executable: stateStore.get<string>(provider === "codex" ? LLM_KEYS.codexExecutable : LLM_KEYS.claudeCodeExecutable, "") || undefined };
+  }
   if (provider === "anthropic") {
     return {
       provider,
@@ -109,7 +124,7 @@ export function readLlmSettings(): LlmSettings {
  *  into the latest user message instead. */
 const SYSTEM_PROMPT = `You are the KKSS assistant, embedded in KKSS (Keep Kratos Simple Stupid), \
 a desktop app for pre- and post-processing Kratos Multiphysics simulations. \
-You control the app's engines through tools from three MCP servers, namespaced by prefix:
+Users can select API providers or signed-in Codex/Claude Code subscription runtimes in Settings ▸ LLM Assistant. You control the app's engines through tools from three MCP servers, namespaced by prefix:
 - cad__* (cad-preview): headless CAD editing — load STEP/IGES/BREP and STL/OBJ/PLY/glTF models, plus \
 OpenSCAD .csg (parsed and built kernel-side) and .scad (converted to .csg first by a user-installed \
 openscad binary — without one every .scad call answers supported:false rather than failing), plus \
@@ -307,6 +322,7 @@ export interface ChatDeps {
   onHide(): void;
   /** Test seam: overrides the provider the settings would select. */
   provider?(settings: LlmSettings): Provider | null;
+  agent?(settings: LlmSettings): AgentSession;
 }
 
 export class ChatService {
@@ -571,7 +587,9 @@ export class ChatService {
     return {
       ...convo.usage,
       model,
-      ...(info ? { contextWindow: info.contextWindow, costUsd: estimateCost(convo.usage, info) } : {}),
+      ...(info && convo.usageBillingMode !== "subscription" && convo.usageBillingMode !== "mixed" ? { contextWindow: info.contextWindow } : {}),
+      billingMode: convo.usageBillingMode,
+      ...(info && (!convo.usageBillingMode || convo.usageBillingMode === "api") ? { costUsd: estimateCost(convo.usage, info) } : {}),
     };
   }
 
@@ -583,7 +601,7 @@ export class ChatService {
       entries: convo.entries.map(toWire),
       busy: this.busy,
       servers: this.deps.hub.statuses(),
-      providerLabel: settings.provider === "anthropic" ? `Anthropic · ${settings.model}` : `${settings.baseUrl} · ${settings.model}`,
+      providerLabel: settings.provider === "anthropic" ? `Anthropic · ${settings.model}` : `${settings.provider === "codex" ? "ChatGPT subscription" : settings.provider === "claude-code" ? "Claude subscription" : settings.baseUrl} · ${settings.model || "runtime default"}`,
       conversationId: convo.id,
       conversationTitle: convo.title,
       conversations: this.conversationList(),
@@ -760,7 +778,76 @@ export class ChatService {
     this.append(convo, { kind: "error", message, errorKind });
   }
 
+  /** Shared by API loops and subscription agents; every tool traverses this gate. */
+  private async executeTool(convo: LiveConversation, call: ToolCallRequest, signal: AbortSignal): Promise<ToolOutcome> {
+    signal.throwIfAborted();
+    const split = call.name.split("__");
+    const server = split[0] ?? "";
+    const tool = split.slice(1).join("__") || call.name;
+    // Appended BEFORE the gate: the user has to be able to read the
+    // arguments in the very chip they are being asked to approve.
+    const entry: ChatEntry = {
+      kind: "toolCall",
+      callId: call.id,
+      server,
+      tool,
+      argsJson: call.argsJson,
+    };
+    this.append(convo, entry);
+
+    const allowed = this.alwaysAllow.get(convo.id) ?? EMPTY_ALLOW_SET;
+    if (gateFor(call.name, { mode: readApprovalMode(), allowed }) === "ask") {
+      const access = classifyTool(call.name) === "write" ? "write" : "unknown";
+      const decision = await this.awaitApproval(
+        convo,
+        {
+          callId: call.id,
+          server,
+          tool,
+          argsJson: call.argsJson,
+          access,
+          dryRunnable: dryRunArgs(call.name, call.argsJson) !== null,
+        },
+        call.name,
+        signal
+      );
+      signal.throwIfAborted(); // aborted rather than decided — drop it, as an aborted call always was
+      if (decision === "deny") {
+        this.setApproval(convo, entry, "denied");
+        // A denial MUST still produce a result: transcript.ts drops a
+        // tool call with no matching result, so a silent denial would
+        // vanish from the next request and the model would re-emit the
+        // same call, burning one of MAX_ITERATIONS.
+        this.append(convo, { kind: "toolResult", callId: call.id, ok: false, text: DENIED_TEXT });
+        return { ok: false, text: DENIED_TEXT };
+      }
+      if (decision === "allowAlways") this.rememberAlways(convo, call.name);
+      this.setApproval(convo, entry, "allowed");
+    }
+
+    const outcome = await this.mcp!.callTool(call.name, call.argsJson);
+    signal.throwIfAborted(); // drop the result: the dangling call is pruned on the next request
+    this.append(convo, { kind: "toolResult", callId: call.id, ok: outcome.ok, text: outcome.text });
+    // After the entry, and deliberately not on it: images are never
+    // stored, so they cannot ride a ChatEntry through the transcript.
+    if (outcome.images?.length) this.rememberImages(convo, call.id, outcome.images);
+    return outcome;
+  }
+
+  private recordUsage(convo: LiveConversation, settings: LlmSettings, usage: TurnUsage, subscription: boolean): void {
+    const identity = `${settings.provider}:${settings.model}`;
+    if (convo.usage && (convo.usageIdentity !== identity || (convo.usageBillingMode === "subscription") !== subscription)) convo.usageBillingMode = "mixed";
+    else if (subscription && !convo.usageBillingMode) convo.usageBillingMode = "subscription";
+    else if (!subscription && !convo.usageBillingMode) convo.usageBillingMode = "api";
+    convo.usageIdentity = identity;
+    convo.usage = addUsage(convo.usage, usage);
+    this.store.saveSoon(convo);
+    const wire = this.usageFor(convo, settings.model);
+    if (wire) this.sendTo(convo, { type: "usage", usage: wire });
+  }
+
   private makeProvider(settings: LlmSettings): Provider | null {
+    if (settings.provider === "codex" || settings.provider === "claude-code") return null;
     if (this.deps.provider) return this.deps.provider(settings);
     if (settings.provider === "anthropic") {
       if (!settings.apiKey) return null; // Anthropic always needs a key
@@ -843,8 +930,9 @@ export class ChatService {
     this.sendConversations();
 
     const settings = readLlmSettings();
+    const subscription = settings.provider === "codex" || settings.provider === "claude-code";
     const provider = this.makeProvider(settings);
-    if (!provider) {
+    if (!subscription && !provider) {
       this.pushError(convo, "No Anthropic API key configured. Set it under Settings ▸ LLM Assistant.", "noKey");
       return;
     }
@@ -880,6 +968,37 @@ export class ChatService {
     };
 
     try {
+      if (subscription) {
+        const cwd = path.join(this.deps.chatsDir, "subscription-runtime");
+        const agent = this.deps.agent?.(settings) ?? (settings.provider === "codex" ? createCodexAgent(settings.executable, cwd) : createClaudeAgent(settings.executable, cwd));
+        let opened = false;
+        const finishText = () => {
+          if (!opened) return;
+          const entry: ChatEntry = { kind: "assistant", text: this.partial };
+          this.append(convo, entry);
+          this.sendTo(convo, { type: "assistantDone", entry: toWire(entry) });
+          this.partial = ""; opened = false;
+        };
+        const entries = [...convo.entries];
+        const last = entries[entries.length - 1];
+        if (last?.kind === "user") entries[entries.length - 1] = { ...last, text: last.text + this.contextSuffix() };
+        try {
+          await agent.run({ system: SYSTEM_PROMPT, entries, tools, model: settings.model, signal,
+            session: convo.agentSession,
+            onSession: session => { convo.agentSession = session; this.store.save(convo); },
+            onTextDelta: text => {
+              if (!opened) { opened = true; this.sendTo(convo, { type: "assistantStart" }); }
+              this.partial += text; this.sendTo(convo, { type: "assistantDelta", text });
+            },
+            onTextDone: finishText,
+            onUsage: usage => this.recordUsage(convo, settings, usage, true),
+            executeTool: call => this.executeTool(convo, call, signal),
+          });
+          finishText();
+        } catch (error) { delete convo.agentSession; throw error; }
+        return;
+      }
+      delete convo.agentSession;
       for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
         // Fires once per iteration, outside the retry below: the renderer opens
         // a fresh assistant bubble on every one of these, so a retry that
@@ -898,7 +1017,7 @@ export class ChatService {
         };
         let result: TurnResult;
         try {
-          result = await provider.streamTurn({ ...turnOptions, entries: requestEntries() });
+          result = await provider!.streamTurn({ ...turnOptions, entries: requestEntries() });
         } catch (error) {
           // Retries exactly once, by construction: the second call has no catch,
           // so a repeat overflow falls through to the banner below. Nothing here
@@ -908,20 +1027,17 @@ export class ChatService {
           if (signal.aborted) throw error;
           if (!(error instanceof ProviderError) || error.kind !== "context") throw error;
           if (!this.advanceCompaction(convo)) throw error;
-          result = await provider.streamTurn({ ...turnOptions, entries: requestEntries() });
+          result = await provider!.streamTurn({ ...turnOptions, entries: requestEntries() });
         }
 
         if (result.usage) {
-          convo.usage = addUsage(convo.usage, result.usage);
-          this.store.saveSoon(convo);
-          const usage = this.usageFor(convo, settings.model);
-          if (usage) this.sendTo(convo, { type: "usage", usage });
+          this.recordUsage(convo, settings, result.usage, false);
           // Proactive trigger, per *iteration* rather than per turn: usage is
           // folded here, and one turn can run 25 iterations and overflow without
           // ever finishing. Known windows only — an unrecognised model has no
           // figure to compare against, and relies on the reactive path above.
           const window = modelInfo(settings.model)?.contextWindow;
-          if (window && convo.usage.lastInput > COMPACT_AT * window) this.advanceCompaction(convo);
+          if (window && convo.usage!.lastInput > COMPACT_AT * window) this.advanceCompaction(convo);
         }
 
         const assistantEntry: ChatEntry = { kind: "assistant", text: result.text };
@@ -931,59 +1047,7 @@ export class ChatService {
 
         if (!result.toolCalls.length) return;
 
-        for (const call of result.toolCalls) {
-          if (signal.aborted) return;
-          const split = call.name.split("__");
-          const server = split[0] ?? "";
-          const tool = split.slice(1).join("__") || call.name;
-          // Appended BEFORE the gate: the user has to be able to read the
-          // arguments in the very chip they are being asked to approve.
-          const entry: ChatEntry = {
-            kind: "toolCall",
-            callId: call.id,
-            server,
-            tool,
-            argsJson: call.argsJson,
-          };
-          this.append(convo, entry);
-
-          const allowed = this.alwaysAllow.get(convo.id) ?? EMPTY_ALLOW_SET;
-          if (gateFor(call.name, { mode: readApprovalMode(), allowed }) === "ask") {
-            const access = classifyTool(call.name) === "write" ? "write" : "unknown";
-            const decision = await this.awaitApproval(
-              convo,
-              {
-                callId: call.id,
-                server,
-                tool,
-                argsJson: call.argsJson,
-                access,
-                dryRunnable: dryRunArgs(call.name, call.argsJson) !== null,
-              },
-              call.name,
-              signal
-            );
-            if (signal.aborted) return; // aborted rather than decided — drop it, as an aborted call always was
-            if (decision === "deny") {
-              this.setApproval(convo, entry, "denied");
-              // A denial MUST still produce a result: transcript.ts drops a
-              // tool call with no matching result, so a silent denial would
-              // vanish from the next request and the model would re-emit the
-              // same call, burning one of MAX_ITERATIONS.
-              this.append(convo, { kind: "toolResult", callId: call.id, ok: false, text: DENIED_TEXT });
-              continue; // each call in a batch is gated on its own
-            }
-            if (decision === "allowAlways") this.rememberAlways(convo, call.name);
-            this.setApproval(convo, entry, "allowed");
-          }
-
-          const outcome = await mcp.callTool(call.name, call.argsJson);
-          if (signal.aborted) return; // drop the result: the dangling call is pruned on the next request
-          this.append(convo, { kind: "toolResult", callId: call.id, ok: outcome.ok, text: outcome.text });
-          // After the entry, and deliberately not on it: images are never
-          // stored, so they cannot ride a ChatEntry through the transcript.
-          if (outcome.images?.length) this.rememberImages(convo, call.id, outcome.images);
-        }
+        for (const call of result.toolCalls) await this.executeTool(convo, call, signal);
       }
       this.pushError(convo, `Stopped after ${MAX_ITERATIONS} tool iterations — ask me to continue if needed.`, "other");
     } catch (error) {
@@ -1016,7 +1080,7 @@ export class ChatService {
     // usual abort path may not have run yet. An unsettled approval would leave
     // run() suspended with nothing left that can resume it.
     this.pendingApproval?.settle("deny");
-    if (this.busy && this.active) this.markInterrupted(this.active);
+    if (this.busy && this.active) { delete this.active.agentSession; this.markInterrupted(this.active); }
     this.store.flushSync();
   }
 

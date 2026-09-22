@@ -140,6 +140,8 @@ jobs:
           curl -fsS -b /tmp/kkss.cookies http://localhost:6080/api/bootstrap >/dev/null
           title_ok=0
           for i in $(seq 1 30); do
+            # The fixture is passed as a launch argument; the native window
+            # title names the focused document once it has opened.
             if docker exec kkss xdotool search --onlyvisible --name cube_with_5_faces >/dev/null 2>&1; then title_ok=1; break; fi
             sleep 1
           done
@@ -392,8 +394,8 @@ jobs:
           context: .
           file: docker/broker/Dockerfile
           push: ${{ github.ref_type == 'tag' }}
-          # Pull-request refs contain a slash (for example 55/merge), which
-          # is not valid in a Docker tag. CI builds only need a local tag;
-          # release tags retain their versioned name.
-          tags: ghcr.io/loumalouomega/kkss-broker:${{ github.ref_type == 'tag' && github.ref_name || 'ci' }}
+          # Pull-request refs are named like 56/merge, which is not a valid
+          # Docker tag. Keep release tags readable and use the commit SHA for
+          # build-only refs.
+          tags: ghcr.io/loumalouomega/kkss-broker:${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
           platforms: linux/amd64,linux/arm64

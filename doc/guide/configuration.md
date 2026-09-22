@@ -16,13 +16,15 @@ The **scale picker** on the right of the shell toolbar (75 %–150 %) sets how l
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
-| Provider | `Anthropic (Claude)` or `OpenAI-compatible` | Anthropic |
+| Provider | `Anthropic (Claude)`, `OpenAI-compatible`, `ChatGPT subscription (Codex)`, or `Claude subscription (Claude Code)` | Anthropic |
 | Anthropic API Key | stored encrypted (OS keychain via `safeStorage`) | — |
 | Anthropic Model | any Claude model id | `claude-opus-4-8` |
 | OpenAI-compatible API Key | optional (keyless backends like Ollama work) | — |
 | OpenAI-compatible Base URL | any `chat/completions` endpoint | `https://api.openai.com/v1` |
 | OpenAI-compatible Model | model name your backend expects | `gpt-4o` |
 | Tool Approval | `Ask before tools that change files` / `Ask before every tool` / `Never ask` | Ask before tools that change files |
+
+The provider menu also includes **ChatGPT subscription (Codex)** and **Claude subscription (Claude Code)**. These options require the matching official local tool and an eligible signed-in subscription account. Their submenu offers a runtime check, official setup link, model override, and optional executable path. KKSS does not import or store subscription credentials.
 
 **Tool Approval** decides when the assistant has to ask you before running one of its tools. Read versus write is a KKSS-side classification keyed by the tool's full name, not something the tool servers declare about themselves — a server's own claim about whether it is safe is exactly the thing that should not be trusted. A tool KKSS has no entry for always asks, which today is every tool from the Kratos server (it is fetched at runtime, so its tools cannot be classified in advance). The setting applies to the very next tool call. *Never ask* turns the gate off and confirms once before doing so; it covers the built-in sidebar only, since the HTTP MCP endpoint has no user to prompt.
 

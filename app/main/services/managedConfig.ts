@@ -33,10 +33,17 @@ export function parseManagedConfig(env: NodeJS.ProcessEnv, read = (file: string)
     if (!value) fail(name);
     secrets.set(key, value);
   };
-  choice('KKSS_LLM_PROVIDER', 'llmProvider', ['anthropic', 'openai']);
+  choice('KKSS_LLM_PROVIDER', 'llmProvider', ['anthropic', 'openai', 'codex', 'claude-code']);
   // A model/key without a provider is ambiguous when the stored provider changes.
   if ((env.KKSS_LLM_MODEL || env.KKSS_LLM_API_KEY_FILE) && !env.KKSS_LLM_PROVIDER) fail('KKSS_LLM_PROVIDER');
-  const provider = env.KKSS_LLM_PROVIDER === 'openai' ? 'Openai' : 'Anthropic';
+  const subscription = env.KKSS_LLM_PROVIDER === 'codex' || env.KKSS_LLM_PROVIDER === 'claude-code';
+  if (subscription && (env.KKSS_LLM_API_KEY_FILE || env.KKSS_LLM_BASE_URL)) fail('KKSS_LLM_PROVIDER');
+  const provider = env.KKSS_LLM_PROVIDER === 'codex' ? 'Codex' : env.KKSS_LLM_PROVIDER === 'claude-code' ? 'ClaudeCode' : env.KKSS_LLM_PROVIDER === 'openai' ? 'Openai' : 'Anthropic';
+  text('KKSS_CODEX_EXECUTABLE', 'llmCodexExecutable');
+  text('KKSS_CLAUDE_CODE_EXECUTABLE', 'llmClaudeCodeExecutable');
+  for (const name of ['KKSS_CODEX_EXECUTABLE', 'KKSS_CLAUDE_CODE_EXECUTABLE']) {
+    if (env[name]?.trim() && !path.isAbsolute(env[name]!.trim())) fail(name);
+  }
   text('KKSS_LLM_MODEL', `llmModel${provider}`);
   secret('KKSS_LLM_API_KEY_FILE', `llmKey${provider}`);
   text('KKSS_LLM_BASE_URL', 'llmOpenaiBaseUrl');

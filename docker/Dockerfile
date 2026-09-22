@@ -1,33 +1,31 @@
 # syntax=docker/dockerfile:1
 ARG KKSS_VARIANT=base
 
-FROM golang:1.26.8-bookworm AS web-builder
+FROM golang:1.27.1-bookworm AS web-builder
 WORKDIR /web
 COPY docker/web/go.mod docker/web/go.sum ./
 RUN go mod download
 COPY docker/web/ ./
 RUN CGO_ENABLED=0 go build -trimpath -o /kkss-web .
 
-# Build Caddy from its pinned source so the runtime carries the current
-# x/crypto security fixes instead of the older dependency in the upstream
-# convenience image.
-FROM golang:1.26.8-bookworm AS caddy-builder
+# The upstream Caddy image currently embeds Go modules with fixes that are
+# newer than its published binary. Build the same pinned Caddy release with
+# those patched modules so the runtime image remains covered by Trivy.
+FROM golang:1.27.1-bookworm AS caddy-binary
 ARG CADDY_VERSION=2.11.4
-ARG CADDY_SOURCE_SHA256=2c3d02078286a6282cdb4d1d8744077788d556659dac0b64d8ed5886a7e5aeb9
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
- && rm -rf /var/lib/apt/lists/* \
- && curl -fsSL "https://github.com/caddyserver/caddy/archive/refs/tags/v${CADDY_VERSION}.tar.gz" -o /tmp/caddy.tar.gz \
- && echo "${CADDY_SOURCE_SHA256}  /tmp/caddy.tar.gz" > /tmp/caddy.sha256 \
- && sha256sum -c /tmp/caddy.sha256 \
- && mkdir /src \
- && tar -xzf /tmp/caddy.tar.gz -C /src --strip-components=1 \
- && rm /tmp/caddy.tar.gz /tmp/caddy.sha256
-WORKDIR /src
-RUN go mod edit -require=golang.org/x/crypto@v0.55.0 \
- && go mod edit -require=google.golang.org/grpc@v1.83.2 \
+ENV GOPROXY=https://proxy.golang.org|direct
+WORKDIR /caddy
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch "v${CADDY_VERSION}" https://github.com/caddyserver/caddy.git . \
+ && go mod edit \
+      -require=golang.org/x/crypto@v0.55.0 \
+      -require=golang.org/x/net@v0.56.0 \
+      -require=golang.org/x/text@v0.39.0 \
+      -require=google.golang.org/grpc@v1.83.2 \
  && go mod tidy \
- && CGO_ENABLED=0 go build -trimpath -o /caddy ./cmd/caddy
-
+ && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /usr/bin/caddy ./cmd/caddy
 FROM ghcr.io/astral-sh/uv:0.12.10 AS uv-binary
 #
 # KKSS streamed-desktop image: the unmodified Electron app runs headless under
@@ -144,7 +142,7 @@ RUN groupadd --gid 1000 kkss \
 # modify its own binaries is the point of running non-root at all.
 COPY --from=builder /packaged /opt/kkss
 COPY --from=web-builder /kkss-web /opt/kkss-web
-COPY --from=caddy-builder /caddy /usr/bin/caddy
+COPY --from=caddy-binary /usr/bin/caddy /usr/bin/caddy
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -181,7 +179,7 @@ ENTRYPOINT ["tini", "--", "/entrypoint.sh"]
 
 FROM runtime-base AS runtime-kratos
 ARG TARGETARCH
-USER 0:0
+USER 0
 COPY --from=uv-binary /uv /uvx /opt/uv/
 COPY docker/kratos/requirements.lock /opt/kratos-requirements.lock
 RUN test "$TARGETARCH" = amd64 \
@@ -194,7 +192,6 @@ COPY docker/kratos/check-licenses.py /opt/check-kratos-licenses.py
 RUN /opt/kkss-kratos/bin/python /opt/check-kratos-licenses.py > /opt/kratos-licenses.json
 USER 1000:1000
 
-# The runtime stage is intentionally selected by the build variant (base or
-# kratos); both names are defined above in this Dockerfile.
+# The runtime stage is selected by the KKSS_VARIANT build argument.
 # hadolint ignore=DL3006
 FROM runtime-${KKSS_VARIANT} AS runtime

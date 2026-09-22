@@ -40,6 +40,8 @@ jobs:
 
       - run: npm run typecheck
 
+      - run: npm run check:packaging
+
       - run: npm test
 
       - name: Smoke test (headless Electron, both modes)

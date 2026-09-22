@@ -12,8 +12,8 @@ const failed = ref(false)
 // Rows keyed by the "-<os>-<arch>." substring electron-builder.yml's
 // artifactName pattern guarantees (KKSS-<version>-<os>-<arch>.<ext>).
 const targets = [
-  { icon: '/os/linux.svg', label: 'Linux', arch: 'x86-64', key: '-linux-x64.', note: 'AppImage (portable) or .deb' },
-  { icon: '/os/linux.svg', label: 'Linux', arch: 'ARM 64', key: '-linux-arm64.', note: 'AppImage (portable) or .deb' },
+  { icon: '/os/linux.svg', label: 'Linux', arch: 'x86-64', key: '-linux-x64.', note: 'AppImage, .deb or .rpm' },
+  { icon: '/os/linux.svg', label: 'Linux', arch: 'ARM 64', key: '-linux-arm64.', note: 'AppImage, .deb or .rpm' },
   { icon: '/os/windows.svg', label: 'Windows', arch: 'x86-64', key: '-win-x64.', note: 'NSIS installer' },
   { icon: '/os/windows.svg', label: 'Windows', arch: 'ARM 64', key: '-win-arm64.', note: 'NSIS installer' },
   { icon: '/os/macos.svg', label: 'macOS', arch: 'Apple Silicon (ARM 64)', key: '-mac-arm64.', note: '.dmg (or .zip)' },
@@ -80,7 +80,7 @@ Could not query the GitHub API from your browser — grab the installers directl
 </table>
 
 ::: tip Which file do I want?
-- **Linux**: the `.AppImage` runs anywhere without installation (`chmod +x` it); the `.deb` integrates with apt-based distributions.
+- **Linux**: the `.AppImage` runs anywhere without installation (`chmod +x` it); `.deb` integrates with apt-based distributions and `.rpm` with Fedora/openSUSE package tools. Updates to installed packages are manual.
 - **Windows**: the `.exe` is a standard NSIS installer (choose your install directory during setup).
 - **macOS**: open the `.dmg` and drag KKSS to Applications. Release builds are currently **unsigned** — right-click the app and choose *Open* the first time to bypass Gatekeeper.
 :::

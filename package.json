@@ -2,7 +2,8 @@
   "name": "kkss",
   "displayName": "KKSS — Keep Kratos Simple Stupid",
   "description": "Cross-platform desktop application for pre- and post-processing Kratos Multiphysics simulations, built on the CAD-Preview and VSCode-MDPA-Preview extensions.",
-  "version": "2.0.0",
+  "version": "2.1.0",
+  "kkssSignedRelease": false,
   "license": "AGPL-3.0-only",
   "author": "Vicente Mataix Ferrándiz",
   "repository": {
@@ -29,6 +30,8 @@
     "start:fast": "npm run build:app && electron .",
     "dist": "npm run build && electron-builder --publish never",
     "dist:dir": "npm run build && electron-builder --dir --publish never",
+    "flatpak:probe": "node tools/flatpak-probe.mjs",
+    "check:packaging": "node tools/check-package-associations.mjs",
     "docs:dev": "npm run docs:dev --prefix doc",
     "docs:build": "npm run docs:build --prefix doc",
     "docker:build": "docker compose build",
@@ -38,6 +41,7 @@
     "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.278",
     "@anthropic-ai/sdk": "^0.127.0",
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-python": "^6.2.1",

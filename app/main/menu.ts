@@ -1,3 +1,4 @@
+import { setUpdateChannel, updateChannel } from "./services/updates";
 /**
  * Native application menu. Mirrors the two extensions' contributed commands:
  *   cad:  cad-preview.open/save/saveAs/export  (Ctrl+O/S/Shift+S/E)
@@ -26,6 +27,8 @@ import { stateStore } from "./services/stateStore";
 import type { CloudStatus } from "./services/cloud/cloudService";
 import { PROVIDER_LABELS, type ProviderId } from "./services/cloud/cloudCore";
 import { hasSecret, setSecret } from "./services/chat/secrets";
+import { checkCodexAuth } from "./services/chat/agents/codex";
+import { checkClaudeAuth, resolveExecutable, SUBSCRIPTION_SETUP } from "./services/chat/agents/runtime";
 import { LLM_KEYS } from "./services/chat/chatService";
 import { DEFAULT_APPROVAL_MODE, type ApprovalMode } from "./services/chat/toolPolicy";
 import { DEFAULT_ANTHROPIC_MODEL } from "./services/chat/providers/anthropic";
@@ -720,6 +723,13 @@ export function installMenu(deps: MenuDeps): void {
           click: (item) => void stateStore.update(RESTORE_SESSION_KEY, item.checked),
         },
         {
+          label: "Include prerelease updates" + (stateStore.isManaged("updateChannel") ? " (set by the environment)" : ""),
+          enabled: !stateStore.isManaged("updateChannel"),
+          type: "checkbox",
+          checked: updateChannel() === "prerelease",
+          click: item => void setUpdateChannel(item.checked ? "prerelease" : "stable"),
+        },
+        {
           label: "Terminal Shell",
           submenu: SHELL_CHOICES.map((s) => ({
             label: s.label,
@@ -741,6 +751,8 @@ export function installMenu(deps: MenuDeps): void {
               submenu: [
                 { value: "anthropic", label: "Anthropic (Claude)" },
                 { value: "openai", label: "OpenAI-compatible" },
+                { value: "codex", label: "ChatGPT subscription (Codex)" },
+                { value: "claude-code", label: "Claude subscription (Claude Code)" },
               ].map((p) => ({
                 label: p.label,
                 type: "radio" as const,
@@ -767,6 +779,25 @@ export function installMenu(deps: MenuDeps): void {
               })),
             },
             { type: "separator" },
+            ...(["codex", "claude-code"] as const).map(provider => {
+              const setup = SUBSCRIPTION_SETUP[provider];
+              const modelKey = provider === "codex" ? LLM_KEYS.codexModel : LLM_KEYS.claudeCodeModel;
+              const executableKey = provider === "codex" ? LLM_KEYS.codexExecutable : LLM_KEYS.claudeCodeExecutable;
+              return { label: setup.label, submenu: [
+                { label: "Check installation and sign-in…", click: async () => {
+                  let detail = "Installed and signed in with a subscription. Provider model availability and usage limits apply.";
+                  try {
+                    const executable = resolveExecutable(provider, stateStore.get<string>(executableKey, ""));
+                    if (provider === "codex") await checkCodexAuth(executable); else await checkClaudeAuth(executable);
+                  } catch (error) { detail = error instanceof Error ? error.message : "Runtime check failed."; }
+                  await dialog.showMessageBox({ type: "info", title: setup.label, message: detail, detail: `Sign in in a terminal using: ${setup.command}\nKKSS uses the official tool’s account. It never falls back to an API key.` });
+                } },
+                { label: "Installation and sign-in instructions…", click: () => { void shell.openExternal(setup.url); } },
+                { label: "Model…", enabled: !stateStore.isManaged(modelKey), click: () => void promptValue(modelKey, `${setup.label} model (empty uses runtime default)`, "") },
+                { label: "Executable path…", enabled: !stateStore.isManaged(executableKey), click: () => void promptValue(executableKey, "Absolute executable path (empty uses automatic detection)", "") },
+              ] };
+            }),
+            { type: "separator" as const },
             {
               label: "Anthropic API Key…" + (stateStore.isManaged("llmKeyAnthropic") ? " (set by the environment)" : ""),
               enabled: !stateStore.isManaged("llmKeyAnthropic"),

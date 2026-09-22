@@ -3,7 +3,7 @@
  * (cad/src/fileRouter.ts routeFile; mesh/src/parser/meshFormats.ts +.mdpa).
  * Overlap (.stl/.obj/.ply are viewable in both modes): the active mode wins.
  */
-import { routeFile } from "../../cad/src/fileRouter";
+import { ROUTED_EXTENSIONS, routeFile } from "../../cad/src/fileRouter";
 import { SUPPORTED_MESH_EXTENSIONS, meshExtname } from "../../mesh/src/parser/meshFormats";
 import type { Mode } from "./ipc";
 
@@ -38,3 +38,18 @@ export function modeForViewType(viewType: string): Mode | undefined {
   if (viewType.startsWith("cad-preview.")) return "cad";
   return undefined;
 }
+
+/** Single source for native associations and external launch validation. */
+export const SUPPORTED_FILE_EXTENSIONS: readonly string[] = [...new Set([
+  ...ROUTED_EXTENSIONS.map(ext => ext.replace(/^\./, "")),
+  ...SUPPORTED_MESH_EXTENSIONS.map(ext => ext.replace(/^\./, "")),
+  "mdpa",
+])].sort();
+
+export const FILE_ASSOCIATIONS = SUPPORTED_FILE_EXTENSIONS.map(ext => ({
+  ext,
+  name: `KKSS ${ext.toUpperCase()} document`,
+  description: `KKSS ${ext.toUpperCase()} document`,
+  mimeType: `application/x-kkss-${ext.replace(/\./g, "-")}`,
+  role: "Editor" as const,
+}));
