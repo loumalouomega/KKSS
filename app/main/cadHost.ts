@@ -149,29 +149,30 @@ import { projectRoot } from "./services/projectRoot";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
 import { showQuickPick, showInputBox } from "./services/quickPick";
 import { stateStore } from "./services/stateStore";
+import { entryForVscode } from "./services/settings/registry";
 import { writeFileAtomic } from "./services/atomicWrite";
 import { CAD_SIDECAR, MACRO_LIBRARY_NAME, MESH_PRESET_LIBRARY_NAME } from "./services/sidecarSuffixes";
 
 /**
  * stateStore keys backing the viewer defaults the extension gets from its
- * `cadPreview.*` settings — see `sendViewerDefaults`. Exported so the Settings
- * menu writes the same names.
+ * `cadPreview.*` settings — see `sendViewerDefaults`. Derived from the settings
+ * registry (services/settings/registry.ts), which is what the Settings page
+ * writes, so the two cannot name different keys.
+ *
+ * `openscadBinary` (cad 1.12.0) is the executable used to convert a `.scad`
+ * source to `.csg` on open. Unset means "resolve `openscad` on PATH", the
+ * submodule's own default; the OPENSCAD_BINARY environment variable stays the
+ * headless escape hatch and already reaches the MCP child through its
+ * inherited env. `tessellationQuality` is read fresh on every B-rep load.
  */
+const cadKey = (key: string): string => entryForVscode("cadPreview", key)!.storeKey!;
 export const CAD_DEFAULT_KEYS = {
-  background: "cadBackground",
-  meshSizePreset: "cadDefaultMeshSizePreset",
-  showGridAndAxes: "cadShowGridAndAxesOnOpen",
-  upAxis: "cadUpAxis",
-  /** cadPreview.tessellationQuality — read fresh on every B-rep load. */
-  tessellationQuality: "cadTessellationQuality",
-  /**
-   * cadPreview.openscadBinary (cad 1.12.0) — the `openscad` executable used to
-   * convert a `.scad` source to `.csg` on open. Unset means "resolve `openscad`
-   * on PATH", which is the submodule's own default; the OPENSCAD_BINARY
-   * environment variable stays the headless escape hatch and already reaches
-   * the MCP child through its inherited env.
-   */
-  openscadBinary: "cadOpenscadBinary",
+  background: cadKey("background"),
+  meshSizePreset: cadKey("defaultMeshSizePreset"),
+  showGridAndAxes: cadKey("showGridAndAxesOnOpen"),
+  upAxis: cadKey("upAxis"),
+  tessellationQuality: cadKey("tessellationQuality"),
+  openscadBinary: cadKey("openscadBinary"),
 } as const;
 
 /** Debounce window for autosaving the parts/edits/mesh-options sidecars (provider.ts). */

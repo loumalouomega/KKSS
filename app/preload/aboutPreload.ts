@@ -1,5 +1,6 @@
 /** Preload for the About/Update dialog window. */
 import { contextBridge, ipcRenderer } from "electron";
+import "./appearance";
 
 contextBridge.exposeInMainWorld("aboutApi", {
   post: (message: unknown) => ipcRenderer.send("about:toHost", message),

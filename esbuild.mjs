@@ -196,6 +196,7 @@ const preloadConfig = {
     "app/preload/editorPreload.ts",
     "app/preload/chatPreload.ts",
     "app/preload/jobsPreload.ts",
+    "app/preload/settingsPreload.ts",
   ],
   bundle: true,
   platform: "node",
@@ -219,6 +220,7 @@ const shellRendererConfig = {
     "app/renderer/editor/editor.ts",
     "app/renderer/chat/chat.ts",
     "app/renderer/jobs/jobs.ts",
+    "app/renderer/settings/settings.ts",
   ],
   bundle: true,
   platform: "browser",
@@ -314,6 +316,8 @@ function copyArtifacts() {
     ["app/renderer/jobs/index.html", out("renderer/jobs/index.html")],
     ["app/renderer/jobs/jobs.css", out("renderer/jobs/jobs.css")],
     ["app/renderer/chat/index.html", out("renderer/chat/index.html")],
+    ["app/renderer/settings/index.html", out("renderer/settings/index.html")],
+    ["app/renderer/settings/settings.css", out("renderer/settings/settings.css")],
     ["app/renderer/chat/chat.css", out("renderer/chat/chat.css")],
   ];
   for (const [srcRel, dst] of copies) {

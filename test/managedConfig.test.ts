@@ -24,3 +24,8 @@ it('supports managed subscription providers without API billing credentials', ()
   expect(() => parseManagedConfig({ KKSS_LLM_PROVIDER: 'claude-code', KKSS_LLM_API_KEY_FILE: '/secret' })).toThrow();
   expect(() => parseManagedConfig({ KKSS_CODEX_EXECUTABLE: 'relative' })).toThrow();
 });
+
+it('locks the UI theme to one of the registry values', () => {
+  expect(parseManagedConfig({ KKSS_UI_THEME: 'hcLight' }).values.get('uiTheme')).toBe('hcLight');
+  expect(() => parseManagedConfig({ KKSS_UI_THEME: 'solarized' })).toThrow('Invalid operator setting KKSS_UI_THEME');
+});

@@ -215,7 +215,10 @@ export class McpManager {
   constructor(
     specs: ServerSpec[],
     private readonly onStatus: (statuses: ChatServerStatus[]) => void,
-    private readonly runtime?: Pick<KratosRuntime, "discover" | "install">
+    private readonly runtime?: Pick<KratosRuntime, "discover" | "install">,
+    /** Settings ▸ Kratos (install path, extra env) — read on every Kratos
+     *  (re)start, so a change applies on the next one. A delta over the spec's env. */
+    private readonly kratosEnv?: () => Record<string, string>
   ) {
     this.servers = specs.map((spec) => ({
       spec,
@@ -242,6 +245,17 @@ export class McpManager {
     const server = this.servers.find((s) => s.spec.key === "kratos");
     if (!server || this.disposed || server.status.state === "ready") return Promise.resolve();
     return this.connect(server, install);
+  }
+
+  /**
+   * Settings ▸ Kratos ▸ Restart: reconnects Kratos even when it is ready, so a
+   * changed install path or environment applies now. Shares an in-flight
+   * attempt like retryKratos; CAD and mesh are untouched.
+   */
+  restartKratos(): Promise<void> {
+    const server = this.servers.find((s) => s.spec.key === "kratos");
+    if (!server || this.disposed) return Promise.resolve();
+    return this.connect(server);
   }
 
   private connect(server: ServerState, install = false): Promise<void> {
@@ -290,6 +304,7 @@ export class McpManager {
         const runtime = await this.runtime.discover(this.abort.signal);
         spec = { ...spec, command: runtime.command, args: runtime.bundled ? runtime.args : [...runtime.args, ...spec.args], env: { ...process.env } as Record<string, string> };
       }
+      if (kratos && this.kratosEnv) spec = { ...spec, env: { ...spec.env, ...this.kratosEnv() } };
       this.abort.signal.throwIfAborted();
       status("preparing");
       const transport = new StdioClientTransport({

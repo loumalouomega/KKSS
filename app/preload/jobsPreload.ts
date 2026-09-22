@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import "./appearance";
 import type { JobsToHost, JobsSnapshot } from "../main/ipc";
 contextBridge.exposeInMainWorld("jobsApi", {
   post: (message: JobsToHost) => ipcRenderer.send("jobs:toHost", message),

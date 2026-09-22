@@ -1,10 +1,34 @@
 # Configuration
 
-KKSS deliberately keeps configuration minimal ("Keep Kratos Simple Stupid").
+KKSS deliberately keeps configuration minimal ("Keep Kratos Simple Stupid"). Every preference lives on the **Settings page** (**Settings ▸ Open Settings…**, `Ctrl+,`). It is searchable and grouped by category. The settings the two embedded VS Code extensions read (`cadPreview.*`, `kratos.*`) appear there under their VS Code ids. See [Getting Started ▸ Settings](/guide/getting-started#settings) for the full list.
 
-## Scene theme
+## UI theme
 
-The mesh viewer's theme selector (Auto / Dark / Light / Scientific, in the Post-Processing toolbar) persists across sessions.
+**Appearance ▸ UI Theme** chooses the colour theme of the whole application. The options are Follow system (the default), Dark, Light, High contrast (dark) and High contrast (light). The change is immediate, and it covers:
+- the shell, home screen, editor, terminal, chat and dialogs;
+- both viewers' panels;
+- the CAD scene;
+- the mesh scene, while its **3D Scene Theme** is *Auto*.
+
+The four kinds are VS Code's own, so both viewers restyle exactly as they would inside VS Code.
+
+![The home screen in the Light theme](/screenshots/home-screen-light.png)
+
+**Appearance ▸ 3D Scene Theme** (Auto / Dark / Light / Scientific) pins the mesh viewer's scene background and palette independently of the UI. It applies to meshes opened afterwards.
+
+## Kratos environment
+
+**Kratos** holds what a problemtype **Run** uses:
+
+| Setting | Meaning | Default |
+| --- | --- | --- |
+| `kratos.pythonPath` | Python interpreter for `python MainKratos.py` | `python3` (`python` on Windows) |
+| `kratos.installPath` | Compiled Kratos install, or a source checkout built in-tree. Prepended to `PYTHONPATH` and the shared-library path | pip-installed Kratos |
+| `kratos.extraEnv` | Extra variables; they override computed ones | — |
+| `kratos.problemtypes.extraPaths` | Folders under the project folder scanned for user problemtypes | `.kratos/problemtypes` |
+| `kratos.run.stopOnWindowClose` | Kill running solvers when KKSS quits | on |
+
+The install path and extra environment also reach the assistant's Kratos MCP server the next time it starts. **Restart with current environment** applies them immediately. The interpreter does not: that server runs in `uvx`'s own isolated environment.
 
 ## Interface scale
 

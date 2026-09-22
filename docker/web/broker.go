@@ -244,7 +244,7 @@ func (b *broker) start(s *instance, g *gateway) error {
 	if s.Container == "" {
 		vars := []string{"KKSS_INTERNAL_TOKEN=" + s.Token, "KKSS_PUBLIC_URL=" + g.public, "KKSS_BASE_PATH=" + g.base + "/s/" + s.ID, "KKSS_IDLE_TIMEOUT=" + env("KKSS_SESSION_IDLE_TIMEOUT", "1800"), "KKSS_PROJECT_ROOT=/workspace", "KKSS_FILES_URL=http://kkss-" + s.ID + "-files:8080", "KKSS_TLS_TERMINATED=1"}
 		// Only administrator-selected configuration enters child environments.
-		for _, key := range []string{"KKSS_LLM_PROVIDER", "KKSS_LLM_MODEL", "KKSS_LLM_BASE_URL", "KKSS_RESTORE_SESSION", "KKSS_THEME", "KKSS_ZOOM"} {
+		for _, key := range []string{"KKSS_LLM_PROVIDER", "KKSS_LLM_MODEL", "KKSS_LLM_BASE_URL", "KKSS_RESTORE_SESSION", "KKSS_THEME", "KKSS_UI_THEME", "KKSS_ZOOM"} {
 			if value := os.Getenv(key); value != "" {
 				vars = append(vars, key+"="+value)
 			}

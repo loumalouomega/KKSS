@@ -18,7 +18,8 @@
  */
 
 :root {
-  /* Native scrollbars, select popups and form controls follow the Dark+ chrome. */
+  /* Native scrollbars, select popups and form controls follow the chrome
+     (switched to light for the two light theme kinds below). */
   color-scheme: dark;
 
   --ui-r-xs: 3px;
@@ -52,6 +53,16 @@
 
   --ui-h-ctl: 24px;   /* compact control (icon button, input, select) */
   --ui-h-btn: 28px;   /* toolbar-sized button */
+}
+
+/* Light kinds: light native controls, and softer shadows (the same lift mesh's
+   design-system.css applies under body.vscode-light). */
+.vscode-light,
+.vscode-high-contrast-light {
+  color-scheme: light;
+  --ui-elev-1: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --ui-elev-2: 0 2px 8px rgba(0, 0, 0, 0.16);
+  --ui-elev-3: 0 6px 20px rgba(0, 0, 0, 0.2);
 }
 
 /* ── Base ─────────────────────────────────────────────────────────────────── */

@@ -55,6 +55,7 @@ export function parseManagedConfig(env: NodeJS.ProcessEnv, read = (file: string)
   if (env.KKSS_PROJECT_ROOT && !path.isAbsolute(env.KKSS_PROJECT_ROOT)) fail('KKSS_PROJECT_ROOT');
   bool('KKSS_RESTORE_SESSION', 'restoreSession');
   choice('KKSS_THEME', 'sceneTheme', ['auto', 'light', 'dark', 'scientific']);
+  choice('KKSS_UI_THEME', 'uiTheme', ['system', 'dark', 'light', 'hcDark', 'hcLight']);
   number('KKSS_ZOOM', 'uiZoom', 0.5, 3);
   bool('KKSS_META_ENABLED', 'metaServerEnabled');
   number('KKSS_META_PORT', 'metaServerPort', 1, 65535, true);

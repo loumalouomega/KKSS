@@ -78,6 +78,7 @@ import { showQuickPick as electronQuickPick, QuickPickItem } from "./services/qu
 import { toast, progressToast } from "./services/notifications";
 import { createFileSystemWatcher } from "./services/watcher";
 import { stateStore } from "./services/stateStore";
+import { entryForVscode, normalize, registry, toStored } from "./services/settings/registry";
 
 // ---- Hooks the app injects (avoids import cycles) ---------------------------
 
@@ -109,14 +110,6 @@ export interface VscodeShimHooks {
   saveMesh(fsPath: string): Promise<void>;
 }
 
-/**
- * The one `kratos.*` configuration key KKSS makes user-settable (Settings ▸
- * Mesh Viewer Defaults ▸ Large-Mesh Summary Threshold…, menu.ts). Every other
- * `getConfiguration` key stays at its schema default — see the class comment
- * below. `meshSummaryThresholdMb` is checked against both submodules'
- * globalState/stateStore key lists and is otherwise unused.
- */
-export const MESH_SUMMARY_THRESHOLD_MB_KEY = "meshSummaryThresholdMb";
 
 let hooks: VscodeShimHooks = {
   openWith: () => {
@@ -494,25 +487,45 @@ export const workspace = {
   onDidSaveTextDocument: (_cb: (doc: TextDocument) => void): Disposable => ({ dispose() {} }),
 
   /**
-   * KKSS has no settings.json equivalent for extension contribution points,
-   * so this resolves to the caller-supplied default — i.e. the same schema
-   * default declared in the submodule's package.json — for every key except
-   * `kratos.preview.summaryThresholdMb` (mesh 3.16.0), which Settings ▸ Mesh
-   * Viewer Defaults makes user-settable (see MESH_SUMMARY_THRESHOLD_MB_KEY):
-   * a mesh above the threshold opens as a header summary instead of loading,
-   * so unlike the other schema keys this one is genuinely worth exposing.
+   * Backed by the settings registry (services/settings/registry.ts): a key with
+   * an entry whose `vscode` mapping matches `section.key` reads the stored
+   * value from stateStore — the Settings page is KKSS's settings.json — and
+   * anything else, or an invalid stored value, resolves to the caller-supplied
+   * default, i.e. the schema default the submodule itself declares. Sections
+   * may be dotted (`kratos.flowgraph`), so matching is on the joined id.
    */
   getConfiguration: (section?: string) => ({
     get: <T>(key: string, defaultValue?: T): T | undefined => {
-      if (section === "kratos" && key === "preview.summaryThresholdMb") {
-        // Stored as a string via menu.ts's promptValue (the META_SERVER_KEYS.port
-        // precedent) — parsed back to a number here, its consumer's own type.
-        const stored = Number(stateStore.get<string>(MESH_SUMMARY_THRESHOLD_MB_KEY));
-        return (Number.isFinite(stored) && stored > 0 ? stored : defaultValue) as T | undefined;
-      }
-      return defaultValue;
+      const entry = entryForVscode(section, key);
+      if (!entry?.storeKey) return defaultValue;
+      const value = normalize(entry, stateStore.get(entry.storeKey));
+      return (value === undefined ? defaultValue : value) as T | undefined;
+    },
+    has: (key: string): boolean => entryForVscode(section, key) !== undefined,
+    /** mesh's "Set Kratos install path" command writes through here. The
+     *  ConfigurationTarget is ignored: KKSS has one settings scope. */
+    update: async (key: string, value: unknown): Promise<void> => {
+      const entry = entryForVscode(section, key);
+      if (!entry?.storeKey) throw new Error(`vscodeShim: unsupported setting "${section}.${key}"`);
+      const stored = toStored(entry, value);
+      if (!stored.ok) throw new Error(`vscodeShim: invalid value for "${section}.${key}"`);
+      await stateStore.update(entry.storeKey, stored.value);
     },
   }),
+
+  /** Fired for every registry-mapped key the Settings page (or menu) changes. */
+  onDidChangeConfiguration: (
+    cb: (e: { affectsConfiguration(section: string): boolean }) => void
+  ): Disposable =>
+    stateStore.onDidChange((storeKey) => {
+      const ids = registry()
+        .filter((e) => e.vscode && e.storeKey === storeKey)
+        .map((e) => `${e.vscode!.section}.${e.vscode!.key}`);
+      if (ids.length === 0) return;
+      cb({
+        affectsConfiguration: (s: string) => ids.some((id) => id === s || id.startsWith(`${s}.`)),
+      });
+    }),
 
   openTextDocument: async (pathOrUri: string | Uri): Promise<TextDocument> => {
     return new TextDocument(typeof pathOrUri === "string" ? Uri.file(pathOrUri) : pathOrUri);

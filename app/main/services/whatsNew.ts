@@ -73,12 +73,18 @@ function showWhatsNew(entries: ChangelogEntry[]): void {
   void win.loadURL("kkss://app/renderer/whatsnew/whatsnew.html");
 }
 
+/** Registry key general.showWhatsNew (services/settings/registry.ts). */
+const SHOW_WHATS_NEW_KEY = "showWhatsNew";
+
 /** Called once at startup — see the module doc comment for the gating rules. */
 export function checkForNewVersion(): void {
   const current = app.getVersion();
   const lastSeen = stateStore.get<string>(LAST_SEEN_VERSION_KEY);
   void stateStore.update(LAST_SEEN_VERSION_KEY, current);
   if (process.env.KKSS_E2E || !lastSeen || lastSeen === current) return;
+  // Settings ▸ General ▸ Show What's New After Updates (the version is still
+  // recorded above, so turning it back on never replays old releases).
+  if (stateStore.get<boolean>(SHOW_WHATS_NEW_KEY, true) === false) return;
 
   const entries = loadChangelogEntries().filter((e) => semver.gt(e.version, lastSeen));
   if (entries.length) showWhatsNew(entries);

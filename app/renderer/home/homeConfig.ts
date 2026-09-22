@@ -35,7 +35,7 @@ export const HOME_BUTTONS: HomeButton[] = [
     action: "settings",
     icon: "settings",
     label: "Settings",
-    description: "Color theme and terminal shell",
+    description: "Theme, viewer defaults, Kratos environment and more",
   },
   {
     action: "help",

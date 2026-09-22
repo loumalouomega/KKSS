@@ -1,5 +1,6 @@
 /** Preload for the embedded terminal panel renderer. */
 import { contextBridge, ipcRenderer } from "electron";
+import "./appearance";
 
 contextBridge.exposeInMainWorld("termApi", {
   post: (message: unknown) => ipcRenderer.send("term:toHost", message),

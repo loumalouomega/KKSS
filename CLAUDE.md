@@ -84,7 +84,8 @@ Concretely:
 - New app-level ability, setting, or workflow → update the system prompt's
   capability description in `app/main/services/chat/chatService.ts`, the
   server wiring in `app/main/services/chat/mcpManager.ts` if a new tool source
-  is involved, and the **Settings ▸ LLM Assistant** menu if it's configurable.
+  is involved, and a settings-registry entry (the Settings page's **LLM
+  Assistant** category) if it's configurable.
 - New context the assistant should know (e.g. a new "current file" notion) →
   extend `ChatDeps.currentFiles()` / the context suffix — not the system
   prompt, which stays byte-stable for prompt caching.
@@ -298,8 +299,8 @@ Concretely:
   file, and the worker only ever receives marshalled bytes. Every OCCT path in
   `cadHost.ts` goes through `readOcctSource`, so nothing downstream ever sees
   format `"scad"`. The binary is configurable via the `cadOpenscadBinary`
-  stateStore key (**Settings ▸ CAD Viewer Defaults ▸ OpenSCAD Binary…**), since
-  the shim's `getConfiguration` always resolves to the caller's default;
+  stateStore key (**Settings page ▸ CAD Viewer ▸ OpenSCAD Binary**), since
+  cadHost is a port that reads the stateStore directly rather than the shim;
   `OPENSCAD_BINARY` remains the headless escape hatch for the MCP child.
 - **`renderService.ts` must stay OUT of the cad compute worker.** It imports
   playwright, which drags `playwright-core`'s unresolvable `chromium-bidi`
@@ -669,7 +670,8 @@ Concretely:
   document, and it still flows through the single deferred-open mechanism.
 - **Menu bar holds app-level items only.** Viewer actions (quality, fields,
   find entity…) live in the submodules' own toolbars — don't duplicate them
-  in the native menu. App preferences go in the Settings menu, persisted via
+  in the native menu. App preferences go in the settings registry (Settings
+  page, see the invariant below), persisted via
   `stateStore` (`sceneTheme` is shared with the mesh viewer's own theme
   toggle; it reaches views through `initialState` on their next file load).
 - **Chat sidebar: main process owns network + processes; MCP servers ship
@@ -1007,6 +1009,50 @@ Concretely:
   persisted under the `uiZoom` stateStore key and re-applied via
   `createMainWindow(__dirname, zoom)` on launch. `ZOOM_PRESETS` is the source
   of truth — the shell renderer mirrors the same list to build the dropdown.
+
+- **Settings have one registry, and it is the only place a setting is
+  declared.** `app/main/services/settings/registry.ts` (pure) drives the Settings
+  page (`settingsWindow.ts` + `app/renderer/settings/`), the native menu's quick
+  radios (`menu.ts`'s `enumRadio`) and the shim's `getConfiguration` (an entry's
+  `vscode: {section, key}` mapping; dotted sections like `kratos.flowgraph` are
+  matched on the joined id). A new setting is a registry row, never a new
+  `stateStore.get` with its own literal default. `test/settingsRegistry.test.ts`
+  parses **both submodules' `contributes.configuration`** and fails until every
+  property is mapped (same type/enum/default) or listed in `NOT_APPLICABLE` with
+  a reason — **re-check it on every submodule bump**, the `toolPolicy.ts`
+  precedent. Pre-existing keys kept their names (`cadUpAxis`, `sceneTheme`,
+  `meshSummaryThresholdMb`, `terminalShell`, `llm*`, `metaServer*`, …); new
+  mesh-backed keys are `kratos.*`, checked against mesh's unprefixed globalState
+  keys. `toStored()` deletes the key for a default or empty value (the old
+  "empty clears" contract); `normalize()` accepts numeric strings because the old
+  menu stored two numbers that way. Writes with side effects (zoom, update
+  channel, MCP server, cloud, the "Never ask" confirm) go through the same
+  functions the menu calls. **The settings renderer never receives a secret** —
+  only `isSet`. `stateStore.onDidChange` is the one change event (page rows,
+  menu rebuild — registry keys only, since mesh's globalState and the session
+  also write the store — appearance broadcast, `onDidChangeConfiguration`).
+- **The UI theme is VS Code's four body classes, and that is the whole contract
+  with the viewers.** `services/appearance.ts` resolves `uiTheme` via
+  `nativeTheme` to `vscode-dark`/`-light`/`-high-contrast`/`-high-contrast-light`;
+  every preload imports `app/preload/appearance.ts`, which fetches it
+  synchronously (first paint is right) and applies it as a class +
+  `data-vscode-theme-kind` on `<html>` and `<body>`, then follows the
+  broadcast to **all** webContents (so dialogs and new tabs need no list). cad
+  re-palettes itself (its `viewer.css` keys on the classes, a MutationObserver
+  re-reads them); mesh's *auto* scene only samples the body background when a
+  theme is applied, so `app/renderer/view/shim.ts` re-fires mesh's hidden
+  `#theme-select` change while it reads `auto` — no submodule change.
+  `vscode-vars.css` holds one block per kind; `check-theme-vars.mjs` fails
+  unless each redefines exactly `:root`'s colour variables (fonts excluded). A
+  new page needs nothing beyond importing `./appearance` in its preload. An
+  ID-specific CSS font rule would override the editor's preference theme (it
+  once did). `KKSS_UI_THEME` locks it (forwarded by the Docker broker/k8s lists).
+- **The Kratos run environment reaches the chat's Kratos server too.**
+  `services/settings/kratosEnv.ts` spreads `computeKratosEnv(installPath,
+  extraEnv)` — mesh's own vscode-free helper, same as the Run button — over the
+  Kratos MCP spawn env on every (re)start (`McpManager`'s injected `kratosEnv`);
+  `restartKratos()` reconnects even when ready. `kratos.pythonPath` is
+  deliberately not applied there: that server runs in uvx's isolated env.
 
 ## Verified submodule integration (Tier 0)
 

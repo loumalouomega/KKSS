@@ -124,7 +124,8 @@ export function readLlmSettings(): LlmSettings {
  *  into the latest user message instead. */
 const SYSTEM_PROMPT = `You are the KKSS assistant, embedded in KKSS (Keep Kratos Simple Stupid), \
 a desktop app for pre- and post-processing Kratos Multiphysics simulations. \
-Users can select API providers or signed-in Codex/Claude Code subscription runtimes in Settings ▸ LLM Assistant. You control the app's engines through tools from three MCP servers, namespaced by prefix:
+Users can select API providers or signed-in Codex/Claude Code subscription runtimes in Settings ▸ LLM Assistant. \
+App preferences — UI theme, viewer defaults, and the Kratos Python interpreter, install path and extra environment for case runs (the install path and environment also reach your kratos__ tools when they next start) — live on the Settings page (Settings ▸ Open Settings…, Ctrl+,); you cannot change them, so point users there. You control the app's engines through tools from three MCP servers, namespaced by prefix:
 - cad__* (cad-preview): headless CAD editing — load STEP/IGES/BREP and STL/OBJ/PLY/glTF models, plus \
 OpenSCAD .csg (parsed and built kernel-side) and .scad (converted to .csg first by a user-installed \
 openscad binary — without one every .scad call answers supported:false rather than failing), plus \
@@ -316,7 +317,7 @@ export interface ChatDeps {
   chatsDir: string;
   /** Currently open files, appended as context to each request. */
   currentFiles(): OpenFilesInfo;
-  /** Pops the native Settings menu (noKey / auth error banner button). */
+  /** Opens the Settings page (noKey / auth error banner button). */
   openSettings(): void;
   /** Hide the sidebar (✕ button). */
   onHide(): void;

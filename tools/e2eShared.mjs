@@ -5,6 +5,7 @@
  */
 import { _electron } from "playwright-core";
 import { execSync } from "node:child_process";
+import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,6 +32,17 @@ export const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
  *   to the real profile at all.
  */
 export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDataDir } = {}) {
+  // The UI theme defaults to "Follow system", so an isolated profile would
+  // render in whatever theme the generating machine (or a headless Xvfb)
+  // reports — seed Dark+ so committed screenshots stay reproducible. Seeded
+  // rather than locked via KKSS_UI_THEME, which would make it unchangeable.
+  if (userDataDir) {
+    const state = path.join(userDataDir, "state.json");
+    if (!fs.existsSync(state)) {
+      fs.mkdirSync(userDataDir, { recursive: true });
+      fs.writeFileSync(state, JSON.stringify({ uiTheme: "dark" }));
+    }
+  }
   const app = await _electron.launch({
     executablePath: electronPath,
     args: [

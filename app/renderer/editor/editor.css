@@ -36,9 +36,10 @@ body {
   min-height: 0;
 }
 
+/* font-size comes from Settings ▸ Text Editor (editor.ts's preference theme);
+   an ID-specific rule here would override it. */
 #editor-host .cm-editor {
   height: 100%;
-  font-size: var(--ui-fs-lg);
 }
 
 #editor-host .cm-editor.cm-focused {

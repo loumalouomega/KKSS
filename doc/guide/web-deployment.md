@@ -123,7 +123,8 @@ block of either compose file:
 The LLM and application overlay accepts `KKSS_LLM_PROVIDER`,
 `KKSS_LLM_MODEL`, `KKSS_LLM_BASE_URL`, `KKSS_LLM_API_KEY_FILE`,
 `KKSS_CODEX_EXECUTABLE`, and `KKSS_CLAUDE_CODE_EXECUTABLE`,
-`KKSS_PROJECT_ROOT`, `KKSS_RESTORE_SESSION`, `KKSS_THEME`, `KKSS_ZOOM`,
+`KKSS_PROJECT_ROOT`, `KKSS_RESTORE_SESSION`, `KKSS_THEME` (3D scene), `KKSS_UI_THEME`
+(`system`/`dark`/`light`/`hcDark`/`hcLight`), `KKSS_ZOOM`,
 `KKSS_META_ENABLED`, `KKSS_META_PORT`, and `KKSS_META_TOKEN_FILE`. Secret files
 must be mounted read-only into the container. The gateway never logs their
 contents; the application does not write them to `state.json`.
@@ -171,7 +172,7 @@ to open out of the box.
 App settings (`state.json` — theme, zoom, LLM provider, …) persist across
 restarts through a named volume at `/home/kkss/.config/kkss`. Operator-managed
 values such as `KKSS_LLM_API_KEY_FILE`, `KKSS_PROJECT_ROOT`,
-`KKSS_RESTORE_SESSION`, `KKSS_THEME`, `KKSS_ZOOM`, and `KKSS_META_*` override
+`KKSS_RESTORE_SESSION`, `KKSS_THEME`, `KKSS_UI_THEME`, `KKSS_ZOOM`, and `KKSS_META_*` override
 the stored value, are shown as “set by the environment” in Settings, and are
 never written to that volume. A trusted session user can still inspect runtime
 environment values from the embedded terminal; hiding an operator key from an

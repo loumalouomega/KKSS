@@ -16,6 +16,9 @@ import { JsonStore } from "./jsonStore";
 
 let store: JsonStore | undefined;
 
+type ChangeListener = (key: string, value: unknown) => void;
+const listeners = new Set<ChangeListener>();
+
 /** Bound lazily — app.getPath("userData") is only valid once Electron is up. */
 function backing(): JsonStore {
   if (!store) store = new JsonStore(path.join(app.getPath("userData"), "state.json"));
@@ -32,7 +35,26 @@ export const stateStore = {
   },
   update(key: string, value: unknown): Promise<void> {
     if (stateStore.isManaged(key)) return Promise.resolve();
-    return backing().update(key, value);
+    const written = backing().update(key, value);
+    // Fired synchronously after the in-memory value changed (the disk write is
+    // still queued), so a listener's `get()` already sees the new value.
+    for (const listener of [...listeners]) {
+      try {
+        listener(key, value);
+      } catch (err) {
+        console.error("stateStore listener failed:", err);
+      }
+    }
+    return written;
+  },
+  /**
+   * Every accepted `update()` — the Settings page, the native menu and the
+   * vscode shim's onDidChangeConfiguration all hang off this, so no two edit
+   * paths can diverge. A managed key never fires (its update is refused).
+   */
+  onDidChange(listener: ChangeListener): { dispose(): void } {
+    listeners.add(listener);
+    return { dispose: () => void listeners.delete(listener) };
   },
   /** Resolves once every queued write is on disk. */
   flush(): Promise<void> {

@@ -128,6 +128,21 @@ async function attempt(c) {
       find("Post-Processing (Mesh)").click();
       check(true);
     }, c.windowUrl === "/renderer/mesh/");
+
+    // Settings ▸ UI Theme reaches every view live: the viewers only follow it
+    // through VS Code's body classes, so assert the class on the viewer page
+    // itself, then that the Settings page opens and renders its schema.
+    await app.evaluate(({ Menu }) => {
+      const settings = Menu.getApplicationMenu().items.find((i) => i.label === "&Settings");
+      const theme = settings.submenu.items.find((i) => i.label === "UI Theme");
+      theme.submenu.items.find((i) => i.label === "Light").click();
+      settings.submenu.items.find((i) => i.label === "Open Settings…").click();
+    });
+    await page.waitForFunction(() => document.body.classList.contains("vscode-light"), null, { timeout: 10_000 });
+    const settingsPage = await appWindow(app, "/renderer/settings/", deadline);
+    await settingsPage.waitForSelector('.row[data-id="appearance.uiTheme"]', { timeout: 15_000 });
+    const theme = await settingsPage.$eval('.row[data-id="appearance.uiTheme"] select', (s) => s.value);
+    if (theme !== "light") throw new Error(`Settings page shows UI theme "${theme}", expected "light"`);
   } finally {
     await closeApp(app);
   }
