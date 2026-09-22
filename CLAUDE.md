@@ -968,6 +968,20 @@ Concretely:
   window and restored tabs are ready. `electron-builder.yml` registers the
   same extension families plus the `kkss` protocol and Linux MIME entries;
   compound suffixes such as `.post.msh` remain intact.
+
+- **Distribution metadata follows the routing tables.** `electron-builder.yml`
+  ships associations for all 65 CAD/mesh-readable suffixes, including compound
+  GiD names, registers the `kkss` scheme, and builds AppImage, deb and rpm
+  targets. `npm run check:packaging` parses the two upstream registries and
+  fails if the packaging list drifts. The Flatpak work is intentionally a
+  probe (`npm run flatpak:probe`): unpacked workers/WASM, node-pty and external
+  solver execution still need a sandbox contract before an artifact can ship.
+
+- **Streamed VNC sessions are single-viewer by policy.** `docker/entrypoint.sh`
+  passes `-noshared -dontdisconnect` to x11vnc and `NeverShared=1`,
+  `DisconnectClients=0`, `AlwaysShared=0` to TigerVNC. Xvfb/SwiftShader remains
+  the default; TigerVNC resize and hardware-renderer acceptance require the
+  native runners tracked in `doc/roadmap.md`.
 - **Screens vs modes.** `Screen = "home" | "editor" | Mode`
   (`app/main/ipc.ts`): the home screen (`app/renderer/home/`, config-driven
   buttons in `homeConfig.ts`; full-window) and the text editor
