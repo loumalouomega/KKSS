@@ -32,7 +32,9 @@ export function resolveReference(root: string, ref: Reference): string {
 }
 export function parseProject(raw: unknown): Project {
   if (!record(raw) || raw.version !== 1) throw new Error('Unsupported project schema. The project was not modified.');
-  if (typeof raw.id !== 'string' || !Number.isSafeInteger(raw.revision) || !Array.isArray(raw.studies) || !record(raw.queue) || typeof raw.queue.paused !== 'boolean' || !Array.isArray(raw.queue.tasks)) throw new Error('Invalid project metadata.');
+  const queue = raw.queue;
+  if (typeof raw.id !== 'string' || !Number.isSafeInteger(raw.revision) || !Array.isArray(raw.studies) || !record(queue) || typeof queue.paused !== 'boolean' || !Array.isArray(queue.tasks)) throw new Error('Invalid project metadata.');
+  if (queue.dispatchScope !== undefined && (!Array.isArray(queue.dispatchScope) || queue.dispatchScope.some(id => typeof id !== 'string'))) throw new Error('Invalid queue dispatch scope.');
   const ids = new Set<string>();
   for (const study of raw.studies) {
     if (!record(study) || typeof study.id !== 'string' || ids.has(study.id) || typeof study.name !== 'string' || !record(study.source) || !Array.isArray(study.runs)) throw new Error('Invalid or duplicate study.');
@@ -41,8 +43,9 @@ export function parseProject(raw: unknown): Project {
     ids.add(study.id);
     for (const run of study.runs) if (!record(run) || typeof run.id !== 'string' || run.studyId !== study.id || !Array.isArray(run.artifacts) || typeof run.directory !== 'string' || run.directory !== `.kkss/runs/${run.id}` || !/^[a-zA-Z0-9-]+$/.test(run.id)) throw new Error('Invalid run ownership.');
   }
-  validateOrder(raw.queue.tasks as unknown as Task[]);
-  for (const task of raw.queue.tasks as unknown as Task[]) if (!ids.has(task.studyId)) throw new Error('Task references an unknown study.');
+  validateOrder(queue.tasks as unknown as Task[]);
+  for (const task of queue.tasks as unknown as Task[]) if (!ids.has(task.studyId)) throw new Error('Task references an unknown study.');
+  if (queue.dispatchScope && (new Set(queue.dispatchScope).size !== queue.dispatchScope.length || queue.dispatchScope.some(id => !(queue.tasks as unknown as Task[]).some(task => task.id === id)))) throw new Error('Invalid queue dispatch scope.');
   return structuredClone(raw) as unknown as Project;
 }
 export function validateOrder(tasks: Task[]): void {
@@ -91,7 +94,8 @@ export async function readiness(root: string, study: Study): Promise<Record<stri
 export function duplicateStudy(source: Study, name: string, reuseMesh: boolean, settings: Json = source.caseSettings): Study {
   return { id: randomUUID(), name, parentId: source.id, source: structuredClone(source.source),
     meshing: structuredClone(source.meshing), caseSettings: structuredClone(settings), runs: [],
-    ...(reuseMesh ? { mesh: source.mesh && structuredClone(source.mesh), meshSourceRevision: source.meshSourceRevision, meshOptionsRevision: source.meshOptionsRevision, caseMeshRevision: source.caseMeshRevision } : {}) };
+    ...(reuseMesh ? { mesh: source.mesh && structuredClone(source.mesh), meshSourceRevision: source.meshSourceRevision, meshOptionsRevision: source.meshOptionsRevision, caseMeshRevision: source.caseMeshRevision,
+      ...(source.handoff ? { handoff: structuredClone(source.handoff) } : {}) } : {}) };
 }
 export function previewVariants(source: Study, rows: { name: string; settings: Json }[]): { name: string; settings: Json; changed: boolean }[] {
   if (!rows.length || rows.length > 50) throw new Error('A sweep must contain 1–50 explicit variant rows.');

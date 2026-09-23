@@ -107,11 +107,13 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__queue_plan_preview: "read",
   app__queue_variants_preview: "read",
   app__queue_parameter_sweep_preview: "read",
+  app__queue_retry_variant_preview: "read",
   app__queue_inspect: "read",
   app__queue_enqueue: "write",
   app__queue_reorder: "write",
   app__queue_pause: "write",
   app__queue_resume: "write",
+  app__queue_resume_row: "write",
   app__queue_cancel: "write",
   // ---- cad-preview (56) ---------------------------------------------------
   cad__describe_capabilities: "read",

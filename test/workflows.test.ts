@@ -97,6 +97,18 @@ describe('portable project metadata', () => {
     expect(duplicate.mesh).toBeUndefined();
     expect(duplicate.source).toEqual(original.source);
     expect(previewVariants(original, [{ name: 'fine', settings: { parameter: 2 } }])).toMatchObject([{ changed: true }]);
+    const solvedAndRunning: Study = { ...original, mesh: { kind: 'project', path: 'beam.mdpa', revision: 'mesh-rev' },
+      runs: [
+        { id: 'solved', studyId: original.id, sourceRevision: 'source', meshRevision: 'mesh-rev', settings: {}, directory: '.kkss/runs/solved', state: 'succeeded', artifacts: [] },
+        { id: 'running', studyId: original.id, sourceRevision: 'source', meshRevision: 'mesh-rev', settings: {}, directory: '.kkss/runs/running', state: 'running', artifacts: [],
+          receipt: { version: 1, requestId: 'request-live', ownerId: original.id, jobId: 'job-live', state: 'running', artifacts: [] } },
+      ],
+      handoff: { version: 1, exportId: 'export-1', source: original.source, replayRevision: 'replay', units: { length: 'm', scale: 1 }, options: null, engine: 'gmsh', engineVersion: '4.13.1', engineVersionSource: 'test', artifacts: [], groups: [], boundaryCoverage: { state: 'unavailable', reason: 'not sampled' }, findings: [] } };
+    const reused = duplicateStudy(solvedAndRunning, 'reuse solved mesh', true);
+    expect(reused.runs).toEqual([]);
+    expect(reused.mesh).toEqual(solvedAndRunning.mesh);
+    expect(reused.handoff).toEqual(solvedAndRunning.handoff);
+    expect(JSON.stringify(reused)).not.toContain('job-live');
     const tooMany = Array.from({ length: 51 }, (_, i) => ({ name: String(i), settings: {} }));
     expect(() => previewVariants(original, tooMany)).toThrow(/1–50/);
   });
@@ -164,6 +176,24 @@ describe('dependency-aware queue recovery', () => {
     expect(launches).toBe(1);
     expect((await store.read())!.queue.tasks[0].state).toBe('succeeded');
   });
+
+  it('resumes only one waiting run row and leaves other rows held', async () => {
+    const mesh = { ...task('mesh-a', [], 'mesh'), runId: 'run-a' };
+    const generate = { ...task('generate-a', ['mesh-a'], 'generate'), runId: 'run-a' };
+    const solve = { ...task('solve-a', ['generate-a']), runId: 'run-a' };
+    const other = { ...task('solve-b'), runId: 'run-b' };
+    const store = await queueProject(await temp(), [mesh, generate, solve, other]);
+    const dispatched: string[] = [];
+    const queue = new ExecutionQueue({ validate: async () => [], dispatch: async t => { dispatched.push(t.id); return receipt(t, 'succeeded'); },
+      lookup: async () => undefined, cancel: async t => receipt(t, 'cancelled') });
+    const revision = planRevision((await store.read())!.queue.tasks);
+    await queue.resume(store, revision, ['mesh-a', 'generate-a', 'solve-a']);
+    const project = (await store.read())!;
+    expect(dispatched).toEqual(['mesh-a', 'generate-a', 'solve-a']);
+    expect(project.queue.paused).toBe(true);
+    expect(project.queue.dispatchScope).toBeUndefined();
+    expect(project.queue.tasks.find(t => t.id === 'solve-b')).toMatchObject({ state: 'held', error: 'Held while a selected variant row runs.' });
+  });
 });
 
 describe('run review evidence', () => {
@@ -220,7 +250,10 @@ describe('variant comparisons', () => {
       { study: failedStudy, run: failedRun, evidence: evidence(failedRun.id, 0.2, 'cm', 'diverged') },
       { study: missingStudy },
     ]);
+    expect(comparison.version).toBe(2);
     expect(comparison.rows.map(row => row.state)).toEqual(['succeeded', 'failed', 'missing']);
+    expect(comparison.classification).toBe('solver-parameter');
+    expect(comparison.rows[1].variation).toBe('solver-parameter');
     expect(comparison.rows[1].elapsedMs).toBe(40);
     expect(comparison.differences[0].changes).toMatchObject([{ path: 'load', baseline: 1, value: 2 }]);
     expect(comparison.quantities[0].compatible).toBe(false);
@@ -230,6 +263,18 @@ describe('variant comparisons', () => {
     expect(html).not.toContain('<baseline>');
     expect(html).toContain('incompatible units');
     expect(html).toContain('1 → 2');
+  });
+
+  it('classifies mesh-sensitivity studies separately from solver changes', () => {
+    const parent = { ...makeStudy(), caseSettings: { load: 1 } };
+    const meshVariant = { ...duplicateStudy(parent, 'fine mesh', false, parent.caseSettings), meshing: { size: 1 } };
+    const baselineRun: Run = { id: 'base', studyId: parent.id, sourceRevision: 's', meshRevision: 'coarse', settings: parent.caseSettings,
+      directory: '.kkss/runs/base', state: 'succeeded', artifacts: [] };
+    const fineRun: Run = { ...baselineRun, id: 'fine', studyId: meshVariant.id, meshRevision: 'fine', directory: '.kkss/runs/fine' };
+    const comparison = compareVariants(parent, [{ study: parent, run: baselineRun }, { study: meshVariant, run: fineRun }]);
+    expect(comparison.classification).toBe('mesh-sensitivity');
+    expect(comparison.rows[1].variation).toBe('mesh-sensitivity');
+    expect(comparisonHtml(comparison)).toContain('Study type: mesh-sensitivity');
   });
 });
 
@@ -288,6 +333,31 @@ describe('shared workflow tools', () => {
     expect(new Set(queued.tasks.map(task => task.studyId)).size).toBe(2);
     expect(new Set(queued.tasks.map(task => task.runId)).size).toBe(2);
     expect(queued.planRevision).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('retries a failed variant with fresh study and run identities in the same comparison group', async () => {
+    const root = await temp(), geometry = path.join(root, 'beam.step');
+    await fs.writeFile(geometry, 'geometry');
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const parent = await invoke('study_create', { name: 'Cantilever', source: geometry }) as Study;
+    const failed = duplicateStudy(parent, 'failed load', false, { problemtypeId: 'structural', load: 2 });
+    failed.runs.push({ id: 'old-run', studyId: failed.id, sourceRevision: 'source', meshRevision: 'mesh', settings: failed.caseSettings,
+      directory: '.kkss/runs/old-run', state: 'failed', artifacts: [] });
+    await service.store().update(project => project.studies.push(failed));
+    const preview = await invoke('queue_retry_variant_preview', { studyId: failed.id, reuseMesh: false }) as { previewId: string; variants: { id: string; runId: string }[] };
+    expect(preview.variants).toHaveLength(1);
+    expect(preview.variants[0].id).not.toBe(failed.id);
+    expect(preview.variants[0].runId).not.toBe('old-run');
+    expect((await service.store().read())!.studies).toHaveLength(2); // Preview did not mutate the project.
+    await invoke('queue_enqueue', { previewId: preview.previewId });
+    const project = (await service.store().read())!;
+    const retry = project.studies.find(study => study.id === preview.variants[0].id)!;
+    expect(retry.parentId).toBe(parent.id);
+    expect(retry.runs).toEqual([]);
+    expect(project.studies.find(study => study.id === failed.id)!.runs[0].id).toBe('old-run');
   });
 
   it('keeps external sources by default and makes copy and relink explicit', async () => {

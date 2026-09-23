@@ -237,7 +237,7 @@ for (const [id, tool] of [["study-compare-variants", "variants_compare"], ["stud
 function renderWorkflow(raw: unknown): void {
   workflow.hidden = false;
   if (!raw || typeof raw !== "object") { studyPickerLabel.hidden = true; duplicateButton.disabled = true; return; }
-  const value = raw as { project?: { studies?: { id: string; name: string; handoff?: { units?: { length?: string | null } }; runs?: { id: string; artifacts: { role: string }[] }[] }[]; activeStudyId?: string; activeRunId?: string; queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; readiness?: Record<string, Record<string, string>>; queuePlanRevision?: string; environment?: { manual?: { available: boolean }; requirementsComplete?: boolean } };
+  const value = raw as { project?: { studies?: { id: string; name: string; parentId?: string; handoff?: { units?: { length?: string | null } }; runs?: { id: string; state?: string; artifacts: { role: string }[] }[] }[]; activeStudyId?: string; activeRunId?: string; queue?: { paused: boolean; tasks: { id: string; studyId: string; kind: string; state: string; runId: string }[] } }; readiness?: Record<string, Record<string, string>>; queuePlanRevision?: string; environment?: { manual?: { available: boolean }; requirementsComplete?: boolean } };
   manualRuntimeAvailable = value.environment ? !!value.environment.manual?.available && value.environment.requirementsComplete !== false : undefined;
   workflowSnapshot = value;
   const hasProject = !!value.project;
@@ -251,6 +251,8 @@ function renderWorkflow(raw: unknown): void {
   }
   studyPickerLabel.hidden = studies.length === 0;
   const active = studies.find(s => s.id === value.project?.activeStudyId) ?? studies[0];
+  const variantContainer = document.getElementById("variant-rows")!;
+  variantContainer.replaceChildren();
   if (active) {
     studyPicker.value = active.id;
     selectedStudy = active;
@@ -275,6 +277,46 @@ function renderWorkflow(raw: unknown): void {
     (document.getElementById("study-export-comparison") as HTMLButtonElement).disabled = false;
     studyReadiness.textContent = ["geometry", "mesh", "case", "run", "results"]
       .map(step => `${step}: ${states[step] ?? "missing"}`).join(" · ");
+    const parentId = active.parentId ?? active.id;
+    const group = studies.filter(study => study.id === parentId || study.parentId === parentId);
+    for (const study of group) {
+      const rowTasks = value.project?.queue?.tasks.filter(task => task.studyId === study.id).sort((a, b) => value.project!.queue!.tasks.indexOf(a) - value.project!.queue!.tasks.indexOf(b)) ?? [];
+      const latestRun = study.runs?.[study.runs.length - 1];
+      const latestQueueRunId = [...rowTasks].reverse().find(task => task.kind === "solve")?.runId;
+      const runId = latestQueueRunId ?? latestRun?.id;
+      const tasks = rowTasks.filter(task => !runId || task.runId === runId);
+      const selectedRun = study.runs?.find(run => run.id === runId);
+      const failure = selectedRun && ["failed", "cancelled", "blocked"].includes(selectedRun.state ?? "") || tasks.some(task => ["failed", "cancelled", "blocked"].includes(task.state));
+      const activeTask = tasks.some(task => ["dispatching", "running", "uncertain"].includes(task.state));
+      const hasOpenTasks = rowTasks.some(task => ["waiting", "held", "dispatching", "running", "uncertain"].includes(task.state));
+      const waitingTasks = tasks.filter(task => ["waiting", "held"].includes(task.state));
+      const row = document.createElement("div"); row.className = "variant-row";
+      const label = document.createElement("span"); label.className = "variant-row-label";
+      const status = selectedRun?.state ?? (tasks.length ? tasks[tasks.length - 1].state : "not run");
+      label.textContent = `${study.name} · ${status}${runId ? ` · ${runId.slice(0, 8)}` : ""}`;
+      row.append(label);
+      const actions = document.createElement("span"); actions.className = "variant-row-actions";
+      if (!failure && !activeTask && waitingTasks.length && value.queuePlanRevision && manualRuntimeAvailable !== false) {
+        const resume = document.createElement("button"); resume.type = "button"; resume.className = "btn-link"; resume.textContent = "Resume row";
+        resume.addEventListener("click", () => {
+          const taskList = waitingTasks.map(task => `${task.kind}: ${task.state}`).join(" · ");
+          if (window.confirm(`Resume only ${study.name} from the approved queue plan? Other waiting rows will stay held.\n\n${taskList}\nPlan revision: ${value.queuePlanRevision}`))
+            workflowCall("queue_resume_row", { taskId: waitingTasks[0].id, planRevision: value.queuePlanRevision });
+        });
+        actions.append(resume);
+      }
+      if (failure && !hasOpenTasks) {
+        const retry = document.createElement("button"); retry.type = "button"; retry.className = "btn-link"; retry.textContent = "Retry row";
+        retry.addEventListener("click", () => {
+          const meshReady = value.readiness?.[study.id]?.mesh === "ready";
+          const reuseMesh = meshReady && window.confirm(`Reuse ${study.name}'s immutable mesh? Choose Cancel to regenerate it.`);
+          workflowAction = "queue-preview";
+          workflowCall("queue_retry_variant_preview", { studyId: study.id, reuseMesh });
+        });
+        actions.append(retry);
+      }
+      row.append(actions); variantContainer.append(row);
+    }
   } else {
     selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; studyReadiness.textContent = "No studies yet.";
     for (const id of ["study-open-geometry", "study-open-mesh", "study-open-case", "study-open-results"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;

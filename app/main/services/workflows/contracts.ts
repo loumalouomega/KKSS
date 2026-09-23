@@ -41,5 +41,5 @@ export interface Task {
 }
 export interface Project {
   version: 1; id: string; revision: number; activeStudyId?: string; activeRunId?: string;
-  studies: Study[]; queue: { paused: boolean; tasks: Task[] };
+  studies: Study[]; queue: { paused: boolean; tasks: Task[]; dispatchScope?: string[] };
 }

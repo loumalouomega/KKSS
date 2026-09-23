@@ -107,12 +107,16 @@ Do not claim solver convergence from process exit alone.
 The Home navigator exposes source relinking/copy-in, mesh/case navigation,
 single-run and parameter-sweep previews, queue pause/resume/cancel, run review,
 and parent/variant comparisons. Parameter sweeps create fresh studies only when
-the preview is enqueued; each row has its own run directory. Structural evidence
+the preview is enqueued; each row has its own run directory, and Home can resume
+one waiting row while holding the others or preview a fresh-identity retry for a
+failed row. Structural evidence
 contains versioned per-step convergence booleans, not residuals; quantity
 evaluation explicitly selects a result field/component, region, time, reduction
 and unit, then saves it with its exact artifact reference and source revision.
-Variant comparison accepts only matching definitions with compatible units and
-preserves missing values as null. The read-only mesh evaluator is
+Variant comparison labels mesh-sensitivity, solver-parameter and mixed studies
+from recorded mesh revisions and settings; it accepts only matching quantity
+definitions with compatible units and preserves missing values as null. The
+read-only mesh evaluator is
 `mesh__case_evaluate_quantity`; its app-owned persistence wrapper is
 `app__run_quantity_evaluate` and follows normal write approval.
 
@@ -1090,7 +1094,7 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 (`55cf1ca`, also the `redesign` branch) are integrated without edits to either submodule. The recurring release-bump
 checklist lives in `doc/guide/development.md` under **Submodule release
 maintenance**; repeat it for every bump, including live MCP tool discovery
-(current sets: 56 CAD + 24 mesh + 4 aggregation + 28 app-owned workflow tools).
+(current sets: 56 CAD + 24 mesh + 4 aggregation + 30 app-owned workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
 port, not just a gitlink bump.** Two classes of change, both in

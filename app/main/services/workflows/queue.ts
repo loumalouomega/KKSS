@@ -58,13 +58,27 @@ export class ExecutionQueue {
     });
   }
   async pause(store: ProjectStore): Promise<void> { await store.update(p => { p.queue.paused = true; }); }
-  async resume(store: ProjectStore, expectedPlan: string): Promise<void> {
+  async resume(store: ProjectStore, expectedPlan: string, selectedTaskIds?: string[]): Promise<void> {
     await this.register(store);
     await store.update(p => {
       if (planRevision(p.queue.tasks) !== expectedPlan) throw new Error('The concrete plan changed. Preview and approve it again.');
-      // A held task was never dispatched. Resume is an explicit request to
-      // re-run its preflight after the user has corrected configuration.
-      for (const task of p.queue.tasks) if (task.state === 'held') { task.state = 'waiting'; delete task.error; }
+      if (selectedTaskIds) {
+        if (!selectedTaskIds.length || new Set(selectedTaskIds).size !== selectedTaskIds.length) throw new Error('Choose one waiting run row to resume.');
+        const selected = selectedTaskIds.map(id => p.queue.tasks.find(task => task.id === id));
+        if (selected.some(task => !task || !['waiting', 'held'].includes(task.state))) throw new Error('The selected row is no longer waiting; failed rows need a fresh retry plan.');
+        if (new Set(selected.map(task => `${task!.studyId}:${task!.runId}`)).size !== 1) throw new Error('A row resume must target tasks from one study run.');
+        const ids = new Set(selectedTaskIds);
+        for (const task of p.queue.tasks) {
+          if (task.state === 'waiting' && !ids.has(task.id)) { task.state = 'held'; task.error = 'Held while a selected variant row runs.'; }
+          else if (ids.has(task.id) && task.state === 'held') { task.state = 'waiting'; delete task.error; }
+        }
+        p.queue.dispatchScope = [...selectedTaskIds];
+      } else {
+        // A held task was never dispatched. Resume is an explicit request to
+        // re-run its preflight after the user has corrected configuration.
+        for (const task of p.queue.tasks) if (task.state === 'held') { task.state = 'waiting'; delete task.error; }
+        delete p.queue.dispatchScope;
+      }
       p.queue.paused = false;
     });
     await this.tick();
@@ -96,9 +110,20 @@ export class ExecutionQueue {
     }
     if (occupied) return;
     for (const store of this.stores) {
-      const snapshot = await store.read();
+      let snapshot = await store.read();
+      if (snapshot?.queue.dispatchScope) {
+        const scope = new Set(snapshot.queue.dispatchScope);
+        const scoped = snapshot.queue.tasks.filter(task => scope.has(task.id));
+        const ready = scoped.some(task => task.state === 'waiting' && task.dependencies.every(id => snapshot!.queue.tasks.find(dependency => dependency.id === id)?.state === 'succeeded'));
+        const running = scoped.some(task => active(task));
+        if (!ready && !running) {
+          await store.update(project => { project.queue.paused = true; delete project.queue.dispatchScope; });
+          snapshot = await store.read();
+        }
+      }
       if (!snapshot || snapshot.queue.paused) continue;
-      for (const task of snapshot.queue.tasks.filter(t => t.state === 'waiting')) {
+      const dispatchScope = snapshot.queue.dispatchScope ? new Set(snapshot.queue.dispatchScope) : undefined;
+      for (const task of snapshot.queue.tasks.filter(t => t.state === 'waiting' && (!dispatchScope || dispatchScope.has(t.id)))) {
         const dependencies = task.dependencies.map(id => snapshot.queue.tasks.find(t => t.id === id)!);
         if (dependencies.some(failed)) {
           await store.update(p => { p.queue.tasks.find(t => t.id === task.id)!.state = 'blocked'; });

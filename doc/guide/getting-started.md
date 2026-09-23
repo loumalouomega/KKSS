@@ -74,7 +74,9 @@ mesh, **Attach mesh** records its revision and imports the adjacent case setup w
 **Plan run** previews isolated mesh, case-generation and solve tasks under `.kkss/runs/<id>/`.
 **Plan sweep** expands one case-setting path and up to 50 values into fresh variant studies and run
 destinations. Plans persist paused; Resume is bound to the concrete plan revision, and the queue
-reconciles recorded mesh-run request identities after restart. A terminal run can be imported as an
+reconciles recorded mesh-run request identities after restart. Home can resume one waiting variant row
+while holding other rows, or preview a failed row retry with fresh study and run identities. Comparisons
+label mesh-sensitivity and solver-parameter studies separately using recorded mesh revisions and settings. A terminal run can be imported as an
 immutable input snapshot; large results remain revision-checked links. **Review run** and **Export
 review** report inputs, MDPA counts and versioned structural solve-step outcomes in offline JSON/HTML.
 **Evaluate quantity** lets you select a result field, location, component, region, time step,

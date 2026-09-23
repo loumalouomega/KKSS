@@ -453,7 +453,7 @@ export class WorkflowService {
     while (this.previews.size > 25) this.previews.delete(this.previews.keys().next().value!);
     return { previewId, studyId, runId: built.runId, tasks: built.tasks, summary, runCount: 1, reuseMesh };
   }
-  private async previewVariantQueue(studyId: string, reuseMesh: boolean, rows: { name: string; settings: Json }[]): Promise<Record<string, unknown>> {
+  private async previewVariantQueue(studyId: string, reuseMesh: boolean, rows: { name: string; settings: Json }[], groupParentId?: string): Promise<Record<string, unknown>> {
     const store = this.store(), project = await store.read();
     if (!project) throw new Error('Create a study before planning variants.');
     if (!rows.length || rows.length > 50) throw new Error('A sweep must contain 1–50 explicit variant rows.');
@@ -463,7 +463,11 @@ export class WorkflowService {
     if (!baseDecl) throw new Error(`Problemtype "${baseType}" has no declared variant schema.`);
     const baselineSettings: Json = source.caseSettings && object(source.caseSettings) ? source.caseSettings : JSON.parse(JSON.stringify(defaultCaseState(baseDecl))) as Json;
     if (rows.some(row => !object(row.settings) || row.settings.problemtypeId !== undefined && row.settings.problemtypeId !== baseType)) throw new Error('Variant rows must keep the source problemtype and provide a case settings object.');
-    const studies = rows.map(row => duplicateStudy(source, row.name, reuseMesh, row.settings));
+    const studies = rows.map(row => {
+      const study = duplicateStudy(source, row.name, reuseMesh, row.settings);
+      if (groupParentId) study.parentId = groupParentId;
+      return study;
+    });
     const built = await Promise.all(studies.map(async study => {
       const plan = await this.buildQueueTasks(store, study, reuseMesh, study.caseSettings);
       return { study, ...plan };
@@ -829,6 +833,20 @@ export class WorkflowService {
           if (typeof args.reuseMesh !== 'boolean' || !Array.isArray(args.values)) throw new Error('Choose mesh reuse and provide parameter values.');
           return this.previewParameterQueue(text(args, 'studyId'), args.reuseMesh, text(args, 'parameterPath'), args.values as Json[]);
         }),
+      tool('queue_retry_variant_preview', 'Preview one fresh retry row for a failed or cancelled variant. Keeps it in the same comparison group and never overwrites the previous run.',
+        { studyId: str, reuseMesh: { type: 'boolean' } }, ['studyId', 'reuseMesh'], async args => {
+          if (typeof args.reuseMesh !== 'boolean') throw new Error('Choose whether to reuse the variant mesh.');
+          const project = await this.store().read(); if (!project) throw new Error('No project.');
+          const source = this.study(project, text(args, 'studyId'));
+          if (project.queue.tasks.some(task => task.studyId === source.id && ['waiting', 'held', 'dispatching', 'running', 'uncertain'].includes(task.state))) throw new Error('This variant has queued work. Resume or reconcile it before creating a retry.');
+          const latest = source.runs[source.runs.length - 1];
+          const latestSolve = [...project.queue.tasks].reverse().find(task => task.studyId === source.id && task.kind === 'solve');
+          const retryable = latest?.state === 'failed' || latest?.state === 'cancelled' || latest?.state === 'blocked' || ['failed', 'cancelled', 'blocked'].includes(latestSolve?.state ?? '');
+          if (!retryable) throw new Error('Only failed, cancelled or blocked variant rows can be retried.');
+          const parentId = source.parentId ?? source.id;
+          const retryNumber = project.studies.filter(study => study.parentId === parentId && study.name.startsWith(`${source.name} retry`)).length + 1;
+          return this.previewVariantQueue(source.id, args.reuseMesh, [{ name: `${source.name} retry ${retryNumber}`, settings: source.caseSettings }], parentId);
+        }),
       tool('queue_enqueue', 'Persist a previously previewed task plan in the paused queue. No runner is called until queue_resume approves its exact plan revision.',
         { previewId: str }, ['previewId'], args => this.enqueuePreview(text(args, 'previewId'))),
       tool('queue_inspect', 'Read the persistent queue and its task receipts.', {}, [], async () => (await this.store().read())?.queue ?? { paused: true, tasks: [] }),
@@ -844,6 +862,19 @@ export class WorkflowService {
         { planRevision: str }, ['planRevision'], async args => {
           await this.deps.prepareQueue?.();
           const store = this.store(); await this.queue.resume(store, text(args, 'planRevision')); await this.persistTerminalQueueRuns(store); await this.snapshot(); return (await store.read())?.queue;
+        }),
+      tool('queue_resume_row', 'Resume one waiting run row from the exact approved queue revision; other waiting rows stay held. Failed rows need a fresh retry plan.',
+        { taskId: str, planRevision: str }, ['taskId', 'planRevision'], async args => {
+          await this.deps.prepareQueue?.();
+          const store = this.store(), project = await store.read();
+          const selectedTask = project?.queue.tasks.find(task => task.id === text(args, 'taskId'));
+          if (!project || !selectedTask) throw new Error('The selected queue task no longer exists.');
+          const rowTasks = project.queue.tasks.filter(task => task.studyId === selectedTask.studyId && task.runId === selectedTask.runId);
+          if (rowTasks.some(task => ['dispatching', 'running', 'uncertain', 'failed', 'cancelled', 'blocked'].includes(task.state))) throw new Error('This row is active or has a failed task; let it reconcile or create a fresh retry plan.');
+          const waitingIds = rowTasks.filter(task => ['waiting', 'held'].includes(task.state)).map(task => task.id);
+          if (!waitingIds.length) throw new Error('This run row has no waiting tasks to resume.');
+          await this.queue.resume(store, text(args, 'planRevision'), waitingIds);
+          await this.persistTerminalQueueRuns(store); await this.snapshot(); return (await store.read())?.queue;
         }),
       tool('queue_cancel', 'Cancel a waiting task or request owner-scoped cancellation for a running solver task.', { taskId: str }, ['taskId'], async args => {
         const store = this.store(); await this.queue.cancel(store, text(args, 'taskId')); await this.snapshot(); return (await store.read())?.queue;

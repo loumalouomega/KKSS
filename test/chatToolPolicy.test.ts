@@ -154,11 +154,11 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 56 cad + 24 mesh tools + 4 in-process mcp__ tools + 28 app__ workflow tools.
+    // 56 cad + 24 mesh tools + 4 in-process mcp__ tools + 30 app__ workflow tools.
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(112);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(114);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
@@ -166,7 +166,7 @@ describe("the table itself", () => {
     expect(cad).toHaveLength(56);
     expect(mesh).toHaveLength(24);
     expect(meta).toHaveLength(4);
-    expect(app).toHaveLength(28);
+    expect(app).toHaveLength(30);
     // No kratos__ row: its external server is deliberately unclassified.
     expect(cad.length + mesh.length + meta.length + app.length).toBe(Object.keys(TOOL_ACCESS).length);
   });
@@ -182,6 +182,7 @@ describe("the table itself", () => {
       "app__queue_pause",
       "app__queue_reorder",
       "app__queue_resume",
+      "app__queue_resume_row",
       "app__run_quantity_evaluate",
       "app__run_review_export",
       "app__study_attach_mesh",
