@@ -101,9 +101,12 @@ workspaces with stable owner/request receipts and owner-scoped cancellation. The
 stores dispatch intent before calling a runner, reconciles mesh request IDs, and leaves unresolved
 work uncertain rather than resubmitting it. Terminal runs can be imported into immutable
 project-local input snapshots; large result files remain revision-checked references. Structural
-case generation writes a versioned per-step convergence monitor. The review renders those outcomes
-but leaves residual magnitudes, scalar quantities, and unsupported problemtype diagnostics
-unavailable until their producers are implemented.
+case generation writes a versioned per-step convergence monitor. `mesh__case_evaluate_quantity`
+uses the existing field parser and reductions to evaluate one explicitly selected field/component,
+region, time and reduction. `app__run_quantity_evaluate` requires an explicit unit, verifies the
+run and result revision, and stores the quantity with a portable source reference. Reviews omit
+values whose source result is stale; variant comparisons require matching definitions and units.
+Residual magnitudes, mesh-quality review and unsupported-problemtype convergence remain unavailable.
 
 ## Embedded terminal (node-pty + xterm.js)
 
@@ -177,7 +180,7 @@ API keys are entered via **Settings ▸ LLM Assistant** (`showInputBox` modals) 
 
 `app/main/services/chat/toolPolicy.ts` decides whether a tool the model asked for runs straight away or has to be approved. It is a **pure** module (no `electron`, no `node:*`, the approval mode passed in rather than read from the stateStore) so `test/` drives it directly — `test/chatToolPolicy.test.ts`.
 
-Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering 110 bundled/in-process tools: 56 CAD, 23 mesh, four in-process `mcp__*` tools, and 27 app-owned `app__*` workflow tools. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (40 tools, resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
+Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering 112 bundled/in-process tools: 56 CAD, 24 mesh, four in-process `mcp__*` tools, and 28 app-owned `app__*` workflow tools. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (40 tools, resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
 
 The gate sits in `chatService.ts`'s tool loop, between appending the `toolCall` entry (so the user can read the arguments they are approving) and `mcp.callTool`. Three rules are load-bearing and easy to break:
 

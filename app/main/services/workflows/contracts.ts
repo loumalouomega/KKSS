@@ -12,8 +12,9 @@ export interface Handoff {
   findings: Finding[];
 }
 export interface Quantity {
-  field: string; component: string; region: string; time: number; reduction: string;
-  unit: string; value: number | null; runId: string;
+  field: string; kind: 'Nodal' | 'Elemental' | 'Conditional'; component: string;
+  region: string; time: number; reduction: string; unit: string;
+  value: number | null; runId: string; source: Reference;
 }
 export interface Evidence {
   version: 1; runId: string; findings: Finding[];

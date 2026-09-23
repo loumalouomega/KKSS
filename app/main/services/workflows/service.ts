@@ -6,7 +6,7 @@ import { writeFileAtomic } from '../atomicWrite';
 import type { AppTool } from '../chat/appTools';
 import { checkEnvironment, type EnvironmentReport } from './environment';
 import { ProjectStore, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
-import type { Handoff, Json, Project, Study } from './contracts';
+import type { Handoff, Json, Project, Quantity, Study } from './contracts';
 import type { Run } from './contracts';
 import type { KratosRuntime } from '../chat/kratosRuntime';
 import { ExecutionQueue, planRevision } from './queue';
@@ -279,8 +279,11 @@ export class WorkflowService {
     if (!run || run.studyId !== study.id) throw new Error('Run does not belong to this study.');
     const mesh = run.artifacts.find(a => a.role === 'mesh' && a.ownerId === run.id);
     const convergenceArtifact = run.artifacts.find(a => a.role === 'convergence' && a.ownerId === run.id);
+    const resultArtifacts = run.artifacts.filter(a => a.role === 'result' && a.ownerId === run.id);
     let meshText: string | undefined;
     let convergenceText: string | undefined;
+    const currentResultReferences = new Set<string>();
+    let staleResults = 0;
     if (mesh) {
       const file = resolveReference(store.root, mesh.reference);
       if (await fileRevision(file) === mesh.reference.revision && path.extname(file).toLowerCase() === '.mdpa') meshText = await fs.readFile(file, 'utf8');
@@ -289,7 +292,89 @@ export class WorkflowService {
       const file = resolveReference(store.root, convergenceArtifact.reference);
       if (await fileRevision(file) === convergenceArtifact.reference.revision) convergenceText = await fs.readFile(file, 'utf8');
     }
-    return { store, run, review: makeReview(project.revision, study, run, meshText, convergenceText) };
+    for (const artifact of resultArtifacts) {
+      try {
+        const file = resolveReference(store.root, artifact.reference);
+        if (await fileRevision(file) === artifact.reference.revision) currentResultReferences.add(fingerprint(artifact.reference));
+        else staleResults++;
+      } catch { staleResults++; }
+    }
+    const savedQuantities = run.evidence?.quantities ?? [];
+    const currentQuantities = savedQuantities.filter(quantity => quantity.runId === run.id && currentResultReferences.has(fingerprint(quantity.source)));
+    const staleQuantities = savedQuantities.length - currentQuantities.length;
+    const review = makeReview(project.revision, study, run, meshText, convergenceText, currentQuantities, staleQuantities);
+    if (!resultArtifacts.length) review.evidence.findings.push({ severity: 'unavailable', message: 'No result artifact is attached to this run.' });
+    if (staleResults) review.evidence.findings.push({ severity: 'unavailable', message: `${staleResults} result artifact(s) are missing or differ from their recorded content revision.` });
+    return { store, run, review };
+  }
+  private async evaluateRunQuantity(args: Record<string, unknown>) {
+    const store = this.store(), project = await store.read();
+    if (!project) throw new Error('No project.');
+    const study = this.study(project, text(args, 'studyId'));
+    const run = study.runs.find(row => row.id === text(args, 'runId'));
+    if (!run || run.studyId !== study.id) throw new Error('Run does not belong to this study.');
+    const field = text(args, 'field'), kind = text(args, 'kind'), component = text(args, 'component');
+    const reduction = text(args, 'reduction'), unit = text(args, 'unit'), region = typeof args.region === 'string' && args.region.trim() ? args.region.trim() : 'global';
+    if (!['Nodal', 'Elemental', 'Conditional'].includes(kind)) throw new Error('Choose Nodal, Elemental or Conditional field data.');
+    if (!['scalar', 'x', 'y', 'z', 'magnitude'].includes(component)) throw new Error('Choose scalar, x, y, z or magnitude.');
+    const supportedReductions = ['min', 'max', 'minAbs', 'maxAbs', 'mean', 'std', 'median', 'sum', 'count', 'q1', 'q3', 'iqr'];
+    if (!supportedReductions.includes(reduction)) throw new Error('Unsupported scalar reduction.');
+    if (!unit.trim()) throw new Error('Declare the quantity unit explicitly.');
+    const existing = run.artifacts.find(artifact => artifact.role === 'result' && artifact.ownerId === run.id);
+    let resultPath: string, resultRevision: string, resultReference: ReturnType<typeof reference>;
+    if (typeof args.resultPath === 'string' && args.resultPath.trim()) {
+      resultPath = path.resolve(args.resultPath);
+      const knownArtifact = run.artifacts.find(artifact => artifact.role === 'result' && artifact.ownerId === run.id && resolveReference(store.root, artifact.reference) === resultPath);
+      const knownPath = !!knownArtifact;
+      if (!knownPath) {
+        const runDirectory = path.resolve(store.root, run.directory), relative = path.relative(runDirectory, resultPath);
+        if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error('An explicit result file must be owned by this run directory.');
+      }
+      const stat = await fs.stat(resultPath);
+      if (!stat.isFile()) throw new Error('Choose one concrete result file.');
+      resultRevision = await fileRevision(resultPath);
+      if (knownArtifact && resultRevision !== knownArtifact.reference.revision) throw new Error('The attached result changed after import. Preserve it and attach a new run before evaluating.');
+      resultReference = knownArtifact?.reference ?? reference(store.root, resultPath, resultRevision);
+    } else {
+      if (!existing) throw new Error('This run has no attached result. Choose a result file inside its isolated run directory.');
+      resultPath = resolveReference(store.root, existing.reference);
+      resultRevision = await fileRevision(resultPath);
+      if (resultRevision !== existing.reference.revision) throw new Error('The attached result is stale. Import or attach the correct run result before evaluating.');
+      resultReference = existing.reference;
+    }
+    const timeStep = typeof args.timeStep === 'number' && Number.isInteger(args.timeStep) ? args.timeStep : undefined;
+    const raw = await this.invokeMcp('mesh__case_evaluate_quantity', {
+      path: resultPath, runId: run.id, field, kind, component, region, reduction, unit: unit.trim(), ...(timeStep !== undefined ? { timeStep } : {}),
+    });
+    if (raw.version !== 1 || raw.runId !== run.id || !object(raw.source) || path.resolve(String(raw.source.path ?? '')) !== resultPath || String(raw.source.revision ?? '').replace(/^sha256:/, '') !== resultRevision || !object(raw.evaluation) || !object(raw.quantity)) {
+      throw new Error('Mesh returned a quantity record that does not match the selected run and result revision.');
+    }
+    const measured = raw.quantity;
+    const evaluated = raw.evaluation;
+    if (measured.runId !== run.id || measured.field !== field || measured.kind !== kind || measured.component !== component || measured.region !== region || measured.reduction !== reduction || measured.unit !== unit.trim() || !Number.isFinite(evaluated.time)) {
+      throw new Error('Mesh returned a quantity record with a different evaluation definition.');
+    }
+    const quantity: Quantity = {
+      field, kind: kind as Quantity['kind'], component, region, time: Number(evaluated.time), reduction,
+      unit: unit.trim(), value: typeof measured.value === 'number' && Number.isFinite(measured.value) ? measured.value : null,
+      runId: run.id, source: resultReference,
+    };
+    await store.update(p => {
+      const currentStudy = this.study(p, study.id), currentRun = currentStudy.runs.find(row => row.id === run.id);
+      if (!currentRun || currentRun.studyId !== currentStudy.id) throw new Error('Run ownership changed during evaluation.');
+      const currentResult = currentRun.artifacts.find(artifact => artifact.role === 'result' && artifact.ownerId === currentRun.id && resolveReference(store.root, artifact.reference) === resultPath);
+      if (currentResult && currentResult.reference.revision !== resultRevision) throw new Error('Result revision changed during evaluation.');
+      if (!currentResult) currentRun.artifacts.push({ role: 'result', ownerId: currentRun.id, reference: resultReference });
+      const evidence = currentRun.evidence ?? makeReview(p.revision, currentStudy, currentRun).evidence;
+      const duplicate = evidence.quantities.findIndex(value => value.field === quantity.field && value.kind === quantity.kind && value.component === quantity.component && value.region === quantity.region && value.time === quantity.time && value.reduction === quantity.reduction && value.unit === quantity.unit && fingerprint(value.source) === fingerprint(quantity.source));
+      if (duplicate >= 0) evidence.quantities[duplicate] = quantity; else evidence.quantities.push(quantity);
+      evidence.findings = evidence.findings.filter(finding => !finding.message.startsWith('No current scalar quantity evaluation'));
+      if (quantity.value === null) evidence.findings.push({ severity: 'unavailable', message: `The selected ${field} reduction had no finite values in region ${region} at time ${quantity.time}.` });
+      currentRun.evidence = evidence;
+      p.activeStudyId = currentStudy.id; p.activeRunId = currentRun.id;
+    });
+    this.deps.changed();
+    return { quantity, runId: run.id, sourceRevision: resultRevision };
   }
   private async buildVariantComparison(studyId: string) {
     const store = this.store(), project = await store.read(); if (!project) throw new Error('No project.');
@@ -714,7 +799,13 @@ export class WorkflowService {
         const variants = rows.map(row => duplicateStudy(source, row.name, reuseMesh, row.settings));
         p.studies.push(...variants); return variants;
       })),
-      tool('run_review', 'Build a structured review for an imported terminal run. Unsupported convergence and scalar checks remain explicitly unavailable.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => (await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'))).review),
+      tool('run_review', 'Build a structured review for a terminal run. Saved scalar quantities are included only while their source result revision is current; unsupported convergence and residual diagnostics remain explicitly unavailable.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => (await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'))).review),
+      tool('run_quantity_evaluate', 'Evaluate one explicitly selected result field and save its definition, unit, value and exact source artifact revision into the owning run evidence.', {
+        studyId: str, runId: str, resultPath: str,
+        field: str, kind: { enum: ['Nodal', 'Elemental', 'Conditional'] },
+        component: { enum: ['scalar', 'x', 'y', 'z', 'magnitude'] }, region: str,
+        timeStep: { type: 'integer' }, reduction: { enum: ['min', 'max', 'minAbs', 'maxAbs', 'mean', 'std', 'median', 'sum', 'count', 'q1', 'q3', 'iqr'] }, unit: str,
+      }, ['studyId', 'runId', 'field', 'kind', 'component', 'reduction', 'unit'], args => this.evaluateRunQuantity(args)),
       tool('run_review_export', 'Export a selected run review as JSON and self-contained offline HTML.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => {
         const { store, run, review } = await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'));
         const directory = path.join(store.root, '.kkss', 'reviews');

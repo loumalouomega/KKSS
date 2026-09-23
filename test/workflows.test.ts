@@ -212,7 +212,8 @@ describe('variant comparisons', () => {
       directory: '.kkss/runs/run-failed', state: 'failed', startedAt: 10, finishedAt: 50, artifacts: [] };
     const evidence = (runId: string, value: number, unit: string, state: Evidence['convergence']['state']): Evidence => ({
       version: 1, runId, findings: [], mesh: {}, convergence: { adapter: 'test', state, samples: [] },
-      quantities: [{ field: 'DISPLACEMENT', component: 'magnitude', region: 'tip', time: 1, reduction: 'max', unit, value, runId }],
+      quantities: [{ field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', region: 'tip', time: 1, reduction: 'max', unit, value, runId,
+        source: { kind: 'project', path: `.kkss/runs/${runId}/result.vtk`, revision: `rev-${runId}` } }],
     });
     const comparison = compareVariants(parent, [
       { study: parent, run: successfulRun, evidence: evidence(successfulRun.id, 0.002, 'm', 'converged') },
@@ -342,5 +343,41 @@ describe('shared workflow tools', () => {
     expect(await fs.readFile(paths.htmlFile, 'utf8')).toContain('Convergence: unavailable');
     expect(JSON.parse(await fs.readFile(paths.jsonFile, 'utf8')).run.state).toBe('succeeded');
     expect((await service.snapshot() as { readiness: Record<string, Record<string, string>> }).readiness[created.id].case).toBe('ready');
+  });
+
+  it('evaluates and persists a unit-labelled quantity only for the exact owned result revision', async () => {
+    const root = await temp(), resultFile = path.join(root, '.kkss', 'runs', 'run-quantity', 'solve', 'vtk_output', 'result.vtu');
+    const geometry = path.join(root, 'beam.step'); await fs.writeFile(geometry, 'geometry');
+    await fs.mkdir(path.dirname(resultFile), { recursive: true }); await fs.writeFile(resultFile, '<VTKFile>result</VTKFile>');
+    const revision = await fileRevision(resultFile), calls: Record<string, unknown>[] = [];
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined,
+      callMcpTool: async (name, args) => {
+        expect(name).toBe('mesh__case_evaluate_quantity'); calls.push(args);
+        return { structuredContent: {
+          version: 1, runId: 'run-quantity', source: { path: resultFile, revision: `sha256:${revision}` },
+          evaluation: { field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', region: 'global', time: 0, reduction: 'max', unit: 'm' },
+          quantity: { field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', region: 'global', time: 0, reduction: 'max', unit: 'm', value: 0.004, runId: 'run-quantity' },
+        } };
+      } });
+    const store = service.store(), study: Study = { ...makeStudy(), source: reference(root, geometry, await fileRevision(geometry)), runs: [] };
+    const run: Run = { id: 'run-quantity', studyId: study.id, sourceRevision: study.source.revision, meshRevision: 'mesh-rev',
+      settings: study.caseSettings, directory: '.kkss/runs/run-quantity', state: 'succeeded', artifacts: [
+        { role: 'result', ownerId: 'run-quantity', reference: reference(root, resultFile, revision) },
+      ] };
+    run.startedAt = 1; run.finishedAt = 2; study.runs.push(run);
+    await store.update(p => { p.studies.push(study); p.activeStudyId = study.id; p.activeRunId = run.id; });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(tool => tool.name === `app__${name}`)!.invoke(args);
+    const saved = await invoke('run_quantity_evaluate', { studyId: study.id, runId: run.id, field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', reduction: 'max', unit: 'm' });
+    expect(calls).toHaveLength(1);
+    expect(saved).toMatchObject({ quantity: { value: 0.004, runId: run.id, source: { revision } } });
+    const review = await invoke('run_review', { studyId: study.id, runId: run.id }) as { evidence: Evidence };
+    expect(review.evidence.quantities).toHaveLength(1);
+    expect(review.evidence.findings.some(finding => finding.message.includes('No current scalar quantity'))).toBe(false);
+    await fs.writeFile(resultFile, '<VTKFile>replaced</VTKFile>');
+    const stale = await invoke('run_review', { studyId: study.id, runId: run.id }) as { evidence: Evidence };
+    expect(stale.evidence.quantities).toEqual([]);
+    expect(stale.evidence.findings.some(finding => finding.message.includes('older result revision'))).toBe(true);
   });
 });

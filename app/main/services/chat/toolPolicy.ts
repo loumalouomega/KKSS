@@ -97,6 +97,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__variants_compare_export: "write",
   app__run_review: "read",
   app__run_review_export: "write",
+  app__run_quantity_evaluate: "write",
   app__study_create: "write",
   app__study_select: "write",
   app__study_set_settings: "write",
@@ -173,7 +174,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
 
-  // ---- kratos-mdpa (23) ---------------------------------------------------
+  // ---- kratos-mdpa (24) ---------------------------------------------------
   mesh__mesh_info: "read",
   mesh__mesh_capabilities: "read",
   mesh__mesh_quality: "read",
@@ -182,6 +183,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__mesh_find_entity: "read",
   mesh__case_validate: "read",
   mesh__case_status: "read",
+  mesh__case_evaluate_quantity: "read",
   mesh__mesh_transform: "write",
   mesh__mesh_convert: "write",
   mesh__mesh_extract_submodelpart: "write",

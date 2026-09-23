@@ -6,7 +6,7 @@ export interface VariantRow {
   convergence: Evidence['convergence']['state'] | 'unavailable'; elapsedMs?: number;
 }
 export interface QuantityComparison {
-  definition: { field: string; component: string; region: string; time: number; reduction: string };
+  definition: { field: string; kind: string; component: string; region: string; time: number; reduction: string };
   compatible: boolean; unit?: string; values: { studyId: string; runId?: string; value: number | null; unit?: string }[];
 }
 export interface SettingChange { path: string; baseline: Json | null; value: Json | null; baselinePresent: boolean; valuePresent: boolean }
@@ -35,7 +35,7 @@ export function compareVariants(parent: Study, candidates: { study: Study; run?:
   const quantityMap = new Map<string, { definition: QuantityComparison['definition']; entries: Map<string, { runId?: string; value: number | null; unit: string }> }>();
   const rows = candidates.map(({ study, run, evidence }) => {
     for (const quantity of evidence?.quantities ?? []) {
-      const definition = { field: quantity.field, component: quantity.component, region: quantity.region, time: quantity.time, reduction: quantity.reduction };
+      const definition = { field: quantity.field, kind: quantity.kind, component: quantity.component, region: quantity.region, time: quantity.time, reduction: quantity.reduction };
       const key = fingerprint(definition);
       let item = quantityMap.get(key);
       if (!item) { item = { definition, entries: new Map() }; quantityMap.set(key, item); }
@@ -74,6 +74,6 @@ function escape(value: unknown): string {
 export function comparisonHtml(comparison: VariantComparison): string {
   const rowHtml = comparison.rows.map(row => `<tr><td>${escape(row.name)}</td><td>${escape(row.state)}</td><td>${escape(row.convergence)}</td><td>${row.elapsedMs === undefined ? 'missing' : escape(`${row.elapsedMs} ms`)}</td><td>${escape(comparison.differences.find(diff => diff.studyId === row.studyId)?.changes.map(change => change.path).join(', ') || 'baseline')}</td></tr>`).join('');
   const changesHtml = comparison.differences.flatMap(diff => diff.changes.map(change => `<li>${escape(comparison.rows.find(row => row.studyId === diff.studyId)?.name ?? diff.studyId)} — ${escape(change.path)}: ${change.baselinePresent ? escape(JSON.stringify(change.baseline)) : 'missing'} → ${change.valuePresent ? escape(JSON.stringify(change.value)) : 'missing'}</li>`)).join('');
-  const quantityHtml = comparison.quantities.map(quantity => `<tr><td>${escape(`${quantity.definition.field}/${quantity.definition.component} · ${quantity.definition.region} · t=${quantity.definition.time} · ${quantity.definition.reduction}`)}</td><td>${escape(quantity.compatible ? quantity.unit : 'incompatible units')}</td><td>${quantity.values.map(value => `<div>${escape(comparison.rows.find(row => row.studyId === value.studyId)?.name ?? value.studyId)}: ${escape(value.value ?? 'missing')}${value.unit ? ` ${escape(value.unit)}` : ''}</div>`).join('')}</td></tr>`).join('');
+  const quantityHtml = comparison.quantities.map(quantity => `<tr><td>${escape(`${quantity.definition.kind} ${quantity.definition.field}/${quantity.definition.component} · ${quantity.definition.region} · t=${quantity.definition.time} · ${quantity.definition.reduction}`)}</td><td>${escape(quantity.compatible ? quantity.unit : 'incompatible units')}</td><td>${quantity.values.map(value => `<div>${escape(comparison.rows.find(row => row.studyId === value.studyId)?.name ?? value.studyId)}: ${escape(value.value ?? 'missing')}${value.unit ? ` ${escape(value.unit)}` : ''}</div>`).join('')}</td></tr>`).join('');
   return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Variant comparison — ${escape(comparison.parentName)}</title><style>body{font:15px system-ui;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#222}table{border-collapse:collapse;width:100%;margin:1rem 0}td,th{border:1px solid #bbb;padding:.45rem;text-align:left;overflow-wrap:anywhere}li{margin:.3rem 0}</style><h1>Variant comparison: ${escape(comparison.parentName)}</h1><h2>Runs</h2><table><thead><tr><th>Study</th><th>Process</th><th>Convergence</th><th>Elapsed</th><th>Input differences</th></tr></thead><tbody>${rowHtml}</tbody></table><h2>Setting changes</h2><ul>${changesHtml || '<li>No setting changes</li>'}</ul><h2>Compatible scalar quantities</h2><table><thead><tr><th>Definition</th><th>Unit</th><th>Values by row</th></tr></thead><tbody>${quantityHtml || '<tr><td colspan="3">No selected quantities</td></tr>'}</tbody></table><ul>${comparison.findings.map(finding => `<li>${escape(finding)}</li>`).join('')}</ul></html>`;
 }

@@ -77,9 +77,13 @@ destinations. Plans persist paused; Resume is bound to the concrete plan revisio
 reconciles recorded mesh-run request identities after restart. A terminal run can be imported as an
 immutable input snapshot; large results remain revision-checked links. **Review run** and **Export
 review** report inputs, MDPA counts and versioned structural solve-step outcomes in offline JSON/HTML.
-Residual histories, scalar quantities and unsupported-problemtype convergence remain explicitly
-unavailable. The assistant has the same environment, study, queue, review and variant tools under
-the normal transcript approval policy; preview never launches work.
+**Evaluate quantity** lets you select a result field, location, component, region, time step,
+reduction and unit; the result record keeps the exact source artifact revision. Units must be
+declared explicitly. If that result later changes, its saved value is shown as stale and omitted.
+Variant comparison pairs matching definitions only when their units agree; missing values stay
+missing. Residual magnitudes, mesh-quality review and unsupported-problemtype convergence remain
+explicitly unavailable. The assistant has the same environment, study, queue, review, quantity and
+variant tools under the normal transcript approval policy; preview never launches work.
 
 ### Working from cloud storage
 

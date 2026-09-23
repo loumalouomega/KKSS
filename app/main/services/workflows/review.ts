@@ -1,4 +1,4 @@
-import type { Evidence, Finding, Run, Study } from './contracts';
+import type { Evidence, Finding, Quantity, Run, Study } from './contracts';
 /** Conservative MDPA summary: count records, never infer mesh quality. */
 export function mdpaCounts(text: string): { nodes: number; elements: number; conditions: number } {
   const counts = { nodes: 0, elements: 0, conditions: 0 };
@@ -30,7 +30,7 @@ export function parseStructuralConvergence(text: string): StructuralMonitor {
   }
   return { samples, invalid };
 }
-export function buildEvidence(run: Run, meshText?: string, convergenceText?: string): Evidence {
+export function buildEvidence(run: Run, meshText?: string, convergenceText?: string, savedQuantities: Quantity[] = [], staleQuantityCount = 0): Evidence {
   const findings: Finding[] = [];
   if (!meshText) findings.push({ severity: 'unavailable', message: 'Mesh statistics are unavailable for this format or artifact.' });
   if (!run.artifacts.some(artifact => artifact.role === 'result' && artifact.ownerId === run.id)) findings.push({ severity: 'unavailable', message: 'No result file with a bounded content revision is attached to this run.' });
@@ -51,11 +51,13 @@ export function buildEvidence(run: Run, meshText?: string, convergenceText?: str
     if (state === 'unavailable') findings.push({ severity: 'unavailable', message: 'The solve ended before successful completion; recorded converged steps do not establish convergence of the full run.' });
     if (anyDiverged) findings.push({ severity: 'warning', message: 'The structural monitor recorded a solve step that did not converge.' });
   }
-  findings.push({ severity: 'unavailable', message: 'No scalar quantity evaluation was saved for this run.' });
+  const quantities = savedQuantities.filter(quantity => quantity.runId === run.id && run.artifacts.some(artifact => artifact.role === 'result' && artifact.ownerId === run.id && artifact.reference.kind === quantity.source.kind && artifact.reference.path === quantity.source.path && artifact.reference.revision === quantity.source.revision));
+  if (!quantities.length) findings.push({ severity: 'unavailable', message: 'No current scalar quantity evaluation is saved for this run.' });
+  if (staleQuantityCount) findings.push({ severity: 'unavailable', message: `${staleQuantityCount} saved quantity evaluation(s) refer to an older result revision and are omitted.` });
   return {
     version: 1, runId: run.id, findings,
     mesh: meshText ? mdpaCounts(meshText) : {},
-    convergence, quantities: [],
+    convergence, quantities,
   };
 }
 export interface Review {
@@ -64,8 +66,8 @@ export interface Review {
   run: { id: string; state: Run['state']; startedAt?: number; finishedAt?: number };
   evidence: Evidence; artifacts: Run['artifacts'];
 }
-export function makeReview(projectRevision: number, study: Study, run: Run, meshText?: string, convergenceText?: string): Review {
-  const evidence = buildEvidence(run, meshText, convergenceText);
+export function makeReview(projectRevision: number, study: Study, run: Run, meshText?: string, convergenceText?: string, savedQuantities: Quantity[] = [], staleQuantityCount = 0): Review {
+  const evidence = buildEvidence(run, meshText, convergenceText, savedQuantities, staleQuantityCount);
   return {
     version: 1, projectRevision, studyId: study.id, studyName: study.name,
     sourceRevision: run.sourceRevision, meshRevision: run.meshRevision,

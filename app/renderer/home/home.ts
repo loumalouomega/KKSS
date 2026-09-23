@@ -91,7 +91,7 @@ const queueStatus = document.getElementById("queue-status") as HTMLElement;
 const duplicateButton = document.getElementById("study-duplicate") as HTMLButtonElement;
 const planRunButton = document.getElementById("study-plan-run") as HTMLButtonElement;
 const planSweepButton = document.getElementById("study-plan-sweep") as HTMLButtonElement;
-let workflowSnapshot: { project?: { queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; queuePlanRevision?: string } | undefined;
+let workflowSnapshot: { project?: { studies?: { id: string; handoff?: { units?: { length?: string | null } } }[]; queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; queuePlanRevision?: string } | undefined;
 let workflowAction: "queue-preview" | "queue-enqueue" | "queue-resume" | undefined;
 let manualRuntimeAvailable: boolean | undefined;
 let selectedStudy: { id: string; name: string } | undefined;
@@ -203,6 +203,31 @@ for (const [id, tool] of [["study-review-run", "run_review"], ["study-export-rev
     if (selectedStudy && selectedRunId) workflowCall(tool, { studyId: selectedStudy.id, runId: selectedRunId });
   });
 }
+document.getElementById("study-evaluate-quantity")!.addEventListener("click", () => {
+  if (!selectedStudy || !selectedRunId) return;
+  const field = window.prompt("Result field name:", "DISPLACEMENT");
+  if (!field) return;
+  const kind = window.prompt("Field location (Nodal, Elemental or Conditional):", "Nodal");
+  if (!kind) return;
+  const component = window.prompt("Component (scalar, x, y, z or magnitude):", "magnitude");
+  if (!component) return;
+  const region = window.prompt("Region (global or exact SubModelPart path):", "global");
+  if (!region) return;
+  const reduction = window.prompt("Reduction (min, max, mean, maxAbs, etc.):", "max");
+  if (!reduction) return;
+  const study = workflowSnapshot?.project?.studies?.find(row => row.id === selectedStudy?.id);
+  const lengthUnit = study?.handoff?.units?.length ?? "";
+  const defaultUnit = field.toUpperCase() === "DISPLACEMENT" ? lengthUnit : "";
+  const unit = window.prompt("Quantity unit (declare explicitly):", defaultUnit);
+  if (!unit) return;
+  const rawStep = window.prompt("Time step index (blank for the first result):", "0");
+  if (rawStep === null) return;
+  const timeStep = rawStep.trim() ? Number(rawStep) : undefined;
+  if (timeStep !== undefined && !Number.isInteger(timeStep)) { workflowError.textContent = "Enter an integer time step."; workflowError.hidden = false; return; }
+  const resultPath = window.prompt("Optional result file path (blank uses the run's recorded result):", "");
+  if (resultPath === null) return;
+  workflowCall("run_quantity_evaluate", { studyId: selectedStudy.id, runId: selectedRunId, field, kind, component, region, reduction, unit, ...(timeStep !== undefined ? { timeStep } : {}), ...(resultPath.trim() ? { resultPath: resultPath.trim() } : {}) });
+});
 for (const [id, tool] of [["study-compare-variants", "variants_compare"], ["study-export-comparison", "variants_compare_export"]] as const) {
   (document.getElementById(id) as HTMLButtonElement).addEventListener("click", () => {
     if (selectedStudy) workflowCall(tool, { studyId: selectedStudy.id });
@@ -212,7 +237,7 @@ for (const [id, tool] of [["study-compare-variants", "variants_compare"], ["stud
 function renderWorkflow(raw: unknown): void {
   workflow.hidden = false;
   if (!raw || typeof raw !== "object") { studyPickerLabel.hidden = true; duplicateButton.disabled = true; return; }
-  const value = raw as { project?: { studies?: { id: string; name: string; runs?: { id: string; artifacts: { role: string }[] }[] }[]; activeStudyId?: string; activeRunId?: string; queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; readiness?: Record<string, Record<string, string>>; queuePlanRevision?: string; environment?: { manual?: { available: boolean }; requirementsComplete?: boolean } };
+  const value = raw as { project?: { studies?: { id: string; name: string; handoff?: { units?: { length?: string | null } }; runs?: { id: string; artifacts: { role: string }[] }[] }[]; activeStudyId?: string; activeRunId?: string; queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; readiness?: Record<string, Record<string, string>>; queuePlanRevision?: string; environment?: { manual?: { available: boolean }; requirementsComplete?: boolean } };
   manualRuntimeAvailable = value.environment ? !!value.environment.manual?.available && value.environment.requirementsComplete !== false : undefined;
   workflowSnapshot = value;
   const hasProject = !!value.project;
@@ -244,6 +269,7 @@ function renderWorkflow(raw: unknown): void {
     (document.getElementById("study-set-case") as HTMLButtonElement).disabled = states.mesh !== "ready";
     (document.getElementById("study-import-run") as HTMLButtonElement).disabled = !states.mesh || states.mesh !== "ready";
     (document.getElementById("study-review-run") as HTMLButtonElement).disabled = !selectedRunId;
+    (document.getElementById("study-evaluate-quantity") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-export-review") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-compare-variants") as HTMLButtonElement).disabled = false;
     (document.getElementById("study-export-comparison") as HTMLButtonElement).disabled = false;
@@ -252,7 +278,7 @@ function renderWorkflow(raw: unknown): void {
   } else {
     selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; studyReadiness.textContent = "No studies yet.";
     for (const id of ["study-open-geometry", "study-open-mesh", "study-open-case", "study-open-results"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
-    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
+    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-evaluate-quantity", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
   }
   const queue = value.project?.queue;
   const tasks = queue?.tasks ?? [];

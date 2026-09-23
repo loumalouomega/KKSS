@@ -109,8 +109,12 @@ single-run and parameter-sweep previews, queue pause/resume/cancel, run review,
 and parent/variant comparisons. Parameter sweeps create fresh studies only when
 the preview is enqueued; each row has its own run directory. Structural evidence
 contains versioned per-step convergence booleans, not residuals; quantity
-comparison accepts only saved definitions with matching units and preserves
-missing values as null.
+evaluation explicitly selects a result field/component, region, time, reduction
+and unit, then saves it with its exact artifact reference and source revision.
+Variant comparison accepts only matching definitions with compatible units and
+preserves missing values as null. The read-only mesh evaluator is
+`mesh__case_evaluate_quantity`; its app-owned persistence wrapper is
+`app__run_quantity_evaluate` and follows normal write approval.
 
 The environment probe is read-only: the manual Python interpreter and uv-managed
 Kratos tool runtime are checked independently, and the latter uses offline/no-sync
@@ -1086,7 +1090,7 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 (`55cf1ca`, also the `redesign` branch) are integrated without edits to either submodule. The recurring release-bump
 checklist lives in `doc/guide/development.md` under **Submodule release
 maintenance**; repeat it for every bump, including live MCP tool discovery
-(current sets: 56 CAD + 23 mesh + 4 aggregation + 27 app-owned workflow tools).
+(current sets: 56 CAD + 24 mesh + 4 aggregation + 28 app-owned workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
 port, not just a gitlink bump.** Two classes of change, both in
