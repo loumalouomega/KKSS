@@ -95,7 +95,11 @@ unknown project schema versions are preserved and rejected. Project-relative art
 resolve against the selected root after folder moves, while external paths remain marked as external.
 
 The environment probe runs a bounded Python import/version check separately for manual runs and the
-uvx tool runtime. The uvx probe uses offline/no-sync flags and never installs packages. CAD MDPA
+uvx tool runtime. The uvx probe uses offline/no-sync flags and never installs packages. KKSS wires
+the shared report into mesh's `RunManager` preflight: `PtController` publishes capability to the
+webview, which disables only Run when the case requirements fail, and `RunManager.start` forces a
+fresh check before dispatch. With no guard configured, the standalone extension retains its prior
+behavior. CAD MDPA
 exports produce a versioned handoff manifest and atomic owner/request receipts with artifact
 revisions; mesh queue runs snapshot inputs into isolated workspaces with stable owner/request
 receipts and owner-scoped cancellation. The persistent queue stores dispatch intent before calling
@@ -110,7 +114,8 @@ values whose source result is stale; variant comparisons require matching defini
 and classify mesh-sensitivity separately from solver-setting changes using recorded mesh revisions.
 The Home row list can resume one waiting run row at a time while holding other waiting work, or
 preview a failed row's retry as a new study/run identity in the existing comparison group.
-Residual magnitudes, mesh-quality review and unsupported-problemtype convergence remain unavailable.
+Reviews include revision-checked generated inputs and the mesh runner's existing quality report;
+residual magnitudes and unsupported-problemtype convergence remain unavailable.
 
 ## Embedded terminal (node-pty + xterm.js)
 

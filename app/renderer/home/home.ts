@@ -354,13 +354,28 @@ api.onMessage((raw) => {
   else if (message?.type === "projectRoot") renderProjectRoot(message);
   else if (message?.type === "workflowState") renderWorkflow(message.value);
   else if (message?.type === "environmentReport") {
-    const report = message.value as { manual?: { available: boolean; reason?: string }; tools?: { available: boolean; reason?: string }; writable?: boolean; directoryReason?: string; suggestedThreads?: number; requirementsComplete?: boolean };
-    manualRuntimeAvailable = !!report.manual?.available && report.requirementsComplete !== false;
+    const report = message.value as {
+      manual?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; applications?: { name: string; available: boolean; reason?: string }[] };
+      tools?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; applications?: { name: string; available: boolean; reason?: string }[] };
+      directory?: string; writable?: boolean; directoryReason?: string; cpuCount?: number; memoryBytes?: number;
+      suggestedThreads?: number; requirementsComplete?: boolean;
+    };
+    manualRuntimeAvailable = !!report.manual?.available && report.requirementsComplete !== false && report.writable === true;
+    const runtimeLine = (name: string, runtime: typeof report.manual): string => {
+      if (!runtime) return `${name}: unavailable`;
+      const identity = [runtime.executable, runtime.version && `Python ${runtime.version}`, runtime.kratosVersion && `Kratos ${runtime.kratosVersion}`].filter(Boolean).join(" · ");
+      return `${name}: ${runtime.available ? "available" : runtime.reason ?? "unavailable"}${identity ? ` · ${identity}` : ""}`;
+    };
+    const applicationLines = [report.manual, report.tools].flatMap(runtime => runtime?.applications ?? []).map(application =>
+      `${application.name}: ${application.available ? "available" : application.reason ?? "missing"}`);
     environmentReport.textContent = [
-      `Manual runs: ${report.manual?.available ? "available" : report.manual?.reason ?? "unavailable"}`,
-      `Assistant tools: ${report.tools?.available ? "available" : report.tools?.reason ?? "unavailable"}`,
-      `Run directory: ${report.writable ? "writable" : report.directoryReason ?? "unavailable"}`,
-      report.requirementsComplete === false ? "Required applications: no selected built-in case requirement is available to verify." : undefined,
+      runtimeLine("Manual runs", report.manual),
+      runtimeLine("Assistant tools", report.tools),
+      ...new Set(applicationLines),
+      `Run directory${report.directory ? ` (${report.directory})` : ""}: ${report.writable ? "writable" : report.directoryReason ?? "unavailable"}`,
+      report.requirementsComplete === false ? "Required applications: this case has no declared built-in requirements, so verification is incomplete." : undefined,
+      report.cpuCount ? `Available CPU cores: ${report.cpuCount}` : undefined,
+      report.memoryBytes ? `Available memory: ${(report.memoryBytes / 1024 ** 3).toFixed(1)} GiB` : undefined,
       report.suggestedThreads ? `Suggested thread limit: ${report.suggestedThreads}` : undefined,
     ].filter(Boolean).join("\n");
     (document.getElementById("environment-actions") as HTMLElement).hidden = !!report.tools?.available;

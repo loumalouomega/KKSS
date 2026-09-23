@@ -19,6 +19,10 @@ export interface Quantity {
 export interface Evidence {
   version: 1; runId: string; findings: Finding[];
   mesh: { nodes?: number; elements?: number; quality?: Json };
+  preparation?: {
+    state: 'complete' | 'partial' | 'unavailable'; settingsRevision: string;
+    files: { role: string; reference: Reference; state: 'current' | 'missing' | 'changed' }[];
+  };
   convergence: { adapter: string; state: 'converged' | 'diverged' | 'unavailable'; samples: { iteration: number; time?: number; converged: boolean; residual?: number }[] };
   quantities: Quantity[];
 }

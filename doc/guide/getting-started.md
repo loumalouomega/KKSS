@@ -59,8 +59,10 @@ visible trace is a `.tmp` file that exists for a few milliseconds during each sa
 Home's **Check environment** action probes the configured Python interpreter used for manual runs
 and the assistant's uv-managed tool runtime separately. It checks the selected built-in
 problemtype's Kratos application imports, available CPU and memory, and whether the current run
-directory exists and is writable. The check does not install packages. Known-unavailable manual
-run actions are disabled while geometry browsing stays available. If the assistant runtime is
+directory exists and is writable. The report includes each resolved executable and version and
+does not install packages. A failed manual check disables the mesh Problemtype Run action and
+guided queue launches while geometry browsing stays available; the action checks again before
+starting. If the assistant runtime is
 missing, Home offers its existing retry and uv setup actions; interpreter changes remain in
 Settings ▸ Kratos.
 
@@ -78,12 +80,13 @@ reconciles recorded CAD mesh-export and solver request identities after restart.
 while holding other rows, or preview a failed row retry with fresh study and run identities. Comparisons
 label mesh-sensitivity and solver-parameter studies separately using recorded mesh revisions and settings. A terminal run can be imported as an
 immutable input snapshot; large results remain revision-checked links. **Review run** and **Export
-review** report inputs, MDPA counts and versioned structural solve-step outcomes in offline JSON/HTML.
+review** report generated-input revisions, MDPA counts, the existing mesh-quality diagnostics and
+versioned structural solve-step outcomes in offline JSON/HTML.
 **Evaluate quantity** lets you select a result field, location, component, region, time step,
 reduction and unit; the result record keeps the exact source artifact revision. Units must be
 declared explicitly. If that result later changes, its saved value is shown as stale and omitted.
 Variant comparison pairs matching definitions only when their units agree; missing values stay
-missing. Residual magnitudes, mesh-quality review and unsupported-problemtype convergence remain
+missing. Residual magnitudes and unsupported-problemtype convergence remain
 explicitly unavailable. The assistant has the same environment, study, queue, review, quantity and
 variant tools under the normal transcript approval policy; preview never launches work.
 

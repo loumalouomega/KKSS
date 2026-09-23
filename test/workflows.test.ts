@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { Evidence, Json, Receipt, Run, Study, Task } from '../app/main/services/workflows/contracts';
-import { checkEnvironment, PROBE_SCRIPT, type Probe } from '../app/main/services/workflows/environment';
+import { checkEnvironment, manualLaunchAvailability, PROBE_SCRIPT, type Probe } from '../app/main/services/workflows/environment';
 import { duplicateStudy, fileRevision, fingerprint, previewVariants, ProjectStore, readiness, reference, resolveReference } from '../app/main/services/workflows/project';
 import { ExecutionQueue, planRevision } from '../app/main/services/workflows/queue';
 import { compareVariants, comparisonHtml } from '../app/main/services/workflows/comparison';
@@ -64,6 +64,18 @@ describe('simulation environment probes', () => {
   it('rejects malformed output and bounds probe execution', async () => {
     const bad = await import('../app/main/services/workflows/environment').then(m => m.probePython);
     await expect(bad('/python', [], [], {}, async () => 'not a report')).resolves.toMatchObject({ available: false });
+  });
+
+  it('gates manual launches on manual capability while preserving independent tool availability', async () => {
+    const root = await temp();
+    const report = await checkEnvironment({ python: '/python', env: {}, directory: root, applications: [], requirementsComplete: true,
+      runtime: { discover: async () => { throw new Error('tool runtime unavailable'); } },
+      run: async () => `KKSS_PROBE:${JSON.stringify({ executable: '/python', version: '3.12', applications: [{ name: 'KratosMultiphysics', available: true }] })}` });
+    expect(report.tools.available).toBe(false);
+    expect(manualLaunchAvailability(report)).toEqual({ allowed: true, reason: undefined });
+    expect(manualLaunchAvailability({ ...report, requirementsComplete: false }).allowed).toBe(false);
+    expect(manualLaunchAvailability({ ...report, manual: { ...report.manual, available: false, reason: 'Missing structural app.' } })).toMatchObject({ allowed: false, reason: /Missing structural app/ });
+    expect(manualLaunchAvailability({ ...report, writable: false, directoryReason: 'Read only.' })).toMatchObject({ allowed: false, reason: /Read only/ });
   });
 });
 
@@ -181,6 +193,27 @@ describe('dependency-aware queue recovery', () => {
     expect((await store.read())!.queue.paused).toBe(true);
   });
 
+  it('reconciles a solve that was active at restart before dispatching any waiting work', async () => {
+    const root = await temp(), active = task('solve-active'), waiting = task('mesh-waiting', [], 'mesh');
+    active.state = 'running'; active.receipt = receipt(active, 'running');
+    const original = await queueProject(root, [active, waiting]);
+    const beforeRestart = new ExecutionQueue({ validate: async () => [], dispatch: async () => { throw new Error('must not dispatch'); },
+      lookup: async t => receipt(t, 'running'), cancel: async t => receipt(t, 'cancelled') });
+    await beforeRestart.register(original);
+    await beforeRestart.tick();
+    expect((await original.read())!.queue.tasks.map(t => t.state)).toEqual(['running', 'waiting']);
+
+    const afterRestart = new ProjectStore(root), dispatched: string[] = [];
+    const recovered = new ExecutionQueue({ validate: async () => [], dispatch: async t => { dispatched.push(t.id); return receipt(t, 'succeeded'); },
+      lookup: async t => receipt(t, t.id === 'solve-active' ? 'succeeded' : 'uncertain'), cancel: async t => receipt(t, 'cancelled') });
+    await recovered.register(afterRestart);
+    expect((await afterRestart.read())!.queue.tasks.map(t => t.state)).toEqual(['succeeded', 'waiting']);
+    const revision = planRevision((await afterRestart.read())!.queue.tasks);
+    await recovered.resume(afterRestart, revision);
+    expect(dispatched).toEqual(['mesh-waiting']);
+    expect((await afterRestart.read())!.queue.tasks.map(t => t.state)).toEqual(['succeeded', 'succeeded']);
+  });
+
   it('continues unrelated work after a mesh failure and blocks only its dependent solve', async () => {
     const tasks = [task('mesh-fails', [], 'mesh'), task('solve-dependent', ['mesh-fails']), task('mesh-unrelated', [], 'mesh')];
     const store = await queueProject(await temp(), tasks), dispatched: string[] = [];
@@ -240,6 +273,20 @@ describe('run review evidence', () => {
     expect(evidence.mesh.nodes).toBe(1);
     expect(evidence.convergence.state).toBe('unavailable');
     expect(evidence.convergence.samples).toEqual([]);
+  });
+  it('embeds quality and revision-checked preparation evidence while naming unavailable diagnostics', () => {
+    const quality: Json = { overallOk: false, elementCount: 1, metrics: [{ key: 'edgeRatio', badEntityTotal: 1 }] };
+    const preparation: NonNullable<Evidence['preparation']> = { state: 'partial', settingsRevision: 'settings-rev', files: [
+      { role: 'input', reference: { kind: 'project', path: '.kkss/runs/run-1/input/ProjectParameters.json', revision: 'old-rev' }, state: 'changed' },
+    ] };
+    const evidence = buildEvidence(run, 'Begin Nodes\n1 0 0 0\nEnd Nodes', undefined, [], 0, { meshQuality: quality, preparation });
+    expect(evidence.mesh.quality).toEqual(quality);
+    expect(evidence.preparation).toEqual(preparation);
+    expect(evidence.findings.some(finding => finding.severity === 'warning' && finding.message.includes('failing metrics'))).toBe(true);
+    expect(evidence.findings.some(finding => finding.message.includes('Preparation provenance is partial'))).toBe(true);
+    const unavailable = buildEvidence(run);
+    expect(unavailable.findings.some(finding => finding.message.includes('Mesh-quality metrics are unavailable'))).toBe(true);
+    expect(unavailable.findings.some(finding => finding.message.includes('Preparation provenance is unavailable'))).toBe(true);
   });
   it('accepts only versioned structural solve-step evidence and keeps truncated records unavailable', () => {
     const monitor = [
@@ -490,9 +537,15 @@ describe('shared workflow tools', () => {
     await fs.writeFile(runFilePath(mesh), JSON.stringify({ version: 1, runId: 'source-run', stem: 'beam', meshFile: mesh,
       status: 'finished', launchMode: 'output', argv: ['/machine/python', 'MainKratos.py'], startedAt: 1,
       endedAt: 2, exitCode: 0, pid: 123456, launchedBy: 'extension' }));
+    const qualityCalls: string[] = [];
+    const quality = { overallOk: true, elementCount: 1, analyzedCount: 1, elementTypes: ['Line2D2'], metrics: [{ key: 'edgeRatio', min: 1, mean: 1, max: 1, badEntityTotal: 0 }] };
     const service = new WorkflowService({ root: () => root, activeMesh: () => mesh,
       runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
-      open: async () => undefined, changed: () => undefined });
+      open: async () => undefined, changed: () => undefined,
+      callMcpTool: async (name, args) => {
+        expect(name).toBe('mesh__mesh_quality'); qualityCalls.push(String(args.path));
+        return { structuredContent: quality };
+      } });
     const invoke = async (name: string, args: Record<string, unknown>) => {
       const tool = service.tools().find(t => t.name === `app__${name}`)!;
       return tool.invoke(args);
@@ -504,11 +557,17 @@ describe('shared workflow tools', () => {
     expect(imported.directory).toBe(`.kkss/runs/${imported.id}`);
     expect(JSON.stringify(imported)).not.toContain('123456');
     expect(imported.artifacts.some(a => a.role === 'mesh' && a.ownerId === imported.id)).toBe(true);
-    const report = await invoke('run_review', { studyId: created.id, runId: imported.id }) as { evidence: { mesh: { nodes?: number }; convergence: { state: string } } };
+    const report = await invoke('run_review', { studyId: created.id, runId: imported.id }) as { evidence: { mesh: { nodes?: number; quality?: Json }; preparation?: Evidence['preparation']; convergence: { state: string } } };
     expect(report.evidence.mesh.nodes).toBe(2);
+    expect(report.evidence.mesh.quality).toEqual(quality);
+    expect(report.evidence.preparation).toMatchObject({ state: 'complete', settingsRevision: expect.any(String) });
+    expect(qualityCalls[0]).toBe(path.join(root, imported.directory, 'input', 'beam.mdpa'));
     expect(report.evidence.convergence.state).toBe('unavailable');
     const paths = await invoke('run_review_export', { studyId: created.id, runId: imported.id }) as { jsonFile: string; htmlFile: string };
-    expect(await fs.readFile(paths.htmlFile, 'utf8')).toContain('Convergence: unavailable');
+    const html = await fs.readFile(paths.htmlFile, 'utf8');
+    expect(html).toContain('Convergence: unavailable');
+    expect(html).toContain('&quot;overallOk&quot;: true');
+    expect(html).toContain('ProjectParameters.json');
     expect(JSON.parse(await fs.readFile(paths.jsonFile, 'utf8')).run.state).toBe('succeeded');
     expect((await service.snapshot() as { readiness: Record<string, Record<string, string>> }).readiness[created.id].case).toBe('ready');
   });

@@ -13,6 +13,14 @@ export interface EnvironmentReport {
   writable: boolean; directoryReason?: string; cpuCount: number; memoryBytes: number;
   suggestedThreads?: number; manual: RuntimeReport; tools: RuntimeReport;
 }
+export function manualLaunchAvailability(report: EnvironmentReport): { allowed: boolean; reason?: string } {
+  const reasons = [
+    !report.requirementsComplete ? 'This case has no declared built-in application requirements.' : undefined,
+    !report.manual.available ? report.manual.reason ?? 'The manual Python environment is unavailable.' : undefined,
+    !report.writable ? report.directoryReason ?? 'The case directory is not writable.' : undefined,
+  ].filter((reason): reason is string => !!reason);
+  return { allowed: reasons.length === 0, reason: reasons.join(' ') || undefined };
+}
 export const PROBE_SCRIPT = `import sys,json,importlib
 result={'executable':sys.executable,'version':sys.version.split()[0],'applications':[]}
 for name in json.loads(sys.argv[1]):

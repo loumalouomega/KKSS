@@ -28,6 +28,7 @@ import { ChatService } from "./services/chat/chatService";
 import { JobsService } from "./services/jobs";
 import { McpHub } from "./services/chat/mcpHub";
 import { WorkflowService } from "./services/workflows/service";
+import { manualLaunchAvailability } from "./services/workflows/environment";
 import { registerAppTools, callAppTool } from "./services/chat/appTools";
 import { KratosRuntime } from "./services/chat/kratosRuntime";
 import { kratosEnvDelta } from "./services/settings/kratosEnv";
@@ -166,7 +167,10 @@ async function pushWorkflows(): Promise<void> {
 async function checkSimulationEnvironment(): Promise<void> {
   setScreen("home");
   sendHome({ type: "workflowBusy", busy: true });
-  try { sendHome({ type: "environmentReport", value: await workflows?.environment() }); }
+  try {
+    sendHome({ type: "environmentReport", value: await workflows?.environment(true) });
+    runs?.requestCapabilityRefresh(true);
+  }
   catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
   finally { sendHome({ type: "workflowBusy", busy: false }); }
 }
@@ -479,6 +483,11 @@ function createTab(mode: Mode) {
       // Mirrors extension.ts activate(): construct once, restore adopted run
       // sidecars, dispose on quit.
       runs = new RunManager(createMeshExtensionContext(__dirname));
+      runs.setStartGuard(async (meshPath, problemtypeId, force) => {
+        if (!workflows) return { allowed: false, reason: "Simulation environment checks are not ready yet." };
+        const report = await workflows.environmentForMesh(meshPath, problemtypeId, force);
+        return manualLaunchAvailability(report);
+      });
       runs.restore();
     }
     if (!recents) {
@@ -1250,6 +1259,7 @@ app.whenReady().then(() => {
   const settingKeys = new Set(registry().map((e) => e.storeKey).filter((k): k is string => !!k));
   stateStore.onDidChange((key) => {
     if (settingKeys.has(key)) installMenu(menuDeps);
+    if (["kratos.pythonPath", "kratos.installPath", "kratos.extraEnv"].includes(key)) runs?.requestCapabilityRefresh();
   });
   // An Electron menu is static once built, so the Open Recent submenu only
   // tracks the store by rebuilding the whole template. `record()` fires once

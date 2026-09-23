@@ -6,8 +6,7 @@ import { writeFileAtomic } from '../atomicWrite';
 import type { AppTool } from '../chat/appTools';
 import { checkEnvironment, type EnvironmentReport } from './environment';
 import { ProjectStore, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
-import type { Handoff, Json, Project, Quantity, Study } from './contracts';
-import type { Run } from './contracts';
+import type { Evidence, Handoff, Json, Project, Quantity, Run, Study } from './contracts';
 import type { KratosRuntime } from '../chat/kratosRuntime';
 import { ExecutionQueue, planRevision } from './queue';
 import type { Runner } from './queue';
@@ -58,6 +57,7 @@ function changedJsonPaths(before: unknown, after: unknown, prefix = ''): string[
 export class WorkflowService {
   private stores = new Map<string, ProjectStore>();
   private report?: { key: string; baseKey: string; value: EnvironmentReport };
+  private readonly environmentCache = new Map<string, EnvironmentReport>();
   private selected?: { projectId: string; studyId?: string; runId?: string };
   private queue: ExecutionQueue;
   private previews = new Map<string, QueuePreview>();
@@ -83,7 +83,7 @@ export class WorkflowService {
     const report = this.report?.baseKey === baseKey ? this.report.value : undefined;
     return JSON.stringify({ ...this.selected, runtime: report ? { manual: report.manual.available, tools: report.tools.available, checkedAt: report.checkedAt } : 'not checked or settings changed', queue: this.queueContext });
   }
-  async environment(): Promise<EnvironmentReport> {
+  async environment(force = false): Promise<EnvironmentReport> {
     let problemtype: string | undefined;
     const mesh = this.deps.activeMesh();
     if (this.deps.root()) {
@@ -96,11 +96,26 @@ export class WorkflowService {
     }
     const baseKey = fingerprint({ ...this.deps.environment(), root: this.deps.root(), mesh });
     const key = fingerprint({ baseKey, problemtype });
-    if (this.report?.key === key) return this.report.value;
+    if (!force && this.report?.key === key) return this.report.value;
     const value = await this.environmentFor(problemtype, this.deps.root() ?? (mesh ? path.dirname(mesh) : process.cwd()));
     this.report = { key, baseKey, value };
     this.deps.changed();
     return value;
+  }
+  async environmentForMesh(meshPath: string, selectedProblemtype?: string, force = false): Promise<EnvironmentReport> {
+    let problemtype = selectedProblemtype;
+    if (!problemtype) {
+      try { problemtype = parseCaseJson(await fs.readFile(caseFilePath(meshPath), 'utf8')).state?.problemtypeId; }
+      catch { /* Report incomplete requirements for an unknown or missing case. */ }
+    }
+    const runtime = this.deps.environment();
+    const key = fingerprint({ runtime, meshPath: path.resolve(meshPath), problemtype });
+    const cached = force ? undefined : this.environmentCache.get(key);
+    if (cached) return cached;
+    const report = await this.environmentFor(problemtype, path.dirname(meshPath));
+    this.environmentCache.set(key, report);
+    while (this.environmentCache.size > 32) this.environmentCache.delete(this.environmentCache.keys().next().value!);
+    return report;
   }
   private async environmentFor(problemtype: string | undefined, directory: string): Promise<EnvironmentReport> {
     const config = this.deps.environment();
@@ -280,13 +295,33 @@ export class WorkflowService {
     const mesh = run.artifacts.find(a => a.role === 'mesh' && a.ownerId === run.id);
     const convergenceArtifact = run.artifacts.find(a => a.role === 'convergence' && a.ownerId === run.id);
     const resultArtifacts = run.artifacts.filter(a => a.role === 'result' && a.ownerId === run.id);
-    let meshText: string | undefined;
+    let meshText: string | undefined, meshFile: string | undefined;
+    let meshQuality: Json | undefined, meshQualityUnavailableReason: string | undefined;
     let convergenceText: string | undefined;
     const currentResultReferences = new Set<string>();
     let staleResults = 0;
     if (mesh) {
-      const file = resolveReference(store.root, mesh.reference);
-      if (await fileRevision(file) === mesh.reference.revision && path.extname(file).toLowerCase() === '.mdpa') meshText = await fs.readFile(file, 'utf8');
+      try {
+        const file = resolveReference(store.root, mesh.reference);
+        if (await fileRevision(file) !== mesh.reference.revision) meshQualityUnavailableReason = 'the owned mesh differs from its recorded content revision.';
+        else {
+          meshFile = file;
+          if (path.extname(file).toLowerCase() === '.mdpa') meshText = await fs.readFile(file, 'utf8');
+        }
+      } catch { meshQualityUnavailableReason = 'the owned mesh artifact is missing.'; }
+    } else {
+      meshQualityUnavailableReason = 'no owned mesh artifact is attached to this run.';
+    }
+    if (meshFile) {
+      try {
+        const report = await this.invokeMcp('mesh__mesh_quality', { path: meshFile });
+        if (report.overallOk === undefined || typeof report.elementCount !== 'number' || !Array.isArray(report.metrics)) {
+          throw new Error('Mesh runner returned no structured quality report.');
+        }
+        meshQuality = JSON.parse(JSON.stringify(report)) as Json;
+      } catch (error) {
+        meshQualityUnavailableReason = error instanceof Error ? error.message : String(error);
+      }
     }
     if (convergenceArtifact) {
       const file = resolveReference(store.root, convergenceArtifact.reference);
@@ -302,7 +337,18 @@ export class WorkflowService {
     const savedQuantities = run.evidence?.quantities ?? [];
     const currentQuantities = savedQuantities.filter(quantity => quantity.runId === run.id && currentResultReferences.has(fingerprint(quantity.source)));
     const staleQuantities = savedQuantities.length - currentQuantities.length;
-    const review = makeReview(project.revision, study, run, meshText, convergenceText, currentQuantities, staleQuantities);
+    const preparationFiles = await Promise.all(run.artifacts.filter(artifact => ['case', 'input'].includes(artifact.role) && artifact.ownerId === run.id)
+      .map(async artifact => {
+        try {
+          const current = await fileRevision(resolveReference(store.root, artifact.reference));
+          return { role: artifact.role, reference: artifact.reference, state: current === artifact.reference.revision ? 'current' as const : 'changed' as const };
+        } catch { return { role: artifact.role, reference: artifact.reference, state: 'missing' as const }; }
+      }));
+    const preparationState = preparationFiles.length === 0 ? 'unavailable' : preparationFiles.every(file => file.state === 'current') ? 'complete' : 'partial';
+    const preparation: NonNullable<Evidence['preparation']> = { state: preparationState, settingsRevision: fingerprint(run.settings), files: preparationFiles };
+    const review = makeReview(project.revision, study, run, meshText, convergenceText, currentQuantities, staleQuantities, {
+      meshQuality, meshQualityUnavailableReason, preparation,
+    });
     if (!resultArtifacts.length) review.evidence.findings.push({ severity: 'unavailable', message: 'No result artifact is attached to this run.' });
     if (staleResults) review.evidence.findings.push({ severity: 'unavailable', message: `${staleResults} result artifact(s) are missing or differ from their recorded content revision.` });
     return { store, run, review };
@@ -775,7 +821,7 @@ export class WorkflowService {
     const tool = (name: string, description: string, properties: Record<string, unknown>, required: string[], invoke: AppTool['invoke']): AppTool => ({ name: `app__${name}`, description, inputSchema: { type: 'object', properties, required, additionalProperties: false }, invoke });
     const str = { type: 'string', minLength: 1 };
     return [
-      tool('check_simulation_environment', 'Check manual and tool-server runtimes independently without installing software. Reports selected case requirements and available resources.', {}, [], () => this.environment()),
+      tool('check_simulation_environment', 'Check manual and tool-server runtimes independently without installing software. Reports selected case requirements and available resources.', {}, [], () => this.environment(true)),
       tool('study_list', 'List the current project studies and geometry-to-results readiness.', {}, [], () => this.snapshot()),
       tool('study_import_handoff', 'Import a version-1 CAD MDPA handoff after verifying current source and mesh hashes. Converts references to portable project-relative paths where possible.', { name: str, manifestPath: str }, ['name', 'manifestPath'], args => this.importHandoff(args)),
       tool('study_create', 'Create an opt-in study in the selected project, referencing existing geometry without changing it.', { name: str, source: str }, ['name', 'source'], async args => {
@@ -842,7 +888,7 @@ export class WorkflowService {
         const variants = rows.map(row => duplicateStudy(source, row.name, reuseMesh, row.settings));
         p.studies.push(...variants); return variants;
       })),
-      tool('run_review', 'Build a structured review for a terminal run. Saved scalar quantities are included only while their source result revision is current; unsupported convergence and residual diagnostics remain explicitly unavailable.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => (await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'))).review),
+      tool('run_review', 'Build a structured review for a terminal run with revision-checked generated inputs and mesh-quality diagnostics when the mesh runner is available. Saved scalar quantities are included only while their source result revision is current; unsupported convergence and residual diagnostics remain explicitly unavailable.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => (await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'))).review),
       tool('run_quantity_evaluate', 'Evaluate one explicitly selected result field and save its definition, unit, value and exact source artifact revision into the owning run evidence.', {
         studyId: str, runId: str, resultPath: str,
         field: str, kind: { enum: ['Nodal', 'Elemental', 'Conditional'] },

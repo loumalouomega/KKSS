@@ -1,4 +1,4 @@
-import type { Evidence, Finding, Quantity, Run, Study } from './contracts';
+import type { Evidence, Finding, Json, Quantity, Run, Study } from './contracts';
 /** Conservative MDPA summary: count records, never infer mesh quality. */
 export function mdpaCounts(text: string): { nodes: number; elements: number; conditions: number } {
   const counts = { nodes: 0, elements: 0, conditions: 0 };
@@ -30,9 +30,22 @@ export function parseStructuralConvergence(text: string): StructuralMonitor {
   }
   return { samples, invalid };
 }
-export function buildEvidence(run: Run, meshText?: string, convergenceText?: string, savedQuantities: Quantity[] = [], staleQuantityCount = 0): Evidence {
+export interface ReviewEvidenceExtras {
+  meshQuality?: Json;
+  meshQualityUnavailableReason?: string;
+  preparation?: Evidence['preparation'];
+}
+export function buildEvidence(run: Run, meshText?: string, convergenceText?: string, savedQuantities: Quantity[] = [], staleQuantityCount = 0, extras: ReviewEvidenceExtras = {}): Evidence {
   const findings: Finding[] = [];
   if (!meshText) findings.push({ severity: 'unavailable', message: 'Mesh statistics are unavailable for this format or artifact.' });
+  if (extras.meshQuality === undefined) findings.push({ severity: 'unavailable', message: `Mesh-quality metrics are unavailable: ${extras.meshQualityUnavailableReason ?? 'no verified report was collected.'}` });
+  if (extras.meshQuality && typeof extras.meshQuality === 'object' && !Array.isArray(extras.meshQuality) && extras.meshQuality.overallOk === false) {
+    findings.push({ severity: 'warning', message: 'The mesh-quality report contains failing metrics; inspect the embedded metric bands and bad-entity counts.' });
+  }
+  if (!extras.preparation || extras.preparation.state !== 'complete') {
+    const state = extras.preparation?.state ?? 'unavailable';
+    findings.push({ severity: 'unavailable', message: `Preparation provenance is ${state}; inspect the revision-checked input list for missing or changed files.` });
+  }
   if (!run.artifacts.some(artifact => artifact.role === 'result' && artifact.ownerId === run.id)) findings.push({ severity: 'unavailable', message: 'No result file with a bounded content revision is attached to this run.' });
   if (run.receipt?.message) findings.push({ severity: 'unavailable', message: run.receipt.message });
   const monitor = convergenceText === undefined ? undefined : parseStructuralConvergence(convergenceText);
@@ -56,7 +69,8 @@ export function buildEvidence(run: Run, meshText?: string, convergenceText?: str
   if (staleQuantityCount) findings.push({ severity: 'unavailable', message: `${staleQuantityCount} saved quantity evaluation(s) refer to an older result revision and are omitted.` });
   return {
     version: 1, runId: run.id, findings,
-    mesh: meshText ? mdpaCounts(meshText) : {},
+    mesh: { ...(meshText ? mdpaCounts(meshText) : {}), ...(extras.meshQuality !== undefined ? { quality: extras.meshQuality } : {}) },
+    ...(extras.preparation ? { preparation: extras.preparation } : {}),
     convergence, quantities,
   };
 }
@@ -66,8 +80,8 @@ export interface Review {
   run: { id: string; state: Run['state']; startedAt?: number; finishedAt?: number };
   evidence: Evidence; artifacts: Run['artifacts'];
 }
-export function makeReview(projectRevision: number, study: Study, run: Run, meshText?: string, convergenceText?: string, savedQuantities: Quantity[] = [], staleQuantityCount = 0): Review {
-  const evidence = buildEvidence(run, meshText, convergenceText, savedQuantities, staleQuantityCount);
+export function makeReview(projectRevision: number, study: Study, run: Run, meshText?: string, convergenceText?: string, savedQuantities: Quantity[] = [], staleQuantityCount = 0, extras: ReviewEvidenceExtras = {}): Review {
+  const evidence = buildEvidence(run, meshText, convergenceText, savedQuantities, staleQuantityCount, extras);
   return {
     version: 1, projectRevision, studyId: study.id, studyName: study.name,
     sourceRevision: run.sourceRevision, meshRevision: run.meshRevision,

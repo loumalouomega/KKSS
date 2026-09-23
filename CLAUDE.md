@@ -122,7 +122,10 @@ read-only mesh evaluator is
 
 The environment probe is read-only: the manual Python interpreter and uv-managed
 Kratos tool runtime are checked independently, and the latter uses offline/no-sync
-flags. CAD v1 handoff manifests, structural solve-step monitor output, mesh
+flags. The KKSS `RunManager` guard uses the selected problemtype's manual report to
+disable the mesh Problemtype Run action and rechecks before process dispatch; an
+unconfigured guard preserves standalone mesh behavior. CAD v1 handoff manifests,
+structural solve-step monitor output, mesh
 run receipts, and CAD mesh-export receipts now feed the queue and review
 services. CAD export carries stable owner/request identities through the
 extension host, KKSS worker host and MCP path; its atomic receipt records
