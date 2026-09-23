@@ -161,6 +161,39 @@ describe('dependency-aware queue recovery', () => {
     expect((await store.read())!.queue.paused).toBe(true);
   });
 
+  it('does not resubmit a dispatch whose acknowledgement was lost', async () => {
+    const store = await queueProject(await temp(), [task('ack-lost', [], 'mesh')]);
+    let externalStarts = 0, resumedLaunches = 0;
+    const first = new ExecutionQueue({ validate: async () => [], dispatch: async () => {
+      externalStarts++; throw new Error('runner accepted work but the acknowledgement was lost');
+    }, lookup: async t => receipt(t, 'uncertain'), cancel: async t => receipt(t, 'cancelled') });
+    await first.resume(store, planRevision((await store.read())!.queue.tasks));
+    expect(externalStarts).toBe(1);
+    expect((await store.read())!.queue.tasks[0].state).toBe('uncertain');
+
+    const restarted = new ExecutionQueue({ validate: async () => [], dispatch: async t => {
+      resumedLaunches++; return receipt(t, 'succeeded');
+    }, lookup: async t => receipt(t, 'uncertain'), cancel: async t => receipt(t, 'cancelled') });
+    await restarted.register(store);
+    await restarted.tick();
+    expect(resumedLaunches).toBe(0);
+    expect((await store.read())!.queue.tasks[0].state).toBe('uncertain');
+    expect((await store.read())!.queue.paused).toBe(true);
+  });
+
+  it('continues unrelated work after a mesh failure and blocks only its dependent solve', async () => {
+    const tasks = [task('mesh-fails', [], 'mesh'), task('solve-dependent', ['mesh-fails']), task('mesh-unrelated', [], 'mesh')];
+    const store = await queueProject(await temp(), tasks), dispatched: string[] = [];
+    const queue = new ExecutionQueue({ validate: async () => [], dispatch: async t => {
+      dispatched.push(t.id); return receipt(t, t.id === 'mesh-fails' ? 'failed' : 'succeeded');
+    }, lookup: async () => undefined, cancel: async t => receipt(t, 'cancelled') });
+    await queue.resume(store, planRevision((await store.read())!.queue.tasks));
+    expect(dispatched).toEqual(['mesh-fails', 'mesh-unrelated']);
+    expect((await store.read())!.queue.tasks.map(t => [t.id, t.state])).toEqual([
+      ['mesh-fails', 'failed'], ['solve-dependent', 'blocked'], ['mesh-unrelated', 'succeeded'],
+    ]);
+  });
+
   it('revalidates held work only after an explicit resume', async () => {
     const store = await queueProject(await temp(), [task('repair-me')]);
     let invalid = true, launches = 0;
