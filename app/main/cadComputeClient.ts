@@ -9,6 +9,8 @@
  */
 import { Worker } from "node:worker_threads";
 import * as path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import type * as occt from "../../cad/src/occtService";
 import type * as gmsh from "../../cad/src/gmshService";
 import type * as massProps from "../../cad/src/massProperties";
@@ -27,13 +29,28 @@ import type * as brepCache from "./cadBRepCache";
 import { createKernelTracker } from "./cadKernelStatus";
 
 interface PendingCall {
+  id: number;
+  method: string;
+  args: unknown[];
   resolve: (value: unknown) => void;
   reject: (err: Error) => void;
+  jobKey?: string;
+  jobRecord?: OwnedJobRecord;
 }
+
+export interface OwnedJobRecord {
+  version: 1; jobId: string; ownerId: string; requestId: string;
+  state: "queued" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled";
+  startedAt?: number; finishedAt?: number; message?: string;
+}
+interface OwnedJobContext { key: string; record: OwnedJobRecord }
 
 let worker: Worker | undefined;
 let nextId = 1;
-const pending = new Map<number, PendingCall>();
+const queue: PendingCall[] = [];
+let activeCall: PendingCall | undefined;
+const jobs = new Map<string, OwnedJobRecord>();
+const jobStorage = new AsyncLocalStorage<OwnedJobContext>();
 
 // One worker serves every CAD tab, so kernel readiness is app-wide state — the
 // analogue of the per-provider `kernelState()` cad 3.0.0 exposes. Inferred from
@@ -44,35 +61,69 @@ export const onKernelState = kernels.subscribe;
 
 function ensureWorker(): Worker {
   if (worker) return worker;
-  worker = new Worker(path.join(__dirname, "cadCompute.worker.js"));
-  worker.on("message", (res: { id: number; ok: boolean; value?: unknown; error?: string }) => {
-    const call = pending.get(res.id);
-    if (!call) return;
-    pending.delete(res.id);
+  const instance = new Worker(path.join(__dirname, "cadCompute.worker.js"));
+  worker = instance;
+  instance.on("message", (res: { id: number; ok: boolean; value?: unknown; error?: string }) => {
+    if (worker !== instance || activeCall?.id !== res.id) return;
+    const call = activeCall;
+    activeCall = undefined;
     if (res.ok) call.resolve(res.value);
     else call.reject(new Error(res.error ?? "cadCompute worker error"));
+    pump();
   });
-  worker.on("error", (err) => {
+  instance.on("error", (err) => {
     const error = err instanceof Error ? err : new Error(String(err));
-    kernels.reset(); // the WASM kernels died with the worker
-    for (const call of pending.values()) call.reject(error);
-    pending.clear();
-    worker = undefined;
+    failWorker(instance, error);
   });
-  worker.on("exit", () => {
-    kernels.reset();
-    for (const call of pending.values()) call.reject(new Error("cadCompute worker exited"));
-    pending.clear();
-    worker = undefined;
+  instance.on("exit", () => {
+    failWorker(instance, new Error("cadCompute worker exited"));
   });
-  return worker;
+  return instance;
+}
+
+function failWorker(instance: Worker, error: Error): void {
+  if (worker !== instance) return;
+  worker = undefined;
+  kernels.reset(); // the WASM kernels died with the worker
+  const call = activeCall;
+  activeCall = undefined;
+  call?.reject(error);
+  pump();
+}
+
+function pump(): void {
+  if (activeCall || !queue.length) return;
+  const call = queue.shift()!;
+  if (call.jobRecord && ["cancelling", "cancelled"].includes(call.jobRecord.state)) {
+    call.reject(new Error(`CAD job ${call.jobRecord.requestId} was cancelled by owner ${call.jobRecord.ownerId}.`));
+    pump();
+    return;
+  }
+  activeCall = call;
+  if (call.jobRecord) {
+    call.jobRecord.state = "running";
+    call.jobRecord.startedAt ??= Date.now();
+  }
+  kernels.start(call.method);
+  try {
+    ensureWorker().postMessage({ id: call.id, method: call.method, args: call.args });
+  } catch (err) {
+    activeCall = undefined;
+    kernels.failure(call.method);
+    call.reject(err instanceof Error ? err : new Error(String(err)));
+    pump();
+  }
 }
 
 function call<T>(method: string, args: unknown[]): Promise<T> {
   return new Promise<T>((resolve, reject) => {
+    const job = jobStorage.getStore();
+    if (job && ["cancelling", "cancelled"].includes(job.record.state)) {
+      reject(new Error(`CAD job ${job.record.requestId} was cancelled by owner ${job.record.ownerId}.`));
+      return;
+    }
     const id = nextId++;
-    kernels.start(method);
-    pending.set(id, {
+    queue.push({ id, method, args, jobKey: job?.key, jobRecord: job?.record,
       resolve: (value) => {
         kernels.success(method);
         resolve(value as T);
@@ -82,15 +133,64 @@ function call<T>(method: string, args: unknown[]): Promise<T> {
         reject(err);
       },
     });
+    pump();
+  });
+}
+
+export async function runOwnedJob<T>(identity: { ownerId: string; requestId: string; jobId?: string }, action: () => Promise<T>): Promise<T> {
+  if (!identity.ownerId.trim() || !identity.requestId.trim()) throw new Error("Owned CAD jobs require stable ownerId and requestId values.");
+  const key = `${identity.ownerId}\0${identity.requestId}`;
+  if (jobs.has(key)) throw new Error(`CAD job ${identity.requestId} was already registered for this owner.`);
+  const record: OwnedJobRecord = { version: 1, jobId: identity.jobId ?? randomUUID(), ownerId: identity.ownerId, requestId: identity.requestId, state: "queued" };
+  jobs.set(key, record);
+  while (jobs.size > 500) {
+    const first = jobs.entries().next().value as [string, OwnedJobRecord] | undefined;
+    if (!first || ["queued", "running", "cancelling"].includes(first[1].state)) break;
+    jobs.delete(first[0]);
+  }
+  return jobStorage.run({ key, record }, async () => {
     try {
-      ensureWorker().postMessage({ id, method, args });
-    } catch (err) {
-      // A worker that cannot even spawn must not leave the kernel "loading".
-      pending.delete(id);
-      kernels.failure(method);
-      reject(err instanceof Error ? err : new Error(String(err)));
+      const value = await action();
+      if (["cancelling", "cancelled"].includes(record.state)) throw new Error(`CAD job ${record.requestId} was cancelled by owner ${record.ownerId}.`);
+      record.state = "succeeded"; record.finishedAt = Date.now();
+      return value;
+    } catch (error) {
+      record.state = ["cancelling", "cancelled"].includes(record.state) ? "cancelled" : "failed";
+      record.finishedAt = Date.now();
+      record.message = error instanceof Error ? error.message : String(error);
+      throw error;
     }
   });
+}
+
+export function jobStatus(ownerId: string, requestId: string): OwnedJobRecord | undefined {
+  const record = jobs.get(`${ownerId}\0${requestId}`);
+  return record ? structuredClone(record) : undefined;
+}
+
+export function cancelOwnedJob(ownerId: string, requestId: string): OwnedJobRecord | undefined {
+  const key = `${ownerId}\0${requestId}`;
+  const record = jobs.get(key);
+  if (!record) return undefined;
+  if (record.state === "queued") {
+    record.state = "cancelled"; record.finishedAt = Date.now();
+  } else if (record.state === "running") {
+    record.state = "cancelling";
+    for (const call of queue.splice(0)) {
+      if (call.jobKey === key) call.reject(new Error(`CAD job ${requestId} was cancelled by owner ${ownerId}.`));
+      else queue.push(call);
+    }
+    if (activeCall?.jobKey === key) {
+      const current = activeCall, instance = worker;
+      activeCall = undefined;
+      worker = undefined;
+      kernels.reset();
+      current.reject(new Error(`CAD job ${requestId} was cancelled by owner ${ownerId}.`));
+      if (instance) void instance.terminate();
+      pump();
+    }
+  }
+  return structuredClone(record);
 }
 
 /**

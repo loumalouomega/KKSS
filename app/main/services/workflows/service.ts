@@ -579,16 +579,32 @@ export class WorkflowService {
       if (task.kind === 'mesh') {
         const source = task.args.source as unknown as Study['source'];
         const outputPath = abs(task.args.output, 'Mesh destination'), handoffPath = abs(task.args.handoff, 'Handoff destination');
+        const receiptPath = abs(`.kkss/runs/${task.runId}/cad-execution.json`, 'CAD execution receipt');
         await fs.mkdir(path.dirname(outputPath), { recursive: true });
         const result = await this.queuedTool(task, 'cad__export_mesh', { path: resolveReference(root, source), format: 'mdpaElements', outputPath,
-          handoffPath, options: task.args.options as Record<string, unknown> });
-        const written = Array.isArray(result.written) ? result.written.filter((row): row is { path: string } => object(row) && typeof row.path === 'string') : [];
-        const artifacts = await Promise.all(written.map(async file => ({ role: 'mesh', path: file.path, revision: await fileRevision(file.path) })));
-        const handoffFile = await fs.readFile(handoffPath, 'utf8');
-        const handoff = JSON.parse(handoffFile) as Record<string, unknown>;
-        if (handoff.version !== 1 || !Array.isArray(handoff.artifacts) || !artifacts.some(a => path.resolve(a.path) === outputPath)) throw new WorkflowToolError('CAD export did not produce the requested version-1 mesh handoff.', false);
-        artifacts.push({ role: 'handoff', path: handoffPath, revision: await fileRevision(handoffPath) });
-        return outputReceipt('succeeded', artifacts, undefined, Array.isArray(result.warnings) ? result.warnings.join('\n') : undefined);
+          handoffPath, options: task.args.options as Record<string, unknown>, ownerId, requestId: task.id, receiptPath });
+        if (!object(result.execution)) throw new WorkflowToolError('CAD runner returned no durable execution receipt; status is uncertain.', true);
+        const execution = result.execution;
+        if (execution.state !== 'succeeded' || !Array.isArray(execution.artifacts)) throw new WorkflowToolError('CAD runner returned a non-terminal or malformed mesh receipt.', true);
+        const executionArtifacts: unknown[] = execution.artifacts;
+        for (const [role, file] of [['mesh', outputPath], ['handoff', handoffPath]] as const) {
+          const artifact = executionArtifacts.find((entry: unknown) => object(entry) && entry.role === role && object(entry.reference) &&
+            path.resolve(String(entry.reference.path)) === file && typeof entry.reference.revision === 'string');
+          if (!object(artifact) || !object(artifact.reference) || typeof artifact.reference.revision !== 'string' ||
+              await fileRevision(file) !== artifact.reference.revision) {
+            throw new WorkflowToolError(`CAD execution receipt is missing a verified ${role} artifact revision.`, false);
+          }
+        }
+        const meshReceiptArtifact = executionArtifacts.find((entry: unknown) => object(entry) && entry.role === 'mesh' && object(entry.reference) &&
+          path.resolve(String(entry.reference.path)) === outputPath) as { reference?: { revision?: unknown } } | undefined;
+        const handoff = JSON.parse(await fs.readFile(handoffPath, 'utf8')) as Record<string, unknown>;
+        if (handoff.version !== 1 || !object(handoff.source) || handoff.source.revision !== task.args.sourceRevision ||
+            path.resolve(String(handoff.source.path)) !== resolveReference(root, source) || !Array.isArray(handoff.artifacts) ||
+            !handoff.artifacts.some((entry: unknown) => object(entry) && entry.role === 'mesh' && object(entry.reference) &&
+              path.resolve(String(entry.reference.path)) === outputPath && entry.reference.revision === meshReceiptArtifact?.reference?.revision)) {
+          throw new WorkflowToolError('CAD export did not produce the requested version-1 mesh handoff for this source revision.', false);
+        }
+        return this.receiptFromCad(result.execution, root, task);
       }
       const meshPath = abs(task.args.mesh, 'Mesh path'), casePath = abs(task.args.casePath, 'Case state path');
       const state = task.args.caseState as Record<string, unknown>, problemtype = String(task.args.problemtype);
@@ -633,11 +649,29 @@ export class WorkflowService {
       state: appReceiptState(raw.state), artifacts, ...((typeof raw.message === 'string' || omitted.length) ? { message: [typeof raw.message === 'string' ? raw.message : undefined, ...(omitted.length ? [`${omitted.length} artifact(s) were not attached because they have no bounded revision: ${omitted.join('; ')}`] : [])].filter(Boolean).join('\n') } : {}),
       ...(typeof raw.createdAt === 'number' ? { startedAt: raw.createdAt } : {}), ...(typeof raw.updatedAt === 'number' ? { finishedAt: raw.updatedAt } : {}) };
   }
+  private receiptFromCad(raw: Record<string, unknown>, root: string, task: Task): Receipt {
+    const artifacts: Receipt['artifacts'] = [];
+    if (Array.isArray(raw.artifacts)) for (const entry of raw.artifacts) {
+      if (!object(entry) || typeof entry.role !== 'string' || !object(entry.reference) || typeof entry.reference.path !== 'string' || typeof entry.reference.revision !== 'string') continue;
+      artifacts.push({ role: entry.role, ownerId: task.runId, reference: reference(root, entry.reference.path, entry.reference.revision) });
+    }
+    const timestamp = (value: unknown): number | undefined => typeof value === 'string' && Number.isFinite(Date.parse(value)) ? Date.parse(value) : undefined;
+    const createdAt = timestamp(raw.createdAt), updatedAt = timestamp(raw.updatedAt);
+    return { version: 1, requestId: task.id, ownerId: task.studyId, ...(typeof raw.jobId === 'string' ? { jobId: raw.jobId } : {}),
+      state: appReceiptState(raw.state), artifacts, ...(typeof raw.message === 'string' ? { message: raw.message } : {}),
+      ...(createdAt !== undefined ? { startedAt: createdAt } : {}),
+      ...(updatedAt !== undefined && ['succeeded', 'failed', 'cancelled'].includes(String(raw.state)) ? { finishedAt: updatedAt } : {}) };
+  }
   private async lookupQueuedTask(task: Task, store: ProjectStore): Promise<Receipt | undefined> {
     const root = store.root;
     if (task.kind === 'solve') {
       const response = await this.queuedTool(task, 'mesh__case_status', { requestId: task.id, ownerId: task.studyId, runDirectory: resolveReference(root, { kind: 'project', path: relativeOutput(task.args.runDirectory, 'Run directory'), revision: '' }) }).catch(() => undefined);
       return response && object(response.executionReceipt) ? this.receiptFromMesh(response.executionReceipt, root, task) : undefined;
+    }
+    if (task.kind === 'mesh') {
+      const receiptPath = resolveReference(root, { kind: 'project', path: `.kkss/runs/${task.runId}/cad-execution.json`, revision: '' });
+      const response = await this.queuedTool(task, 'cad__job_status', { receiptPath, ownerId: task.studyId, requestId: task.id }).catch(() => undefined);
+      if (response && response.version === 1 && response.ownerId === task.studyId && response.requestId === task.id) return this.receiptFromCad(response, root, task);
     }
     const files = task.requiredArtifacts.map(p => resolveReference(root, { kind: 'project', path: relativeOutput(p, 'Required artifact'), revision: '' }));
     try {
@@ -657,6 +691,11 @@ export class WorkflowService {
     } catch { return undefined; }
   }
   private async cancelQueuedTask(task: Task, store: ProjectStore): Promise<Receipt> {
+    if (task.kind === 'mesh') {
+      const receiptPath = resolveReference(store.root, { kind: 'project', path: `.kkss/runs/${task.runId}/cad-execution.json`, revision: '' });
+      const response = await this.queuedTool(task, 'cad__job_cancel', { receiptPath, ownerId: task.studyId, requestId: task.id });
+      return object(response) && response.version === 1 ? this.receiptFromCad(response, store.root, task) : { version: 1, requestId: task.id, ownerId: task.studyId, state: 'uncertain', artifacts: [] };
+    }
     if (task.kind !== 'solve') return { version: 1, requestId: task.id, ownerId: task.studyId, state: 'uncertain', artifacts: [], message: 'This synchronous task has no owner-scoped cancellation endpoint.' };
     const response = await this.queuedTool(task, 'mesh__case_stop', { requestId: task.id, ownerId: task.studyId,
       runDirectory: resolveReference(store.root, { kind: 'project', path: relativeOutput(task.args.runDirectory, 'Run directory'), revision: '' }) });
@@ -876,7 +915,7 @@ export class WorkflowService {
           await this.queue.resume(store, text(args, 'planRevision'), waitingIds);
           await this.persistTerminalQueueRuns(store); await this.snapshot(); return (await store.read())?.queue;
         }),
-      tool('queue_cancel', 'Cancel a waiting task or request owner-scoped cancellation for a running solver task.', { taskId: str }, ['taskId'], async args => {
+      tool('queue_cancel', 'Cancel a waiting task or request owner-scoped cancellation for a running CAD mesh export or solver task.', { taskId: str }, ['taskId'], async args => {
         const store = this.store(); await this.queue.cancel(store, text(args, 'taskId')); await this.snapshot(); return (await store.read())?.queue;
       }),
       tool('variants_preview', 'Preview 1–50 explicit case-setting variants without writing or launching anything.', { studyId: str, rows: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'object', properties: { name: str, settings: { type: 'object' } }, required: ['name', 'settings'], additionalProperties: false } } }, ['studyId', 'rows'], async args => {

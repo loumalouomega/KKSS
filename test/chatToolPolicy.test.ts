@@ -154,16 +154,16 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 56 cad + 24 mesh tools + 4 in-process mcp__ tools + 30 app__ workflow tools.
+    // 58 cad + 24 mesh tools + 4 in-process mcp__ tools + 30 app__ workflow tools.
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(114);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(116);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
-    expect(cad).toHaveLength(56);
+    expect(cad).toHaveLength(58);
     expect(mesh).toHaveLength(24);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(30);
@@ -209,6 +209,7 @@ describe("the table itself", () => {
       "cad__export_technical_drawing",
       "cad__fit_mesh_region",
       "cad__import_svg",
+      "cad__job_cancel",
       "cad__load_preprocess",
       "cad__pin_annotation",
       "cad__promote_mesh_to_brep",

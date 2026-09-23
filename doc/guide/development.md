@@ -96,10 +96,11 @@ resolve against the selected root after folder moves, while external paths remai
 
 The environment probe runs a bounded Python import/version check separately for manual runs and the
 uvx tool runtime. The uvx probe uses offline/no-sync flags and never installs packages. CAD MDPA
-exports produce a versioned handoff manifest, and mesh queue runs snapshot inputs into isolated
-workspaces with stable owner/request receipts and owner-scoped cancellation. The persistent queue
-stores dispatch intent before calling a runner, reconciles mesh request IDs, and leaves unresolved
-work uncertain rather than resubmitting it. Terminal runs can be imported into immutable
+exports produce a versioned handoff manifest and atomic owner/request receipts with artifact
+revisions; mesh queue runs snapshot inputs into isolated workspaces with stable owner/request
+receipts and owner-scoped cancellation. The persistent queue stores dispatch intent before calling
+a runner, reconciles CAD mesh and solver request IDs, and leaves unresolved work uncertain rather
+than resubmitting it. Terminal runs can be imported into immutable
 project-local input snapshots; large result files remain revision-checked references. Structural
 case generation writes a versioned per-step convergence monitor. `mesh__case_evaluate_quantity`
 uses the existing field parser and reductions to evaluate one explicitly selected field/component,

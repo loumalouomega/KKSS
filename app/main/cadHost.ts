@@ -143,7 +143,7 @@ import {
   stlBytesForHeal,
   AUTO_DECIMATE_TARGET_TRIANGLES,
 } from "../../cad/src/meshioService";
-import { cadCompute, kernelState, onKernelState } from "./cadComputeClient";
+import { cadCompute, kernelState, onKernelState, runOwnedJob, jobStatus, cancelOwnedJob } from "./cadComputeClient";
 import { toKkssUrl, allowRoot } from "./protocol";
 import { projectRoot } from "./services/projectRoot";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
@@ -858,16 +858,15 @@ export class CadHost {
 
     if (msg.type === "meshingGenerate") {
       try {
+        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId }, async () => {
         const input = await this.resolveMeshInput(msg.stl);
-        if (!input) {
-          this.post({ type: "meshingError", message: "No mesh geometry available: missing STL data." });
-          return;
-        }
+        if (!input) throw new Error("No mesh geometry available: missing STL data.");
         const { parts, options } = await this.resolveMeshPartsAndOptions(input, msg.options);
         const startedAt = Date.now();
         const result = await cadCompute.generateMesh(this.runtimePath, input, options, parts);
         this.post({
           type: "meshingResult",
+          requestId: msg.requestId,
           positions: encodeBuffer(result.positions),
           indices: encodeBuffer(result.indices),
           edges: encodeBuffer(result.edges),
@@ -883,30 +882,43 @@ export class CadHost {
             belowThresholdCount: result.worstElements.belowThresholdCount,
           },
         });
+        });
       } catch (err) {
-        this.post({ type: "meshingError", message: (err as Error).message });
+        this.post({ type: "meshingError", requestId: msg.requestId, message: (err as Error).message });
+      } finally {
+        this.post({ type: "meshingJobSettled", requestId: msg.requestId });
       }
+      return;
+    }
+
+    if (msg.type === "meshingCancel") {
+      const job = cancelOwnedJob(doc.path, msg.requestId);
+      if (job) this.post({ type: "status", text: job.state === "cancelled" ? "Meshing cancelled." : "Cancelling meshing job…" });
       return;
     }
 
     if (msg.type === "meshingExport") {
       try {
+        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId }, async () => {
+        const assertJobActive = () => {
+          const state = jobStatus(doc.path, msg.requestId)?.state;
+          if (state === "cancelling" || state === "cancelled") throw new Error(`CAD job ${msg.requestId} was cancelled.`);
+        };
         const unit = msg.unit ?? "mm";
         const input = await this.resolveMeshInput(msg.stl, unit);
-        if (!input) {
-          this.post({ type: "meshingError", message: "No mesh geometry available: missing STL data." });
-          return;
-        }
+        if (!input) throw new Error("No mesh geometry available: missing STL data.");
         const { parts, options } = await this.resolveMeshPartsAndOptions(input, msg.options, unit);
         let savedPath: string | undefined;
         if (msg.target === "msh") {
           const result = await cadCompute.generateMesh(this.runtimePath, input, options, parts);
-          savedPath = await this.promptSaveAndWrite(doc.path, "msh", "GMSH Mesh", async () =>
-            Buffer.from(result.mshText, "utf8")
-          );
+          savedPath = await this.promptSaveAndWrite(doc.path, "msh", "GMSH Mesh", async () => {
+            assertJobActive();
+            return Buffer.from(result.mshText, "utf8");
+          }, assertJobActive);
         } else if (msg.target === "geoUnrolled") {
           const geo = await cadCompute.exportGeoUnrolled(this.runtimePath, input, options, parts);
           savedPath = await this.promptSaveAndWrite(doc.path, "geo_unrolled", "GMSH Unrolled Geometry", async (savePath) => {
+            assertJobActive();
             if (!geo.xao) return Buffer.from(geo.text, "utf8");
             // B-rep geometry can't be textually unrolled — write the XAO
             // companion beside the chosen path and point the Merge stub at it
@@ -915,7 +927,7 @@ export class CadHost {
             await fs.writeFile(path.join(path.dirname(savePath), xaoName), geo.xao);
             const fixedText = geo.text.replace(/Merge "[^"]*\.xao";/, `Merge "${xaoName}";`);
             return Buffer.from(fixedText, "utf8");
-          });
+          }, assertJobActive);
         } else if (msg.target === "mdpaElements" || msg.target === "mdpaGeometries") {
           const format = meshExportFormat(msg.target)!;
           const text = await cadCompute.exportMdpa(
@@ -925,9 +937,10 @@ export class CadHost {
             parts,
             msg.target === "mdpaElements" ? "elements" : "geometries"
           );
-          savedPath = await this.promptSaveAndWrite(doc.path, format.extension, format.filterLabel, async () =>
-            Buffer.from(text, "utf8")
-          );
+          savedPath = await this.promptSaveAndWrite(doc.path, format.extension, format.filterLabel, async () => {
+            assertJobActive();
+            return Buffer.from(text, "utf8");
+          }, assertJobActive);
         } else if (msg.target === "med" || msg.target === "cgns" || msg.target === "xdmf") {
           // meshio++ bridge — Gmsh's own writers can't produce these; re-encode
           // generateMesh's MSH 4.1 text via exportViaMeshio.
@@ -935,6 +948,7 @@ export class CadHost {
           const meshed = await cadCompute.generateMesh(this.runtimePath, input, options, parts);
           const { bytes, companion } = await cadCompute.exportViaMeshio(meshed.mshText, msg.target);
           savedPath = await this.promptSaveAndWrite(doc.path, format.extension, format.filterLabel, async (savePath) => {
+            assertJobActive();
             if (!companion) return Buffer.from(bytes);
             // xdmf's HDF5 companion — same "write beside the chosen save path
             // and rewrite the embedded reference" pattern as geoUnrolled's .xao.
@@ -942,20 +956,24 @@ export class CadHost {
             await fs.writeFile(path.join(path.dirname(savePath), h5Name), companion.bytes);
             const fixedText = Buffer.from(bytes).toString("utf8").split(companion.name).join(h5Name);
             return Buffer.from(fixedText, "utf8");
-          });
+          }, assertJobActive);
         } else {
           const format = meshExportFormat(msg.target);
           if (!format) throw new Error(`Unknown mesh export format: ${msg.target}`);
           const text = await cadCompute.exportMeshFormat(this.runtimePath, input, options, parts, msg.target);
-          savedPath = await this.promptSaveAndWrite(doc.path, format.extension, format.filterLabel, async () =>
-            Buffer.from(text, "utf8")
-          );
+          savedPath = await this.promptSaveAndWrite(doc.path, format.extension, format.filterLabel, async () => {
+            assertJobActive();
+            return Buffer.from(text, "utf8");
+          }, assertJobActive);
         }
         // Pre → post sync: a written mesh may be openable in post mode. The
         // router (in index.ts) decides whether this format actually is.
         if (savedPath) this.hooks.onMeshExported(savedPath);
+        });
       } catch (err) {
         this.post({ type: "error", message: `Export failed: ${(err as Error).message}` });
+      } finally {
+        this.post({ type: "meshingJobSettled", requestId: msg.requestId });
       }
       return;
     }
@@ -2949,7 +2967,8 @@ export class CadHost {
     modelPath: string,
     ext: string,
     filterLabel: string,
-    getBytes: (savePath: string) => Promise<Uint8Array>
+    getBytes: (savePath: string) => Promise<Uint8Array>,
+    beforeWrite?: () => void
   ): Promise<string | undefined> {
     const baseName = path.basename(modelPath).replace(/\.[^.]+$/, "");
     const savePath = await showSaveDialog({
@@ -2959,6 +2978,7 @@ export class CadHost {
     if (!savePath) return undefined;
     try {
       const bytes = await getBytes(savePath);
+      beforeWrite?.();
       await fs.writeFile(savePath, bytes);
       this.post({ type: "status", text: `Exported to ${savePath}` });
       return savePath;

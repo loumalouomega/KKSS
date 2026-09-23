@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { Evidence, Receipt, Run, Study, Task } from '../app/main/services/workflows/contracts';
+import type { Evidence, Json, Receipt, Run, Study, Task } from '../app/main/services/workflows/contracts';
 import { checkEnvironment, PROBE_SCRIPT, type Probe } from '../app/main/services/workflows/environment';
 import { duplicateStudy, fileRevision, fingerprint, previewVariants, ProjectStore, readiness, reference, resolveReference } from '../app/main/services/workflows/project';
 import { ExecutionQueue, planRevision } from '../app/main/services/workflows/queue';
@@ -333,6 +333,71 @@ describe('shared workflow tools', () => {
     expect(new Set(queued.tasks.map(task => task.studyId)).size).toBe(2);
     expect(new Set(queued.tasks.map(task => task.runId)).size).toBe(2);
     expect(queued.planRevision).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('dispatches mesh work with durable CAD owner/request identities and reconciles by receipt', async () => {
+    const root = await temp(), geometry = path.join(root, 'beam.step');
+    await fs.writeFile(geometry, 'geometry');
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    const deps = { root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined,
+      callMcpTool: async (name: string, args: Record<string, unknown>) => {
+        calls.push({ name, args });
+        if (name === 'cad__job_status') return { structuredContent: { version: 1, ownerId: args.ownerId, requestId: args.requestId,
+          jobId: 'cad-job-1', operation: 'export_mesh', state: 'uncertain', createdAt: new Date(1).toISOString(),
+          updatedAt: new Date(2).toISOString(), artifacts: [], message: 'No live runner record.' } };
+        if (name === 'cad__job_cancel') return { structuredContent: { version: 1, ownerId: args.ownerId, requestId: args.requestId,
+          jobId: 'cad-job-1', operation: 'export_mesh', state: 'cancelled', createdAt: new Date(1).toISOString(),
+          updatedAt: new Date(2).toISOString(), artifacts: [] } };
+        const outputPath = String(args.outputPath), handoffPath = String(args.handoffPath), sourcePath = String(args.path);
+        await fs.mkdir(path.dirname(outputPath), { recursive: true });
+        await fs.writeFile(outputPath, 'Begin Nodes\nEnd Nodes\n');
+        const meshRevision = await fileRevision(outputPath), sourceRevision = await fileRevision(sourcePath);
+        const handoff = { version: 1, exportId: 'export-1', source: { kind: 'external', path: sourcePath, revision: sourceRevision },
+          replayRevision: 'a'.repeat(64), units: { length: 'mm', scale: 1 }, options: args.options, engine: 'gmsh',
+          engineVersion: '4.13.1', engineVersionSource: 'runtime General.Version',
+          artifacts: [{ role: 'mesh', reference: { kind: 'external', path: outputPath, revision: meshRevision }, ownerId: 'export-1' }],
+          groups: [], boundaryCoverage: { state: 'unavailable', reason: 'Not measured.' }, findings: [] };
+        await fs.writeFile(handoffPath, JSON.stringify(handoff));
+        const handoffRevision = await fileRevision(handoffPath);
+        return { structuredContent: { execution: { version: 1, ownerId: args.ownerId, requestId: args.requestId,
+          jobId: 'cad-job-1', operation: 'export_mesh', state: 'succeeded', createdAt: new Date(1).toISOString(),
+          updatedAt: new Date(2).toISOString(), artifacts: [
+            { role: 'mesh', reference: { kind: 'external', path: outputPath, revision: meshRevision } },
+            { role: 'handoff', reference: { kind: 'external', path: handoffPath, revision: handoffRevision } },
+          ] } } };
+      } };
+    const service = new WorkflowService(deps);
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(tool => tool.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_create', { name: 'Cantilever', source: geometry }) as Study;
+    const runId = 'run-owned-mesh';
+    const task: Task = { id: 'mesh-request-1', studyId: study.id, runId, kind: 'mesh', dependencies: [],
+      args: { source: study.source as unknown as Json, sourceRevision: study.source.revision, options: study.meshing,
+        output: `.kkss/runs/${runId}/input/beam.mdpa`, handoff: `.kkss/runs/${runId}/handoff.json` },
+      inputRevision: fingerprint({ source: study.source.revision, meshing: study.meshing }),
+      requiredArtifacts: [`.kkss/runs/${runId}/input/beam.mdpa`, `.kkss/runs/${runId}/handoff.json`], state: 'waiting' };
+    const store = service.store(); await store.update(project => { project.queue.tasks.push(task); });
+    const plan = (await store.read())!;
+    await invoke('queue_resume', { planRevision: planRevision(plan.queue.tasks) });
+    expect(calls[0].name).toBe('cad__export_mesh');
+    expect(calls[0].args).toMatchObject({ ownerId: study.id, requestId: task.id,
+      receiptPath: path.join(root, '.kkss', 'runs', runId, 'cad-execution.json') });
+    expect((await store.read())!.queue.tasks[0].receipt).toMatchObject({ jobId: 'cad-job-1', requestId: task.id, state: 'succeeded' });
+
+    const activeTask = { ...task, id: 'mesh-request-restart', state: 'running' as const };
+    await store.update(project => { project.queue.tasks[0] = activeTask; });
+    calls.length = 0;
+    const restarted = new WorkflowService(deps);
+    await restarted.snapshot();
+    expect(calls[0]).toMatchObject({ name: 'cad__job_status', args: { ownerId: study.id, requestId: activeTask.id,
+      receiptPath: path.join(root, '.kkss', 'runs', runId, 'cad-execution.json') } });
+    expect((await restarted.store().read())!.queue.tasks[0]).toMatchObject({ state: 'uncertain', receipt: { state: 'uncertain' } });
+    calls.length = 0;
+    await invoke('queue_cancel', { taskId: activeTask.id });
+    expect(calls[0]).toMatchObject({ name: 'cad__job_cancel', args: { ownerId: study.id, requestId: activeTask.id,
+      receiptPath: path.join(root, '.kkss', 'runs', runId, 'cad-execution.json') } });
+    expect((await restarted.store().read())!.queue.tasks[0].state).toBe('cancelled');
   });
 
   it('retries a failed variant with fresh study and run identities in the same comparison group', async () => {

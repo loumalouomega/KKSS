@@ -115,7 +115,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__queue_resume: "write",
   app__queue_resume_row: "write",
   app__queue_cancel: "write",
-  // ---- cad-preview (56) ---------------------------------------------------
+  // ---- cad-preview (58) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",
   cad__get_mass_properties: "read",
@@ -142,6 +142,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__list_standard_hole_sizes: "read",
   cad__list_mesh_presets: "read",
   cad__generate_mesh: "read",
+  cad__job_status: "read",
   cad__generate_hole_table: "read",
   cad__inspect_meshio_fields: "read",
   cad__download_standard_part: "write",
@@ -166,6 +167,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__set_plane: "write",
   cad__set_mesh_options: "write",
   cad__export_mesh: "write",
+  cad__job_cancel: "write",
   cad__export_brep: "write",
   cad__save_preprocess: "write",
   // cad 2.7.0: presets write the folder's library file (save) or the model's

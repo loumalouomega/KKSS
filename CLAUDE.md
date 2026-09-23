@@ -122,10 +122,13 @@ read-only mesh evaluator is
 
 The environment probe is read-only: the manual Python interpreter and uv-managed
 Kratos tool runtime are checked independently, and the latter uses offline/no-sync
-flags. CAD v1 handoff manifests, structural solve-step monitor output, and
-mesh v1 isolated run receipts now feed the queue and review services. CAD export
-still runs synchronously, so its request cannot yet be reconciled or cancelled
-by stable owner identity after interruption.
+flags. CAD v1 handoff manifests, structural solve-step monitor output, mesh
+run receipts, and CAD mesh-export receipts now feed the queue and review
+services. CAD export carries stable owner/request identities through the
+extension host, KKSS worker host and MCP path; its atomic receipt records
+artifact revisions, and owner-scoped status/cancel tools reconcile it after
+interruption. A receipt that outlives its runner is uncertain and is never
+resubmitted automatically.
 
 - **Submodule ownership.** The app consumes the submodules' built webview
   bundles and imports their vscode-free modules. Required workflow-contract
