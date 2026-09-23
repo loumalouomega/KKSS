@@ -6,7 +6,9 @@ export interface Finding { severity: 'error' | 'warning' | 'unavailable'; messag
 export interface Handoff {
   version: 1; exportId: string; source: Reference; replayRevision: string;
   units: { length: string | null; scale: number }; options: Json; engine: string;
+  engineVersion: string; engineVersionSource: string;
   artifacts: Artifact[]; groups: { name: string; id: string; dimension: number; count: number }[];
+  boundaryCoverage: { state: 'unavailable' | 'checked'; reason: string };
   findings: Finding[];
 }
 export interface Quantity {
@@ -16,11 +18,11 @@ export interface Quantity {
 export interface Evidence {
   version: 1; runId: string; findings: Finding[];
   mesh: { nodes?: number; elements?: number; quality?: Json };
-  convergence: { adapter: string; state: 'converged' | 'diverged' | 'unavailable'; samples: { iteration: number; residual: number }[] };
+  convergence: { adapter: string; state: 'converged' | 'diverged' | 'unavailable'; samples: { iteration: number; time?: number; converged: boolean; residual?: number }[] };
   quantities: Quantity[];
 }
 export type TaskState = 'waiting' | 'held' | 'dispatching' | 'running' | 'uncertain' | 'succeeded' | 'failed' | 'cancelled' | 'blocked';
-export interface Receipt { version: 1; requestId: string; ownerId: string; jobId?: string; state: TaskState; artifacts: Artifact[] }
+export interface Receipt { version: 1; requestId: string; ownerId: string; jobId?: string; state: TaskState; artifacts: Artifact[]; message?: string; startedAt?: number; finishedAt?: number }
 export interface Run {
   id: string; studyId: string; sourceRevision: string; meshRevision: string;
   settings: Json; directory: string; state: TaskState; artifacts: Artifact[];
@@ -29,7 +31,7 @@ export interface Run {
 export interface Study {
   id: string; name: string; source: Reference; meshing: Json; mesh?: Reference;
   meshSourceRevision?: string; meshOptionsRevision?: string; caseSettings: Json;
-  caseMeshRevision?: string; runs: Run[]; parentId?: string;
+  caseMeshRevision?: string; runs: Run[]; parentId?: string; handoff?: Handoff;
 }
 export interface Task {
   id: string; studyId: string; runId: string; kind: 'mesh' | 'generate' | 'solve';

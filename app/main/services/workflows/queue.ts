@@ -1,11 +1,11 @@
 /** Queue observes runners; it never spawns or adopts solver processes. */
-import type { Receipt, Task } from './contracts';
+import type { Receipt, Study, Task } from './contracts';
 import { fingerprint, ProjectStore, validateOrder } from './project';
 export interface Runner {
-  validate(task: Task): Promise<string[]>;
-  dispatch(task: Task): Promise<Receipt>;
-  lookup(task: Task): Promise<Receipt | undefined>;
-  cancel(task: Task): Promise<Receipt>;
+  validate(task: Task, store: ProjectStore): Promise<string[]>;
+  dispatch(task: Task, store: ProjectStore): Promise<Receipt>;
+  lookup(task: Task, store: ProjectStore): Promise<Receipt | undefined>;
+  cancel(task: Task, store: ProjectStore): Promise<Receipt>;
 }
 const active = (task: Task) => ['dispatching', 'running', 'uncertain'].includes(task.state);
 const failed = (task: Task) => ['failed', 'cancelled', 'blocked'].includes(task.state);
@@ -16,12 +16,12 @@ export class ExecutionQueue {
   constructor(private readonly runner: Runner) {}
   async register(store: ProjectStore): Promise<void> {
     if (this.stores.has(store)) return;
-    this.stores.add(store);
     const existing = await store.read();
+    this.stores.add(store);
     if (!existing) return;
     await store.update(p => { p.queue.paused = true; });
     for (const task of existing.queue.tasks.filter(active)) {
-      const receipt = await this.runner.lookup(task).catch(() => undefined);
+      const receipt = await this.runner.lookup(task, store).catch(() => undefined);
       await store.update(p => {
         const row = p.queue.tasks.find(t => t.id === task.id)!;
         row.receipt = receipt ?? row.receipt;
@@ -29,6 +29,25 @@ export class ExecutionQueue {
         if (!receipt) row.error = 'Dispatch could not be reconciled. Resolve the existing job before launching more work.';
       });
     }
+  }
+  async enqueue(store: ProjectStore, tasks: Task[], studies: Study[] = []): Promise<string> {
+    if (!tasks.length) throw new Error('A queue plan must contain at least one task.');
+    await this.register(store);
+    await store.update(p => {
+      const ids = new Set(p.queue.tasks.map(t => t.id));
+      if (studies.some(s => p.studies.some(existing => existing.id === s.id)) || studies.some((s, i) => studies.slice(0, i).some(other => other.id === s.id))) throw new Error('Queue plan has a duplicate study identity.');
+      p.studies.push(...structuredClone(studies));
+      const studyIds = new Set(p.studies.map(study => study.id));
+      if (tasks.some(t => ids.has(t.id) || !studyIds.has(t.studyId))) throw new Error('Queue plan has a duplicate task or unknown study.');
+      const queued = tasks.map(t => ({ ...structuredClone(t), state: 'waiting' as const, receipt: undefined, error: undefined }));
+      const combined = [...p.queue.tasks, ...queued];
+      validateOrder(combined);
+      p.queue.tasks = combined;
+      p.queue.paused = true;
+    });
+    const project = await store.read();
+    if (!project) throw new Error('Queue plan could not be persisted.');
+    return planRevision(project.queue.tasks);
   }
   async reorder(store: ProjectStore, ids: string[]): Promise<void> {
     await store.update(p => {
@@ -43,6 +62,9 @@ export class ExecutionQueue {
     await this.register(store);
     await store.update(p => {
       if (planRevision(p.queue.tasks) !== expectedPlan) throw new Error('The concrete plan changed. Preview and approve it again.');
+      // A held task was never dispatched. Resume is an explicit request to
+      // re-run its preflight after the user has corrected configuration.
+      for (const task of p.queue.tasks) if (task.state === 'held') { task.state = 'waiting'; delete task.error; }
       p.queue.paused = false;
     });
     await this.tick();
@@ -51,7 +73,7 @@ export class ExecutionQueue {
     const task = (await store.read())?.queue.tasks.find(t => t.id === id);
     if (!task) throw new Error('Unknown task.');
     if (['succeeded', 'failed', 'cancelled'].includes(task.state)) return;
-    const receipt = active(task) ? await this.runner.cancel(task) : undefined;
+    const receipt = active(task) ? await this.runner.cancel(task, store) : undefined;
     await store.update(p => { const row = p.queue.tasks.find(t => t.id === id)!; row.receipt = receipt ?? row.receipt; row.state = receipt?.state ?? 'cancelled'; });
   }
   tick(): Promise<void> {
@@ -64,7 +86,7 @@ export class ExecutionQueue {
     let occupied = false;
     for (const store of this.stores) {
       for (const task of (await store.read())?.queue.tasks.filter(active) ?? []) {
-        const receipt = await this.runner.lookup(task).catch(() => undefined);
+        const receipt = await this.runner.lookup(task, store).catch(() => undefined);
         await store.update(p => {
           const row = p.queue.tasks.find(t => t.id === task.id)!;
           row.state = receipt?.state ?? 'uncertain'; row.receipt = receipt ?? row.receipt;
@@ -83,7 +105,7 @@ export class ExecutionQueue {
           task.state = 'blocked'; continue;
         }
         if (dependencies.some(t => t.state !== 'succeeded')) continue;
-        const errors = await this.runner.validate(task).catch(e => [String(e)]);
+        const errors = await this.runner.validate(task, store).catch(e => [String(e)]);
         if (errors.length) {
           await store.update(p => { const row = p.queue.tasks.find(t => t.id === task.id)!; row.state = 'held'; row.error = errors.join('\n'); });
           continue;
@@ -98,9 +120,10 @@ export class ExecutionQueue {
         });
         if (!dispatch) continue;
         // A thrown transport error is ambiguous: never silently retry it.
-        const receipt = await this.runner.dispatch(dispatch).catch(() => undefined);
-        await store.update(p => { const row = p.queue.tasks.find(t => t.id === task.id)!; row.state = receipt?.state ?? 'uncertain'; row.receipt = receipt ?? row.receipt; });
-        return;
+        const receipt = await this.runner.dispatch(dispatch, store).catch(() => undefined);
+        await store.update(p => { const row = p.queue.tasks.find(t => t.id === task.id)!; row.state = receipt?.state ?? 'uncertain'; row.receipt = receipt ?? row.receipt; if (receipt?.message) row.error = receipt.message; });
+        if (!receipt || active({ ...task, state: receipt.state })) return;
+        return this.step();
       }
     }
   }

@@ -55,7 +55,7 @@ Native menu enabled states are rebuilt after every screen switch, including file
 
 Keep both gitlinks at the latest releases, preserving the `kkss.dev` integration commits. A successful build alone does not establish that the new capabilities work.
 
-1. Review upstream release notes and the source diff. Preserve unmodified submodule trees; required MCP changes belong on the submodule's `kkss.dev` branch and extension changes on `application-downstream`, followed by a gitlink bump here.
+1. Review upstream release notes and the source diff. Keep app-only behavior in KKSS. Required MCP contracts belong on the submodule's `kkss.dev` branch and extension changes on `application-downstream`; commit those upstream changes before the gitlink bump here.
 2. Run `npm run build`: it builds CAD and runs `npm run package --prefix mesh` **before** the parent build copies artifacts. Check that `out/meshio/dist/meshioplusplus_wasm{,_mt}.{mjs,wasm}` contains all four files. Exercise an extended-format read/write through the copied runtime.
 3. Compare `tools/webviewMarkup.ts`'s mesh body element for element with `mesh/src/webviewChrome.ts`'s `buildPreviewHtml`, using its exported fragments. Preserve the KKSS stylesheets, shim-before-bundle order and deliberate omission of `startEmpty`. The build's theme guard checks new `--vscode-*` and `--ds-*` uses.
 4. Audit reachable VS Code APIs and commands against `app/main/vscodeShim.ts`; extend the shim when needed, keeping unsupported commands loud. Every action available only from the hidden mesh menubar needs a native-menu route. Also check new palette/tree-only capabilities, such as time-series packing.
@@ -95,12 +95,15 @@ unknown project schema versions are preserved and rejected. Project-relative art
 resolve against the selected root after folder moves, while external paths remain marked as external.
 
 The environment probe runs a bounded Python import/version check separately for manual runs and the
-uvx tool runtime. The uvx probe uses offline/no-sync flags and never installs packages. CAD export
-manifests and durable, owner-scoped mesh run receipts remain upstream work before the persistent
-queue can safely dispatch mesh and solve tasks. Terminal runs can be imported into an immutable
-project-local input snapshot; large result files remain revision-checked references. The initial
-review reads only MDPA node/element/condition records. It reports convergence and scalar quantities
-as unavailable until a versioned solver monitor and quantity producer exists.
+uvx tool runtime. The uvx probe uses offline/no-sync flags and never installs packages. CAD MDPA
+exports produce a versioned handoff manifest, and mesh queue runs snapshot inputs into isolated
+workspaces with stable owner/request receipts and owner-scoped cancellation. The persistent queue
+stores dispatch intent before calling a runner, reconciles mesh request IDs, and leaves unresolved
+work uncertain rather than resubmitting it. Terminal runs can be imported into immutable
+project-local input snapshots; large result files remain revision-checked references. Structural
+case generation writes a versioned per-step convergence monitor. The review renders those outcomes
+but leaves residual magnitudes, scalar quantities, and unsupported problemtype diagnostics
+unavailable until their producers are implemented.
 
 ## Embedded terminal (node-pty + xterm.js)
 
@@ -166,7 +169,7 @@ The official uv `0.12.10` installer runs with `UV_UNMANAGED_INSTALL` under `<use
 
 The `mcp<2` constraint is necessary for `kratos-mcp-server@0.3.0`: a live unconstrained install resolved MCP Python 2.x and failed importing `mcp.server.fastmcp`. With the constraint, the real server connects and advertises all 40 tools. Linux installer and Electron recovery are verified; Windows and macOS installer commands have unit coverage but remain unverified on real machines. `node tools/kratosStartup.e2e.mjs` runs the isolated-profile recovery check, also used by `npm run docs:screenshots`.
 
-The two Node bundles are spawned with **Electron's own binary + `ELECTRON_RUN_AS_NODE=1`** (packaged machines have no system Node), and the full parent environment is always passed to `StdioClientTransport` — the SDK otherwise strips env to a minimal set, which silently breaks `uvx` (PATH). The bundles are copied from the submodules' `dist/` by `esbuild.mjs`'s `copyArtifacts()` — which also mirrors the `out/meshio/` tree beside `out/mcpServer.js` so the `mesh_convert`/`mesh_info` tools can read/write the extended meshio++ formats (see *Extended mesh formats* above); the submodules themselves are unmodified (the MCP servers are built by their normal `build`/`package` scripts on the `kkss.dev` branch).
+The two Node bundles are spawned with **Electron's own binary + `ELECTRON_RUN_AS_NODE=1`** (packaged machines have no system Node), and the full parent environment is always passed to `StdioClientTransport` — the SDK otherwise strips env to a minimal set, which silently breaks `uvx` (PATH). The bundles are copied from the submodules' `dist/` by `esbuild.mjs`'s `copyArtifacts()` — which also mirrors the `out/meshio/` tree beside `out/mcpServer.js` so the `mesh_convert`/`mesh_info` tools can read/write the extended meshio++ formats (see *Extended mesh formats* above). The submodule MCP servers are built by their normal `build`/`package` scripts on `kkss.dev`; any required extension-only change is committed on `application-downstream`.
 
 API keys are entered via **Settings ▸ LLM Assistant** (`showInputBox` modals) and stored in the stateStore encrypted with Electron `safeStorage` (`app/main/services/chat/secrets.ts`; plaintext fallback when the OS has no keyring). Subscription credentials remain in the official tools' stores. Settings are read per request — no restart needed. stateStore keys: `llmProvider`, `llmModelAnthropic`, `llmKeyAnthropic`, `llmModelOpenai`, `llmKeyOpenai`, `llmOpenaiBaseUrl`, `llmModelCodex`, `llmCodexExecutable`, `llmModelClaudeCode`, `llmClaudeCodeExecutable`, `llmToolApproval`.
 
@@ -174,7 +177,7 @@ API keys are entered via **Settings ▸ LLM Assistant** (`showInputBox` modals) 
 
 `app/main/services/chat/toolPolicy.ts` decides whether a tool the model asked for runs straight away or has to be approved. It is a **pure** module (no `electron`, no `node:*`, the approval mode passed in rather than read from the stateStore) so `test/` drives it directly — `test/chatToolPolicy.test.ts`.
 
-Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering 96 tools: 56 CAD, 23 mesh, four in-process `mcp__*` tools, and 13 app-owned `app__*` workflow tools. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (40 tools, resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
+Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering 110 bundled/in-process tools: 56 CAD, 23 mesh, four in-process `mcp__*` tools, and 27 app-owned `app__*` workflow tools. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (40 tools, resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
 
 The gate sits in `chatService.ts`'s tool loop, between appending the `toolCall` entry (so the user can read the arguments they are approving) and `mcp.callTool`. Three rules are load-bearing and easy to break:
 

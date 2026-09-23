@@ -2,11 +2,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { Receipt, Run, Study, Task } from '../app/main/services/workflows/contracts';
+import type { Evidence, Receipt, Run, Study, Task } from '../app/main/services/workflows/contracts';
 import { checkEnvironment, PROBE_SCRIPT, type Probe } from '../app/main/services/workflows/environment';
 import { duplicateStudy, fileRevision, fingerprint, previewVariants, ProjectStore, readiness, reference, resolveReference } from '../app/main/services/workflows/project';
 import { ExecutionQueue, planRevision } from '../app/main/services/workflows/queue';
-import { buildEvidence, escapeHtml, mdpaCounts, reviewHtml } from '../app/main/services/workflows/review';
+import { compareVariants, comparisonHtml } from '../app/main/services/workflows/comparison';
+import { buildEvidence, escapeHtml, mdpaCounts, parseStructuralConvergence, reviewHtml } from '../app/main/services/workflows/review';
 import { WorkflowService } from '../app/main/services/workflows/service';
 import { caseFilePath, runFilePath } from '../mesh/src/problemtype/caseFile';
 
@@ -147,6 +148,22 @@ describe('dependency-aware queue recovery', () => {
     expect((await store.read())!.queue.tasks[0].state).toBe('uncertain');
     expect((await store.read())!.queue.paused).toBe(true);
   });
+
+  it('revalidates held work only after an explicit resume', async () => {
+    const store = await queueProject(await temp(), [task('repair-me')]);
+    let invalid = true, launches = 0;
+    const queue = new ExecutionQueue({ validate: async () => invalid ? ['fix case settings'] : [],
+      dispatch: async t => { launches++; return receipt(t, 'succeeded'); }, lookup: async () => undefined,
+      cancel: async t => receipt(t, 'cancelled') });
+    const revision = planRevision((await store.read())!.queue.tasks);
+    await queue.resume(store, revision);
+    expect((await store.read())!.queue.tasks[0].state).toBe('held');
+    expect(launches).toBe(0);
+    invalid = false;
+    await queue.resume(store, revision);
+    expect(launches).toBe(1);
+    expect((await store.read())!.queue.tasks[0].state).toBe('succeeded');
+  });
 });
 
 describe('run review evidence', () => {
@@ -161,6 +178,18 @@ describe('run review evidence', () => {
     expect(evidence.convergence.state).toBe('unavailable');
     expect(evidence.convergence.samples).toEqual([]);
   });
+  it('accepts only versioned structural solve-step evidence and keeps truncated records unavailable', () => {
+    const monitor = [
+      JSON.stringify({ adapter: 'kkss.structural-convergence', version: 1, iteration: 1, time: 0.5, converged: true }),
+      JSON.stringify({ adapter: 'kkss.structural-convergence', version: 1, iteration: 2, time: 1, converged: false }),
+    ].join('\n');
+    const structuralRun = { ...run, settings: { problemtypeId: 'structural' }, state: 'succeeded' as const };
+    const divergent = buildEvidence(structuralRun, undefined, monitor);
+    expect(divergent.convergence).toMatchObject({ adapter: 'kkss.structural-convergence/v1', state: 'diverged' });
+    expect(divergent.convergence.samples).toHaveLength(2);
+    expect(parseStructuralConvergence(`${monitor}\n{`).invalid).toBe(1);
+    expect(buildEvidence(structuralRun, undefined, `${monitor}\n{`).convergence.state).toBe('unavailable');
+  });
   it('escapes HTML and embeds JSON without allowing a script close', () => {
     expect(escapeHtml('<img src="x">')).toBe('&lt;img src=&quot;x&quot;&gt;');
     const studyFixture: Study = { ...makeStudy(), name: '</title><script>alert(1)</script>', runs: [run] };
@@ -172,7 +201,116 @@ describe('run review evidence', () => {
   });
 });
 
+describe('variant comparisons', () => {
+  it('retains failed and missing rows, compares only compatible units, and escapes offline output', () => {
+    const parent: Study = { ...makeStudy(), name: '<baseline>', caseSettings: { load: 1 }, runs: [] };
+    const failedStudy = duplicateStudy(parent, 'failed row', true, { load: 2 });
+    const missingStudy = duplicateStudy(parent, 'missing row', true, { load: 3 });
+    const successfulRun: Run = { id: 'run-ok', studyId: parent.id, sourceRevision: 's', meshRevision: 'm', settings: parent.caseSettings,
+      directory: '.kkss/runs/run-ok', state: 'succeeded', startedAt: 10, finishedAt: 30, artifacts: [] };
+    const failedRun: Run = { id: 'run-failed', studyId: failedStudy.id, sourceRevision: 's', meshRevision: 'm', settings: failedStudy.caseSettings,
+      directory: '.kkss/runs/run-failed', state: 'failed', startedAt: 10, finishedAt: 50, artifacts: [] };
+    const evidence = (runId: string, value: number, unit: string, state: Evidence['convergence']['state']): Evidence => ({
+      version: 1, runId, findings: [], mesh: {}, convergence: { adapter: 'test', state, samples: [] },
+      quantities: [{ field: 'DISPLACEMENT', component: 'magnitude', region: 'tip', time: 1, reduction: 'max', unit, value, runId }],
+    });
+    const comparison = compareVariants(parent, [
+      { study: parent, run: successfulRun, evidence: evidence(successfulRun.id, 0.002, 'm', 'converged') },
+      { study: failedStudy, run: failedRun, evidence: evidence(failedRun.id, 0.2, 'cm', 'diverged') },
+      { study: missingStudy },
+    ]);
+    expect(comparison.rows.map(row => row.state)).toEqual(['succeeded', 'failed', 'missing']);
+    expect(comparison.rows[1].elapsedMs).toBe(40);
+    expect(comparison.differences[0].changes).toMatchObject([{ path: 'load', baseline: 1, value: 2 }]);
+    expect(comparison.quantities[0].compatible).toBe(false);
+    expect(comparison.quantities[0].values[2]).toMatchObject({ value: null });
+    expect(comparison.findings).toContain('Some scalar definitions use incompatible units and are not compared.');
+    const html = comparisonHtml(comparison);
+    expect(html).not.toContain('<baseline>');
+    expect(html).toContain('incompatible units');
+    expect(html).toContain('1 → 2');
+  });
+});
+
 describe('shared workflow tools', () => {
+  it('consumes the version-1 CAD handoff contract after verifying both artifact revisions', async () => {
+    const root = await temp(), geometry = path.join(root, 'beam.step'), mesh = path.join(root, 'beam.mdpa');
+    await fs.writeFile(geometry, 'geometry');
+    await fs.writeFile(mesh, 'Begin Nodes\nEnd Nodes\n');
+    const manifestPath = path.join(root, 'beam-handoff.json');
+    await fs.writeFile(manifestPath, JSON.stringify({
+      version: 1, exportId: 'export-1',
+      source: { kind: 'external', path: geometry, revision: await fileRevision(geometry) },
+      replayRevision: 'a'.repeat(64), units: { length: 'mm', scale: 1 },
+      options: { dimension: 3, sizeMax: 2 }, engine: 'gmsh', engineVersion: '4.13.1', engineVersionSource: 'runtime General.Version',
+      artifacts: [{ role: 'mesh', reference: { kind: 'external', path: mesh, revision: await fileRevision(mesh) }, ownerId: 'export-1' }],
+      groups: [{ name: 'Fixed', id: 'Fixed:2', dimension: 2, count: 1 }],
+      boundaryCoverage: { state: 'unavailable', reason: 'Not sampled.' },
+      findings: [{ severity: 'unavailable', message: 'Boundary coverage not sampled.', target: 'boundary-coverage' }],
+    }));
+    const service = new WorkflowService({ root: () => root, activeMesh: () => mesh,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined });
+    const invoke = (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_import_handoff', { name: 'Imported cantilever', manifestPath }) as Study;
+    expect(study.source).toMatchObject({ kind: 'project', path: 'beam.step' });
+    expect(study.mesh).toMatchObject({ kind: 'project', path: 'beam.mdpa' });
+    expect(study.handoff).toMatchObject({ engine: 'gmsh', engineVersion: '4.13.1', boundaryCoverage: { state: 'unavailable' } });
+    expect((await service.snapshot() as { readiness: Record<string, Record<string, string>> }).readiness[study.id].mesh).toBe('ready');
+
+    const before = (await service.store().read())!.revision;
+    await expect(invoke('study_import_handoff', { name: 'Wrong version', manifestPath: await (async () => {
+      const unknown = path.join(root, 'unknown-handoff.json'); await fs.writeFile(unknown, JSON.stringify({ version: 99 })); return unknown;
+    })() })).rejects.toThrow(/Unsupported CAD handoff schema/);
+    expect((await service.store().read())!.revision).toBe(before);
+  });
+
+  it('previews and atomically enqueues isolated run and parameter-sweep destinations', async () => {
+    const root = await temp(), geometry = path.join(root, 'beam.step');
+    await fs.writeFile(geometry, 'geometry');
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const source = await invoke('study_create', { name: 'Cantilever', source: geometry }) as Study;
+    const preview = await invoke('queue_parameter_sweep_preview', { studyId: source.id, reuseMesh: false,
+      parameterPath: 'values.problem.timeStep', values: [0.05, 0.1] }) as { previewId: string; runCount: number; variants: { name: string; destination: string; differences: string[] }[] };
+    expect(preview.runCount).toBe(2);
+    expect(preview.variants).toHaveLength(2);
+    expect(preview.variants[0].differences).toContain('values.problem.timeStep');
+    expect(preview.variants[0].destination).toMatch(/^\.kkss\/runs\//);
+    expect((await service.store().read())!.studies).toHaveLength(1); // Preview is read-only.
+    const queued = await invoke('queue_enqueue', { previewId: preview.previewId }) as { planRevision: string; tasks: Task[] };
+    const project = (await service.store().read())!;
+    expect(project.queue.paused).toBe(true);
+    expect(project.studies).toHaveLength(3);
+    expect(new Set(queued.tasks.map(task => task.studyId)).size).toBe(2);
+    expect(new Set(queued.tasks.map(task => task.runId)).size).toBe(2);
+    expect(queued.planRevision).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('keeps external sources by default and makes copy and relink explicit', async () => {
+    const root = await temp(), externalDir = await temp(), geometry = path.join(externalDir, 'beam.step'), replacement = path.join(externalDir, 'beam-v2.step');
+    const mesh = path.join(root, 'beam.mdpa');
+    await fs.writeFile(geometry, 'original'); await fs.writeFile(replacement, 'replacement'); await fs.writeFile(mesh, 'Begin Nodes\nEnd Nodes\n');
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_create', { name: 'External beam', source: geometry }) as Study;
+    expect(study.source.kind).toBe('external');
+    await invoke('study_attach_mesh', { studyId: study.id, meshPath: mesh });
+    await invoke('study_relink_source', { studyId: study.id, sourcePath: replacement });
+    let current = (await service.store().read())!.studies[0];
+    expect(current.source.path).toBe(replacement);
+    expect((await readiness(root, current)).mesh).toBe('stale');
+    const copied = await invoke('study_copy_source_into_project', { studyId: study.id }) as { source: { kind: string; path: string } };
+    expect(copied.source.kind).toBe('project');
+    expect(await fs.readFile(replacement, 'utf8')).toBe('replacement');
+    current = (await service.store().read())!.studies[0];
+    expect((await readiness(root, current)).mesh).toBe('stale');
+  });
+
   it('attaches a mesh, imports a terminal run without its process identity, and exports an honest offline review', async () => {
     const root = await temp(), geometry = path.join(root, 'beam.step'), mesh = path.join(root, 'beam.mdpa');
     await fs.writeFile(geometry, 'geometry');

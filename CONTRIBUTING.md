@@ -43,7 +43,7 @@ icons/           TikZ icon sources → shellIcons.ts + the app icon (see icons/R
 tools/           build-time generators + guards + smoke test + screenshot capture
 test/            vitest glue tests
 doc/             VitePress documentation site (own npm package)
-cad/, mesh/      git submodules — NEVER edited by app code
+cad/, mesh/      git submodules — upstream contract changes are committed on their downstream branches
 ```
 
 Doc/UI changes: follow `CLAUDE.md`'s "Keep docs in sync" section — doc drift
@@ -52,16 +52,17 @@ is part of the change, not a follow-up, and UI changes require re-running
 
 Two invariants to preserve when changing the app:
 
-1. **Zero submodule modifications.** The app consumes the submodules' built
+1. **Committed submodule ownership.** The app consumes the submodules' built
    bundles and imports their vscode-free modules. The mesh providers run
-   verbatim behind `app/main/vscodeShim.ts`; if a submodule update starts
-   using a `vscode` API the shim lacks, extend the shim — don't patch the
-   submodule.
+   behind `app/main/vscodeShim.ts`; keep app-only behavior in KKSS, and put
+   required upstream contract work on `kkss.dev` for MCP services or
+   `application-downstream` for extension code. Commit those changes before
+   updating the parent gitlink; never leave a submodule patch uncommitted.
 2. **Heavy WASM stays off the UI thread.** OCCT/Gmsh run in
    `cadCompute.worker.ts`; MMG runs in the mesh submodule's own worker pair
    (`out/mmgWorker.js` must stay next to `out/main.js`, and the OCCT/Gmsh
    binaries under `out/cad-runtime/dist/` — both paths are contracts of the
-   unmodified submodule code).
+   upstream worker code).
 
 ## Updating the submodules
 

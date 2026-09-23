@@ -104,16 +104,27 @@ references explicit. Queue dispatch must persist intent before starting work,
 and an unconfirmed dispatch stays uncertain until its runner can reconcile it.
 Do not claim solver convergence from process exit alone.
 
+The Home navigator exposes source relinking/copy-in, mesh/case navigation,
+single-run and parameter-sweep previews, queue pause/resume/cancel, run review,
+and parent/variant comparisons. Parameter sweeps create fresh studies only when
+the preview is enqueued; each row has its own run directory. Structural evidence
+contains versioned per-step convergence booleans, not residuals; quantity
+comparison accepts only saved definitions with matching units and preserves
+missing values as null.
+
 The environment probe is read-only: the manual Python interpreter and uv-managed
 Kratos tool runtime are checked independently, and the latter uses offline/no-sync
-flags. CAD handoff manifests and durable mesh request/owner receipts remain
-upstream work before the persistent queue can safely dispatch mesh and solve tasks.
+flags. CAD v1 handoff manifests, structural solve-step monitor output, and
+mesh v1 isolated run receipts now feed the queue and review services. CAD export
+still runs synchronously, so its request cannot yet be reconciled or cancelled
+by stable owner identity after interruption.
 
-- **Zero submodule modifications.** The app consumes the submodules' built
-  webview bundles verbatim and imports their vscode-free modules. If a change
-  inside `cad/` or `mesh/` is ever unavoidable, commit it to a dedicated
-  branch in that submodule (e.g. `application-downstream`) and point the KKSS
-  gitlink there — never to the submodule's default branch.
+- **Submodule ownership.** The app consumes the submodules' built webview
+  bundles and imports their vscode-free modules. Required workflow-contract
+  changes are committed in `cad/` and `mesh/` on their `kkss.dev` branches;
+  extension-only changes belong on `application-downstream`. Update parent
+  gitlinks only to those committed submodule changes, never to uncommitted
+  patches or a default branch.
 - **Asymmetric reuse — port vs shim.** `app/main/cadHost.ts` is a 1:1 *port*
   of `cad/src/provider.ts` (that provider imports OCCT directly, which must
   live in a worker here). The mesh providers run *verbatim*:
@@ -1075,7 +1086,7 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 (`55cf1ca`, also the `redesign` branch) are integrated without edits to either submodule. The recurring release-bump
 checklist lives in `doc/guide/development.md` under **Submodule release
 maintenance**; repeat it for every bump, including live MCP tool discovery
-(current sets: 56 CAD + 23 mesh + 4 aggregation + 13 app-owned workflow tools).
+(current sets: 56 CAD + 23 mesh + 4 aggregation + 27 app-owned workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
 port, not just a gitlink bump.** Two classes of change, both in

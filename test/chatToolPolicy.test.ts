@@ -154,11 +154,11 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 56 cad + 23 mesh tools + 4 in-process mcp__ tools + 13 app__ workflow tools.
+    // 56 cad + 23 mesh tools + 4 in-process mcp__ tools + 27 app__ workflow tools.
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(96);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(110);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
@@ -166,7 +166,7 @@ describe("the table itself", () => {
     expect(cad).toHaveLength(56);
     expect(mesh).toHaveLength(23);
     expect(meta).toHaveLength(4);
-    expect(app).toHaveLength(13);
+    expect(app).toHaveLength(27);
     // No kratos__ row: its external server is deliberately unclassified.
     expect(cad.length + mesh.length + meta.length + app.length).toBe(Object.keys(TOOL_ACCESS).length);
   });
@@ -177,14 +177,23 @@ describe("the table itself", () => {
       .map(([name]) => name)
       .sort();
     expect(writes).toEqual([
+      "app__queue_cancel",
+      "app__queue_enqueue",
+      "app__queue_pause",
+      "app__queue_reorder",
+      "app__queue_resume",
       "app__run_review_export",
       "app__study_attach_mesh",
+      "app__study_copy_source_into_project",
       "app__study_create",
       "app__study_duplicate",
+      "app__study_import_handoff",
       "app__study_import_run",
       "app__study_open",
+      "app__study_relink_source",
       "app__study_select",
       "app__study_set_settings",
+      "app__variants_compare_export",
       "app__variants_create",
       "cad__apply_edit_ops",
       "cad__apply_mesh_preset",

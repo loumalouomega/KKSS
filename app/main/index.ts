@@ -1097,9 +1097,32 @@ app.whenReady().then(() => {
       python: stateStore.get<string>("kratos.pythonPath", "") || defaultPythonPath(process.platform),
       env: { ...process.env, ...kratosEnvDelta() },
       bundledPython: process.env.KKSS_KRATOS_PYTHON,
+      installPath: stateStore.get<string>("kratos.installPath", "") || undefined,
+      extraEnv: stateStore.get<Record<string, string>>("kratos.extraEnv", {}) ?? {},
     }),
     open: async (file) => { openFile(file); },
     changed: () => { void pushWorkflows(); },
+    callMcpTool: (name, args) => mcpHub?.ensureStarted().callToolRaw(name, args) ?? Promise.resolve({ isError: true, content: [{ type: "text", text: "MCP manager is unavailable." }] }),
+    toolReady: (key) => mcpHub?.statuses().some(status => status.key === key && status.state === "ready") ?? false,
+    prepareQueue: async () => {
+      const hub = mcpHub;
+      if (!hub) throw new Error("MCP manager is unavailable.");
+      hub.ensureStarted();
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => finish(new Error("CAD and mesh tool servers did not become ready within 60 seconds.")), 60_000);
+        const listener = (statuses: import("./ipc").ChatServerStatus[]) => {
+          const required = statuses.filter(status => status.key === "cad" || status.key === "mesh");
+          if (required.some(status => status.state === "unavailable")) finish(new Error(required.filter(status => status.state === "unavailable").map(status => `${status.name}: ${status.error ?? "unavailable"}`).join("\n")));
+          else if (required.length === 2 && required.every(status => status.state === "ready")) finish();
+        };
+        const finish = (error?: Error) => {
+          clearTimeout(timeout); hub.offStatus(listener);
+          if (error) reject(error); else resolve();
+        };
+        hub.onStatus(listener);
+        listener(hub.statuses());
+      });
+    },
   });
   registerAppTools(workflows.tools());
   mcpHub = new McpHub(__dirname);
@@ -1289,7 +1312,11 @@ app.whenReady().then(() => {
     if (msg.type === "workflow") {
       void callAppTool(msg.tool, msg.args).then((result) => {
         if (result.isError) sendHome({ type: "workflowError", message: result.content.filter((b) => b.type === "text").map((b) => b.text).join("\n") });
-        else sendHome({ type: "workflowResult", value: result.content.filter((b) => b.type === "text").map((b) => b.text).join("\n") });
+        else {
+          const value = result.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+          try { sendHome({ type: "workflowResult", value: JSON.parse(value) as unknown }); }
+          catch { sendHome({ type: "workflowResult", value }); }
+        }
         void pushWorkflows();
       });
       return;
