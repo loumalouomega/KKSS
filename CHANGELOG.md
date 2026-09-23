@@ -5,6 +5,21 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.3.0] - 2026-09-23
+
+- feat: **guided simulation studies** connect environment checks, geometry,
+  meshing, case setup, isolated runs and results while preserving portable
+  project references and immutable run inputs.
+- feat: a **persistent dependency-aware queue** resumes mesh and solve work
+  from stable execution receipts, and controlled study variants can be
+  previewed, retried and compared without overwriting completed runs.
+- feat: **run reviews** export offline HTML and JSON with input provenance,
+  mesh statistics, structural convergence evidence and explicitly selected
+  scalar quantities; comparisons retain failed and unavailable results.
+- feat: CAD and mesh handoffs now carry versioned workflow metadata and
+  owner-scoped job receipts. CAD-Preview 3.2.0 and VSCode-MDPA-Preview 4.4.0
+  are integrated, with package associations covering their routed formats.
+
 ## [2.2.0] - 2026-09-22
 
 - feat: a **Settings page** (`Ctrl+,`) replaces most of the old Settings menu
@@ -199,6 +214,7 @@ full auto-generated compare links.
   HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
   functional change to the app itself
 
+[2.3.0]: https://github.com/loumalouomega/KKSS/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/loumalouomega/KKSS/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/loumalouomega/KKSS/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/loumalouomega/KKSS/compare/v1.11.0...v2.0.0
