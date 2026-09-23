@@ -1,3 +1,4 @@
+import { appTools, callAppTool } from "./appTools";
 /**
  * MCP client manager for the chat agent: spawns the three stdio MCP servers
  * (cad = cad-preview bundle, mesh = kratos-mdpa bundle, kratos =
@@ -347,7 +348,7 @@ export class McpManager {
 
   /** Real, namespaced tools aggregated across servers (used by the HTTP meta server). */
   tools(): ToolDef[] {
-    return this.servers.flatMap((server) => server.tools);
+    return [...this.servers.flatMap((server) => server.tools), ...appTools()];
   }
 
   /** tools() plus the synthetic resource/prompt tools — for the chat provider loop. */
@@ -429,6 +430,7 @@ export class McpManager {
    *  text, forwarding image blocks separately for display only). Never throws —
    *  errors become a CallToolResult with isError. */
   async callToolRaw(namespaced: string, args: Record<string, unknown>): Promise<CallToolResult> {
+    if (namespaced.startsWith("app__")) return callAppTool(namespaced, args);
     const split = splitToolName(namespaced, this.servers.map((s) => s.spec.key));
     const server = split && this.servers.find((s) => s.spec.key === split.server);
     if (!split || !server) return { isError: true, content: [{ type: "text", text: `Unknown tool: ${namespaced}` }] };
@@ -489,6 +491,10 @@ export class McpManager {
       return { ok: false, text: `Invalid JSON arguments for ${namespaced}` };
     }
 
+    if (namespaced.startsWith("app__")) {
+      const result = await callAppTool(namespaced, args);
+      return { ok: !result.isError, text: truncate(flattenContent(result.content), RESULT_CHARS) };
+    }
     // Synthetic resource/prompt tools are served from the aggregation layer, not a child.
     if (namespaced.startsWith(`${META_NAMESPACE}${NAMESPACE_SEPARATOR}`)) {
       return this.callMetaTool(namespaced.slice(META_NAMESPACE.length + NAMESPACE_SEPARATOR.length), args);

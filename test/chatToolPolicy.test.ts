@@ -153,20 +153,22 @@ describe("unclassifiedTools", () => {
 });
 
 describe("the table itself", () => {
-  it("covers every tool the two bundled servers register, and nothing else", () => {
-    // 56 cad + 23 mesh (verified against `grep -c 'registerTool('` in both
-    // submodules) + 4 in-process mcp__ meta tools. A bump that adds a tool
+  it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
+    // 58 cad + 24 mesh tools + 4 in-process mcp__ tools + 30 app__ workflow tools.
+    // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(83);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(116);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
-    expect(cad).toHaveLength(56);
-    expect(mesh).toHaveLength(23);
+    const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
+    expect(cad).toHaveLength(58);
+    expect(mesh).toHaveLength(24);
     expect(meta).toHaveLength(4);
-    // No fourth namespace: kratos is deliberately unclassified.
-    expect(cad.length + mesh.length + meta.length).toBe(Object.keys(TOOL_ACCESS).length);
+    expect(app).toHaveLength(30);
+    // No kratos__ row: its external server is deliberately unclassified.
+    expect(cad.length + mesh.length + meta.length + app.length).toBe(Object.keys(TOOL_ACCESS).length);
   });
 
   it("names every write tool explicitly, so the list is reviewable", () => {
@@ -175,6 +177,26 @@ describe("the table itself", () => {
       .map(([name]) => name)
       .sort();
     expect(writes).toEqual([
+      "app__queue_cancel",
+      "app__queue_enqueue",
+      "app__queue_pause",
+      "app__queue_reorder",
+      "app__queue_resume",
+      "app__queue_resume_row",
+      "app__run_quantity_evaluate",
+      "app__run_review_export",
+      "app__study_attach_mesh",
+      "app__study_copy_source_into_project",
+      "app__study_create",
+      "app__study_duplicate",
+      "app__study_import_handoff",
+      "app__study_import_run",
+      "app__study_open",
+      "app__study_relink_source",
+      "app__study_select",
+      "app__study_set_settings",
+      "app__variants_compare_export",
+      "app__variants_create",
       "cad__apply_edit_ops",
       "cad__apply_mesh_preset",
       "cad__compare_mesh_refinement",
@@ -187,6 +209,7 @@ describe("the table itself", () => {
       "cad__export_technical_drawing",
       "cad__fit_mesh_region",
       "cad__import_svg",
+      "cad__job_cancel",
       "cad__load_preprocess",
       "cad__pin_annotation",
       "cad__promote_mesh_to_brep",

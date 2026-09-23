@@ -94,11 +94,51 @@ Concretely:
 
 ## Architecture (non-negotiable invariants)
 
-- **Zero submodule modifications.** The app consumes the submodules' built
-  webview bundles verbatim and imports their vscode-free modules. If a change
-  inside `cad/` or `mesh/` is ever unavoidable, commit it to a dedicated
-  branch in that submodule (e.g. `application-downstream`) and point the KKSS
-  gitlink there — never to the submodule's default branch.
+### Guided simulation workflows
+
+`app/main/services/workflows/` owns the optional versioned `.kkss/project.json`
+study store, capability report and persistent queue core. Home and the `app__*`
+tools share `WorkflowService`; `McpManager` exposes those tools to both chat and
+the optional HTTP meta server. Keep project references relocatable and external
+references explicit. Queue dispatch must persist intent before starting work,
+and an unconfirmed dispatch stays uncertain until its runner can reconcile it.
+Do not claim solver convergence from process exit alone.
+
+The Home navigator exposes source relinking/copy-in, mesh/case navigation,
+single-run and parameter-sweep previews, queue pause/resume/cancel, run review,
+and parent/variant comparisons. Parameter sweeps create fresh studies only when
+the preview is enqueued; each row has its own run directory, and Home can resume
+one waiting row while holding the others or preview a fresh-identity retry for a
+failed row. Structural evidence
+contains versioned per-step convergence booleans, not residuals; quantity
+evaluation explicitly selects a result field/component, region, time, reduction
+and unit, then saves it with its exact artifact reference and source revision.
+Variant comparison labels mesh-sensitivity, solver-parameter and mixed studies
+from recorded mesh revisions and settings; it accepts only matching quantity
+definitions with compatible units and preserves missing values as null. The
+read-only mesh evaluator is
+`mesh__case_evaluate_quantity`; its app-owned persistence wrapper is
+`app__run_quantity_evaluate` and follows normal write approval.
+
+The environment probe is read-only: the manual Python interpreter and uv-managed
+Kratos tool runtime are checked independently, and the latter uses offline/no-sync
+flags. The KKSS `RunManager` guard uses the selected problemtype's manual report to
+disable the mesh Problemtype Run action and rechecks before process dispatch; an
+unconfigured guard preserves standalone mesh behavior. CAD v1 handoff manifests,
+structural solve-step monitor output, mesh
+run receipts, and CAD mesh-export receipts now feed the queue and review
+services. CAD export carries stable owner/request identities through the
+extension host, KKSS worker host and MCP path; its atomic receipt records
+artifact revisions, and owner-scoped status/cancel tools reconcile it after
+interruption. A receipt that outlives its runner is uncertain and is never
+resubmitted automatically.
+
+- **Submodule ownership.** The app consumes the submodules' built webview
+  bundles and imports their vscode-free modules. Required workflow-contract
+  changes are committed in `cad/` and `mesh/` on their `kkss.dev` branches;
+  extension-only changes belong on `application-downstream`. Update parent
+  gitlinks only to those committed submodule changes, never to uncommitted
+  patches or a default branch.
 - **Asymmetric reuse — port vs shim.** `app/main/cadHost.ts` is a 1:1 *port*
   of `cad/src/provider.ts` (that provider imports OCCT directly, which must
   live in a worker here). The mesh providers run *verbatim*:
@@ -1060,7 +1100,7 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 (`55cf1ca`, also the `redesign` branch) are integrated without edits to either submodule. The recurring release-bump
 checklist lives in `doc/guide/development.md` under **Submodule release
 maintenance**; repeat it for every bump, including live MCP tool discovery
-(the current sets are 56 CAD + 23 mesh + 4 aggregation tools).
+(current sets: 56 CAD + 24 mesh + 4 aggregation + 30 app-owned workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
 port, not just a gitlink bump.** Two classes of change, both in

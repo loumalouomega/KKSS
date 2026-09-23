@@ -83,7 +83,39 @@ export function isApprovalMode(value: unknown): value is ApprovalMode {
  * reviewed edit rather than a silent change in what runs unasked.
  */
 export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
-  // ---- cad-preview (56) ---------------------------------------------------
+  // App-owned guided simulation workflow. Preview/report operations are reads;
+  // selecting, navigating, creating, and duplicating alter user-visible state.
+  app__check_simulation_environment: "read",
+  app__study_list: "read",
+  app__study_open: "write",
+  app__study_attach_mesh: "write",
+  app__study_copy_source_into_project: "write",
+  app__study_import_run: "write",
+  app__study_relink_source: "write",
+  app__study_import_handoff: "write",
+  app__variants_create: "write",
+  app__variants_compare_export: "write",
+  app__run_review: "read",
+  app__run_review_export: "write",
+  app__run_quantity_evaluate: "write",
+  app__study_create: "write",
+  app__study_select: "write",
+  app__study_set_settings: "write",
+  app__study_duplicate: "write",
+  app__variants_preview: "read",
+  app__variants_compare: "read",
+  app__queue_plan_preview: "read",
+  app__queue_variants_preview: "read",
+  app__queue_parameter_sweep_preview: "read",
+  app__queue_retry_variant_preview: "read",
+  app__queue_inspect: "read",
+  app__queue_enqueue: "write",
+  app__queue_reorder: "write",
+  app__queue_pause: "write",
+  app__queue_resume: "write",
+  app__queue_resume_row: "write",
+  app__queue_cancel: "write",
+  // ---- cad-preview (58) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",
   cad__get_mass_properties: "read",
@@ -110,6 +142,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__list_standard_hole_sizes: "read",
   cad__list_mesh_presets: "read",
   cad__generate_mesh: "read",
+  cad__job_status: "read",
   cad__generate_hole_table: "read",
   cad__inspect_meshio_fields: "read",
   cad__download_standard_part: "write",
@@ -134,6 +167,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__set_plane: "write",
   cad__set_mesh_options: "write",
   cad__export_mesh: "write",
+  cad__job_cancel: "write",
   cad__export_brep: "write",
   cad__save_preprocess: "write",
   // cad 2.7.0: presets write the folder's library file (save) or the model's
@@ -144,7 +178,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
 
-  // ---- kratos-mdpa (23) ---------------------------------------------------
+  // ---- kratos-mdpa (24) ---------------------------------------------------
   mesh__mesh_info: "read",
   mesh__mesh_capabilities: "read",
   mesh__mesh_quality: "read",
@@ -153,6 +187,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__mesh_find_entity: "read",
   mesh__case_validate: "read",
   mesh__case_status: "read",
+  mesh__case_evaluate_quantity: "read",
   mesh__mesh_transform: "write",
   mesh__mesh_convert: "write",
   mesh__mesh_extract_submodelpart: "write",

@@ -10,18 +10,29 @@ body {
 }
 
 #home {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(360px, 1fr);
+  grid-template-rows: auto auto auto;
+  align-items: start;
+  align-content: center;
+  justify-items: center;
+  height: 100%;
+  gap: var(--ui-s-4) clamp(32px, 6vw, 112px);
+  min-height: 0;
+  padding: var(--ui-s-5) clamp(24px, 5vw, 96px);
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+#brand {
+  grid-column: 1;
+  grid-row: 1 / span 3;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
   gap: var(--ui-s-3);
-  /* The body is overflow:hidden, so on a short window the recents block below
-     must be what scrolls (see #recents-list) rather than the column overflowing
-     off-screen. min-height:0 lets this flex column shrink to allow that. */
-  min-height: 0;
-  padding: var(--ui-s-5) 0;
-  box-sizing: border-box;
+  min-width: 320px;
 }
 
 #logo {
@@ -94,19 +105,25 @@ body {
    (the global [hidden] rule) until there is something to show, so a fresh
    install's home screen is unchanged. Same 320px column, same head. */
 .home-section {
+  grid-column: 2;
   display: flex;
   flex-direction: column;
   gap: var(--ui-s-2);
-  width: 320px;
-  margin-top: 18px;
-  /* Never squeezed by a short window — only the recents *list* scrolls. */
-  flex: none;
+  width: min(100%, 640px);
+  min-width: 0;
+  padding: var(--ui-s-4);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--ui-r-md);
+  background: var(--vscode-sideBar-background);
+  box-sizing: border-box;
 }
 
-#recents {
-  flex: 0 1 auto;
-  min-height: 0;
-}
+#project-root { grid-row: 1; }
+#workflow { grid-row: 2; }
+#recents { grid-row: 3; }
+
+#workflow { max-height: min(68vh, 760px); overflow-y: auto; }
+#recents { max-height: 220px; min-height: 0; }
 
 .home-section-head {
   display: flex;
@@ -139,6 +156,50 @@ body {
      too short to show even those. */
   overflow-y: auto;
   min-height: 0;
+}
+
+.workflow-actions { display: flex; flex-wrap: wrap; gap: var(--ui-s-3); }
+.workflow-actions button:disabled { opacity: 0.45; cursor: default; }
+.workflow-more summary {
+  color: var(--vscode-descriptionForeground);
+  font-size: var(--ui-fs-sm);
+  cursor: pointer;
+}
+.workflow-more .workflow-actions { padding-top: var(--ui-s-2); }
+#study-picker-label { display: flex; flex-direction: column; gap: var(--ui-s-1); }
+#study-picker { width: 100%; }
+#study-readiness, #environment-report, #queue-status, #workflow-error {
+  color: var(--vscode-descriptionForeground);
+  font-size: var(--ui-fs-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#variant-rows { display: grid; gap: var(--ui-s-2); }
+.variant-row { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-s-3); padding: var(--ui-s-2) 0; border-top: 1px solid var(--vscode-panel-border); }
+.variant-row-label { min-width: 0; color: var(--vscode-descriptionForeground); font-size: var(--ui-fs-sm); overflow-wrap: anywhere; }
+.variant-row-actions { display: flex; flex: 0 0 auto; gap: var(--ui-s-2); }
+#workflow-error { color: var(--vscode-errorForeground); }
+
+@media (max-width: 820px) {
+  #home {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    align-content: start;
+    justify-items: stretch;
+    gap: var(--ui-s-4);
+    padding: var(--ui-s-5) var(--ui-s-4);
+  }
+
+  #brand {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .home-section { grid-column: 1; width: 100%; }
+  #project-root { grid-row: 2; }
+  #workflow { grid-row: 3; max-height: none; }
+  #recents { grid-row: 4; max-height: 260px; }
 }
 
 .recent-btn {

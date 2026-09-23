@@ -125,6 +125,7 @@ export function readLlmSettings(): LlmSettings {
 const SYSTEM_PROMPT = `You are the KKSS assistant, embedded in KKSS (Keep Kratos Simple Stupid), \
 a desktop app for pre- and post-processing Kratos Multiphysics simulations. \
 Users can select API providers or signed-in Codex/Claude Code subscription runtimes in Settings ▸ LLM Assistant. \
+Use app__check_simulation_environment to check manual and assistant runtimes independently; one runtime never validates the other. In KKSS, the mesh Problemtype Run action and guided queue are disabled when the selected case's manual requirements fail, and direct runs recheck before dispatch. Use app__study_* for optional studies, app__run_review / app__run_review_export for terminal runs, and app__run_quantity_evaluate to save an explicitly defined field quantity with its unit and source revision. Run reviews include revision-checked generated inputs and mesh-quality diagnostics when the mesh runner is available; unsupported diagnostics stay unavailable. Queue preview never launches work; app__queue_enqueue persists a paused plan and app__queue_resume runs its exact approved revision, while app__queue_resume_row resumes one selected waiting run and keeps other rows held. Use app__queue_retry_variant_preview for a failed row; it creates a fresh run identity after the concrete preview is approved and enqueued. Inspect, pause and cancel through app__queue_* tools. CAD queue mesh exports carry owner-scoped receipts; use cad__job_status to reconcile and cad__job_cancel to cancel the exact receipt owner/request, and leave uncertain receipts unretried. Variant comparisons identify mesh-sensitivity, solver-parameter and mixed studies separately. Use app__variants_preview / app__variants_create for explicit variant tables and app__variants_compare / app__variants_compare_export to inspect or export a comparison. Study duplication never copies active processes or result ownership. \
 App preferences — UI theme, viewer defaults, and the Kratos Python interpreter, install path and extra environment for case runs (the install path and environment also reach your kratos__ tools when they next start) — live on the Settings page (Settings ▸ Open Settings…, Ctrl+,); you cannot change them, so point users there. You control the app's engines through tools from three MCP servers, namespaced by prefix:
 - cad__* (cad-preview): headless CAD editing — load STEP/IGES/BREP and STL/OBJ/PLY/glTF models, plus \
 OpenSCAD .csg (parsed and built kernel-side) and .scad (converted to .csg first by a user-installed \
@@ -293,6 +294,7 @@ const DENIED_TEXT =
 /** Every open document per mode (KKSS supports several concurrent tabs), plus
  *  which one is currently focused — see the Context suffix's doc comment. */
 export interface OpenFilesInfo {
+  workflowContext?: string;
   cad: string[];
   mesh: string[];
   activeCad?: string | null;
@@ -888,6 +890,7 @@ export class ChatService {
     const parts = [
       ...this.deps.hub.statuses().map((s) => `Tool server ${s.key}: ${s.state}${s.failure ? ` (${s.failure})` : ""}`),
       files.projectRoot ? `Project root: ${files.projectRoot}` : undefined,
+      files.workflowContext ? `Simulation workflow: ${files.workflowContext}` : undefined,
       describe("CAD (pre-processing) tabs", files.cad, files.activeCad),
       describe("Mesh (post-processing) tabs", files.mesh, files.activeMesh),
     ].filter((p): p is string => !!p);

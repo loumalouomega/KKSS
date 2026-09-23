@@ -27,6 +27,12 @@ import { EditorService } from "./services/editor";
 import { ChatService } from "./services/chat/chatService";
 import { JobsService } from "./services/jobs";
 import { McpHub } from "./services/chat/mcpHub";
+import { WorkflowService } from "./services/workflows/service";
+import { manualLaunchAvailability } from "./services/workflows/environment";
+import { registerAppTools, callAppTool } from "./services/chat/appTools";
+import { KratosRuntime } from "./services/chat/kratosRuntime";
+import { kratosEnvDelta } from "./services/settings/kratosEnv";
+import { defaultPythonPath } from "../../mesh/src/problemtype/kratosEnv";
 import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
 import { configureNotifications, handleToastButton, progressToast, toast } from "./services/notifications";
@@ -139,6 +145,7 @@ let editor: EditorService | null = null;
 let chat: ChatService | null = null;
 let mcpHub: McpHub | null = null;
 let jobs: JobsService | null = null;
+let workflows: WorkflowService | undefined;
 let metaServer: MetaMcpServer | null = null;
 let cloud: CloudService | null = null;
 /** `before-quit` may hold the quit open exactly once to drain uploads. */
@@ -150,6 +157,22 @@ function sendShell(message: unknown): void {
 
 function sendHome(message: HomeToWebview): void {
   main?.home.webContents.send("home:toWebview", message);
+}
+
+async function pushWorkflows(): Promise<void> {
+  try { sendHome({ type: "workflowState", value: await workflows?.snapshot() }); }
+  catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
+}
+
+async function checkSimulationEnvironment(): Promise<void> {
+  setScreen("home");
+  sendHome({ type: "workflowBusy", busy: true });
+  try {
+    sendHome({ type: "environmentReport", value: await workflows?.environment(true) });
+    runs?.requestCapabilityRefresh(true);
+  }
+  catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
+  finally { sendHome({ type: "workflowBusy", busy: false }); }
 }
 
 /** Pushes the recents list to the home screen. Label and folder are formatted
@@ -460,6 +483,11 @@ function createTab(mode: Mode) {
       // Mirrors extension.ts activate(): construct once, restore adopted run
       // sidecars, dispose on quit.
       runs = new RunManager(createMeshExtensionContext(__dirname));
+      runs.setStartGuard(async (meshPath, problemtypeId, force) => {
+        if (!workflows) return { allowed: false, reason: "Simulation environment checks are not ready yet." };
+        const report = await workflows.environmentForMesh(meshPath, problemtypeId, force);
+        return manualLaunchAvailability(report);
+      });
       runs.restore();
     }
     if (!recents) {
@@ -1070,6 +1098,42 @@ app.whenReady().then(() => {
 
   // One McpManager owner, shared by the chat loop and the HTTP meta server, so
   // the three MCP child servers are spawned once (whichever front-end starts first).
+  workflows = new WorkflowService({
+    root: () => projectRoot.explicit(),
+    activeMesh: () => activeMeshHost()?.currentFile ?? undefined,
+    runtime: new KratosRuntime(app.getPath("userData")),
+    environment: () => ({
+      python: stateStore.get<string>("kratos.pythonPath", "") || defaultPythonPath(process.platform),
+      env: { ...process.env, ...kratosEnvDelta() },
+      bundledPython: process.env.KKSS_KRATOS_PYTHON,
+      installPath: stateStore.get<string>("kratos.installPath", "") || undefined,
+      extraEnv: stateStore.get<Record<string, string>>("kratos.extraEnv", {}) ?? {},
+    }),
+    open: async (file) => { openFile(file); },
+    changed: () => { void pushWorkflows(); },
+    callMcpTool: (name, args) => mcpHub?.ensureStarted().callToolRaw(name, args) ?? Promise.resolve({ isError: true, content: [{ type: "text", text: "MCP manager is unavailable." }] }),
+    toolReady: (key) => mcpHub?.statuses().some(status => status.key === key && status.state === "ready") ?? false,
+    prepareQueue: async () => {
+      const hub = mcpHub;
+      if (!hub) throw new Error("MCP manager is unavailable.");
+      hub.ensureStarted();
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => finish(new Error("CAD and mesh tool servers did not become ready within 60 seconds.")), 60_000);
+        const listener = (statuses: import("./ipc").ChatServerStatus[]) => {
+          const required = statuses.filter(status => status.key === "cad" || status.key === "mesh");
+          if (required.some(status => status.state === "unavailable")) finish(new Error(required.filter(status => status.state === "unavailable").map(status => `${status.name}: ${status.error ?? "unavailable"}`).join("\n")));
+          else if (required.length === 2 && required.every(status => status.state === "ready")) finish();
+        };
+        const finish = (error?: Error) => {
+          clearTimeout(timeout); hub.offStatus(listener);
+          if (error) reject(error); else resolve();
+        };
+        hub.onStatus(listener);
+        listener(hub.statuses());
+      });
+    },
+  });
+  registerAppTools(workflows.tools());
   mcpHub = new McpHub(__dirname);
   jobs = new JobsService({
     hub: mcpHub,
@@ -1098,6 +1162,7 @@ app.whenReady().then(() => {
     hub: mcpHub,
     chatsDir: path.join(app.getPath("userData"), "chats"),
     currentFiles: () => ({
+      workflowContext: workflows?.context(),
       cad: [...cadHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
       mesh: [...meshHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
       activeCad: activeCadHost()?.currentFile,
@@ -1174,6 +1239,7 @@ app.whenReady().then(() => {
   refreshMenu();
   configureSettings(__dirname, {
     setZoom: (factor) => setUiZoom(factor),
+    checkSimulationEnvironment: () => { void checkSimulationEnvironment(); },
     projectRoot: {
       explicit: () => projectRoot.explicit(),
       choose: () => void chooseProjectRoot(),
@@ -1193,6 +1259,7 @@ app.whenReady().then(() => {
   const settingKeys = new Set(registry().map((e) => e.storeKey).filter((k): k is string => !!k));
   stateStore.onDidChange((key) => {
     if (settingKeys.has(key)) installMenu(menuDeps);
+    if (["kratos.pythonPath", "kratos.installPath", "kratos.extraEnv"].includes(key)) runs?.requestCapabilityRefresh();
   });
   // An Electron menu is static once built, so the Open Recent submenu only
   // tracks the store by rebuilding the whole template. `record()` fires once
@@ -1214,6 +1281,7 @@ app.whenReady().then(() => {
     refreshSettingsRows();
     pushProjectRoot();
     pushRecents();
+    void pushWorkflows();
   });
 
   // Honor the persisted opt-in on startup.
@@ -1239,6 +1307,7 @@ app.whenReady().then(() => {
   }, CLOUD_STARTUP_DELAY_MS);
 
   ipcMain.on("home:toHost", (_event, raw) => {
+    if (_event.sender !== main?.home.webContents) return;
     const msg = raw as HomeToHost;
     if (!main) return;
     if (msg.type === "homeReady") {
@@ -1246,6 +1315,24 @@ app.whenReady().then(() => {
       // a crash reload) — replay it, the same way shellReady replays below.
       pushRecents();
       pushProjectRoot();
+      void pushWorkflows();
+      return;
+    }
+    if (msg.type === "checkEnvironment") { void checkSimulationEnvironment(); return; }
+    if (msg.type === "workflow") {
+      void callAppTool(msg.tool, msg.args).then((result) => {
+        if (result.isError) sendHome({ type: "workflowError", message: result.content.filter((b) => b.type === "text").map((b) => b.text).join("\n") });
+        else {
+          const value = result.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+          try { sendHome({ type: "workflowResult", value: JSON.parse(value) as unknown }); }
+          catch { sendHome({ type: "workflowResult", value }); }
+        }
+        void pushWorkflows();
+      });
+      return;
+    }
+    if (msg.type === "retrySimulationTools") {
+      void mcpHub?.retryKratos(msg.install).catch((error) => sendHome({ type: "workflowError", message: String(error) }));
       return;
     }
     if (msg.type === "openRecent") {

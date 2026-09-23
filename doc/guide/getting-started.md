@@ -54,6 +54,42 @@ sidecar KKSS writes beside your model now lands through a temp file that is rena
 a sync daemon can never pick up a half-written one or raise a spurious "conflicted copy". The only
 visible trace is a `.tmp` file that exists for a few milliseconds during each save.
 
+### Guided simulation work
+
+Home's **Check environment** action probes the configured Python interpreter used for manual runs
+and the assistant's uv-managed tool runtime separately. It checks the selected built-in
+problemtype's Kratos application imports, available CPU and memory, and whether the current run
+directory exists and is writable. The report includes each resolved executable and version and
+does not install packages. A failed manual check disables the mesh Problemtype Run action and
+guided queue launches while geometry browsing stays available; the action checks again before
+starting. If the assistant runtime is
+missing, Home offers its existing retry and uv setup actions; interpreter changes remain in
+Settings ▸ Kratos.
+
+With an explicit project folder, **New study** records a geometry reference and its content revision
+in `.kkss/project.json`. Project-contained paths follow the folder when it moves; external paths
+remain explicit references. Home shows geometry, mesh, case, run and result readiness, can open an
+available geometry, mesh/case setup, and result in their existing viewers, and can duplicate study
+settings. Geometry stays external by default; **Copy geometry in project** creates a project-local
+copy, while **Relink geometry** explicitly repairs a missing or changed source. After exporting a
+mesh, **Attach mesh** records its revision and imports the adjacent case setup when one exists.
+**Plan run** previews isolated mesh, case-generation and solve tasks under `.kkss/runs/<id>/`.
+**Plan sweep** expands one case-setting path and up to 50 values into fresh variant studies and run
+destinations. Plans persist paused; Resume is bound to the concrete plan revision, and the queue
+reconciles recorded CAD mesh-export and solver request identities after restart. Home can resume one waiting variant row
+while holding other rows, or preview a failed row retry with fresh study and run identities. Comparisons
+label mesh-sensitivity and solver-parameter studies separately using recorded mesh revisions and settings. A terminal run can be imported as an
+immutable input snapshot; large results remain revision-checked links. **Review run** and **Export
+review** report generated-input revisions, MDPA counts, the existing mesh-quality diagnostics and
+versioned structural solve-step outcomes in offline JSON/HTML.
+**Evaluate quantity** lets you select a result field, location, component, region, time step,
+reduction and unit; the result record keeps the exact source artifact revision. Units must be
+declared explicitly. If that result later changes, its saved value is shown as stale and omitted.
+Variant comparison pairs matching definitions only when their units agree; missing values stay
+missing. Residual magnitudes and unsupported-problemtype convergence remain
+explicitly unavailable. The assistant has the same environment, study, queue, review, quantity and
+variant tools under the normal transcript approval policy; preview never launches work.
+
 ### Working from cloud storage
 
 If you would rather not run a sync client at all, **Settings ▸ Cloud Accounts** connects KKSS

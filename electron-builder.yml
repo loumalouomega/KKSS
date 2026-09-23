@@ -135,14 +135,24 @@ fileAssociations:
     name: KKSS FLAC3D document
   - ext: fem
     name: KKSS Nastran document
+  - ext: frd
+    name: KKSS CalculiX result document
   - ext: geo
     name: KKSS EnSight document
+  - ext: hdf
+    name: KKSS VTK HDF document
   - ext: h5m
     name: KKSS MOAB document
   - ext: hmf
     name: KKSS HMF document
   - ext: ip
     name: KKSS field document
+  - ext: dyn
+    name: KKSS LS-DYNA document
+  - ext: k
+    name: KKSS LS-DYNA document
+  - ext: key
+    name: KKSS LS-DYNA document
   - ext: mff
     name: KKSS field document
   - ext: mfm
@@ -153,6 +163,10 @@ fileAssociations:
     name: KKSS Nastran document
   - ext: off
     name: KKSS OFF document
+  - ext: pcd
+    name: KKSS point cloud document
+  - ext: pvd
+    name: KKSS VTK time series document
   - ext: pf3
     name: KKSS Flux document
   - ext: poly
@@ -165,16 +179,28 @@ fileAssociations:
     name: KKSS GiD document
   - ext: post.h5
     name: KKSS GiD document
+  - ext: pvtp
+    name: KKSS parallel VTK XML document
+  - ext: pvtu
+    name: KKSS parallel VTK XML document
   - ext: tec
     name: KKSS Tecplot document
   - ext: ugrid
     name: KKSS UGRID document
   - ext: vol
     name: KKSS Netgen document
+  - ext: vtkhdf
+    name: KKSS VTK HDF document
   - ext: wkt
     name: KKSS WKT document
   - ext: xmf
     name: KKSS XDMF document
+  - ext: xyz
+    name: KKSS point cloud document
+  - ext: xyzn
+    name: KKSS point cloud document
+  - ext: xyzrgb
+    name: KKSS point cloud document
   - ext: xml
     name: KKSS DOLFIN document
 protocols:

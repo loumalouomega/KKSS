@@ -11,10 +11,12 @@
 </head>
 <body>
   <div id="home">
-    <img id="logo" src="../../icon.png" alt="" />
-    <h1 id="title">KKSS</h1>
-    <p id="subtitle">Keep Kratos Simple Stupid</p>
-    <div id="menu" role="menu" aria-label="Main menu"></div>
+    <div id="brand">
+      <img id="logo" src="../../icon.png" alt="" />
+      <h1 id="title">KKSS</h1>
+      <p id="subtitle">Keep Kratos Simple Stupid</p>
+      <div id="menu" role="menu" aria-label="Main menu"></div>
+    </div>
     <!-- Both sections are populated from main over home:toWebview and stay
          hidden until there is something to show, so a fresh install looks
          exactly as it always has. -->
@@ -27,6 +29,59 @@
         </span>
       </div>
       <div id="project-root-path"></div>
+    </section>
+    <section id="workflow" class="home-section" hidden>
+      <div class="home-section-head">
+        <h2 class="eyebrow">Simulation workflow</h2>
+        <button id="workflow-check" class="btn-link" type="button">Check environment</button>
+      </div>
+      <div class="workflow-actions">
+        <button id="study-create" class="btn-link" type="button">New study</button>
+        <button id="study-duplicate" class="btn-link" type="button" disabled>Duplicate</button>
+        <button id="study-plan-run" class="btn-link" type="button" disabled>Plan run</button>
+        <button id="study-plan-sweep" class="btn-link" type="button" disabled>Plan sweep</button>
+      </div>
+      <label id="study-picker-label" hidden>Study
+        <select id="study-picker"></select>
+      </label>
+      <div id="study-readiness" aria-live="polite"></div>
+      <div class="workflow-actions">
+        <button id="queue-resume" class="btn-link" type="button" disabled>Resume queue</button>
+        <button id="queue-pause" class="btn-link" type="button" disabled>Pause queue</button>
+        <button id="queue-cancel" class="btn-link" type="button" disabled>Cancel task</button>
+      </div>
+      <div id="queue-status" aria-live="polite"></div>
+      <div id="variant-rows" aria-label="Variant rows"></div>
+      <div class="workflow-actions">
+        <button id="study-open-geometry" class="btn-link" type="button" disabled>Open geometry</button>
+        <button id="study-open-mesh" class="btn-link" type="button" disabled>Open mesh</button>
+        <button id="study-open-case" class="btn-link" type="button" disabled>Open case</button>
+        <button id="study-open-results" class="btn-link" type="button" disabled>Open results</button>
+      </div>
+      <div class="workflow-actions">
+        <button id="study-evaluate-quantity" class="btn-link" type="button" disabled>Evaluate quantity</button>
+        <button id="study-review-run" class="btn-link" type="button" disabled>Review run</button>
+        <button id="study-export-review" class="btn-link" type="button" disabled>Export review</button>
+        <button id="study-compare-variants" class="btn-link" type="button" disabled>Compare variants</button>
+        <button id="study-export-comparison" class="btn-link" type="button" disabled>Export comparison</button>
+      </div>
+      <details class="workflow-more">
+        <summary>Relink, copy or attach existing files</summary>
+        <div class="workflow-actions">
+        <button id="study-relink-source" class="btn-link" type="button" disabled>Relink geometry</button>
+        <button id="study-copy-source" class="btn-link" type="button" disabled>Copy geometry in project</button>
+        <button id="study-attach-mesh" class="btn-link" type="button" disabled>Attach mesh</button>
+        <button id="study-set-case" class="btn-link" type="button" disabled>Set case snapshot</button>
+        <button id="study-import-run" class="btn-link" type="button" disabled>Import latest run</button>
+        </div>
+      </details>
+      <div id="run-review" aria-live="polite"></div>
+      <div id="environment-report" aria-live="polite"></div>
+      <div id="environment-actions" class="workflow-actions" hidden>
+        <button id="environment-retry" class="btn-link" type="button">Retry assistant runtime</button>
+        <button id="environment-install" class="btn-link" type="button">Install uv for KKSS</button>
+      </div>
+      <div id="workflow-error" role="alert" hidden></div>
     </section>
     <section id="recents" class="home-section" hidden>
       <div id="recents-head" class="home-section-head">

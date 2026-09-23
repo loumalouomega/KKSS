@@ -315,6 +315,19 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       vscode: { section: "cadPreview", key: "openscadBinary" },
       description: "Executable used to convert .scad to .csg on open. A bare name is looked up on PATH.",
     },
+    {
+      id: "cadPreview.kernelTimeoutMinutes",
+      label: "Kernel Job Timeout (minutes)",
+      category: "CAD Viewer",
+      type: "number",
+      storeKey: "cadKernelTimeoutMinutes",
+      default: 5,
+      min: 0.1,
+      max: 120,
+      applies: "nextOpen",
+      vscode: { section: "cadPreview", key: "kernelTimeoutMinutes" },
+      description: "Maximum time for a single CAD kernel job before its worker is restarted. Applies to newly opened models.",
+    },
 
     // ---- Mesh Viewer (kratos.preview / flowgraph) -----------------------------
     {
@@ -405,6 +418,14 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       applies: "live",
       vscode: { section: "kratos", key: "run.stopOnWindowClose" },
       description: "Kill running solvers when KKSS quits. Off leaves them running and re-adopts them on the next launch.",
+    },
+    {
+      id: "kratos.environment",
+      label: "Simulation Environment",
+      category: "Kratos",
+      type: "action",
+      actions: [{ id: "check", label: "Check simulation environment" }],
+      description: "Check manual and assistant runtimes independently, without installing software. Results appear on Home.",
     },
     {
       id: "kratos.tools",
