@@ -84,6 +84,24 @@ The feed plumbing electron-updater needs: the `publish:` block in `electron-buil
 
 Content comes straight from the repo's `CHANGELOG.md` — `esbuild.mjs`'s `copyArtifacts()` copies it verbatim to `out/CHANGELOG.md` (read via `__dirname` next to `out/main.js`, same path-contract pattern as the other `out/`-relative assets), and `app/main/services/changelog.ts`'s `parseChangelog()` — kept electron-import-free like `updateCheck.ts`, so `test/changelog.test.ts` can exercise it directly — splits it on the `## [X.Y.Z] - YYYY-MM-DD` headings the `CLAUDE.md` changelog-sync rule enforces. Keeping that format is what keeps this dialog's content accurate; a heading that doesn't match the pattern is silently skipped.
 
+## Guided workflow services
+
+`app/main/services/workflows/` contains the app-owned v1 project, environment and queue contracts.
+The Home renderer and `app__*` tools call the same `WorkflowService`; the in-process tool registry
+is included by the shared MCP manager, so chat and the optional HTTP meta server see the same tool
+definitions and approval policy. Dynamic chat context includes the selected project/study identity.
+`ProjectStore` serializes read/modify/write updates and uses the existing atomic file writer;
+unknown project schema versions are preserved and rejected. Project-relative artifact references
+resolve against the selected root after folder moves, while external paths remain marked as external.
+
+The environment probe runs a bounded Python import/version check separately for manual runs and the
+uvx tool runtime. The uvx probe uses offline/no-sync flags and never installs packages. CAD export
+manifests and durable, owner-scoped mesh run receipts remain upstream work before the persistent
+queue can safely dispatch mesh and solve tasks. Terminal runs can be imported into an immutable
+project-local input snapshot; large result files remain revision-checked references. The initial
+review reads only MDPA node/element/condition records. It reports convergence and scalar quantities
+as unavailable until a versioned solver monitor and quantity producer exists.
+
 ## Embedded terminal (node-pty + xterm.js)
 
 The Terminal toolbar button / ``Ctrl+` `` toggles a bottom panel `WebContentsView` (lazily created in `app/main/windows.ts`; `layout()` shrinks the mode views by `TERMINAL_HEIGHT` while it's shown). The renderer (`app/renderer/terminal/`, `@xterm/xterm` + fit addon) talks to `app/main/services/terminal.ts` over `term:toHost` / `term:toWebview` (`app/preload/terminalPreload.ts`): one node-pty session shared by both modes, spawned on first show in the current file's directory — PowerShell on Windows, `$SHELL` elsewhere, overridable via **Settings ▸ Terminal Shell** (`stateStore` key `terminalShell`) — kept alive while hidden, killed on quit; the renderer offers an Enter-to-restart when the shell exits.
@@ -156,7 +174,7 @@ API keys are entered via **Settings ▸ LLM Assistant** (`showInputBox` modals) 
 
 `app/main/services/chat/toolPolicy.ts` decides whether a tool the model asked for runs straight away or has to be approved. It is a **pure** module (no `electron`, no `node:*`, the approval mode passed in rather than read from the stateStore) so `test/` drives it directly — `test/chatToolPolicy.test.ts`.
 
-Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering all 83 tools the two bundled servers and the in-process `mcp__*` meta tools advertise. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (40 tools, resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
+Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering 96 tools: 56 CAD, 23 mesh, four in-process `mcp__*` tools, and 13 app-owned `app__*` workflow tools. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (40 tools, resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
 
 The gate sits in `chatService.ts`'s tool loop, between appending the `toolCall` entry (so the user can read the arguments they are approving) and `mcp.callTool`. Three rules are load-bearing and easy to break:
 

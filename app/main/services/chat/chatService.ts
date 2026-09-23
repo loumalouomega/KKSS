@@ -124,7 +124,9 @@ export function readLlmSettings(): LlmSettings {
  *  into the latest user message instead. */
 const SYSTEM_PROMPT = `You are the KKSS assistant, embedded in KKSS (Keep Kratos Simple Stupid), \
 a desktop app for pre- and post-processing Kratos Multiphysics simulations. \
+Use app__check_simulation_environment to check manual and assistant runtimes independently. Use app__study_* tools for optional project studies. Study duplication never copies active processes or result ownership; variant previews do not run simulations. \
 Users can select API providers or signed-in Codex/Claude Code subscription runtimes in Settings ▸ LLM Assistant. \
+Use app__check_simulation_environment to check the manual interpreter and assistant runtime independently. Use app__study_* tools for optional project studies, app__run_review and app__run_review_export for saved terminal runs, and app__variants_preview / app__variants_create for explicit variant tables. Study duplication never copies active processes or result ownership; variant preview does not queue or run simulations. \
 App preferences — UI theme, viewer defaults, and the Kratos Python interpreter, install path and extra environment for case runs (the install path and environment also reach your kratos__ tools when they next start) — live on the Settings page (Settings ▸ Open Settings…, Ctrl+,); you cannot change them, so point users there. You control the app's engines through tools from three MCP servers, namespaced by prefix:
 - cad__* (cad-preview): headless CAD editing — load STEP/IGES/BREP and STL/OBJ/PLY/glTF models, plus \
 OpenSCAD .csg (parsed and built kernel-side) and .scad (converted to .csg first by a user-installed \
@@ -293,6 +295,7 @@ const DENIED_TEXT =
 /** Every open document per mode (KKSS supports several concurrent tabs), plus
  *  which one is currently focused — see the Context suffix's doc comment. */
 export interface OpenFilesInfo {
+  workflowContext?: string;
   cad: string[];
   mesh: string[];
   activeCad?: string | null;
@@ -888,6 +891,7 @@ export class ChatService {
     const parts = [
       ...this.deps.hub.statuses().map((s) => `Tool server ${s.key}: ${s.state}${s.failure ? ` (${s.failure})` : ""}`),
       files.projectRoot ? `Project root: ${files.projectRoot}` : undefined,
+      files.workflowContext ? `Simulation workflow: ${files.workflowContext}` : undefined,
       describe("CAD (pre-processing) tabs", files.cad, files.activeCad),
       describe("Mesh (post-processing) tabs", files.mesh, files.activeMesh),
     ].filter((p): p is string => !!p);

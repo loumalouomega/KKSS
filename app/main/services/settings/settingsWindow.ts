@@ -40,6 +40,7 @@ export interface SettingsDeps {
     clearCache(): void;
   };
   restartKratos(): void;
+  checkSimulationEnvironment?(): void;
 }
 
 let outDir = "";
@@ -156,6 +157,8 @@ function runAction(entry: SettingEntry, action: string): void {
       return deps.projectRoot.clear();
     case "kratos.tools:restart":
       return deps.restartKratos();
+    case "kratos.environment:check":
+      return deps.checkSimulationEnvironment?.();
     case "mcpServer.token:copy":
       return deps.metaServer.copyConfig();
     case "mcpServer.token:regenerate":

@@ -141,6 +141,18 @@ body {
   min-height: 0;
 }
 
+#workflow { flex: 0 1 auto; min-height: 0; overflow: auto; }
+.workflow-actions { display: flex; gap: var(--ui-s-3); }
+#study-picker-label { display: flex; flex-direction: column; gap: var(--ui-s-1); }
+#study-picker { width: 100%; }
+#study-readiness, #environment-report, #workflow-error {
+  color: var(--vscode-descriptionForeground);
+  font-size: var(--ui-fs-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#workflow-error { color: var(--vscode-errorForeground); }
+
 .recent-btn {
   display: flex;
   align-items: center;

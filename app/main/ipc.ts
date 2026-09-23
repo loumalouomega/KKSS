@@ -337,6 +337,9 @@ export interface ProjectRootInfo {
 /** Messages posted by the home-screen renderer. */
 export type HomeToHost =
   | { type: "homeReady" }
+  | { type: "checkEnvironment" }
+  | { type: "retrySimulationTools"; install: boolean }
+  | { type: "workflow"; tool: string; args: Record<string, unknown> }
   | { type: "action"; action: HomeAction }
   | { type: "openRecent"; path: string; mode: Mode }
   | { type: "clearRecents" }
@@ -344,7 +347,10 @@ export type HomeToHost =
   | { type: "clearProjectRoot" };
 
 /** Messages pushed to the home-screen renderer. */
-export type HomeToWebview = { type: "recents"; entries: RecentEntry[] } | ProjectRootInfo;
+export type HomeToWebview = { type: "recents"; entries: RecentEntry[] } | ProjectRootInfo
+  | { type: "workflowState" | "environmentReport" | "workflowResult"; value: unknown }
+  | { type: "workflowBusy"; busy: boolean }
+  | { type: "workflowError"; message: string };
 
 /** Messages posted by the shell toolbar renderer. */
 export type ShellToHost =

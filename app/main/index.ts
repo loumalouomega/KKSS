@@ -27,6 +27,11 @@ import { EditorService } from "./services/editor";
 import { ChatService } from "./services/chat/chatService";
 import { JobsService } from "./services/jobs";
 import { McpHub } from "./services/chat/mcpHub";
+import { WorkflowService } from "./services/workflows/service";
+import { registerAppTools, callAppTool } from "./services/chat/appTools";
+import { KratosRuntime } from "./services/chat/kratosRuntime";
+import { kratosEnvDelta } from "./services/settings/kratosEnv";
+import { defaultPythonPath } from "../../mesh/src/problemtype/kratosEnv";
 import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
 import { configureNotifications, handleToastButton, progressToast, toast } from "./services/notifications";
@@ -139,6 +144,7 @@ let editor: EditorService | null = null;
 let chat: ChatService | null = null;
 let mcpHub: McpHub | null = null;
 let jobs: JobsService | null = null;
+let workflows: WorkflowService | undefined;
 let metaServer: MetaMcpServer | null = null;
 let cloud: CloudService | null = null;
 /** `before-quit` may hold the quit open exactly once to drain uploads. */
@@ -150,6 +156,19 @@ function sendShell(message: unknown): void {
 
 function sendHome(message: HomeToWebview): void {
   main?.home.webContents.send("home:toWebview", message);
+}
+
+async function pushWorkflows(): Promise<void> {
+  try { sendHome({ type: "workflowState", value: await workflows?.snapshot() }); }
+  catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
+}
+
+async function checkSimulationEnvironment(): Promise<void> {
+  setScreen("home");
+  sendHome({ type: "workflowBusy", busy: true });
+  try { sendHome({ type: "environmentReport", value: await workflows?.environment() }); }
+  catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
+  finally { sendHome({ type: "workflowBusy", busy: false }); }
 }
 
 /** Pushes the recents list to the home screen. Label and folder are formatted
@@ -1070,6 +1089,19 @@ app.whenReady().then(() => {
 
   // One McpManager owner, shared by the chat loop and the HTTP meta server, so
   // the three MCP child servers are spawned once (whichever front-end starts first).
+  workflows = new WorkflowService({
+    root: () => projectRoot.explicit(),
+    activeMesh: () => activeMeshHost()?.currentFile ?? undefined,
+    runtime: new KratosRuntime(app.getPath("userData")),
+    environment: () => ({
+      python: stateStore.get<string>("kratos.pythonPath", "") || defaultPythonPath(process.platform),
+      env: { ...process.env, ...kratosEnvDelta() },
+      bundledPython: process.env.KKSS_KRATOS_PYTHON,
+    }),
+    open: async (file) => { openFile(file); },
+    changed: () => { void pushWorkflows(); },
+  });
+  registerAppTools(workflows.tools());
   mcpHub = new McpHub(__dirname);
   jobs = new JobsService({
     hub: mcpHub,
@@ -1098,6 +1130,7 @@ app.whenReady().then(() => {
     hub: mcpHub,
     chatsDir: path.join(app.getPath("userData"), "chats"),
     currentFiles: () => ({
+      workflowContext: workflows?.context(),
       cad: [...cadHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
       mesh: [...meshHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
       activeCad: activeCadHost()?.currentFile,
@@ -1174,6 +1207,7 @@ app.whenReady().then(() => {
   refreshMenu();
   configureSettings(__dirname, {
     setZoom: (factor) => setUiZoom(factor),
+    checkSimulationEnvironment: () => { void checkSimulationEnvironment(); },
     projectRoot: {
       explicit: () => projectRoot.explicit(),
       choose: () => void chooseProjectRoot(),
@@ -1214,6 +1248,7 @@ app.whenReady().then(() => {
     refreshSettingsRows();
     pushProjectRoot();
     pushRecents();
+    void pushWorkflows();
   });
 
   // Honor the persisted opt-in on startup.
@@ -1239,6 +1274,7 @@ app.whenReady().then(() => {
   }, CLOUD_STARTUP_DELAY_MS);
 
   ipcMain.on("home:toHost", (_event, raw) => {
+    if (_event.sender !== main?.home.webContents) return;
     const msg = raw as HomeToHost;
     if (!main) return;
     if (msg.type === "homeReady") {
@@ -1246,6 +1282,20 @@ app.whenReady().then(() => {
       // a crash reload) — replay it, the same way shellReady replays below.
       pushRecents();
       pushProjectRoot();
+      void pushWorkflows();
+      return;
+    }
+    if (msg.type === "checkEnvironment") { void checkSimulationEnvironment(); return; }
+    if (msg.type === "workflow") {
+      void callAppTool(msg.tool, msg.args).then((result) => {
+        if (result.isError) sendHome({ type: "workflowError", message: result.content.filter((b) => b.type === "text").map((b) => b.text).join("\n") });
+        else sendHome({ type: "workflowResult", value: result.content.filter((b) => b.type === "text").map((b) => b.text).join("\n") });
+        void pushWorkflows();
+      });
+      return;
+    }
+    if (msg.type === "retrySimulationTools") {
+      void mcpHub?.retryKratos(msg.install).catch((error) => sendHome({ type: "workflowError", message: String(error) }));
       return;
     }
     if (msg.type === "openRecent") {

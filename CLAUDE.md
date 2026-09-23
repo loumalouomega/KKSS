@@ -94,6 +94,21 @@ Concretely:
 
 ## Architecture (non-negotiable invariants)
 
+### Guided simulation workflows
+
+`app/main/services/workflows/` owns the optional versioned `.kkss/project.json`
+study store, capability report and persistent queue core. Home and the `app__*`
+tools share `WorkflowService`; `McpManager` exposes those tools to both chat and
+the optional HTTP meta server. Keep project references relocatable and external
+references explicit. Queue dispatch must persist intent before starting work,
+and an unconfirmed dispatch stays uncertain until its runner can reconcile it.
+Do not claim solver convergence from process exit alone.
+
+The environment probe is read-only: the manual Python interpreter and uv-managed
+Kratos tool runtime are checked independently, and the latter uses offline/no-sync
+flags. CAD handoff manifests and durable mesh request/owner receipts remain
+upstream work before the persistent queue can safely dispatch mesh and solve tasks.
+
 - **Zero submodule modifications.** The app consumes the submodules' built
   webview bundles verbatim and imports their vscode-free modules. If a change
   inside `cad/` or `mesh/` is ever unavoidable, commit it to a dedicated
@@ -1060,7 +1075,7 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 (`55cf1ca`, also the `redesign` branch) are integrated without edits to either submodule. The recurring release-bump
 checklist lives in `doc/guide/development.md` under **Submodule release
 maintenance**; repeat it for every bump, including live MCP tool discovery
-(the current sets are 56 CAD + 23 mesh + 4 aggregation tools).
+(current sets: 56 CAD + 23 mesh + 4 aggregation + 13 app-owned workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
 port, not just a gitlink bump.** Two classes of change, both in

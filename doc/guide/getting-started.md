@@ -54,6 +54,28 @@ sidecar KKSS writes beside your model now lands through a temp file that is rena
 a sync daemon can never pick up a half-written one or raise a spurious "conflicted copy". The only
 visible trace is a `.tmp` file that exists for a few milliseconds during each save.
 
+### Guided simulation work
+
+Home's **Check environment** action probes the configured Python interpreter used for manual runs
+and the assistant's uv-managed tool runtime separately. It checks the selected built-in
+problemtype's Kratos application imports, available CPU and memory, and whether the current run
+directory exists and is writable. The check does not install packages. If the assistant runtime
+is missing, Home offers the existing retry and uv setup actions; interpreter changes remain in
+Settings ▸ Kratos.
+
+With an explicit project folder, **New study** records a geometry reference and its content revision
+in `.kkss/project.json`. Project-contained paths follow the folder when it moves; external paths
+remain explicit references. Home shows geometry, mesh, case, run and result readiness, can open an
+available geometry/mesh/result in its existing viewer, and can duplicate study settings. After
+exporting a mesh, **Attach mesh** records its revision and imports the adjacent case setup when one
+exists. A terminal run can be imported as an immutable input snapshot; large result files remain
+revision-checked links. **Review run** and **Export review** report available MDPA counts and inputs
+in offline JSON/HTML. Convergence and scalar quantities are labelled unavailable until their solver
+monitor contract exists. Explicit variant rows can create up to 50 studies, but do not launch solves.
+The assistant has the same read-only environment report and study/review/variant preview tools;
+study creation, selection, attachment, duplication and export use the normal transcript approval
+gate.
+
 ### Working from cloud storage
 
 If you would rather not run a sync client at all, **Settings ▸ Cloud Accounts** connects KKSS

@@ -83,6 +83,21 @@ export function isApprovalMode(value: unknown): value is ApprovalMode {
  * reviewed edit rather than a silent change in what runs unasked.
  */
 export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
+  // App-owned guided simulation workflow. Preview/report operations are reads;
+  // selecting, navigating, creating, and duplicating alter user-visible state.
+  app__check_simulation_environment: "read",
+  app__study_list: "read",
+  app__study_open: "write",
+  app__study_attach_mesh: "write",
+  app__study_import_run: "write",
+  app__variants_create: "write",
+  app__run_review: "read",
+  app__run_review_export: "write",
+  app__study_create: "write",
+  app__study_select: "write",
+  app__study_set_settings: "write",
+  app__study_duplicate: "write",
+  app__variants_preview: "read",
   // ---- cad-preview (56) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",

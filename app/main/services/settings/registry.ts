@@ -407,6 +407,14 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       description: "Kill running solvers when KKSS quits. Off leaves them running and re-adopts them on the next launch.",
     },
     {
+      id: "kratos.environment",
+      label: "Simulation Environment",
+      category: "Kratos",
+      type: "action",
+      actions: [{ id: "check", label: "Check simulation environment" }],
+      description: "Check manual and assistant runtimes independently, without installing software. Results appear on Home.",
+    },
+    {
       id: "kratos.tools",
       label: "Kratos Assistant Tools",
       category: "Kratos",
