@@ -114,8 +114,31 @@ values whose source result is stale; variant comparisons require matching defini
 and classify mesh-sensitivity separately from solver-setting changes using recorded mesh revisions.
 The Home row list can resume one waiting run row at a time while holding other waiting work, or
 preview a failed row's retry as a new study/run identity in the existing comparison group.
-Reviews include revision-checked generated inputs and the mesh runner's existing quality report;
-residual magnitudes and unsupported-problemtype convergence remain unavailable.
+Reviews include revision-checked generated inputs and the mesh runner's existing quality report.
+The versioned structural monitor records solver-published residual norms, criterion parameters,
+and solve-step coordinates for nonlinear residual-criterion runs. Linear solves, other criteria,
+interrupted runs, and truncated monitor files remain explicitly unavailable; process exit alone does
+not establish convergence. The preparation report records effective settings, units, validation
+findings, generator/runtime identity, source and mesh revisions, and hashes of generated inputs.
+
+The real structural cantilever acceptance harness is opt-in because it launches Gmsh and Kratos.
+After building the app and submodules and preparing the repository's isolated Python 3.12/Kratos
+runtime, run:
+
+```sh
+KKSS_RUN_TIER4_ACCEPTANCE=1 \
+KKSS_TIER4_PYTHON="$PWD/node_modules/.cache/kkss-tier4/runtime/bin/python" \
+npx vitest run test/tier4Acceptance.test.ts
+```
+
+The harness imports the CAD fixture through the actual CAD MCP server, generates a tetrahedral mesh,
+generates and solves the structural case through the shared workflow service, reviews solver residual
+evidence, evaluates tip displacement, duplicates the solved study, then resumes a two-row parameter
+sweep across a service restart. The Euler–Bernoulli reference displacement for its 18 × 4 × 5 mm
+cantilever is approximately 0.00059986 mm; the first-order tetrahedral result is accepted within a
+25% discretization tolerance (the recorded run was within 2%). The separate workflow tests cover
+interrupted dispatch, dependency failures, owner-scoped cancellation, moved projects, unknown schemas,
+and immutable run snapshots.
 
 ## Embedded terminal (node-pty + xterm.js)
 

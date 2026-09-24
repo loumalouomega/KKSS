@@ -18,6 +18,7 @@ import { parseRunJson, reconcileStatus } from '../../../../mesh/src/problemtype/
 import { isPidAlive } from '../../../../mesh/src/problemtype/runProcess';
 import { latestResultFile } from '../../../../mesh/src/problemtype/runCore';
 import { meshStem } from '../../../../mesh/src/parser/meshFormats';
+import { PREPARATION_FILE, parsePreparationReport } from '../../../../mesh/src/problemtype/preparation';
 import { makeReview, reviewHtml } from './review';
 import { compareVariants, comparisonHtml } from './comparison';
 export interface WorkflowDeps {
@@ -224,7 +225,16 @@ export class WorkflowService {
           return { role: entry.role as string, ownerId: entry.ownerId as string, reference: reference(store.root, resolveReference(store.root, artifactReference), artifactReference.revision) };
         }),
       groups: raw.groups.filter((group: unknown) => object(group) && typeof group.name === 'string' && typeof group.id === 'string' && Number.isInteger(group.dimension) && typeof group.count === 'number') as Handoff['groups'],
-      boundaryCoverage: { state: raw.boundaryCoverage.state === 'checked' ? 'checked' : 'unavailable', reason: raw.boundaryCoverage.reason },
+      boundaryCoverage: {
+        state: raw.boundaryCoverage.state === 'checked' ? 'checked' : 'unavailable',
+        reason: raw.boundaryCoverage.reason,
+        ...(Array.isArray(raw.boundaryCoverage.emptyParts) ? { emptyParts: raw.boundaryCoverage.emptyParts.filter((name): name is string => typeof name === 'string') } : {}),
+        ...(Array.isArray(raw.boundaryCoverage.unresolvedParts) ? { unresolvedParts: raw.boundaryCoverage.unresolvedParts.filter((name): name is string => typeof name === 'string') } : {}),
+        ...(Number.isInteger(raw.boundaryCoverage.unassignedSurfaceCount) ? { unassignedSurfaceCount: Number(raw.boundaryCoverage.unassignedSurfaceCount) } : {}),
+        ...(Array.isArray(raw.boundaryCoverage.unassignedSurfaceTags) ? { unassignedSurfaceTags: raw.boundaryCoverage.unassignedSurfaceTags.filter((tag): tag is number => typeof tag === 'number' && Number.isInteger(tag)) } : {}),
+        ...(Array.isArray(raw.boundaryCoverage.overlaps) ? { overlaps: raw.boundaryCoverage.overlaps.filter((entry): entry is { dim: number; entityTag: number; groups: string[] } =>
+          object(entry) && Number.isInteger(entry.dim) && Number.isInteger(entry.entityTag) && Array.isArray(entry.groups) && entry.groups.every(group => typeof group === 'string')) } : {}),
+      },
       findings: raw.findings.filter((finding: unknown) => object(finding) && ['error', 'warning', 'unavailable'].includes(String(finding.severity)) && typeof finding.message === 'string') as Handoff['findings'],
     };
     const meshing = JSON.parse(JSON.stringify(raw.options)) as Json;
@@ -263,7 +273,7 @@ export class WorkflowService {
     await fs.copyFile(meshPath, savedMesh);
     const copied = [savedMesh];
     const stem = meshStem(meshPath);
-    const names = new Set([path.basename(caseFilePath(meshPath)), 'ProjectParameters.json', 'MainKratos.py', 'kkss-convergence-v1.jsonl', `${stem}_case.mdpa`]);
+    const names = new Set([path.basename(caseFilePath(meshPath)), 'ProjectParameters.json', 'MainKratos.py', 'kkss-convergence-v1.jsonl', 'kkss-convergence-v2.jsonl', PREPARATION_FILE, `${stem}_case.mdpa`]);
     const materials = BUILTIN_PROBLEMTYPES.find(pt => pt.decl.id === parsedCase.state!.problemtypeId)?.decl.materialsFileName;
     if (materials) names.add(materials);
     try { for (const name of await fs.readdir(path.dirname(meshPath))) if (/materials.*\.json$/i.test(name)) names.add(name); } catch { /* Snapshot omissions stay explicit. */ }
@@ -275,7 +285,7 @@ export class WorkflowService {
       } catch { /* Missing input files remain visible as omitted review evidence. */ }
     }
     const runState = resolved.status === 'finished' ? 'succeeded' : resolved.status === 'failed' ? 'failed' : 'cancelled';
-    const artifacts = await Promise.all(copied.map(async file => ({ role: path.resolve(file) === path.resolve(savedMesh) ? 'mesh' : path.basename(file) === 'kkss-convergence-v1.jsonl' ? 'convergence' : 'input', ownerId: id, reference: reference(store.root, file, await fileRevision(file)) })));
+    const artifacts = await Promise.all(copied.map(async file => ({ role: path.resolve(file) === path.resolve(savedMesh) ? 'mesh' : /^kkss-convergence-v[12]\.jsonl$/.test(path.basename(file)) ? 'convergence' : 'input', ownerId: id, reference: reference(store.root, file, await fileRevision(file)) })));
     const run: Run = { id, studyId: study.id, sourceRevision: study.source.revision, meshRevision: study.mesh.revision,
       settings: JSON.parse(JSON.stringify(parsedCase.state)) as Json, directory, state: runState, artifacts,
       startedAt: parsedRun.sidecar.startedAt,
@@ -293,7 +303,7 @@ export class WorkflowService {
     const study = this.study(project, studyId), run = study.runs.find(r => r.id === runId);
     if (!run || run.studyId !== study.id) throw new Error('Run does not belong to this study.');
     const mesh = run.artifacts.find(a => a.role === 'mesh' && a.ownerId === run.id);
-    const convergenceArtifact = run.artifacts.find(a => a.role === 'convergence' && a.ownerId === run.id);
+    const convergenceArtifact = run.artifacts.find(a => a.role === 'convergence' && a.ownerId === run.id && a.reference.path.endsWith('v2.jsonl')) ?? run.artifacts.find(a => a.role === 'convergence' && a.ownerId === run.id);
     const resultArtifacts = run.artifacts.filter(a => a.role === 'result' && a.ownerId === run.id);
     let meshText: string | undefined, meshFile: string | undefined;
     let meshQuality: Json | undefined, meshQualityUnavailableReason: string | undefined;
@@ -324,8 +334,10 @@ export class WorkflowService {
       }
     }
     if (convergenceArtifact) {
-      const file = resolveReference(store.root, convergenceArtifact.reference);
-      if (await fileRevision(file) === convergenceArtifact.reference.revision) convergenceText = await fs.readFile(file, 'utf8');
+      try {
+        const file = resolveReference(store.root, convergenceArtifact.reference);
+        if (await fileRevision(file) === convergenceArtifact.reference.revision) convergenceText = await fs.readFile(file, 'utf8');
+      } catch { /* Missing monitor is unavailable evidence, not a failed review. */ }
     }
     for (const artifact of resultArtifacts) {
       try {
@@ -346,6 +358,23 @@ export class WorkflowService {
       }));
     const preparationState = preparationFiles.length === 0 ? 'unavailable' : preparationFiles.every(file => file.state === 'current') ? 'complete' : 'partial';
     const preparation: NonNullable<Evidence['preparation']> = { state: preparationState, settingsRevision: fingerprint(run.settings), files: preparationFiles };
+    const reportArtifact = [...run.artifacts].reverse().find(a => a.ownerId === run.id && path.basename(a.reference.path) === PREPARATION_FILE);
+    preparation.reportUnavailableReason = 'No owned upstream preparation report is attached.';
+    if (reportArtifact) {
+      try {
+        const file = resolveReference(store.root, reportArtifact.reference);
+        if (await fileRevision(file) !== reportArtifact.reference.revision) throw new Error('Preparation report changed after capture.');
+        const report = parsePreparationReport(await fs.readFile(file, 'utf8'));
+        if (fingerprint(report.settings) !== fingerprint(run.settings)) throw new Error('Preparation settings do not match this run.');
+        for (const entry of [...report.inputs, report.sourceMesh, report.solverMesh]) {
+          const input = path.join(path.dirname(file), entry.name);
+          if (!run.artifacts.some(a => a.ownerId === run.id && resolveReference(store.root, a.reference) === input && a.reference.revision === entry.revision) ||
+              await fileRevision(input) !== entry.revision) throw new Error(`Preparation input ${entry.name} is missing, changed or not owned by this run.`);
+        }
+        preparation.report = JSON.parse(JSON.stringify(report)) as Json;
+        delete preparation.reportUnavailableReason;
+      } catch (error) { preparation.reportUnavailableReason = String(error); }
+    }
     const review = makeReview(project.revision, study, run, meshText, convergenceText, currentQuantities, staleQuantities, {
       meshQuality, meshQualityUnavailableReason, preparation,
     });
@@ -389,8 +418,11 @@ export class WorkflowService {
       resultReference = existing.reference;
     }
     const timeStep = typeof args.timeStep === 'number' && Number.isInteger(args.timeStep) ? args.timeStep : undefined;
+    if (args.time !== undefined && (typeof args.time !== 'number' || !Number.isFinite(args.time))) throw new Error('Choose a finite physical time coordinate.');
+    if (args.time !== undefined && timeStep !== undefined) throw new Error('Choose either a physical time coordinate or a time-series step index.');
     const raw = await this.invokeMcp('mesh__case_evaluate_quantity', {
-      path: resultPath, runId: run.id, field, kind, component, region, reduction, unit: unit.trim(), ...(timeStep !== undefined ? { timeStep } : {}),
+      path: resultPath, runId: run.id, field, kind, component, region, reduction, unit: unit.trim(),
+      ...(timeStep !== undefined ? { timeStep } : {}), ...(typeof args.time === 'number' ? { time: args.time } : {}),
     });
     if (raw.version !== 1 || raw.runId !== run.id || !object(raw.source) || path.resolve(String(raw.source.path ?? '')) !== resultPath || String(raw.source.revision ?? '').replace(/^sha256:/, '') !== resultRevision || !object(raw.evaluation) || !object(raw.quantity)) {
       throw new Error('Mesh returned a quantity record that does not match the selected run and result revision.');
@@ -604,7 +636,10 @@ export class WorkflowService {
     const validation = await this.queuedTool(task, 'mesh__case_validate', { meshPath: validationMesh, problemtype, state }).catch(error => {
       errors.push(error instanceof Error ? error.message : String(error)); return undefined;
     });
-    if (validation && validation.ok !== true) errors.push(...(Array.isArray(validation.issues) ? validation.issues.filter((v): v is string => typeof v === 'string') : ['Case validation did not confirm the inputs.']));
+    if (validation && validation.ok !== true) {
+      const issues = Array.isArray(validation.issues) ? validation.issues.filter((v): v is string => typeof v === 'string') : [];
+      errors.push(...(issues.length ? issues : ['Case validation returned no successful status: ' + JSON.stringify(validation)]));
+    }
     if (task.kind === 'solve') {
       const report = await this.environmentFor(problemtype, store.root);
       if (!report.requirementsComplete) errors.push('Problemtype prerequisites are incomplete or not declared.');
@@ -683,11 +718,16 @@ export class WorkflowService {
     }
   }
   private async receiptFromMesh(raw: Record<string, unknown>, root: string, task: Task): Promise<Receipt> {
+    if (raw.version !== 1 || raw.requestId !== task.id || raw.ownerId !== task.studyId) {
+      throw new WorkflowToolError('Mesh execution receipt does not match the requested owner and request.', true);
+    }
     const artifacts: Receipt['artifacts'] = [];
     const omitted: string[] = [];
     if (Array.isArray(raw.artifacts)) for (const entry of raw.artifacts) {
       if (!object(entry) || typeof entry.role !== 'string' || typeof entry.path !== 'string') continue;
       const file = path.resolve(entry.path), revision = typeof entry.revision === 'string' ? entry.revision.replace(/^sha256:/, '') : '';
+      const directory = resolveReference(root, { kind: 'project', path: relativeOutput(task.args.runDirectory, 'Run directory'), revision: '' });
+      if (!file.startsWith(directory + path.sep)) throw new WorkflowToolError('Mesh receipt references an artifact outside its isolated run directory.', true);
       if (!revision) { omitted.push(`${entry.role}: ${typeof entry.revisionUnavailable === 'string' ? entry.revisionUnavailable : 'no stable content revision was provided'}`); continue; }
       artifacts.push({ role: entry.role, ownerId: task.runId, reference: reference(root, file, revision) });
     }
@@ -696,6 +736,9 @@ export class WorkflowService {
       ...(typeof raw.createdAt === 'number' ? { startedAt: raw.createdAt } : {}), ...(typeof raw.updatedAt === 'number' ? { finishedAt: raw.updatedAt } : {}) };
   }
   private receiptFromCad(raw: Record<string, unknown>, root: string, task: Task): Receipt {
+    if (raw.version !== 1 || raw.requestId !== task.id || raw.ownerId !== task.studyId) {
+      throw new WorkflowToolError('CAD execution receipt does not match the requested owner and request.', true);
+    }
     const artifacts: Receipt['artifacts'] = [];
     if (Array.isArray(raw.artifacts)) for (const entry of raw.artifacts) {
       if (!object(entry) || typeof entry.role !== 'string' || !object(entry.reference) || typeof entry.reference.path !== 'string' || typeof entry.reference.revision !== 'string') continue;
@@ -888,12 +931,13 @@ export class WorkflowService {
         const variants = rows.map(row => duplicateStudy(source, row.name, reuseMesh, row.settings));
         p.studies.push(...variants); return variants;
       })),
-      tool('run_review', 'Build a structured review for a terminal run with revision-checked generated inputs and mesh-quality diagnostics when the mesh runner is available. Saved scalar quantities are included only while their source result revision is current; unsupported convergence and residual diagnostics remain explicitly unavailable.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => (await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'))).review),
+      tool('run_review', 'Build a structured review for a terminal run with revision-checked generated inputs and mesh-quality diagnostics when the mesh runner is available. Preparation reports and their inputs are checked against owned revisions. Structural v1/v2 monitors distinguish process completion, solver convergence, final-iteration residual norms and unavailable diagnostics. Saved scalar quantities are included only while their source result revision is current.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => (await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'))).review),
       tool('run_quantity_evaluate', 'Evaluate one explicitly selected result field and save its definition, unit, value and exact source artifact revision into the owning run evidence.', {
         studyId: str, runId: str, resultPath: str,
         field: str, kind: { enum: ['Nodal', 'Elemental', 'Conditional'] },
         component: { enum: ['scalar', 'x', 'y', 'z', 'magnitude'] }, region: str,
-        timeStep: { type: 'integer' }, reduction: { enum: ['min', 'max', 'minAbs', 'maxAbs', 'mean', 'std', 'median', 'sum', 'count', 'q1', 'q3', 'iqr'] }, unit: str,
+        timeStep: { type: 'integer' }, time: { type: 'number' },
+        reduction: { enum: ['min', 'max', 'minAbs', 'maxAbs', 'mean', 'std', 'median', 'sum', 'count', 'q1', 'q3', 'iqr'] }, unit: str,
       }, ['studyId', 'runId', 'field', 'kind', 'component', 'reduction', 'unit'], args => this.evaluateRunQuantity(args)),
       tool('run_review_export', 'Export a selected run review as JSON and self-contained offline HTML.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => {
         const { store, run, review } = await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'));

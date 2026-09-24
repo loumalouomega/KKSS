@@ -62,7 +62,9 @@ problemtype's Kratos application imports, available CPU and memory, and whether 
 directory exists and is writable. The report includes each resolved executable and version and
 does not install packages. A failed manual check disables the mesh Problemtype Run action and
 guided queue launches while geometry browsing stays available; the action checks again before
-starting. If the assistant runtime is
+starting. A thread recommendation appears only when the manual runner exposes verified thread
+control. MPI has no verified runner contract yet, so the report shows it as unavailable and the UI
+does not offer rank controls. If the assistant runtime is
 missing, Home offers its existing retry and uv setup actions; interpreter changes remain in
 Settings ▸ Kratos.
 
@@ -86,8 +88,11 @@ versioned structural solve-step outcomes in offline JSON/HTML.
 reduction and unit; the result record keeps the exact source artifact revision. Units must be
 declared explicitly. If that result later changes, its saved value is shown as stale and omitted.
 Variant comparison pairs matching definitions only when their units agree; missing values stay
-missing. Residual magnitudes and unsupported-problemtype convergence remain
-explicitly unavailable. The assistant has the same environment, study, queue, review, quantity and
+missing. Unsupported-problemtype convergence remains explicitly unavailable. The versioned structural monitor records the solver's residual
+norm and convergence criterion parameters for nonlinear residual-criterion runs. Linear solves,
+other criteria, interrupted runs and truncated monitor files remain explicitly unavailable; process
+success alone never proves convergence. Run reviews include the upstream preparation report, generated
+input hashes and runtime identity when available. The assistant has the same environment, study, queue, review, quantity and
 variant tools under the normal transcript approval policy; preview never launches work.
 
 ### Working from cloud storage

@@ -8,6 +8,7 @@
  * bundle with no node:path.
  */
 import { HOME_BUTTONS } from "./homeConfig";
+import { convergencePlots } from "../../shared/convergencePlots";
 import { TOOLBAR_ICONS } from "../shell/shellIcons";
 import type { HomeToWebview, ProjectRootInfo, RecentEntry } from "../../main/ipc";
 
@@ -242,7 +243,9 @@ function renderWorkflow(raw: unknown): void {
   workflowSnapshot = value;
   const hasProject = !!value.project;
   const studies = hasProject ? value.project?.studies ?? [] : [];
-  (document.getElementById("study-create") as HTMLButtonElement).disabled = !hasProject;
+  // A selected project folder is enough to create the first optional study;
+  // the project.json file is initialized by the service on that first write.
+  (document.getElementById("study-create") as HTMLButtonElement).disabled = !projectRootPath.title;
   studyPicker.replaceChildren();
   for (const study of studies) {
     const option = document.createElement("option");
@@ -346,6 +349,7 @@ function renderProjectRoot(info: ProjectRootInfo): void {
   projectRootPath.textContent = info.display ?? "";
   projectRootPath.title = info.path ?? "";
   projectRootSection.hidden = !info.path;
+  (document.getElementById("study-create") as HTMLButtonElement).disabled = !info.path;
 }
 
 api.onMessage((raw) => {
@@ -355,7 +359,7 @@ api.onMessage((raw) => {
   else if (message?.type === "workflowState") renderWorkflow(message.value);
   else if (message?.type === "environmentReport") {
     const report = message.value as {
-      manual?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; applications?: { name: string; available: boolean; reason?: string }[] };
+      manual?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; capabilities?: { threads: boolean; mpi: boolean; mpiReason?: string }; applications?: { name: string; available: boolean; reason?: string }[] };
       tools?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; applications?: { name: string; available: boolean; reason?: string }[] };
       directory?: string; writable?: boolean; directoryReason?: string; cpuCount?: number; memoryBytes?: number;
       suggestedThreads?: number; requirementsComplete?: boolean;
@@ -377,6 +381,7 @@ api.onMessage((raw) => {
       report.cpuCount ? `Available CPU cores: ${report.cpuCount}` : undefined,
       report.memoryBytes ? `Available memory: ${(report.memoryBytes / 1024 ** 3).toFixed(1)} GiB` : undefined,
       report.suggestedThreads ? `Suggested thread limit: ${report.suggestedThreads}` : undefined,
+      report.manual?.capabilities?.mpi === false ? `MPI unavailable: ${report.manual.capabilities.mpiReason}` : undefined,
     ].filter(Boolean).join("\n");
     (document.getElementById("environment-actions") as HTMLElement).hidden = !!report.tools?.available;
     planRunButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
@@ -386,6 +391,13 @@ api.onMessage((raw) => {
   }
   else if (message?.type === "workflowResult") {
     const value = message.value;
+    const plots = document.getElementById("run-review-plots")!;
+    plots.replaceChildren();
+    const samples = value && typeof value === "object" ? (value as { evidence?: { convergence?: { samples?: unknown } } }).evidence?.convergence?.samples : undefined;
+    if (Array.isArray(samples) && samples.every(s => s && typeof s === "object" && typeof s.iteration === "number" &&
+      (s.converged === null || typeof s.converged === "boolean"))) {
+      plots.innerHTML = convergencePlots(samples);
+    }
     if (workflowAction === "queue-preview" && value && typeof value === "object") {
       const preview = value as { previewId?: string; summary?: string[]; tasks?: { kind: string; id: string; runId: string }[]; runId?: string };
       workflowAction = undefined;
