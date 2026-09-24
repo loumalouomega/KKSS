@@ -8,7 +8,12 @@ export interface Handoff {
   units: { length: string | null; scale: number }; options: Json; engine: string;
   engineVersion: string; engineVersionSource: string;
   artifacts: Artifact[]; groups: { name: string; id: string; dimension: number; count: number }[];
-  boundaryCoverage: { state: 'unavailable' | 'checked'; reason: string };
+  boundaryCoverage: {
+    state: 'unavailable' | 'checked'; reason: string;
+    emptyParts?: string[]; unresolvedParts?: string[];
+    unassignedSurfaceCount?: number; unassignedSurfaceTags?: number[];
+    overlaps?: { dim: number; entityTag: number; groups: string[] }[];
+  };
   findings: Finding[];
 }
 export interface Quantity {
@@ -22,8 +27,15 @@ export interface Evidence {
   preparation?: {
     state: 'complete' | 'partial' | 'unavailable'; settingsRevision: string;
     files: { role: string; reference: Reference; state: 'current' | 'missing' | 'changed' }[];
+    report?: Json;
+    reportUnavailableReason?: string;
   };
-  convergence: { adapter: string; state: 'converged' | 'diverged' | 'unavailable'; samples: { iteration: number; time?: number; converged: boolean; residual?: number }[] };
+  convergence: { adapter: string; state: 'converged' | 'diverged' | 'unavailable'; samples: {
+    iteration: number; time?: number; converged: boolean | null; solverStepResult?: boolean | null;
+    analysisType?: string; residual?: number; convergenceRatio?: number; nonlinearIteration?: number;
+    criterion?: string; criterionParameters?: Json;
+    residualDefinition?: string; residualUnavailableReason?: string; runtime?: Json;
+  }[] };
   quantities: Quantity[];
 }
 export type TaskState = 'waiting' | 'held' | 'dispatching' | 'running' | 'uncertain' | 'succeeded' | 'failed' | 'cancelled' | 'blocked';

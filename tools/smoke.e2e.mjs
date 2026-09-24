@@ -13,6 +13,7 @@ import { launchApp, waitForMarkers, appWindow, closeApp } from "./e2eShared.mjs"
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // A throwaway profile per run, so the smoke test neither reads nor writes the
 // developer's real ~/.config/kkss — it starts from stock settings every time,
@@ -170,5 +171,61 @@ for (const c of CASES) {
     console.error(`FAIL ${c.name}\n${err instanceof Error ? err.message : err}`);
   }
 }
+
+// Exercise the visible Home workflow through its real IPC path. The environment
+// is intentionally not configured: the check must still render an actionable
+// report, and creating an optional study must not require a solver install.
+const workflowRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-home-workflow-"));
+const workflowProfile = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-home-profile-"));
+let workflowApp;
+let workflowOutput = () => "";
+let workflowStage = "setup";
+try {
+  const geometry = path.join(workflowRoot, "beam.step");
+  fs.copyFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "cad/examples/STP/block.stp"), geometry);
+  fs.writeFileSync(path.join(workflowProfile, "state.json"), JSON.stringify({ uiTheme: "dark", projectRoot: workflowRoot }));
+  workflowStage = "launch Home";
+  const launched = await launchApp(undefined, { userDataDir: workflowProfile, timeout: 90_000 });
+  workflowApp = launched.app;
+  workflowOutput = launched.output;
+  const page = await appWindow(workflowApp, "/renderer/home/", Date.now() + 90_000);
+  workflowStage = "show the workflow section";
+  await page.waitForSelector("#workflow:not([hidden])", { timeout: 15_000 });
+  workflowStage = "create a study from Home";
+  await page.evaluate((source) => {
+    const prompts = [source, "Smoke-test study"];
+    Object.defineProperty(window, "prompt", { configurable: true, value: () => prompts.shift() });
+    document.querySelector("#study-create").click();
+  }, geometry);
+  workflowStage = "render study readiness";
+  try {
+    await page.waitForFunction(() => document.querySelector("#study-picker").options.length === 1, null, { timeout: 15_000 });
+  } catch (error) {
+    const state = await page.evaluate(() => ({
+      projectRoot: document.querySelector("#project-root-path").textContent,
+      workflowError: document.querySelector("#workflow-error").textContent,
+      studyCreateDisabled: document.querySelector("#study-create").disabled,
+      body: document.body.innerText.slice(0, 1200),
+    }));
+    throw new Error(`${error instanceof Error ? error.message : error}\n${JSON.stringify(state)}`);
+  }
+  const readiness = await page.$eval("#study-readiness", element => element.textContent);
+  if (!readiness?.includes("geometry: ready") || !readiness.includes("mesh: missing")) {
+    throw new Error(`Unexpected Home study readiness: ${readiness}`);
+  }
+  workflowStage = "check the simulation environment from Home";
+  await page.click("#workflow-check");
+  await page.waitForFunction(() => document.querySelector("#environment-report").textContent.includes("Manual runs:"), null, { timeout: 45_000 });
+  if (!fs.existsSync(path.join(workflowRoot, ".kkss", "project.json"))) throw new Error("Home did not persist the optional study metadata.");
+  console.log("PASS Home workflow (study creation, readiness and environment check)");
+} catch (err) {
+  failed = true;
+  console.error(`FAIL Home workflow (${workflowStage})\n${err instanceof Error ? err.message : err}\n${workflowOutput()}`);
+} finally {
+  if (workflowApp) await closeApp(workflowApp);
+  fs.rmSync(workflowRoot, { recursive: true, force: true });
+  fs.rmSync(workflowProfile, { recursive: true, force: true });
+}
+
 fs.rmSync(profileDir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

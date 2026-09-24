@@ -109,8 +109,10 @@ single-run and parameter-sweep previews, queue pause/resume/cancel, run review,
 and parent/variant comparisons. Parameter sweeps create fresh studies only when
 the preview is enqueued; each row has its own run directory, and Home can resume
 one waiting row while holding the others or preview a fresh-identity retry for a
-failed row. Structural evidence
-contains versioned per-step convergence booleans, not residuals; quantity
+failed row. Versioned structural evidence records solver-published residual
+norms and criterion parameters for nonlinear residual-criterion solves; linear,
+alternate-criterion, interrupted and truncated cases remain unavailable rather
+than inferred. Quantity
 evaluation explicitly selects a result field/component, region, time, reduction
 and unit, then saves it with its exact artifact reference and source revision.
 Variant comparison labels mesh-sensitivity, solver-parameter and mixed studies
@@ -122,10 +124,11 @@ read-only mesh evaluator is
 
 The environment probe is read-only: the manual Python interpreter and uv-managed
 Kratos tool runtime are checked independently, and the latter uses offline/no-sync
-flags. The KKSS `RunManager` guard uses the selected problemtype's manual report to
+flags. Thread suggestions require the manual runner's verified thread-control API;
+MPI support remains false and rank controls stay hidden. The KKSS `RunManager` guard uses the selected problemtype's manual report to
 disable the mesh Problemtype Run action and rechecks before process dispatch; an
 unconfigured guard preserves standalone mesh behavior. CAD v1 handoff manifests,
-structural solve-step monitor output, mesh
+versioned case-preparation/provenance reports, structural solve-step monitor output, mesh
 run receipts, and CAD mesh-export receipts now feed the queue and review
 services. CAD export carries stable owner/request identities through the
 extension host, KKSS worker host and MCP path; its atomic receipt records

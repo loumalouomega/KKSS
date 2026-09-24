@@ -9,6 +9,7 @@ import { ExecutionQueue, planRevision } from '../app/main/services/workflows/que
 import { compareVariants, comparisonHtml } from '../app/main/services/workflows/comparison';
 import { buildEvidence, escapeHtml, mdpaCounts, parseStructuralConvergence, reviewHtml } from '../app/main/services/workflows/review';
 import { WorkflowService } from '../app/main/services/workflows/service';
+import { appTools, callAppTool, registerAppTools } from '../app/main/services/chat/appTools';
 import { caseFilePath, runFilePath } from '../mesh/src/problemtype/caseFile';
 
 const roots: string[] = [];
@@ -30,7 +31,7 @@ describe('simulation environment probes', () => {
       calls.push(args);
       return `KKSS_PROBE:${JSON.stringify({ executable: '/python', version: '3.12.1', kratosVersion: '9', applications: [
         { name: 'KratosMultiphysics', available: true }, { name: 'KratosMultiphysics.StructuralMechanicsApplication', available: true },
-      ]})}`;
+      ], threadControl: true })}`;
     };
     const report = await checkEnvironment({ python: '/manual/python', env: {}, directory: root,
       applications: ['KratosMultiphysics.StructuralMechanicsApplication'], requirementsComplete: true,
@@ -38,6 +39,11 @@ describe('simulation environment probes', () => {
     expect(report.manual.available).toBe(true);
     expect(report.tools.available).toBe(true);
     expect(report.manual.executable).toBe('/python');
+    expect(report.manual.capabilities.threads).toBe(true);
+    expect(report.manual.capabilities.mpi).toBe(false);
+    expect(report.tools.capabilities.threads).toBe(false);
+    expect(report.tools.capabilities.mpi).toBe(false);
+    expect(report.suggestedThreads).toBeGreaterThan(0);
     expect(report.writable).toBe(true);
     expect(report.cpuCount).toBeGreaterThan(0);
     expect(calls).toHaveLength(2);
@@ -57,8 +63,22 @@ describe('simulation environment probes', () => {
     expect(report.manual.available).toBe(false);
     expect(report.manual.reason).toMatch(/missing applications/);
     expect(report.tools.available).toBe(false);
+    expect(report.manual.capabilities.threads).toBe(false);
+    expect(report.suggestedThreads).toBeUndefined();
     expect(report.writable).toBe(false);
     expect(report.directoryReason).toMatch(/writable run directory/);
+  });
+
+  it('recommends threads only when the manual runner exposes thread control', async () => {
+    const root = await temp();
+    const report = await checkEnvironment({ python: '/python', env: {}, directory: root, applications: [], requirementsComplete: true,
+      runtime: { discover: async () => { throw new Error('tool runtime unavailable'); } },
+      run: async () => `KKSS_PROBE:${JSON.stringify({ executable: '/python', version: '3.12', applications: [{ name: 'KratosMultiphysics', available: true }] })}` });
+    expect(report.manual.available).toBe(true);
+    expect(report.manual.capabilities.threads).toBe(false);
+    expect(report.manual.capabilities.threadReason).toMatch(/API is unavailable/);
+    expect(report.suggestedThreads).toBeUndefined();
+    expect(report.manual.capabilities.mpi).toBe(false);
   });
 
   it('rejects malformed output and bounds probe execution', async () => {
@@ -300,6 +320,41 @@ describe('run review evidence', () => {
     expect(parseStructuralConvergence(`${monitor}\n{`).invalid).toBe(1);
     expect(buildEvidence(structuralRun, undefined, `${monitor}\n{`).convergence.state).toBe('unavailable');
   });
+  it('uses solver-published residuals and requires an explicit completed monitor record', () => {
+    const prefix = { adapter: 'kkss.structural-convergence', version: 2 };
+    const rows = [
+      { ...prefix, event: 'step', iteration: 1, time: 0.5, converged: true, solverStepResult: true, analysisType: 'non_linear',
+        residual: 4.5, convergenceRatio: 0.2, nonlinearIteration: 3, criterionParameters: { residual_relative_tolerance: 1e-6 },
+        criterion: 'residual_criterion', residualDefinition: 'Kratos ProcessInfo.RESIDUAL_NORM' },
+      { ...prefix, event: 'step', iteration: 2, time: 1, converged: true, solverStepResult: true, analysisType: 'non_linear',
+        residual: 0.01, convergenceRatio: 0.0004, nonlinearIteration: 2,
+        criterion: 'residual_criterion', residualDefinition: 'Kratos ProcessInfo.RESIDUAL_NORM' },
+      { ...prefix, event: 'end', completed: true },
+    ];
+    const monitor = rows.map(row => JSON.stringify(row)).join('\n');
+    const structuralRun = { ...run, settings: { problemtypeId: 'structural' }, state: 'succeeded' as const };
+    const evidence = buildEvidence(structuralRun, undefined, monitor);
+    expect(evidence.convergence).toMatchObject({ adapter: 'kkss.structural-convergence/v2', state: 'converged', samples: [
+      { residual: 4.5, criterion: 'residual_criterion', nonlinearIteration: 3, solverStepResult: true,
+        criterionParameters: { residual_relative_tolerance: 1e-6 } },
+      { residual: 0.01, criterion: 'residual_criterion', nonlinearIteration: 2 },
+    ] });
+    expect(reviewHtml({ version: 1, projectRevision: 1, studyId: 'study', studyName: 'Cantilever', sourceRevision: 's', meshRevision: 'm',
+      settings: {}, run: { id: run.id, state: 'succeeded' }, evidence, artifacts: [] })).toContain('Solver-reported residual norm');
+    expect(buildEvidence(structuralRun, undefined, rows.slice(0, 2).map(row => JSON.stringify(row)).join('\n')).convergence.state).toBe('unavailable');
+    const missingResidual = JSON.stringify({ ...prefix, event: 'step', iteration: 1, time: 1, converged: true }) + '\n' + JSON.stringify(rows[2]);
+    expect(buildEvidence(structuralRun, undefined, missingResidual).findings.some(finding => finding.message.includes('Residual magnitudes are unavailable'))).toBe(true);
+    const interrupted = JSON.stringify({ ...prefix, event: 'step', iteration: 1, time: 0.5, converged: null,
+      residualUnavailableReason: 'solver exception' });
+    expect(buildEvidence({ ...structuralRun, state: 'failed' }, undefined, interrupted).convergence.state).toBe('unavailable');
+    const linear = [
+      JSON.stringify({ ...prefix, event: 'step', iteration: 1, time: 1, analysisType: 'linear',
+        solverStepResult: true, converged: null, residualUnavailableReason: 'linear strategy has no iterative convergence criterion' }),
+      JSON.stringify({ ...prefix, event: 'end', completed: true }),
+    ].join('\n');
+    const linearEvidence = buildEvidence(structuralRun, undefined, linear);
+    expect(linearEvidence.convergence).toMatchObject({ state: 'unavailable', samples: [{ solverStepResult: true, converged: null, analysisType: 'linear' }] });
+  });
   it('escapes HTML and embeds JSON without allowing a script close', () => {
     expect(escapeHtml('<img src="x">')).toBe('&lt;img src=&quot;x&quot;&gt;');
     const studyFixture: Study = { ...makeStudy(), name: '</title><script>alert(1)</script>', runs: [run] };
@@ -359,6 +414,27 @@ describe('variant comparisons', () => {
 });
 
 describe('shared workflow tools', () => {
+  it('publishes the same workflow tools through the chat registry and dispatches to their shared service', async () => {
+    const root = await temp();
+    const source = path.join(root, 'beam.step');
+    await fs.writeFile(source, 'a geometry');
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: '/python', env: {} }),
+      open: async () => undefined, changed: () => undefined, callMcpTool: async () => ({}), toolReady: () => true });
+    registerAppTools(service.tools());
+    try {
+      expect(appTools().map(tool => tool.name).sort()).toEqual(service.tools().map(tool => tool.name).sort());
+      const created = await callAppTool('app__study_create', { name: 'Chat-created study', source });
+      expect(created.isError).toBeUndefined();
+      const listed = await callAppTool('app__study_list', {});
+      expect(listed.isError).toBeUndefined();
+      const listedText = listed.content.find(block => block.type === 'text');
+      expect(listedText?.type === 'text' ? JSON.parse(listedText.text) : null).toMatchObject({ project: { studies: [{ name: 'Chat-created study' }] } });
+    } finally {
+      registerAppTools([]);
+    }
+  });
+
   it('consumes the version-1 CAD handoff contract after verifying both artifact revisions', async () => {
     const root = await temp(), geometry = path.join(root, 'beam.step'), mesh = path.join(root, 'beam.mdpa');
     await fs.writeFile(geometry, 'geometry');
@@ -584,8 +660,8 @@ describe('shared workflow tools', () => {
         expect(name).toBe('mesh__case_evaluate_quantity'); calls.push(args);
         return { structuredContent: {
           version: 1, runId: 'run-quantity', source: { path: resultFile, revision: `sha256:${revision}` },
-          evaluation: { field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', region: 'global', time: 0, reduction: 'max', unit: 'm' },
-          quantity: { field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', region: 'global', time: 0, reduction: 'max', unit: 'm', value: 0.004, runId: 'run-quantity' },
+          evaluation: { field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', region: 'global', time: 0.5, reduction: 'max', unit: 'm' },
+          quantity: { field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', region: 'global', time: 0.5, reduction: 'max', unit: 'm', value: 0.004, runId: 'run-quantity' },
         } };
       } });
     const store = service.store(), study: Study = { ...makeStudy(), source: reference(root, geometry, await fileRevision(geometry)), runs: [] };
@@ -596,8 +672,9 @@ describe('shared workflow tools', () => {
     run.startedAt = 1; run.finishedAt = 2; study.runs.push(run);
     await store.update(p => { p.studies.push(study); p.activeStudyId = study.id; p.activeRunId = run.id; });
     const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(tool => tool.name === `app__${name}`)!.invoke(args);
-    const saved = await invoke('run_quantity_evaluate', { studyId: study.id, runId: run.id, field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', reduction: 'max', unit: 'm' });
+    const saved = await invoke('run_quantity_evaluate', { studyId: study.id, runId: run.id, field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', reduction: 'max', unit: 'm', time: 0.5 });
     expect(calls).toHaveLength(1);
+    expect(calls[0].time).toBe(0.5);
     expect(saved).toMatchObject({ quantity: { value: 0.004, runId: run.id, source: { revision } } });
     const review = await invoke('run_review', { studyId: study.id, runId: run.id }) as { evidence: Evidence };
     expect(review.evidence.quantities).toHaveLength(1);

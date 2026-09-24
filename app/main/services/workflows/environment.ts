@@ -7,7 +7,11 @@ export interface RuntimeReport {
   executable?: string; version?: string; kratosVersion?: string;
   applications: { name: string; available: boolean; reason?: string }[];
   available: boolean; reason?: string; modes: string[];
+  capabilities: { threads: boolean; mpi: false; mpiReason: string; threadReason?: string };
 }
+const unavailableCapabilities = () => ({ threads: false, mpi: false as const,
+  mpiReason: 'This runner has no verified MPI launch and reconciliation contract.',
+  threadReason: 'Thread control has not been verified for this runtime.' });
 export interface EnvironmentReport {
   version: 1; checkedAt: string; requirementsComplete: boolean; directory: string;
   writable: boolean; directoryReason?: string; cpuCount: number; memoryBytes: number;
@@ -27,7 +31,10 @@ for name in json.loads(sys.argv[1]):
  try:
   module=importlib.import_module(name)
   result['applications'].append({'name':name,'available':True})
-  if name=='KratosMultiphysics': result['kratosVersion']=str(getattr(module,'__version__','unknown'))
+  if name=='KratosMultiphysics':
+   result['kratosVersion']=str(module.KratosGlobals.Kernel.Version())
+   parallel=module.ParallelUtilities if hasattr(module,'ParallelUtilities') else None
+   result['threadControl']=bool(parallel and callable(getattr(parallel,'SetNumThreads',None)))
  except Exception as e: result['applications'].append({'name':name,'available':False,'reason':str(e)})
 print('KKSS_PROBE:'+json.dumps(result))`;
 export type Probe = typeof runRuntimeCommand;
@@ -42,9 +49,11 @@ export async function probePython(command: string, prefix: string[], application
     const data = JSON.parse(line.slice(11));
     if (typeof data.executable !== 'string' || typeof data.version !== 'string' || !Array.isArray(data.applications) || !data.applications.length || data.applications.some((a: {name?: unknown; available?: unknown}) => typeof a.name !== 'string' || typeof a.available !== 'boolean')) throw new Error('Invalid interpreter report.');
     const available = data.applications.every((a: {available: boolean}) => a.available);
-    return { ...data, available, modes: available ? ['output', 'terminal'] : [], reason: available ? undefined : 'Install the missing applications in this interpreter, or select another interpreter in Settings → Kratos.' };
+    return { ...data, available, capabilities: { ...unavailableCapabilities(), threads: available && data.threadControl === true,
+      threadReason: available && data.threadControl === true ? undefined : 'The Kratos thread-control API is unavailable.' },
+      modes: available ? ['output', 'terminal'] : [], reason: available ? undefined : 'Install the missing applications in this interpreter, or select another interpreter in Settings → Kratos.' };
   } catch (e) {
-    return { executable: command, applications: [], available: false, modes: [], reason: `${e instanceof Error ? e.message : e} Select a valid interpreter in Settings → Kratos and retry.` };
+    return { executable: command, applications: [], available: false, capabilities: unavailableCapabilities(), modes: [], reason: `${e instanceof Error ? e.message : e} Select a valid interpreter in Settings → Kratos and retry.` };
   }
 }
 export async function checkEnvironment(options: {
@@ -61,8 +70,8 @@ export async function checkEnvironment(options: {
       const report = options.bundledPython
         ? await probePython(options.bundledPython, [], options.applications, options.env, run)
         : await probePython(launcher.command, [...launcher.args, '--offline', '--no-sync', '--from', 'kratos-mcp-server==0.3.0', 'python'], options.applications, options.env, run);
-      return { ...report, modes: report.available ? ['mcp'] : [], reason: report.available ? undefined : `${report.reason} Use the existing Kratos tool setup/retry action if its cached environment is missing.` };
-    } catch (e) { return { applications: [], available: false, modes: [], reason: `${e instanceof Error ? e.message : e} Use Kratos tool setup/retry.` }; }
+      return { ...report, capabilities: { ...unavailableCapabilities(), threadReason: 'The tool runner does not declare a thread-control contract.' }, modes: report.available ? ['mcp'] : [], reason: report.available ? undefined : `${report.reason} Use the existing Kratos tool setup/retry action if its cached environment is missing.` };
+    } catch (e) { return { applications: [], available: false, capabilities: unavailableCapabilities(), modes: [], reason: `${e instanceof Error ? e.message : e} Use Kratos tool setup/retry.` }; }
   })();
   let writable = false, directoryReason: string | undefined;
   try {
@@ -74,5 +83,5 @@ export async function checkEnvironment(options: {
   const cpuCount = os.availableParallelism();
   return { version: 1, checkedAt: new Date().toISOString(), requirementsComplete: options.requirementsComplete,
     directory: options.directory, writable, directoryReason, cpuCount, memoryBytes: os.freemem(), manual, tools,
-    ...(manual.available ? { suggestedThreads: Math.max(1, Math.min(4, cpuCount - 1)) } : {}) };
+    ...(manual.available && manual.capabilities.threads ? { suggestedThreads: Math.max(1, Math.min(4, cpuCount - 1)) } : {}) };
 }
