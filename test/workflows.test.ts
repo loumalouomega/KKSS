@@ -1,3 +1,4 @@
+import { KRATOS_MCP_VERSION } from '../app/main/services/chat/kratosMcpVersion';
 import { afterEach, describe, expect, it } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
@@ -49,6 +50,8 @@ describe('simulation environment probes', () => {
     expect(calls).toHaveLength(2);
     expect(calls[0][0]).toBe('-c');
     expect(calls[1]).toContain('--offline');
+    expect(calls[1]).toContain('--no-sync');
+    expect(calls[1]).toContain(`kratos-mcp-server==${KRATOS_MCP_VERSION}`);
     expect(PROBE_SCRIPT).toContain('importlib.import_module');
   });
 

@@ -1,4 +1,5 @@
 /** App-local uv bootstrap. No installation occurs during discovery. */
+import { KRATOS_MCP_VERSION } from "./kratosMcpVersion";
 import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
@@ -94,7 +95,7 @@ export class KratosRuntime {
     const bundled = process.env.KKSS_KRATOS_PYTHON;
     if (bundled) {
       if (!path.isAbsolute(bundled)) throw new RuntimeFailure("runtime", "KKSS_KRATOS_PYTHON must be absolute.");
-      await this.deps.run(bundled, ["-c", "import KratosMultiphysics; import importlib.metadata as m; assert m.version('kratos-mcp-server') == '0.3.0'"], { signal, timeout: 15000 });
+      await this.deps.run(bundled, ["-c", `import KratosMultiphysics; import importlib.metadata as m; assert m.version('kratos-mcp-server') == '${KRATOS_MCP_VERSION}'`], { signal, timeout: 15000 });
       return { command: path.join(path.dirname(bundled), "kratos-mcp-server"), args: [], bundled: true };
     }
     const exe = this.platform === "win32" ? ".exe" : "";

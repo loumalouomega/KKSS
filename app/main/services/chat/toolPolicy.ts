@@ -19,7 +19,7 @@
  *   reworded description must not silently change a safety class.
  *
  * So: unlisted ⇒ `unknown` ⇒ ask. That is what makes the external
- * `kratos-mcp-server` (40 tools, resolved by uvx at runtime, not in this tree)
+ * `kratos-mcp-server` (tools resolved by uvx at runtime, not in this tree)
  * safe by default without pretending we know what its tools do.
  *
  * ## Judgment calls

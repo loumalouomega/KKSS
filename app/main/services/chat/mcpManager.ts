@@ -1,3 +1,4 @@
+import { KRATOS_MCP_VERSION } from "./kratosMcpVersion";
 import { appTools, callAppTool } from "./appTools";
 /**
  * MCP client manager for the chat agent: spawns the three stdio MCP servers
@@ -37,7 +38,7 @@ export interface ServerSpec {
 
 /** Pinned kratos-mcp-server release (uvx resolves this exact version). Bump on
  *  upgrade; the tool/resource/prompt surface is discovered at runtime. */
-export const KRATOS_MCP_VERSION = "0.3.0";
+export { KRATOS_MCP_VERSION } from "./kratosMcpVersion";
 
 const NAMESPACE_SEPARATOR = "__";
 /** Cap on tool-result text handed back to the model. */
@@ -189,7 +190,7 @@ export function buildServerSpecs(outDir: string): ServerSpec[] {
       key: "kratos",
       name: "kratos-mcp-server",
       command: "uvx",
-      // 0.3.0 imports mcp.server.fastmcp, removed by MCP Python 2.x.
+      // The pinned server imports mcp.server.fastmcp, removed by MCP Python 2.x.
       args: ["--with", "mcp<2", `kratos-mcp-server@${KRATOS_MCP_VERSION}`],
       env: { ...process.env } as Record<string, string>,
     },

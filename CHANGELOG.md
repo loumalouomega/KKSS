@@ -5,6 +5,11 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## Unreleased
+
+- Update Kratos MCP Server to 0.5.0 across desktop launch, environment probes,
+  and the bundled Docker runtime.
+
 ## [2.3.1] - 2026-09-24
 
 - feat: simulation environment reports now expose verified runner capabilities

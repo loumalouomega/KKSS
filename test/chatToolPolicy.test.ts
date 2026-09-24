@@ -82,6 +82,12 @@ describe("classifyTool", () => {
 });
 
 describe("gateFor", () => {
+  it.each(["study_start", "study_cancel", "study_resume", "job_rerun", "job_resume", "configure_checkpoints", "results_time_history", "results_compare"])("keeps new Kratos tool %s unclassified and approval-gated", (name) => {
+    const tool = `kratos__${name}`;
+    expect(classifyTool(tool)).toBe("unknown");
+    expect(gate(tool, "askOnWrite")).toBe("ask");
+    expect(gate(tool, "askAlways")).toBe("ask");
+  });
   it("auto-approves reads and asks for writes in the default mode", () => {
     expect(DEFAULT_APPROVAL_MODE).toBe("askOnWrite");
     expect(gate("cad__inspect", "askOnWrite")).toBe("auto");

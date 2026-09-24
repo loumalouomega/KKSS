@@ -730,9 +730,10 @@ resubmitted automatically.
   installs), and **always pass `{...process.env}` to `StdioClientTransport`**
   — the MCP SDK otherwise strips env to a minimal set, silently losing PATH
   (breaks `uvx kratos-mcp-server`). The kratos server is **pinned** to
-  `KRATOS_MCP_VERSION` in `mcpManager.ts` (`uvx --with "mcp<2" kratos-mcp-server@<v>`) — bump
-  that constant to upgrade; its 40 tools + resources + prompts are discovered
-  at runtime, so nothing else changes. `McpManager` also aggregates MCP
+  `KRATOS_MCP_VERSION` in `kratosMcpVersion.ts` (`uvx --with "mcp<2" kratos-mcp-server@<v>`) — bump
+  that constant to upgrade; its tools + resources + prompts are discovered
+  at runtime. Update the Docker requirement and hash lock alongside the pin.
+  `McpManager` also aggregates MCP
   resources/prompts (surfaced to the chat as synthetic `mcp__*` tools via
   `chatTools()`). API keys go through `services/chat/secrets.ts`
   (safeStorage-encrypted in the stateStore) — never store them
@@ -1357,7 +1358,7 @@ dependency that ships in the packaged app, check GPL/AGPL compatibility first
 ## Kratos MCP jobs panel
 
 `JobsService` (`app/main/services/jobs.ts`) is one app-wide observer sharing
-`McpHub` with chat and the HTTP server. It discovers the pinned 0.3.0 server's
+`McpHub` with chat and the HTTP server. It discovers the pinned 0.5.0 server's
 persistent jobs via `job_list`, polls active `job_status`, retrieves 100-line
 `job_logs`, and exposes explicit user cancellation through `job_cancel`.
 It never owns or signals a solver process and has no duplicate persistent

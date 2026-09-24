@@ -1,4 +1,5 @@
 /** Bounded, non-installing probes. Launcher availability is not solver availability. */
+import { KRATOS_MCP_VERSION } from '../chat/kratosMcpVersion';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import { constants } from 'node:fs';
@@ -69,7 +70,7 @@ export async function checkEnvironment(options: {
       // Offline + no-sync prevents a check from downloading or installing packages.
       const report = options.bundledPython
         ? await probePython(options.bundledPython, [], options.applications, options.env, run)
-        : await probePython(launcher.command, [...launcher.args, '--offline', '--no-sync', '--from', 'kratos-mcp-server==0.3.0', 'python'], options.applications, options.env, run);
+        : await probePython(launcher.command, [...launcher.args, '--offline', '--no-sync', '--from', `kratos-mcp-server==${KRATOS_MCP_VERSION}`, 'python'], options.applications, options.env, run);
       return { ...report, capabilities: { ...unavailableCapabilities(), threadReason: 'The tool runner does not declare a thread-control contract.' }, modes: report.available ? ['mcp'] : [], reason: report.available ? undefined : `${report.reason} Use the existing Kratos tool setup/retry action if its cached environment is missing.` };
     } catch (e) { return { applications: [], available: false, capabilities: unavailableCapabilities(), modes: [], reason: `${e instanceof Error ? e.message : e} Use Kratos tool setup/retry.` }; }
   })();
