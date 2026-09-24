@@ -7,89 +7,89 @@
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
   <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./home.css" rel="stylesheet" />
-  <title>KKSS Home</title>
+  <title data-i18n="KKSS Home">KKSS Home</title>
 </head>
 <body>
   <div id="home">
     <div id="brand">
       <img id="logo" src="../../icon.png" alt="" />
-      <h1 id="title">KKSS</h1>
-      <p id="subtitle">Keep Kratos Simple Stupid</p>
-      <div id="menu" role="menu" aria-label="Main menu"></div>
+      <h1 id="title" data-i18n="KKSS">KKSS</h1>
+      <p id="subtitle" data-i18n="Keep Kratos Simple Stupid">Keep Kratos Simple Stupid</p>
+      <div id="menu" role="navigation" aria-label="Main menu" data-i18n-aria-label="Main menu"></div>
     </div>
     <!-- Both sections are populated from main over home:toWebview and stay
          hidden until there is something to show, so a fresh install looks
          exactly as it always has. -->
     <section id="project-root" class="home-section" hidden>
       <div id="project-root-head" class="home-section-head">
-        <h2 id="project-root-title" class="eyebrow">Project root</h2>
+        <h2 id="project-root-title" class="eyebrow" data-i18n="Project root">Project root</h2>
         <span id="project-root-actions">
-          <button id="project-root-change" class="btn-link" type="button">Change</button>
-          <button id="project-root-clear" class="btn-link" type="button" title="Go back to using the open document's folder">Clear</button>
+          <button id="project-root-change" class="btn-link" type="button" data-i18n="Change">Change</button>
+          <button id="project-root-clear" class="btn-link" type="button" title="Go back to using the open document's folder" data-i18n-title="Go back to using the open document&#x27;s folder" data-i18n="Clear">Clear</button>
         </span>
       </div>
       <div id="project-root-path"></div>
     </section>
     <section id="workflow" class="home-section" hidden>
       <div class="home-section-head">
-        <h2 class="eyebrow">Simulation workflow</h2>
-        <button id="workflow-check" class="btn-link" type="button">Check environment</button>
+        <h2 class="eyebrow" data-i18n="Simulation workflow">Simulation workflow</h2>
+        <button id="workflow-check" class="btn-link" type="button" data-i18n="Check environment">Check environment</button>
       </div>
       <div class="workflow-actions">
-        <button id="study-create" class="btn-link" type="button">New study</button>
-        <button id="study-duplicate" class="btn-link" type="button" disabled>Duplicate</button>
-        <button id="study-plan-run" class="btn-link" type="button" disabled>Plan run</button>
-        <button id="study-plan-sweep" class="btn-link" type="button" disabled>Plan sweep</button>
+        <button id="study-create" class="btn-link" type="button" data-i18n="New study">New study</button>
+        <button id="study-duplicate" class="btn-link" type="button" disabled data-i18n="Duplicate">Duplicate</button>
+        <button id="study-plan-run" class="btn-link" type="button" disabled data-i18n="Plan run">Plan run</button>
+        <button id="study-plan-sweep" class="btn-link" type="button" disabled data-i18n="Plan sweep">Plan sweep</button>
       </div>
-      <label id="study-picker-label" hidden>Study
+      <label id="study-picker-label" hidden><span data-i18n="Study">Study</span>
         <select id="study-picker"></select>
       </label>
       <div id="study-readiness" aria-live="polite"></div>
       <div class="workflow-actions">
-        <button id="queue-resume" class="btn-link" type="button" disabled>Resume queue</button>
-        <button id="queue-pause" class="btn-link" type="button" disabled>Pause queue</button>
-        <button id="queue-cancel" class="btn-link" type="button" disabled>Cancel task</button>
+        <button id="queue-resume" class="btn-link" type="button" disabled data-i18n="Resume queue">Resume queue</button>
+        <button id="queue-pause" class="btn-link" type="button" disabled data-i18n="Pause queue">Pause queue</button>
+        <button id="queue-cancel" class="btn-link" type="button" disabled data-i18n="Cancel task">Cancel task</button>
       </div>
       <div id="queue-status" aria-live="polite"></div>
-      <div id="variant-rows" aria-label="Variant rows"></div>
+      <div id="variant-rows" role="region" aria-label="Variant rows" data-i18n-aria-label="Variant rows"></div>
       <div class="workflow-actions">
-        <button id="study-open-geometry" class="btn-link" type="button" disabled>Open geometry</button>
-        <button id="study-open-mesh" class="btn-link" type="button" disabled>Open mesh</button>
-        <button id="study-open-case" class="btn-link" type="button" disabled>Open case</button>
-        <button id="study-open-results" class="btn-link" type="button" disabled>Open results</button>
+        <button id="study-open-geometry" class="btn-link" type="button" disabled data-i18n="Open geometry">Open geometry</button>
+        <button id="study-open-mesh" class="btn-link" type="button" disabled data-i18n="Open mesh">Open mesh</button>
+        <button id="study-open-case" class="btn-link" type="button" disabled data-i18n="Open case">Open case</button>
+        <button id="study-open-results" class="btn-link" type="button" disabled data-i18n="Open results">Open results</button>
       </div>
       <div class="workflow-actions">
-        <button id="study-evaluate-quantity" class="btn-link" type="button" disabled>Evaluate quantity</button>
-        <button id="study-review-run" class="btn-link" type="button" disabled>Review run</button>
-        <button id="study-export-review" class="btn-link" type="button" disabled>Export review</button>
-        <button id="study-compare-variants" class="btn-link" type="button" disabled>Compare variants</button>
-        <button id="study-export-comparison" class="btn-link" type="button" disabled>Export comparison</button>
+        <button id="study-evaluate-quantity" class="btn-link" type="button" disabled data-i18n="Evaluate quantity">Evaluate quantity</button>
+        <button id="study-review-run" class="btn-link" type="button" disabled data-i18n="Review run">Review run</button>
+        <button id="study-export-review" class="btn-link" type="button" disabled data-i18n="Export review">Export review</button>
+        <button id="study-compare-variants" class="btn-link" type="button" disabled data-i18n="Compare variants">Compare variants</button>
+        <button id="study-export-comparison" class="btn-link" type="button" disabled data-i18n="Export comparison">Export comparison</button>
       </div>
       <details class="workflow-more">
-        <summary>Relink, copy or attach existing files</summary>
+        <summary data-i18n="Relink, copy or attach existing files">Relink, copy or attach existing files</summary>
         <div class="workflow-actions">
-        <button id="study-relink-source" class="btn-link" type="button" disabled>Relink geometry</button>
-        <button id="study-copy-source" class="btn-link" type="button" disabled>Copy geometry in project</button>
-        <button id="study-attach-mesh" class="btn-link" type="button" disabled>Attach mesh</button>
-        <button id="study-set-case" class="btn-link" type="button" disabled>Set case snapshot</button>
-        <button id="study-import-run" class="btn-link" type="button" disabled>Import latest run</button>
+        <button id="study-relink-source" class="btn-link" type="button" disabled data-i18n="Relink geometry">Relink geometry</button>
+        <button id="study-copy-source" class="btn-link" type="button" disabled data-i18n="Copy geometry in project">Copy geometry in project</button>
+        <button id="study-attach-mesh" class="btn-link" type="button" disabled data-i18n="Attach mesh">Attach mesh</button>
+        <button id="study-set-case" class="btn-link" type="button" disabled data-i18n="Set case snapshot">Set case snapshot</button>
+        <button id="study-import-run" class="btn-link" type="button" disabled data-i18n="Import latest run">Import latest run</button>
         </div>
       </details>
       <div id="run-review-plots"></div>
       <div id="run-review" aria-live="polite"></div>
       <div id="environment-report" aria-live="polite"></div>
       <div id="environment-actions" class="workflow-actions" hidden>
-        <button id="environment-retry" class="btn-link" type="button">Retry assistant runtime</button>
-        <button id="environment-install" class="btn-link" type="button">Install uv for KKSS</button>
+        <button id="environment-retry" class="btn-link" type="button" data-i18n="Retry assistant runtime">Retry assistant runtime</button>
+        <button id="environment-install" class="btn-link" type="button" data-i18n="Install uv for KKSS">Install uv for KKSS</button>
       </div>
       <div id="workflow-error" role="alert" hidden></div>
     </section>
     <section id="recents" class="home-section" hidden>
       <div id="recents-head" class="home-section-head">
-        <h2 id="recents-title" class="eyebrow">Recent files</h2>
-        <button id="recents-clear" class="btn-link" type="button" title="Forget every remembered file">Clear</button>
+        <h2 id="recents-title" class="eyebrow" data-i18n="Recent files">Recent files</h2>
+        <button id="recents-clear" class="btn-link" type="button" title="Forget every remembered file" data-i18n-title="Forget every remembered file" data-i18n="Clear">Clear</button>
       </div>
-      <div id="recents-list" role="menu" aria-label="Recent files"></div>
+      <div id="recents-list" role="navigation" aria-label="Recent files" data-i18n-aria-label="Recent files"></div>
     </section>
   </div>
   <script src="./home.js"></script>

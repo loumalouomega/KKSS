@@ -7,27 +7,28 @@
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
   <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./chat.css" rel="stylesheet" />
-  <title>KKSS AI Chat</title>
+  <title data-i18n="KKSS AI Chat">KKSS AI Chat</title>
 </head>
 <body>
   <div id="chat">
     <header id="chat-header" class="section-header">
       <span class="panel-icon" id="chat-icon"></span>
-      <span id="chat-title" class="title" title="AI assistant">AI Chat</span>
-      <span id="servers" title="MCP tool servers"></span>
+      <span id="chat-title" class="title" title="AI assistant" data-i18n-title="AI assistant" data-i18n="AI Chat">AI Chat</span>
+      <span id="servers" title="MCP tool servers" data-i18n-title="MCP tool servers"></span>
       <span id="usage" class="ui-num" hidden></span>
-      <button id="history-btn" class="icon-btn" title="Conversations" aria-label="Conversations"></button>
-      <button id="new-btn" class="icon-btn" title="Start a new conversation (this one is saved)" aria-label="New conversation"></button>
-      <button id="hide-btn" class="icon-btn" title="Hide chat (Ctrl+Shift+L)" aria-label="Hide chat"></button>
+      <button id="history-btn" aria-controls="history" aria-expanded="false" class="icon-btn" title="Conversations" data-i18n-title="Conversations" aria-label="Conversations" data-i18n-aria-label="Conversations"></button>
+      <button id="new-btn" class="icon-btn" title="Start a new conversation (this one is saved)" data-i18n-title="Start a new conversation (this one is saved)" aria-label="New conversation" data-i18n-aria-label="New conversation"></button>
+      <button id="hide-btn" class="icon-btn" title="Hide chat (Ctrl+Shift+L)" data-i18n-title="Hide chat (Ctrl+Shift+L)" aria-label="Hide chat" data-i18n-aria-label="Hide chat"></button>
       <div id="history" class="card card-float" hidden></div>
     </header>
     <section id="kratos-status" role="status" aria-live="polite" hidden></section>
     <div id="compaction" hidden></div>
-    <div id="messages" aria-live="polite"></div>
+    <div id="messages" role="region" aria-label="Conversation" data-i18n-aria-label="Conversation" tabindex="0"></div>
+    <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
     <footer id="composer">
-      <textarea id="input" class="field" rows="3"
-        placeholder="Ask about the open model, meshing, or running Kratos… (Enter to send, Shift+Enter for a new line)"></textarea>
-      <button id="send-btn" class="btn btn-primary" title="Send (Enter)"></button>
+      <textarea id="input" aria-label="Message to the assistant" data-i18n-aria-label="Message to the assistant" class="field" rows="3"
+        placeholder="Ask about the open model, meshing, or running Kratos… (Enter to send, Shift+Enter for a new line)" data-i18n-placeholder="Ask about the open model, meshing, or running Kratos… (Enter to send, Shift+Enter for a new line)"></textarea>
+      <button id="send-btn" aria-label="Send message" data-i18n-aria-label="Send message" class="btn btn-primary" title="Send (Enter)" data-i18n-title="Send (Enter)"></button>
     </footer>
   </div>
   <script src="./chat.js"></script>

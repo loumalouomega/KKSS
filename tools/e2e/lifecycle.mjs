@@ -52,6 +52,10 @@ await scenario('single-instance', async c => {
     await until(async () => (await shell.locator('.tab.active').textContent()).includes('block.stp'), 'file forwarded');
     assert.equal(await shell.locator('.tab').count(), 1);
   } finally { if (child.exitCode === null) child.kill('SIGKILL'); }
+  // The assertion is about single-instance routing; SwiftShader's documented
+  // ReadPixels stall can wedge graceful exit while the forwarded STEP redraws.
+  await shell.locator('#home-btn').click();
+  await until(async () => await shell.locator('#tab-strip').isHidden(), 'hide the CAD renderer before quit');
   await quitApp(app);
   const next = await c.launch(undefined, { singleInstance: true }); await c.page(next, 'home'); await quitApp(next);
 });

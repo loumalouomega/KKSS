@@ -17,7 +17,7 @@ export default defineConfig({
 
   // localhost URLs (e.g. the Docker/noVNC quickstart) are runtime endpoints,
   // not site pages — don't fail the build on them.
-  ignoreDeadLinks: [/^https?:\/\/localhost/],
+  ignoreDeadLinks: [/^https?:\/\/localhost/, /^\/examples\/kratos\/.*\.(?:mdpa|py|vtk)$/],
 
   themeConfig: {
     nav: [
@@ -28,6 +28,7 @@ export default defineConfig({
         items: [
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },
+          { text: 'Worked Kratos Cases', link: '/guide/tutorial-kratos-examples' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' },
           { text: 'Web Deployment (Docker)', link: '/guide/web-deployment' }
@@ -45,6 +46,7 @@ export default defineConfig({
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },
+          { text: 'Worked Kratos Cases', link: '/guide/tutorial-kratos-examples' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' }
         ]

@@ -355,3 +355,13 @@ from the Command Palette and the Kratos Runs tree — neither of which KKSS runs
 
 A mesh tab with unsaved operations shows a dot in the tab strip; closing it, or quitting with one
 open, prompts Save / Don't Save / Cancel.
+
+### Language and keyboard navigation
+
+Choose **Settings → Language** to select English or Spanish. Restart KKSS for the
+change to reach menus, panels and dialogs. CAD-Preview and VSCode-MDPA-Preview
+keep their own interface language. Press `F6` to move forward through the
+visible regions and `Shift+F6` to move backward; hidden panels are skipped and
+closing a panel returns focus to the region that opened it. In the document tab
+strip, use the arrow keys or Home/End to move between tabs, Enter to activate a
+tab, and Delete to close it.

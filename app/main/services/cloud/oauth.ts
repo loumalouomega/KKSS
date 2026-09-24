@@ -26,6 +26,7 @@ import * as http from "node:http";
 import { showQuickPick, showInputBox } from "../quickPick";
 import { net, shell, clipboard } from "electron";
 import { CloudError } from "./cloudCore";
+import { t } from "../../../shared/i18n";
 import {
   buildAuthUrl,
   createPkce,
@@ -63,7 +64,7 @@ const CALLBACK_TIMEOUT_MS = 120_000;
 const DONE_PAGE = (message: string) =>
   `<!doctype html><meta charset="utf-8"><title>KKSS</title>` +
   `<body style="font:14px system-ui;margin:3rem;text-align:center">` +
-  `<p>${message}</p><p>You can close this tab and return to KKSS.</p></body>`;
+  `<p>${message}</p><p>${t("You can close this tab and return to KKSS.")}</p></body>`;
 
 /**
  * Runs the full authorization-code + PKCE flow and returns the token set.
@@ -89,18 +90,18 @@ export async function runLoopbackAuth(config: OAuthConfig): Promise<TokenSet> {
         ...config.extraAuthParams,
       });
     const mode = await showQuickPick([
-      { label: "Open browser", manual: false },
-      { label: "Copy URL and paste callback (browser session)", manual: true },
-    ], { title: "Connect cloud account" });
-    if (!mode) throw new CloudError("auth", "Sign-in cancelled.");
+      { label: t("Open browser"), manual: false },
+      { label: t("Copy URL and paste callback (browser session)"), manual: true },
+    ], { title: t("Connect cloud account") });
+    if (!mode) throw new CloudError("auth", t("Sign-in cancelled."));
     let code: string;
     if (mode.manual) {
       clipboard.writeText(consentUrl);
       const raw = await Promise.race([
-        showInputBox({ title: "Complete cloud sign-in", prompt: "Consent URL copied. Open it in your browser, then paste the full localhost callback URL here (even if the browser cannot load it)." }),
+        showInputBox({ title: t("Complete cloud sign-in"), prompt: t("Consent URL copied. Open it in your browser, then paste the full localhost callback URL here (even if the browser cannot load it).") }),
         new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), CALLBACK_TIMEOUT_MS)),
       ]);
-      if (!raw) throw new CloudError("auth", "Sign-in cancelled or timed out.");
+      if (!raw) throw new CloudError("auth", t("Sign-in cancelled or timed out."));
       code = parseManualCallback(raw, redirectUri, state);
     } else {
       const codePromise = awaitCallback(server, port, state);
@@ -132,8 +133,8 @@ function listen(server: http.Server, port: number): Promise<number> {
         new CloudError(
           "other",
           port === 0
-            ? `Could not open a local port for sign-in: ${err.message}`
-            : `Could not open port ${port} for sign-in — it may already be in use. ${err.message}`,
+            ? t("Could not open a local port for sign-in: {0}", {0: err.message})
+            : t("Could not open port {0} for sign-in — it may already be in use. {1}", {0: port, 1: err.message}),
           err
         )
       );
@@ -159,7 +160,7 @@ function awaitCallback(server: http.Server, port: number, state: string): Promis
     };
 
     const timer = setTimeout(
-      () => finish(() => reject(new CloudError("auth", "Sign-in timed out — no response from the browser."))),
+      () => finish(() => reject(new CloudError("auth", t("Sign-in timed out — no response from the browser.")))),
       CALLBACK_TIMEOUT_MS
     );
 
@@ -185,11 +186,11 @@ function awaitCallback(server: http.Server, port: number, state: string): Promis
       try {
         const code = parseCallback(callback.href, state);
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        res.end(DONE_PAGE("Signed in."));
+        res.end(DONE_PAGE(t("Signed in.")));
         finish(() => resolve(code));
       } catch (err) {
         res.writeHead(400, { "content-type": "text/html; charset=utf-8" });
-        res.end(DONE_PAGE("Sign-in failed."));
+        res.end(DONE_PAGE(t("Sign-in failed.")));
         finish(() => reject(err));
       }
     };
@@ -219,14 +220,14 @@ async function exchange(config: OAuthConfig, body: Record<string, string>): Prom
       signal: AbortSignal.timeout(30_000),
     });
   } catch (err) {
-    throw new CloudError("network", `Could not reach the sign-in service: ${describe(err)}`, err);
+    throw new CloudError("network", t("Could not reach the sign-in service: {0}", {0: describe(err)}), err);
   }
 
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    throw new CloudError("auth", `The sign-in service returned ${response.status}.`);
+    throw new CloudError("auth", t("The sign-in service returned {0}.", {0: response.status}));
   }
   // parseTokenResponse surfaces the provider's own error body, which is far
   // more actionable than the status code (invalid_client vs invalid_grant).

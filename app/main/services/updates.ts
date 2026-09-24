@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n";
 /** Channel-aware, explicitly requested updates; each check owns its updater. */
 import { app, net } from "electron";
 import { AppImageUpdater, MacUpdater, NsisUpdater, type AppUpdater } from "electron-updater";
@@ -95,8 +96,8 @@ export async function checkForUpdate(): Promise<void> {
     sink?.({ type: "status", state: "available", latestVersion: selected.updateInfo.version, canAutoUpdate: true });
   } catch (error) {
     if (epoch !== generation) return;
-    sink?.(offered ? { type: "status", state: "available", latestVersion: offered, canAutoUpdate: false, message: `Automatic update unavailable (${String(error)})` }
-      : { type: "status", state: "error", message: "Couldn't check for updates — are you offline?" });
+    sink?.(offered ? { type: "status", state: "available", latestVersion: offered, canAutoUpdate: false, message: t("Automatic update unavailable ({0})", {0: String(error)}) }
+      : { type: "status", state: "error", message: t("Couldn't check for updates — are you offline?") });
   }
 }
 
@@ -113,7 +114,7 @@ export async function downloadUpdate(): Promise<void> {
   } catch (error) {
     if (request.generation !== generation) return;
     active = undefined;
-    sink?.({ type: "status", state: "available", latestVersion: request.version, canAutoUpdate: false, message: `Automatic update failed (${String(error)})` });
+    sink?.({ type: "status", state: "available", latestVersion: request.version, canAutoUpdate: false, message: t("Automatic update failed ({0})", {0: String(error)}) });
   } finally { request.downloading = false; }
 }
 export function installUpdate(): void {

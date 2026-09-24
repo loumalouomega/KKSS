@@ -1,3 +1,4 @@
+import { t } from "../../../shared/i18n";
 /**
  * Settings ▸ Open Settings… (Ctrl+,) — a VS Code-style settings page in its
  * own singleton window, backed by app/renderer/settings/.
@@ -66,7 +67,7 @@ function rowState(entry: SettingEntry, cloud: CloudStatus[]): SettingsRowState {
     const row: SettingsRowState = { managed, modified: false };
     if (entry.id === "general.projectRoot") {
       const root = deps?.projectRoot.explicit();
-      row.status = root ?? "Not set — the focused document's folder is used.";
+      row.status = root ?? t("Not set — the focused document's folder is used.");
       row.modified = !!root;
       if (!root) row.disabledActions = ["clear"];
     }
@@ -74,10 +75,10 @@ function rowState(entry: SettingEntry, cloud: CloudStatus[]): SettingsRowState {
     if (id) {
       const s = cloud.find((c) => c.id === id);
       row.status = s?.connected
-        ? `Connected as ${s.account?.label ?? "?"}`
+        ? t("Connected as {0}", {0: s.account?.label ?? "?"})
         : s?.hasClientId
-          ? "Not connected"
-          : "Set a client ID first";
+          ? t("Not connected")
+          : t("Set a client ID first");
       row.disabledActions = [...(s?.hasClientId ? [] : ["connect"]), ...(s?.connected ? [] : ["disconnect"])];
     }
     return row;
@@ -115,7 +116,7 @@ async function applyValue(entry: SettingEntry, raw: unknown): Promise<void> {
   const stored = toStored(entry, raw);
   if (!stored.ok) {
     sendRows(); // put the control back — first, since a row update clears its error
-    send({ type: "error", id: entry.id, message: "That value is not valid for this setting." });
+    send({ type: "error", id: entry.id, message: t("That value is not valid for this setting.") });
     return;
   }
   const value = stored.value;
@@ -231,7 +232,7 @@ export function showSettings(): void {
     height: 680,
     minWidth: 620,
     minHeight: 420,
-    title: "Settings",
+    title: t("Settings"),
     autoHideMenuBar: true,
     icon: path.join(outDir, "icon.png"),
     webPreferences: {

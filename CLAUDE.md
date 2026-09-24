@@ -1310,6 +1310,40 @@ mesh body matches `buildPreviewHtml` with `startEmpty` omitted; all four
 meshio runtime files ship. Format routing tables, not approximate prose
 counts, define the supported read/write formats.
 
+## Localization, focus and performance checks
+
+The KKSS-owned interface locale uses `app/shared/i18n/en.json` as stable typed
+English keys and `es.json` for Spanish translations. `general.language` persists
+as `uiLanguage` and takes effect on the next launch; `configureLocale()` resets
+the settings registry after resolving the preference. Keep setting IDs, saved
+values, protocol fields, filenames, provider content and logs language-neutral.
+Static renderer copy is marked `data-i18n`; runtime-created app copy uses `t()`.
+Do not translate CAD/mesh upstream messages or user-authored content.
+
+`app/main/windows.ts` owns F6/Shift+F6 traversal of visible views, remembers a
+panel's invoking view, and sends `kkss:focus` after focus transfer and reload.
+The order is Shell, active content, Terminal, then Chat or Jobs; Home is the sole
+region while it covers the app. Keep hidden views out of this cycle. Shell mode
+and document tab controls have keyboard tab semantics and roving focus.
+
+`npm run perf` measures five fresh launches and five opens per fixture with new
+Electron processes and profiles; it does not flush the OS filesystem cache. The
+opt-in `KKSS_PERF_TRACE` instrumentation is ignored in packaged apps and records
+Home's interactive acknowledgement plus file-open completion correlated by
+absolute path. `UUea.inp` arrives through the mesh `vtkFrame` protocol; it is the
+model completion point for the meshio++ scenario. The report and baseline keep
+raw samples, medians, fixture SHA-256, gitlink revisions, runtime, host and
+rendering metadata. Warn above 3×; `PERF_STRICT=1` turns that warning into a
+failure. `--update-baseline` is explicit and must follow review of a deliberate
+change. Performance never gates ordinary CI.
+
+`test/verificationQuality.test.ts` pins translation keys/interpolations,
+stable setting IDs/values, focus-cycle math and timing correlation. The Electron
+scenario `tools/e2e/accessibility.mjs` exercises visible-view navigation and
+runs axe-core's WCAG 2.1 A/AA rules on representative app-owned pages in English
+and Spanish under all four application themes. This is automated coverage, not
+formal certification or manual screen-reader sign-off.
+
 ## Screenshots are generated, not hand-captured
 
 `npm run docs:screenshots` (`tools/screenshots.mjs`) launches the **real app**

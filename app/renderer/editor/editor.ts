@@ -1,11 +1,13 @@
+import "../localization";
+import { t } from "../../shared/i18n";
 /** Text-editor renderer: CodeMirror 6 over the editorApi IPC bridge. */
 import { basicSetup } from "codemirror";
 import { EditorView, keymap } from "@codemirror/view";
 import { EditorState, Compartment, type Extension } from "@codemirror/state";
-import { indentUnit } from "@codemirror/language";
+import { HighlightStyle, indentUnit, syntaxHighlighting } from "@codemirror/language";
 import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
-import { oneDark } from "@codemirror/theme-one-dark";
+import { color, oneDarkHighlightStyle, oneDarkTheme } from "@codemirror/theme-one-dark";
 import type { EditorLanguage, EditorToWebview } from "../../main/ipc";
 import type { Appearance } from "../appearance";
 
@@ -27,19 +29,35 @@ const language = new Compartment();
 const preferences = new Compartment();
 let appearance = window.kkssAppearance?.current();
 
+// Keep One Dark's palette while raising its muted gutter/comment and coral
+// syntax colors above WCAG AA contrast on the editor's dark background.
+const accessibleOneDarkHighlight = HighlightStyle.define(
+  oneDarkHighlightStyle.specs.map((style) =>
+    style.color === color.coral
+      ? { ...style, color: "#ff9da4" }
+      : style.color === color.stone
+        ? { ...style, color: "#adb8c8" }
+        : style,
+  ),
+);
+
 function preferenceExtensions(a: Appearance | undefined): Extension {
   const e = a?.editor;
   const light = a?.kind === "vscode-light" || a?.kind === "vscode-high-contrast-light";
   const tab = e?.tabSize ?? 4;
   return [
-    // basicSetup's default highlight style is the light one; oneDark replaces it.
-    light ? [] : oneDark,
+    // basicSetup's default highlight style is the light one; One Dark replaces it.
+    light ? [] : [oneDarkTheme, syntaxHighlighting(accessibleOneDarkHighlight)],
     EditorState.tabSize.of(tab),
     indentUnit.of(" ".repeat(tab)),
     e?.wordWrap ? EditorView.lineWrapping : [],
     EditorView.theme({
       "&": { fontSize: `${e?.fontSize ?? 13}px` },
-      ".cm-content, .cm-gutters": e?.fontFamily ? { fontFamily: e.fontFamily } : {},
+      ".cm-content": e?.fontFamily ? { fontFamily: e.fontFamily } : {},
+      ".cm-gutters": {
+        ...(e?.fontFamily ? { fontFamily: e.fontFamily } : {}),
+        ...(light ? {} : { color: "#adb8c8" }),
+      },
       // basicSetup always installs the gutter; hiding it is the switch-off.
       ".cm-lineNumbers": e?.lineNumbers === false ? { display: "none" } : {},
     }),
@@ -56,11 +74,11 @@ function languageExtension(lang: EditorLanguage): Extension {
 }
 
 function renderPath(): void {
-  pathEl.textContent = currentPath ?? "No file open — use Open…";
+  pathEl.textContent = currentPath ?? t("No file open — use Open…");
   if (currentPath && dirty) {
     const dot = document.createElement("span");
     dot.className = "ui-dot";
-    dot.title = "Unsaved changes";
+    dot.title = t("Unsaved changes");
     pathEl.append(dot);
   }
 }
@@ -83,6 +101,7 @@ const extensions = (lang: EditorLanguage): Extension[] => [
     { key: "Mod-Shift-s", run: () => (save(true), true) },
   ]),
   basicSetup,
+  EditorView.contentAttributes.of({ "aria-label": t("Text editor") }),
   preferences.of(preferenceExtensions(appearance)),
   language.of(languageExtension(lang)),
   EditorView.updateListener.of((update) => {
@@ -94,6 +113,8 @@ const view = new EditorView({
   parent: byId<HTMLDivElement>("editor-host"),
   state: EditorState.create({ doc: "", extensions: extensions("plain") }),
 });
+view.scrollDOM.tabIndex = 0;
+view.scrollDOM.setAttribute("aria-label", t("Text editor"));
 
 window.kkssAppearance?.onChange((a) => {
   appearance = a;
@@ -106,6 +127,8 @@ api.onMessage((raw) => {
     case "doc":
       loading = true;
       view.setState(EditorState.create({ doc: msg.content, extensions: extensions(msg.language) }));
+      view.scrollDOM.tabIndex = 0;
+      view.scrollDOM.setAttribute("aria-label", t("Text editor"));
       loading = false;
       currentPath = msg.path;
       dirty = false;

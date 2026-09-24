@@ -1,3 +1,5 @@
+import "../localization";
+import { t, translate } from "../../shared/i18n";
 /**
  * Home screen: the config-driven main menu shown on launch (see homeConfig.ts),
  * plus the recent-files list.
@@ -107,16 +109,16 @@ document.getElementById("workflow-check")!.addEventListener("click", () => {
   api.post({ type: "checkEnvironment" });
 });
 document.getElementById("study-create")!.addEventListener("click", () => {
-  const source = window.prompt("Geometry file path (inside the project is portable):");
+  const source = window.prompt(t("Geometry file path (inside the project is portable):"));
   if (!source) return;
-  const name = window.prompt("Study name:", source.split(/[\\/]/).pop() ?? "Study");
+  const name = window.prompt(t("Study name:"), source.split(/[\\/]/).pop() ?? t("Study"));
   if (name) workflowCall("study_create", { name, source });
 });
 duplicateButton.addEventListener("click", () => {
   if (!selectedStudy) return;
-  const name = window.prompt("Name for the duplicate:", `${selectedStudy.name} copy`);
+  const name = window.prompt(t("Name for the duplicate:"), t("{0} copy", {0: selectedStudy.name}));
   if (!name) return;
-  const reuseMesh = window.confirm("Reuse this study’s existing mesh? Choose Cancel to regenerate the mesh.");
+  const reuseMesh = window.confirm(t("Reuse this study’s existing mesh? Choose Cancel to regenerate the mesh."));
   workflowCall("study_duplicate", { studyId: selectedStudy.id, name, reuseMesh });
 });
 planRunButton.addEventListener("click", () => {
@@ -124,22 +126,22 @@ planRunButton.addEventListener("click", () => {
   const readyMesh = workflowSnapshot?.project && selectedStudy
     ? (workflowSnapshot as unknown as { readiness?: Record<string, Record<string, string>> }).readiness?.[selectedStudy.id]?.mesh === "ready"
     : false;
-  const reuseMesh = readyMesh && window.confirm("Reuse this study’s current mesh? Choose Cancel to regenerate it.");
+  const reuseMesh = readyMesh && window.confirm(t("Reuse this study’s current mesh? Choose Cancel to regenerate it."));
   workflowAction = "queue-preview";
   workflowCall("queue_plan_preview", { studyId: selectedStudy.id, reuseMesh });
 });
 planSweepButton.addEventListener("click", () => {
   if (!selectedStudy) return;
-  const parameterPath = window.prompt("Case setting path (for example values.problem.timeStep):");
+  const parameterPath = window.prompt(t("Case setting path (for example values.problem.timeStep):"));
   if (!parameterPath) return;
-  const rawValues = window.prompt("Sweep values as a JSON array (maximum 50):", "[0.05, 0.1, 0.2]");
+  const rawValues = window.prompt(t("Sweep values as a JSON array (maximum 50):"), "[0.05, 0.1, 0.2]");
   if (!rawValues) return;
   let values: unknown;
   try { values = JSON.parse(rawValues); }
-  catch { workflowError.textContent = "Enter a valid JSON array."; workflowError.hidden = false; return; }
-  if (!Array.isArray(values) || values.length < 1 || values.length > 50) { workflowError.textContent = "Enter 1–50 values in a JSON array."; workflowError.hidden = false; return; }
+  catch { workflowError.textContent = t("Enter a valid JSON array."); workflowError.hidden = false; return; }
+  if (!Array.isArray(values) || values.length < 1 || values.length > 50) { workflowError.textContent = t("Enter 1–50 values in a JSON array."); workflowError.hidden = false; return; }
   const readyMesh = (workflowSnapshot as unknown as { readiness?: Record<string, Record<string, string>> } | undefined)?.readiness?.[selectedStudy.id]?.mesh === "ready";
-  const reuseMesh = readyMesh && window.confirm("Reuse this study’s current mesh? Choose Cancel to regenerate one for every row.");
+  const reuseMesh = readyMesh && window.confirm(t("Reuse this study’s current mesh? Choose Cancel to regenerate one for every row."));
   workflowAction = "queue-preview";
   workflowCall("queue_parameter_sweep_preview", { studyId: selectedStudy.id, reuseMesh, parameterPath, values });
 });
@@ -148,7 +150,7 @@ document.getElementById("queue-resume")!.addEventListener("click", () => {
   const tasks = workflowSnapshot?.project?.queue?.tasks ?? [];
   if (!revision || !tasks.length) return;
   const plan = tasks.map(task => `${task.kind}: ${task.id} (${task.state})`).join("\n");
-  if (!window.confirm(`Resume this exact persisted plan?\n\n${plan}`)) return;
+  if (!window.confirm(t("Resume this exact persisted plan?\n\n{0}", {0: plan}))) return;
   workflowAction = "queue-resume";
   workflowCall("queue_resume", { planRevision: revision });
 });
@@ -156,7 +158,7 @@ document.getElementById("queue-pause")!.addEventListener("click", () => workflow
 document.getElementById("queue-cancel")!.addEventListener("click", () => {
   const tasks = workflowSnapshot?.project?.queue?.tasks ?? [];
   const task = tasks.find(row => ["dispatching", "running", "uncertain"].includes(row.state)) ?? tasks.find(row => ["waiting", "held"].includes(row.state));
-  if (!task || !window.confirm(`Cancel ${task.kind} task ${task.id}?`)) return;
+  if (!task || !window.confirm(t("Cancel {0} task {1}?", {0: task.kind, 1: task.id}))) return;
   workflowCall("queue_cancel", { taskId: task.id });
 });
 studyPicker.addEventListener("change", () => {
@@ -173,26 +175,26 @@ for (const [id, stage] of [["study-open-geometry", "geometry"], ["study-open-mes
 }
 document.getElementById("study-relink-source")!.addEventListener("click", () => {
   if (!selectedStudy) return;
-  const sourcePath = window.prompt("Path to the replacement geometry file:");
+  const sourcePath = window.prompt(t("Path to the replacement geometry file:"));
   if (sourcePath) workflowCall("study_relink_source", { studyId: selectedStudy.id, sourcePath });
 });
 document.getElementById("study-copy-source")!.addEventListener("click", () => {
-  if (selectedStudy && window.confirm("Copy this geometry into the project? The original file will stay unchanged.")) workflowCall("study_copy_source_into_project", { studyId: selectedStudy.id });
+  if (selectedStudy && window.confirm(t("Copy this geometry into the project? The original file will stay unchanged."))) workflowCall("study_copy_source_into_project", { studyId: selectedStudy.id });
 });
 document.getElementById("environment-retry")!.addEventListener("click", () => api.post({ type: "retrySimulationTools", install: false }));
 document.getElementById("environment-install")!.addEventListener("click", () => api.post({ type: "retrySimulationTools", install: true }));
 document.getElementById("study-attach-mesh")!.addEventListener("click", () => {
   if (!selectedStudy) return;
-  const meshPath = window.prompt("Exported mesh path:");
+  const meshPath = window.prompt(t("Exported mesh path:"));
   if (meshPath) workflowCall("study_attach_mesh", { studyId: selectedStudy.id, meshPath });
 });
 document.getElementById("study-set-case")!.addEventListener("click", () => {
   if (!selectedStudy) return;
-  const raw = window.prompt("Case state JSON (the mesh viewer writes this beside the mesh):");
+  const raw = window.prompt(t("Case state JSON (the mesh viewer writes this beside the mesh):"));
   if (!raw) return;
   try {
     const caseSettings = JSON.parse(raw);
-    if (!caseSettings || typeof caseSettings !== "object" || Array.isArray(caseSettings)) throw new Error("Enter a JSON object.");
+    if (!caseSettings || typeof caseSettings !== "object" || Array.isArray(caseSettings)) throw new Error(t("Enter a JSON object."));
     workflowCall("study_set_settings", { studyId: selectedStudy.id, caseSettings });
   } catch (error) { workflowError.textContent = String(error); workflowError.hidden = false; }
 });
@@ -206,26 +208,26 @@ for (const [id, tool] of [["study-review-run", "run_review"], ["study-export-rev
 }
 document.getElementById("study-evaluate-quantity")!.addEventListener("click", () => {
   if (!selectedStudy || !selectedRunId) return;
-  const field = window.prompt("Result field name:", "DISPLACEMENT");
+  const field = window.prompt(t("Result field name:"), "DISPLACEMENT");
   if (!field) return;
-  const kind = window.prompt("Field location (Nodal, Elemental or Conditional):", "Nodal");
+  const kind = window.prompt(t("Field location (Nodal, Elemental or Conditional):"), "Nodal");
   if (!kind) return;
-  const component = window.prompt("Component (scalar, x, y, z or magnitude):", "magnitude");
+  const component = window.prompt(t("Component (scalar, x, y, z or magnitude):"), "magnitude");
   if (!component) return;
-  const region = window.prompt("Region (global or exact SubModelPart path):", "global");
+  const region = window.prompt(t("Region (global or exact SubModelPart path):"), "global");
   if (!region) return;
-  const reduction = window.prompt("Reduction (min, max, mean, maxAbs, etc.):", "max");
+  const reduction = window.prompt(t("Reduction (min, max, mean, maxAbs, etc.):"), "max");
   if (!reduction) return;
   const study = workflowSnapshot?.project?.studies?.find(row => row.id === selectedStudy?.id);
   const lengthUnit = study?.handoff?.units?.length ?? "";
   const defaultUnit = field.toUpperCase() === "DISPLACEMENT" ? lengthUnit : "";
-  const unit = window.prompt("Quantity unit (declare explicitly):", defaultUnit);
+  const unit = window.prompt(t("Quantity unit (declare explicitly):"), defaultUnit);
   if (!unit) return;
-  const rawStep = window.prompt("Time step index (blank for the first result):", "0");
+  const rawStep = window.prompt(t("Time step index (blank for the first result):"), "0");
   if (rawStep === null) return;
   const timeStep = rawStep.trim() ? Number(rawStep) : undefined;
-  if (timeStep !== undefined && !Number.isInteger(timeStep)) { workflowError.textContent = "Enter an integer time step."; workflowError.hidden = false; return; }
-  const resultPath = window.prompt("Optional result file path (blank uses the run's recorded result):", "");
+  if (timeStep !== undefined && !Number.isInteger(timeStep)) { workflowError.textContent = t("Enter an integer time step."); workflowError.hidden = false; return; }
+  const resultPath = window.prompt(t("Optional result file path (blank uses the run's recorded result):"), "");
   if (resultPath === null) return;
   workflowCall("run_quantity_evaluate", { studyId: selectedStudy.id, runId: selectedRunId, field, kind, component, region, reduction, unit, ...(timeStep !== undefined ? { timeStep } : {}), ...(resultPath.trim() ? { resultPath: resultPath.trim() } : {}) });
 });
@@ -279,7 +281,7 @@ function renderWorkflow(raw: unknown): void {
     (document.getElementById("study-compare-variants") as HTMLButtonElement).disabled = false;
     (document.getElementById("study-export-comparison") as HTMLButtonElement).disabled = false;
     studyReadiness.textContent = ["geometry", "mesh", "case", "run", "results"]
-      .map(step => `${step}: ${states[step] ?? "missing"}`).join(" · ");
+      .map(step => `${translate(step)}: ${translate(states[step] ?? "missing")}`).join(" · ");
     const parentId = active.parentId ?? active.id;
     const group = studies.filter(study => study.id === parentId || study.parentId === parentId);
     for (const study of group) {
@@ -296,23 +298,23 @@ function renderWorkflow(raw: unknown): void {
       const row = document.createElement("div"); row.className = "variant-row";
       const label = document.createElement("span"); label.className = "variant-row-label";
       const status = selectedRun?.state ?? (tasks.length ? tasks[tasks.length - 1].state : "not run");
-      label.textContent = `${study.name} · ${status}${runId ? ` · ${runId.slice(0, 8)}` : ""}`;
+      label.textContent = `${study.name} · ${translate(status)}${runId ? ` · ${runId.slice(0, 8)}` : ""}`;
       row.append(label);
       const actions = document.createElement("span"); actions.className = "variant-row-actions";
       if (!failure && !activeTask && waitingTasks.length && value.queuePlanRevision && manualRuntimeAvailable !== false) {
-        const resume = document.createElement("button"); resume.type = "button"; resume.className = "btn-link"; resume.textContent = "Resume row";
+        const resume = document.createElement("button"); resume.type = "button"; resume.className = "btn-link"; resume.textContent = t("Resume row");
         resume.addEventListener("click", () => {
           const taskList = waitingTasks.map(task => `${task.kind}: ${task.state}`).join(" · ");
-          if (window.confirm(`Resume only ${study.name} from the approved queue plan? Other waiting rows will stay held.\n\n${taskList}\nPlan revision: ${value.queuePlanRevision}`))
+          if (window.confirm(t("Resume only {0} from the approved queue plan? Other waiting rows will stay held.\n\n{1}\nPlan revision: {2}", {0: study.name, 1: taskList, 2: value.queuePlanRevision})))
             workflowCall("queue_resume_row", { taskId: waitingTasks[0].id, planRevision: value.queuePlanRevision });
         });
         actions.append(resume);
       }
       if (failure && !hasOpenTasks) {
-        const retry = document.createElement("button"); retry.type = "button"; retry.className = "btn-link"; retry.textContent = "Retry row";
+        const retry = document.createElement("button"); retry.type = "button"; retry.className = "btn-link"; retry.textContent = t("Retry row");
         retry.addEventListener("click", () => {
           const meshReady = value.readiness?.[study.id]?.mesh === "ready";
-          const reuseMesh = meshReady && window.confirm(`Reuse ${study.name}'s immutable mesh? Choose Cancel to regenerate it.`);
+          const reuseMesh = meshReady && window.confirm(t("Reuse {0}'s immutable mesh? Choose Cancel to regenerate it.", {0: study.name}));
           workflowAction = "queue-preview";
           workflowCall("queue_retry_variant_preview", { studyId: study.id, reuseMesh });
         });
@@ -321,7 +323,7 @@ function renderWorkflow(raw: unknown): void {
       row.append(actions); variantContainer.append(row);
     }
   } else {
-    selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; studyReadiness.textContent = "No studies yet.";
+    selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
     for (const id of ["study-open-geometry", "study-open-mesh", "study-open-case", "study-open-results"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
     for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-evaluate-quantity", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
   }
@@ -329,8 +331,8 @@ function renderWorkflow(raw: unknown): void {
   const tasks = queue?.tasks ?? [];
   const activeQueueTasks = tasks.filter(task => ["dispatching", "running", "uncertain"].includes(task.state));
   queueStatus.textContent = tasks.length
-    ? `Queue ${queue?.paused ? "paused" : "running"}: ${tasks.map(task => `${task.kind} ${task.state}`).join(" · ")}`
-    : "Queue empty.";
+    ? t("Queue {0}: {1}", {0: queue?.paused ? t("paused") : t("running"), 1: tasks.map(task => `${translate(task.kind)} ${translate(task.state)}`).join(" · ")})
+    : t("Queue empty.");
   (document.getElementById("queue-resume") as HTMLButtonElement).disabled = !queue?.paused || tasks.length === 0 || manualRuntimeAvailable === false;
   (document.getElementById("queue-pause") as HTMLButtonElement).disabled = !!queue?.paused || tasks.length === 0;
   (document.getElementById("queue-cancel") as HTMLButtonElement).disabled = tasks.length === 0 || (!activeQueueTasks.length && !tasks.some(task => ["waiting", "held"].includes(task.state)));
@@ -366,22 +368,22 @@ api.onMessage((raw) => {
     };
     manualRuntimeAvailable = !!report.manual?.available && report.requirementsComplete !== false && report.writable === true;
     const runtimeLine = (name: string, runtime: typeof report.manual): string => {
-      if (!runtime) return `${name}: unavailable`;
+      if (!runtime) return `${name}: ${t("unavailable")}`;
       const identity = [runtime.executable, runtime.version && `Python ${runtime.version}`, runtime.kratosVersion && `Kratos ${runtime.kratosVersion}`].filter(Boolean).join(" · ");
-      return `${name}: ${runtime.available ? "available" : runtime.reason ?? "unavailable"}${identity ? ` · ${identity}` : ""}`;
+      return `${name}: ${runtime.available ? t("available") : runtime.reason ?? t("unavailable")}${identity ? ` · ${identity}` : ""}`;
     };
     const applicationLines = [report.manual, report.tools].flatMap(runtime => runtime?.applications ?? []).map(application =>
-      `${application.name}: ${application.available ? "available" : application.reason ?? "missing"}`);
+      `${application.name}: ${application.available ? t("available") : application.reason ?? t("missing")}`);
     environmentReport.textContent = [
-      runtimeLine("Manual runs", report.manual),
-      runtimeLine("Assistant tools", report.tools),
+      runtimeLine(t("Manual runs"), report.manual),
+      runtimeLine(t("Assistant tools"), report.tools),
       ...new Set(applicationLines),
-      `Run directory${report.directory ? ` (${report.directory})` : ""}: ${report.writable ? "writable" : report.directoryReason ?? "unavailable"}`,
-      report.requirementsComplete === false ? "Required applications: this case has no declared built-in requirements, so verification is incomplete." : undefined,
-      report.cpuCount ? `Available CPU cores: ${report.cpuCount}` : undefined,
-      report.memoryBytes ? `Available memory: ${(report.memoryBytes / 1024 ** 3).toFixed(1)} GiB` : undefined,
-      report.suggestedThreads ? `Suggested thread limit: ${report.suggestedThreads}` : undefined,
-      report.manual?.capabilities?.mpi === false ? `MPI unavailable: ${report.manual.capabilities.mpiReason}` : undefined,
+      t("Run directory{0}: {1}", {0: report.directory ? ` (${report.directory})` : "", 1: report.writable ? t("writable") : report.directoryReason ?? t("unavailable")}),
+      report.requirementsComplete === false ? t("Required applications: this case has no declared built-in requirements, so verification is incomplete.") : undefined,
+      report.cpuCount ? t("Available CPU cores: {0}", {0: report.cpuCount}) : undefined,
+      report.memoryBytes ? t("Available memory: {0} GiB", {0: (report.memoryBytes / 1024 ** 3).toFixed(1)}) : undefined,
+      report.suggestedThreads ? t("Suggested thread limit: {0}", {0: report.suggestedThreads}) : undefined,
+      report.manual?.capabilities?.mpi === false ? t("MPI unavailable: {0}", {0: report.manual.capabilities.mpiReason}) : undefined,
     ].filter(Boolean).join("\n");
     (document.getElementById("environment-actions") as HTMLElement).hidden = !!report.tools?.available;
     planRunButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
@@ -402,11 +404,11 @@ api.onMessage((raw) => {
       const preview = value as { previewId?: string; summary?: string[]; tasks?: { kind: string; id: string; runId: string }[]; runId?: string };
       workflowAction = undefined;
       const summary = preview.summary?.join("\n") ?? JSON.stringify(value, null, 2);
-      if (preview.previewId && window.confirm(`Queue preview\n\n${summary}\n\nPersist this paused plan?`)) {
+      if (preview.previewId && window.confirm(t("Queue preview\n\n{0}\n\nPersist this paused plan?", {0: summary}))) {
         workflowAction = "queue-enqueue";
         workflowCall("queue_enqueue", { previewId: preview.previewId });
       }
-      (document.getElementById("run-review") as HTMLElement).textContent = `Run plan preview:\n${summary}`;
+      (document.getElementById("run-review") as HTMLElement).textContent = t("Run plan preview:\n{0}", {0: summary});
       return;
     }
     if ((workflowAction === "queue-enqueue" || workflowAction === "queue-resume") && value && typeof value === "object") {
@@ -414,8 +416,8 @@ api.onMessage((raw) => {
       workflowAction = undefined;
       if (action === "queue-enqueue") {
         const queued = value as { planRevision?: string; tasks?: { kind: string; id: string; runId: string }[] };
-        const taskList = queued.tasks?.map(task => `${task.kind}: ${task.id} · run ${task.runId}`).join("\n") ?? "No tasks";
-        if (queued.planRevision && window.confirm(`The exact plan is persisted and paused. Start it now?\n\nPlan revision: ${queued.planRevision}\n${taskList}`)) {
+        const taskList = queued.tasks?.map(task => `${task.kind}: ${task.id} · run ${task.runId}`).join("\n") ?? t("No tasks");
+        if (queued.planRevision && window.confirm(t("The exact plan is persisted and paused. Start it now?\n\nPlan revision: {0}\n{1}", {0: queued.planRevision, 1: taskList}))) {
           workflowAction = "queue-resume";
           workflowCall("queue_resume", { planRevision: queued.planRevision });
         }

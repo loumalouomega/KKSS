@@ -511,3 +511,41 @@ Profiles and documents are temporary. Chat uses a loopback OpenAI-compatible SSE
 `launchApp` accepts `env`, `restore` and `singleInstance` options. `restore: true` sets `KKSS_E2E_RESTORE=1`; explicit `KKSS_NO_RESTORE=1` and the user's Restore Last Session setting still take precedence. Defaults continue suppressing restoration and bypassing the instance lock for smoke and screenshots. Lifecycle tests use bounded graceful quit and observe the process exit; forced cleanup cannot count as acceptance.
 
 Regression fixes found by this suite: assistant completion replaces the streaming bubble without also rendering the persisted entry; opening a staged path restarts upload tracking; repeated CAD exports refresh a matching clean mesh tab, while unrelated or dirty tabs remain intact.
+
+## Interface language and accessibility
+
+`app/shared/i18n/en.json` is the typed English message catalog and stable source
+key set; `es.json` supplies Spanish text. `t()` interpolates values without
+translating filenames, setting IDs, serialized values, logs or provider content,
+and falls back to English when an upstream or unknown message has no Spanish
+entry. The `general.language` setting is stored as `uiLanguage`; locale is
+resolved once at startup and sent to renderer pages through the locale preload
+bridge. Language changes require restart so all app windows and the native menu
+use one locale. Embedded viewer pages are owned by their upstream submodules.
+
+`windows.ts` moves focus between visible WebContentsView regions on F6 and
+Shift+F6 and restores focus to the invoking region after closing a panel.
+Document tabs use a roving tab stop and arrow/Home/End navigation. Renderer
+accessibility acceptance lives in `tools/e2e/accessibility.mjs`; it scans
+representative app-owned pages with axe-core in both locales and all four
+application themes, then checks focus movement and language persistence.
+
+`npm run perf` is an opt-in Electron benchmark, separate from CI gates. It
+measures five fresh launches to Home readiness and five file opens each for
+`cad/examples/STP/bull.stp` and `mesh/src/test/fixtures/regions/UUea.inp`, then
+reports samples and medians. These are fresh processes with fresh profiles;
+filesystem caches are uncontrolled. The checked-in baseline records fixture
+hashes, revisions, runtime and host metadata. Runs warn above three times the
+baseline; `PERF_STRICT=1` makes those warnings fail. Use
+`npm run perf -- --update-baseline` only after reviewing a deliberate change;
+the ordinary command writes only `test-results/perf.json`. Failure to reach one
+unambiguous completion marker always fails the run. The meshio++ fixture's
+model arrives in the `vtkFrame` protocol message, which is the timed model-load
+completion signal.
+
+The 2026-09-24 baseline on an AMD Ryzen 7 255 / Linux x64 software-rendered
+host measured medians of **753.3 ms** to interactive Home, **2,233.6 ms** for
+the CAD geometry fixture and **517.5 ms** for the meshio++ model fixture. These
+are reference measurements from fresh processes; the harness neither warms
+WASM nor controls operating-system filesystem caches, so they are not cold
+cache figures or cross-machine performance targets.

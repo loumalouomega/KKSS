@@ -27,10 +27,20 @@ await scenario('workspace', async c => {
     await shell.locator(`#mode-${mode}`).click(); await selectFile(app, file); await shell.locator('#open-btn').click();
     await until(async () => (await shell.locator('.tab.active').textContent()).includes(path.basename(file)), 'tab title');
     await shell.selectOption('#zoom-select', '1.25');
-    await shell.locator('.tab-new').click(); await until(async () => await shell.locator('.tab').count() === 2, 'new tab');
+    for (let i = 0; i < 20 && !await shell.evaluate(() => document.activeElement?.matches('.tab-new')); i++) await shell.keyboard.press('Tab');
+    assert.equal(await shell.evaluate(() => document.activeElement?.matches('.tab-new')), true, 'new-tab control is in the keyboard order');
+    await shell.keyboard.press('Enter'); await until(async () => await shell.locator('.tab').count() === 2, 'new tab');
     await until(async () => app.evaluate(({ webContents }) => webContents.getAllWebContents().filter(w => w.getURL().startsWith('kkss://')).every(w => Math.abs(w.getZoomFactor() - 1.25) < 0.01)), 'all views inherit scale');
-    await shell.locator('.tab').first().click(); assert.ok((await shell.locator('.tab.active').textContent()).includes(path.basename(file)));
-    await shell.locator('.tab').last().locator('.tab-close').click(); await until(async () => await shell.locator('.tab').count() === 1);
+    for (let i = 0; i < 20 && !await shell.evaluate(() => document.activeElement?.matches('.tab-label')); i++) await shell.keyboard.press('Tab');
+    assert.equal(await shell.evaluate(() => document.activeElement?.matches('.tab-label')), true, 'active tab is a keyboard stop');
+    await shell.keyboard.press('Home');
+    await until(async () => (await shell.locator('.tab.active .tab-label').textContent())?.includes(path.basename(file)), 'Home selects the first tab');
+    await shell.keyboard.press('End');
+    await until(async () => (await shell.locator('.tab.active .tab-label').textContent())?.includes('Untitled'));
+    await shell.keyboard.press('Delete');
+    await until(async () => await shell.locator('.tab').count() === 1, 'Delete closes the focused tab');
+    await until(async () => shell.evaluate(() => document.activeElement?.matches('.tab.active .tab-label')),
+      'focus returns to the remaining tab');
   }
   await menu(app, 'Reset Zoom'); await until(async () => await shell.locator('#zoom-select').inputValue() === '1');
   await until(async () => app.evaluate(({ webContents }) => webContents.getAllWebContents().filter(w => w.getURL().startsWith('kkss://')).every(w => Math.abs(w.getZoomFactor() - 1) < 0.01)), 'reset applies to every view');

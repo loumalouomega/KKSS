@@ -7,6 +7,16 @@ full auto-generated compare links.
 
 ## Unreleased
 
+- feat: KKSS-owned controls and dialogs are available in English and Spanish.
+  Language is selectable in Settings and applies after restart; visible-view
+  focus cycling and keyboard-accessible document tabs and chat approvals make
+  the same paths usable without a mouse.
+- test: the Electron acceptance suite checks keyboard focus restoration and
+  runs axe-core's WCAG 2.1 A/AA rules across representative app-owned screens,
+  both languages and all four themes.
+- chore: add an opt-in five-sample, fresh-process launch/CAD/mesh performance
+  baseline with raw samples and machine metadata. Runs warn above 3× and only
+  fail regressions when `PERF_STRICT=1`; filesystem caches are uncontrolled.
 - chore: relicense KKSS from AGPL-3.0-only back to **AGPL-3.0-or-later**. The
   AGPL-3.0-only choice made in an earlier release (see below) was required at
   the time by a dependency that was itself more restrictive; both the mesh

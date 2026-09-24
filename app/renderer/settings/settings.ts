@@ -1,3 +1,5 @@
+import "../localization";
+import { t, translate } from "../../shared/i18n";
 /**
  * Settings page renderer. Schema-driven: main sends the registry
  * (services/settings/registry.ts) once, then a `rows` snapshot on every
@@ -27,11 +29,11 @@ const emptyEl = byId<HTMLParagraphElement>("empty");
 byId<HTMLSpanElement>("search-icon").innerHTML = glyph("search", "sm");
 
 const APPLIES: Record<string, string> = {
-  live: "Applies immediately",
-  nextOpen: "Applies to documents opened from now on",
-  nextRun: "Applies on the next run or load",
-  nextShell: "Applies to the next terminal session",
-  nextStart: "Applies on the next start",
+  live: t("Applies immediately"),
+  nextOpen: t("Applies to documents opened from now on"),
+  nextRun: t("Applies on the next run or load"),
+  nextShell: t("Applies to the next terminal session"),
+  nextStart: t("Applies on the next start"),
 };
 
 interface Row {
@@ -75,7 +77,7 @@ function booleanControl(entry: SettingEntry): Control {
   const input = el("input");
   input.type = "checkbox";
   input.addEventListener("change", () => set(entry.id, input.checked));
-  label.append(input, el("span", undefined, "Enabled"));
+  label.append(input, el("span", undefined, t("Enabled")));
   return {
     node: label,
     update: (s) => {
@@ -128,7 +130,7 @@ function textControl(entry: SettingEntry, type: "text" | "number"): Control {
 function pathControl(entry: SettingEntry): Control {
   const wrap = el("div", "inline");
   const text = textControl(entry, "text");
-  const browse = button(`${glyph("folder", "sm")}<span>Browse…</span>`);
+  const browse = button(`${glyph("folder", "sm")}<span>${t("Browse…")}</span>`);
   browse.addEventListener("click", () => post({ type: "browse", id: entry.id }));
   wrap.append(text.node, browse);
   return {
@@ -169,11 +171,12 @@ function listControl(entry: SettingEntry): Control {
     for (const item of items) {
       const line = el("div", "inline");
       const input = el("input", "field text");
+      input.setAttribute("aria-label", entry.label);
       input.value = item;
       input.disabled = managed;
       input.addEventListener("change", () => set(entry.id, collect()));
       const remove = button(glyph("trash", "sm"), "icon-btn");
-      remove.title = "Remove";
+      remove.title = t("Remove");
       remove.disabled = managed;
       remove.addEventListener("click", () => {
         line.remove();
@@ -182,7 +185,7 @@ function listControl(entry: SettingEntry): Control {
       line.append(input, remove);
       wrap.append(line);
     }
-    const add = button(`${glyph("plus", "sm")}<span>Add item</span>`);
+    const add = button(`${glyph("plus", "sm")}<span>${t("Add item")}</span>`);
     add.disabled = managed;
     add.addEventListener("click", () => {
       render([...collect(), ""]);
@@ -217,10 +220,12 @@ function mapControl(entry: SettingEntry): Control {
     for (const [key, value] of pairs) {
       const line = el("div", "inline pair");
       const k = el("input", "field text key");
-      k.placeholder = "NAME";
+      k.setAttribute("aria-label", `${entry.label}: ${t("NAME")}`);
+      k.placeholder = t("NAME");
       k.value = key;
       const v = el("input", "field text");
-      v.placeholder = "value";
+      v.setAttribute("aria-label", `${entry.label}: ${t("value")}`);
+      v.placeholder = t("value");
       v.value = value;
       for (const input of [k, v]) {
         input.spellcheck = false;
@@ -228,7 +233,7 @@ function mapControl(entry: SettingEntry): Control {
         input.addEventListener("change", () => set(entry.id, collect()));
       }
       const remove = button(glyph("trash", "sm"), "icon-btn");
-      remove.title = "Remove";
+      remove.title = t("Remove");
       remove.disabled = managed;
       remove.addEventListener("click", () => {
         line.remove();
@@ -237,7 +242,7 @@ function mapControl(entry: SettingEntry): Control {
       line.append(k, v, remove);
       wrap.append(line);
     }
-    const add = button(`${glyph("plus", "sm")}<span>Add variable</span>`);
+    const add = button(`${glyph("plus", "sm")}<span>${t("Add variable")}</span>`);
     add.disabled = managed;
     add.addEventListener("click", () => {
       render([...Object.entries(collect()), ["", ""]]);
@@ -265,8 +270,8 @@ function secretControl(entry: SettingEntry): Control {
   input.type = "password";
   input.autocomplete = "off";
   input.placeholder = entry.placeholder ?? "";
-  const save = button("Save", "btn btn-primary btn-sm");
-  const clear = button("Clear");
+  const save = button(t("Save"), "btn btn-primary btn-sm");
+  const clear = button(t("Clear"));
   const state = el("span", "secret-state");
   const commit = () => {
     if (!input.value.trim()) return;
@@ -284,7 +289,7 @@ function secretControl(entry: SettingEntry): Control {
     update: (s) => {
       for (const c of [input, save, clear]) c.disabled = s.managed;
       clear.disabled = s.managed || !s.isSet;
-      state.textContent = s.isSet ? "Stored" : "Not set";
+      state.textContent = s.isSet ? t("Stored") : t("Not set");
     },
   };
 }
@@ -338,16 +343,26 @@ function buildRow(entry: SettingEntry): Row {
   const head = el("div", "row-head");
   const label = el("span", "row-label", entry.label);
   const id = el("span", "row-id ui-num", entry.id);
-  const managedBadge = el("span", "ui-badge", "Set by the environment");
+  const managedBadge = el("span", "ui-badge", t("Set by the environment"));
   managedBadge.hidden = true;
   const reset = button(glyph("rotateCcw", "sm"), "icon-btn reset");
-  reset.title = "Reset to default";
-  reset.setAttribute("aria-label", `Reset ${entry.label} to default`);
+  reset.title = t("Reset to default");
+  reset.setAttribute("aria-label", t("Reset {0} to default", {0: entry.label}));
   reset.addEventListener("click", () => post({ type: "reset", id: entry.id }));
   head.append(label, id, managedBadge, reset);
 
   const desc = el("p", "row-desc", entry.description);
   const control = controlFor(entry);
+  label.id = `label-${entry.id}`;
+  desc.id = `description-${entry.id}`;
+  for (const input of control.node.querySelectorAll("input, select, textarea")) {
+    input.setAttribute("aria-labelledby", label.id);
+    input.setAttribute("aria-describedby", desc.id);
+  }
+  if (control.node.matches("input, select, textarea")) {
+    control.node.setAttribute("aria-labelledby", label.id);
+    control.node.setAttribute("aria-describedby", desc.id);
+  }
   const status = el("p", "row-status");
   const warning = el("p", "row-warning");
   const error = el("p", "row-error");
@@ -383,7 +398,7 @@ function render(categories: readonly SettingCategory[]): void {
     const inCategory = entries.filter((e) => e.category === category);
     if (inCategory.length === 0) continue;
     const section = el("div", "category");
-    section.append(el("h2", "eyebrow", category));
+    section.append(el("h2", "eyebrow", translate(category)));
     for (const entry of inCategory) {
       const row = buildRow(entry);
       rows.set(entry.id, row);
@@ -394,7 +409,7 @@ function render(categories: readonly SettingCategory[]): void {
     rowsEl.append(section);
     sections.set(category, section);
 
-    const b = button(category, "nav-item");
+    const b = button(translate(category), "nav-item");
     b.addEventListener("click", () => {
       section.scrollIntoView({ block: "start" });
       setActiveNav(category);
@@ -414,7 +429,7 @@ function applyFilter(): void {
   const terms = search.value.toLowerCase().split(/\s+/).filter(Boolean);
   let shown = 0;
   for (const row of rows.values()) {
-    const haystack = `${row.entry.label} ${row.entry.id} ${row.entry.description} ${row.entry.category}`.toLowerCase();
+    const haystack = `${row.entry.label} ${row.entry.id} ${row.entry.description} ${translate(row.entry.category)}`.toLowerCase();
     const match = terms.every((t) => haystack.includes(t));
     row.el.hidden = !match;
     if (match) shown++;
@@ -424,7 +439,7 @@ function applyFilter(): void {
     section.hidden = !visible;
     navButtons.get(category)!.hidden = !visible;
   }
-  countEl.textContent = terms.length ? `${shown} found` : "";
+  countEl.textContent = terms.length ? t("{0} found", {0: shown}) : "";
   emptyEl.hidden = shown > 0;
 }
 

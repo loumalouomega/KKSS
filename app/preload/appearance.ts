@@ -1,3 +1,5 @@
+import "./locale";
+import "./focus";
 /**
  * Shared by every preload (side-effect import): applies the app appearance —
  * UI theme kind and chrome fonts — to the page, and exposes it to page scripts

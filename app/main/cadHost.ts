@@ -1,3 +1,4 @@
+import { finishOpen } from "./services/performance";
 /**
  * CAD mode host adapter — a 1:1 port of cad/src/provider.ts's
  * resolveCustomEditor message loop onto Electron primitives.
@@ -443,6 +444,7 @@ export class CadHost {
 
   private post = (msg: HostToWebview): void => {
     if (process.env.KKSS_E2E) console.log(`[cad] host → webview: ${msg.type}`);
+    finishOpen(this.currentFile, msg.type);
     this.view.webContents.send("cad:toWebview", msg);
   };
 

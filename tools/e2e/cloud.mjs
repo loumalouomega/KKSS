@@ -16,6 +16,11 @@ for (const mode of ['success', 'fail', 'stall']) await scenario(`cloud-${mode}`,
   // Let the real staging watcher see a disk edit, as it would a submodule save.
   fs.writeFileSync(local, bytes);
   await until(() => entries()[key].dirty === true, 'watcher persists dirty state');
+  // This scenario asserts the main-process upload drain, not viewport redraw.
+  // Parking on Home avoids SwiftShader's documented ReadPixels stall wedging
+  // Electron shutdown after the mesh handshake has already completed.
+  await shell.locator('#home-btn').click();
+  await until(async () => await shell.locator('#tab-strip').isHidden(), 'hide the mesh renderer before quit');
   let exited = false; app.process().once('exit', () => { exited = true; });
   const quittingAt = Date.now();
   const quit = quitApp(app, 20_000); quit.catch(() => {});

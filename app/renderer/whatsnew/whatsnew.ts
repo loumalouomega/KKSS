@@ -1,3 +1,4 @@
+import "../localization";
 /** What's New dialog renderer — renders the CHANGELOG.md entries pushed at init. */
 import type { WhatsNewInit } from "../../main/ipc";
 

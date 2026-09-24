@@ -21,6 +21,7 @@
  * directory, real chokidar and a recording fake provider.
  */
 import * as path from "node:path";
+import { t } from "../../../shared/i18n";
 import { CLOUD_UPLOAD_DEBOUNCE_MS, CloudError, type ProviderId } from "./cloudCore";
 import type { CloudProvider } from "./cloudProvider";
 import { conflictName, decideUpload } from "./conflictCore";
@@ -186,7 +187,7 @@ export class CloudSync {
     if (!entry) return; // evicted or never staged — nothing to push to
     const provider = this.deps.provider(entry.provider);
     if (!provider) {
-      this.deps.toast("warning", `Not connected to ${entry.provider}; ${entry.name} was not uploaded.`);
+      this.deps.toast("warning", t("Not connected to {0}; {1} was not uploaded.", {0: entry.provider, 1: entry.name}));
       return;
     }
 
@@ -206,7 +207,7 @@ export class CloudSync {
       // forever — which also pins it against eviction.
       for (const name of names) state.pending.add(name);
       const detail = err instanceof CloudError ? err.message : String(err);
-      this.deps.toast("error", `Could not upload ${entry.name}: ${detail}`);
+      this.deps.toast("error", t("Could not upload {0}: {1}", {0: entry.name, 1: detail}));
     }
   }
 
@@ -241,8 +242,8 @@ export class CloudSync {
     await provider.create(parentId, copy, localPath);
     this.deps.toast(
       "warning",
-      `${entry.name} changed on ${provider.label} since KKSS last synced it. Your copy was kept ` +
-        `and uploaded as "${copy}".`
+      t("{0} changed on {1} since KKSS last synced it. Your copy was kept and uploaded as \"{2}\".",
+        {0: entry.name, 1: provider.label, 2: copy})
     );
     // Adopt the remote's current revision as the new baseline, or every
     // subsequent tick would produce another conflict copy forever.

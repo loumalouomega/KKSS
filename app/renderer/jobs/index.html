@@ -6,27 +6,27 @@
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
   <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./jobs.css" rel="stylesheet" />
-  <title>Kratos Jobs</title>
+  <title data-i18n="Kratos Jobs">Kratos Jobs</title>
 </head>
 <body>
   <header class="section-header">
     <span class="panel-icon" id="jobs-icon"></span>
-    <h1 class="title">Kratos Jobs</h1>
-    <button id="refresh" class="icon-btn" title="Refresh" aria-label="Refresh"></button>
-    <button id="hide" class="icon-btn" title="Close Jobs (Esc)" aria-label="Close Jobs"></button>
+    <h1 class="title" data-i18n="Kratos Jobs">Kratos Jobs</h1>
+    <button id="refresh" class="icon-btn" title="Refresh" data-i18n-title="Refresh" aria-label="Refresh" data-i18n-aria-label="Refresh"></button>
+    <button id="hide" class="icon-btn" title="Close Jobs (Esc)" data-i18n-title="Close Jobs (Esc)" aria-label="Close Jobs" data-i18n-aria-label="Close Jobs"></button>
   </header>
   <main>
-    <p class="hint">Simulations started through the Kratos server. Runs continue when this panel closes.</p>
+    <p class="hint" data-i18n="Simulations started through the Kratos server. Runs continue when this panel closes.">Simulations started through the Kratos server. Runs continue when this panel closes.</p>
     <div id="status" role="status" aria-live="polite"></div>
-    <button id="recovery" class="btn btn-primary" hidden>Retry</button>
-    <p id="empty" hidden>No simulation jobs yet. Ask the assistant to run a Kratos simulation.</p>
-    <div id="jobs" aria-label="Simulation jobs"></div>
-    <section id="details" hidden aria-label="Selected job">
-      <h2 class="eyebrow">Simulation log</h2>
+    <button id="recovery" class="btn btn-primary" hidden data-i18n="Retry">Retry</button>
+    <p id="empty" hidden data-i18n="No simulation jobs yet. Ask the assistant to run a Kratos simulation.">No simulation jobs yet. Ask the assistant to run a Kratos simulation.</p>
+    <div id="jobs" role="region" aria-label="Simulation jobs" data-i18n-aria-label="Simulation jobs"></div>
+    <section id="details" hidden aria-label="Selected job" data-i18n-aria-label="Selected job">
+      <h2 class="eyebrow" data-i18n="Simulation log">Simulation log</h2>
       <p id="selected-id" class="ui-num"></p>
-      <button id="cancel" class="btn btn-secondary">Cancel simulation</button>
+      <button id="cancel" class="btn btn-secondary" data-i18n="Cancel simulation">Cancel simulation</button>
       <p id="cancel-error" role="alert"></p><p id="log-error" role="status"></p>
-      <pre id="log" tabindex="0" aria-label="Last 100 log lines"></pre>
+      <pre id="log" tabindex="0" aria-label="Last 100 log lines" data-i18n-aria-label="Last 100 log lines"></pre>
     </section>
   </main>
   <script src="./jobs.js"></script>

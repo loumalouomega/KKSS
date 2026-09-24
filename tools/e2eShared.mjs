@@ -173,7 +173,7 @@ export async function quitApp(app, timeout = 40_000) {
   let onExit;
   const exited = new Promise((resolve, reject) => {
     timer = setTimeout(() => reject(new Error("Graceful quit timed out")), timeout);
-    onExit = (code) => code === 0 ? resolve() : reject(new Error(`Exit ${code}`));
+    onExit = (code, signal) => code === 0 ? resolve() : reject(new Error(`Exit ${code}${signal ? ` via ${signal}` : ""}`));
     child.once("exit", onExit);
   });
   try {

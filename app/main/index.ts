@@ -1,3 +1,6 @@
+import { configureLocale } from "./services/locale";
+import { t } from "../shared/i18n";
+import { beginOpen, configurePerformance } from "./services/performance";
 /** KKSS Electron main entry. */
 import { app, clipboard, dialog, ipcMain, Menu } from "electron";
 import * as fsSync from "node:fs";
@@ -219,8 +222,8 @@ function pushProjectRoot(): void {
 /** File ▸ Open Folder… / the toolbar chip / the home screen's Change. */
 async function chooseProjectRoot(): Promise<void> {
   const picked = await showOpenDialog({
-    title: "Choose Project Root",
-    openLabel: "Use as project root",
+    title: t("Choose Project Root"),
+    openLabel: t("Use as project root"),
     canSelectFolders: true,
     defaultPath: projectRoot.effective(),
   });
@@ -229,7 +232,7 @@ async function chooseProjectRoot(): Promise<void> {
   // The pty reads its cwd once, at spawn, and cannot be redirected afterwards —
   // so say what actually happens instead of letting it look ignored.
   if (main?.terminalVisible()) {
-    toast("info", "Project root set — the terminal picks it up on its next shell.");
+    toast("info", t("Project root set — the terminal picks it up on its next shell."));
   }
 }
 
@@ -310,7 +313,7 @@ function onViewCrash(crash: ViewCrash): void {
 
   const label = crash.kind === "tab" ? (crash.mode === "cad" ? "CAD viewer" : "Mesh viewer") : `${crash.kind} view`;
   if (count > MAX_VIEW_RECOVERIES) {
-    toast("error", `The ${label} keeps crashing (${crash.reason}). Your files on disk are untouched.`);
+    toast("error", t("The {0} keeps crashing ({1}). Your files on disk are untouched.", {0: label, 1: crash.reason}));
     return;
   }
   recoverView(crash, label);
@@ -329,10 +332,10 @@ function recoverView(crash: ViewCrash, label: string): void {
       // rejects the pending promises a crash would otherwise leak forever —
       // so never also call reloadView here, or the two reloads race.
       host.openPath(file);
-      toast("warning", `${label} crashed — reloaded ${path.basename(file)}.`);
+      toast("warning", t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}));
     } else {
       main.reloadView(crash);
-      toast("warning", `${label} crashed — reloaded.`);
+      toast("warning", t("{0} crashed — reloaded.", {0: label}));
     }
     return;
   }
@@ -343,26 +346,26 @@ function recoverView(crash: ViewCrash, label: string): void {
       // The toast renderer *is* the shell, so hold the message until it is back
       // (replayed from the shellReady handshake below).
       shellUp = false;
-      deferredShellToast = { kind: "warning", text: "Toolbar reloaded after a crash." };
+      deferredShellToast = { kind: "warning", text: t("Toolbar reloaded after a crash.") };
       break;
     case "editor":
       if (editor?.notifyRendererGone()) {
-        toast("warning", "Text editor crashed — reloaded from disk; unsaved changes were lost.");
+        toast("warning", t("Text editor crashed — reloaded from disk; unsaved changes were lost."));
       } else {
-        toast("warning", "Text editor crashed — reloaded.");
+        toast("warning", t("Text editor crashed — reloaded."));
       }
       break;
     case "terminal":
-      toast("info", "Terminal panel reloaded — the shell session is still running (scrollback lost).");
+      toast("info", t("Terminal panel reloaded — the shell session is still running (scrollback lost)."));
       break;
     case "jobs":
-      toast("info", "Jobs panel reloaded — simulations are still tracked.");
+      toast("info", t("Jobs panel reloaded — simulations are still tracked."));
       break;
     case "chat":
-      toast("info", "Chat panel reloaded — the conversation is intact.");
+      toast("info", t("Chat panel reloaded — the conversation is intact."));
       break;
     case "home":
-      toast("info", "Home screen reloaded.");
+      toast("info", t("Home screen reloaded."));
       break;
   }
 }
@@ -541,7 +544,7 @@ function openLatestResults(caseDir: string, options?: { excludeNewest?: boolean 
   if (!latest) {
     toast(
       "info",
-      "No results in vtk_output/ yet — run the case first (results appear as the solver writes steps)."
+      t("No results in vtk_output/ yet — run the case first (results appear as the solver writes steps).")
     );
     return;
   }
@@ -583,8 +586,8 @@ async function confirmDiscardMeshTab(host: MeshHost): Promise<boolean> {
   const name = host.currentFile ? path.basename(host.currentFile) : "this mesh";
   const { response } = await dialog.showMessageBox(main.win, {
     type: "warning",
-    message: `Save changes to ${name}?`,
-    buttons: ["Save", "Don't Save", "Cancel"],
+    message: t("Save changes to {0}?", {0: name}),
+    buttons: [t("Save"), t("Don't Save"), t("Cancel")],
     defaultId: 0,
     cancelId: 2,
   });
@@ -635,7 +638,7 @@ function selectTab(mode: Mode, tabId: string): void {
 /** File ▸ Open from Cloud… — pick a provider, drill down, stage, open. */
 async function openFromCloud(): Promise<void> {
   if (!cloud?.isConnected()) {
-    toast("info", "Connect a cloud account first: Settings ▸ Cloud Accounts.");
+    toast("info", t("Connect a cloud account first: Settings ▸ Cloud Accounts."));
     return;
   }
   const ref = await cloud.browse();
@@ -673,14 +676,12 @@ async function disconnectCloud(id: ProviderId): Promise<void> {
   const label = cloud.statuses().find((s) => s.id === id)?.label ?? id;
   const { response } = await dialog.showMessageBox(main.win, {
     type: "question",
-    buttons: ["Disconnect", "Disconnect and delete cached copies", "Cancel"],
+    buttons: [t("Disconnect"), t("Disconnect and delete cached copies"), t("Cancel")],
     defaultId: 0,
     cancelId: 2,
-    message: `Disconnect from ${label}?`,
+    message: t("Disconnect from {0}?", {0: label}),
     detail:
-      `KKSS will forget the sign-in. Files already downloaded stay in the staging ` +
-      `cache unless you delete them — any that still hold unsynced changes would ` +
-      `be lost with them.`,
+      t("KKSS will forget the sign-in. Files already downloaded stay in the staging cache unless you delete them — any that still hold unsynced changes would be lost with them."),
   });
   if (response === 2) return;
   await cloud.disconnect(id, response === 1);
@@ -690,17 +691,16 @@ async function clearCloudCache(): Promise<void> {
   if (!cloud || !main) return;
   const { response } = await dialog.showMessageBox(main.win, {
     type: "warning",
-    buttons: ["Delete cached copies", "Cancel"],
+    buttons: [t("Delete cached copies"), t("Cancel")],
     defaultId: 1,
     cancelId: 1,
-    message: "Delete every locally cached cloud file?",
+    message: t("Delete every locally cached cloud file?"),
     detail:
-      "Anything that has not finished uploading will be lost. Files already on " +
-      "the provider are untouched and can be opened again.",
+      t("Anything that has not finished uploading will be lost. Files already on the provider are untouched and can be opened again."),
   });
   if (response !== 0) return;
   await cloud.clearCache();
-  toast("info", "Cloud cache cleared.");
+  toast("info", t("Cloud cache cleared."));
 }
 
 /**
@@ -722,7 +722,7 @@ async function openCloudFile(ref: CloudRef, forcedMode?: Mode): Promise<void> {
     recordCloudRecent(cached, ref, forcedMode);
     return;
   }
-  const progress = progressToast(`Downloading ${ref.name}…`, true);
+  const progress = progressToast(t("Downloading {0}…", {0: ref.name}), true);
   const abort = new AbortController();
   progress.onCancel(() => abort.abort());
   // One IPC message per network chunk would be ~8 000 for a 500 MB .vtu, all
@@ -742,7 +742,7 @@ async function openCloudFile(ref: CloudRef, forcedMode?: Mode): Promise<void> {
     recordCloudRecent(staged, ref, forcedMode);
   } catch (err) {
     if (!abort.signal.aborted) {
-      toast("error", `Could not open ${ref.name}: ${err instanceof Error ? err.message : err}`);
+      toast("error", t("Could not open {0}: {1}", {0: ref.name, 1: err instanceof Error ? err.message : err}));
     }
   } finally {
     progress.done();
@@ -766,8 +766,8 @@ function recordCloudRecent(localPath: string, ref: CloudRef, forcedMode?: Mode):
 function transferLabel(name: string, done: number, total?: number): string {
   const mb = (n: number) => (n / (1024 * 1024)).toFixed(1);
   return total
-    ? `Downloading ${name}… ${mb(done)} / ${mb(total)} MB`
-    : `Downloading ${name}… ${mb(done)} MB`;
+    ? t("Downloading {0}… {1} / {2} MB", {0: name, 1: mb(done), 2: mb(total)})
+    : t("Downloading {0}… {1} MB", {0: name, 1: mb(done)});
 }
 
 /** A stored provider id rendered for a human. Falls back to the raw id, since
@@ -792,11 +792,12 @@ function openFile(fsPath: string, forcedMode?: Mode): void {
   const resolved = path.resolve(fsPath);
   const mode = forcedMode ?? modeForFile(resolved, main.mode());
   if (!mode) {
-    toast("warning", `Unsupported file type: ${path.basename(resolved)}`);
+    toast("warning", t("Unsupported file type: {0}", {0: path.basename(resolved)}));
     return;
   }
   const tabId = ensureActiveTab(mode);
   const host = mode === "cad" ? cadHosts.get(tabId) : meshHosts.get(tabId);
+  beginOpen(resolved);
   host?.openPath(resolved);
   cloud?.trackIfStaged(resolved);
   // The ONE place recents are recorded, which is why every user-facing open is
@@ -907,6 +908,7 @@ function pushPanels(): void {
 /** Shows/hides the shared terminal panel, attaching the pty session on first use. */
 function toggleTerminal(): void {
   if (!main || !terminal) return;
+  if (main.screen() === "home" && !main.terminalVisible()) setScreen(main.mode());
   const { view } = main.toggleTerminal();
   terminal.attach(view.webContents);
   pushPanels();
@@ -916,6 +918,7 @@ function toggleTerminal(): void {
 /** Shows/hides the AI chat sidebar, attaching the chat service on first use. */
 function toggleChat(): void {
   if (!main || !chat) return;
+  if (main.screen() === "home" && !main.chatVisible()) setScreen(main.mode());
   const { view, visible } = main.toggleChat();
   chat.attach(view.webContents);
   jobs?.setVisible(main.jobsVisible());
@@ -926,11 +929,11 @@ function toggleChat(): void {
 
 function toggleJobs(): void {
   if (!main || !jobs) return;
+  if (main.screen() === "home" && !main.jobsVisible()) setScreen(main.mode());
   const { view, visible } = main.toggleJobs();
   jobs.attach(view.webContents);
   jobs.setVisible(visible);
   pushPanels(); // opening Jobs closes Chat (mutually exclusive right-hand views)
-  if (!visible) (main.screen() === "home" ? main.home : main.shell).webContents.focus();
   saveSessionSoon();
 }
 
@@ -962,10 +965,10 @@ async function setMetaServerEnabled(enabled: boolean): Promise<void> {
   await ensureMetaServerToken();
   try {
     await metaServer.enable();
-    toast("info", `MCP server listening on ${metaServer.address()}`);
+    toast("info", t("MCP server listening on {0}", {0: metaServer.address()}));
   } catch (error) {
     await stateStore.update(META_SERVER_KEYS.enabled, false);
-    toast("error", `MCP server failed to start: ${error instanceof Error ? error.message : String(error)}`);
+    toast("error", t("MCP server failed to start: {0}", {0: error instanceof Error ? error.message : String(error)}));
   }
 }
 
@@ -976,12 +979,12 @@ async function copyMetaServerConfig(): Promise<void> {
   clipboard.writeText(`${url}\nAuthorization: Bearer ${token}`);
   await dialog.showMessageBox({
     type: "info",
-    title: "MCP Server Address Copied",
-    message: "Endpoint + bearer token copied to the clipboard.",
+    title: t("MCP Server Address Copied"),
+    message: t("Endpoint + bearer token copied to the clipboard."),
     detail:
-      `URL: ${url}\nHeader: Authorization: Bearer ${token}\n\n` +
-      "These tools read and write files on disk and can run simulations. Only share this " +
-      "address and token with a client you trust.\n\n" +
+      t("URL: {0}\nHeader: Authorization: Bearer {1}\n\n", {0: url, 1: token}) +
+      t("These tools read and write files on disk and can run simulations. Only share this ") +
+      t("address and token with a client you trust.\n\n") +
       (projectRoot.explicit()
         ? `Project root: ${projectRoot.explicit()} — note this is a default, not a sandbox: the tools can reach any path the app can.`
         : "No project root is set; the tools can reach any path the app can."),
@@ -996,7 +999,7 @@ async function regenerateMetaServerToken(): Promise<void> {
     await metaServer.disable();
     await metaServer.enable();
   }
-  toast("info", "MCP server token regenerated — update any connected clients.");
+  toast("info", t("MCP server token regenerated — update any connected clients."));
 }
 
 /** Settings ▸ Open Settings… — also the home card and the chat's gear. */
@@ -1013,7 +1016,9 @@ app.whenReady().then(() => {
   configureAbout(__dirname);
   configureWhatsNew(__dirname);
   // Before the first view: every preload fetches the theme synchronously.
+  configureLocale();
   configureAppearance();
+  configurePerformance();
   main = createMainWindow(__dirname, stateStore.get<number>(UI_ZOOM_KEY, DEFAULT_ZOOM) ?? DEFAULT_ZOOM, {
     onViewCrash,
   });
@@ -1259,7 +1264,7 @@ app.whenReady().then(() => {
     cloud: menuDeps.cloud,
     restartKratos: () => {
       void mcpHub?.restartKratos();
-      toast("info", "Restarting the Kratos tools with the current environment.");
+      toast("info", t("Restarting the Kratos tools with the current environment."));
     },
   });
   // The native menu's quick toggles mirror registry settings, and an Electron
@@ -1419,7 +1424,7 @@ app.whenReady().then(() => {
       case "editCurrentFile": {
         const host = main.mode() === "cad" ? activeCadHost() : activeMeshHost();
         if (host?.currentFile) void editor?.openPath(host.currentFile);
-        else toast("warning", "No file open in the current mode — use Open… first.");
+        else toast("warning", t("No file open in the current mode — use Open… first."));
         break;
       }
       case "openFile": {
@@ -1528,7 +1533,7 @@ app.on("before-quit", (event) => {
   if (!cloudDrainAttempted && cloud?.hasPending()) {
     cloudDrainAttempted = true;
     event.preventDefault();
-    const progress = progressToast("Finishing cloud uploads…", false);
+    const progress = progressToast(t("Finishing cloud uploads…"), false);
     void Promise.race([
       cloud.flushPending(),
       new Promise((resolve) => setTimeout(resolve, CLOUD_DRAIN_TIMEOUT_MS)),

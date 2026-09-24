@@ -34,15 +34,25 @@ await scenario('chat-mcp', async c => {
     await shell.locator('#chat-btn').click(); let chat = await c.page(app, 'chat');
     const send = async text => { await chat.locator('#input').fill(text); await chat.locator('#input').press('Enter'); };
     const idle = async () => until(async () => !(await chat.locator('#send-btn').getAttribute('class')).includes('stop'));
+    const decideWithKeyboard = async label => {
+      let found = false;
+      for (let i = 0; i < 40; i++) {
+        found = await chat.evaluate(label => document.activeElement instanceof HTMLButtonElement && document.activeElement.textContent?.trim() === label, label);
+        if (found) break;
+        await chat.keyboard.press('Tab');
+      }
+      assert.equal(found, true, `${label} approval is reachable by keyboard`);
+      await chat.keyboard.press('Enter');
+    };
     await send('hello'); await chat.getByText('Hello from the local fixture.', { exact: true }).waitFor(); await idle();
     await send('deny-tool'); await chat.getByRole('button', { name: 'Deny', exact: true }).waitFor();
     assert.equal(JSON.parse(fs.readFileSync(fixture.file)).jobs[0].state, 'running');
-    await chat.getByRole('button', { name: 'Deny', exact: true }).click();
+    await decideWithKeyboard('Deny');
     await chat.getByText('Tool decision recorded.', { exact: true }).waitFor(); await idle();
     assert.equal(JSON.parse(fs.readFileSync(fixture.file)).jobs[0].state, 'running');
     await send('approve-tool'); await chat.getByRole('button', { name: 'Allow', exact: true }).waitFor();
     assert.equal(JSON.parse(fs.readFileSync(fixture.file)).jobs[0].state, 'running');
-    await chat.getByRole('button', { name: 'Allow', exact: true }).click();
+    await decideWithKeyboard('Allow');
     await until(() => JSON.parse(fs.readFileSync(fixture.file)).jobs[0].state === 'cancelled', 'approved tool executed');
     await until(async () => await chat.getByText('Tool decision recorded.', { exact: true }).count() === 2); await idle();
     await send('cancel-stream'); await chat.getByText('Cancellable stream started', { exact: true }).waitFor();

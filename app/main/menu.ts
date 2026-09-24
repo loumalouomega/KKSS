@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n";
 import { setUpdateChannel, updateChannel } from "./services/updates";
 /**
  * Native application menu. Mirrors the two extensions' contributed commands:
@@ -125,7 +126,7 @@ function enumRadio(id: string): Electron.MenuItemConstructorOptions {
   const managed = stateStore.isManaged(key);
   const current = effective(entry, stateStore.get(key));
   return {
-    label: entry.label + (managed ? " (set by the environment)" : ""),
+    label: entry.label + (managed ? t(" (set by the environment)") : ""),
     enabled: !managed,
     submenu: (entry.enum ?? []).map((value, i) => ({
       label: entry.enumLabels?.[i] ?? String(value),
@@ -141,7 +142,7 @@ async function promptSecret(key: string, title: string, placeHolder: string): Pr
   if (stateStore.isManaged(key)) return;
   const value = await showInputBox({
     title,
-    prompt: hasSecret(key) ? "Currently configured — enter a new key to replace it, or leave empty to clear." : undefined,
+    prompt: hasSecret(key) ? t("Currently configured — enter a new key to replace it, or leave empty to clear.") : undefined,
     placeHolder,
   });
   if (value === undefined) return; // cancelled
@@ -156,14 +157,12 @@ async function promptSecret(key: string, title: string, placeHolder: string): Pr
 export async function confirmApprovalOff(): Promise<boolean> {
   const { response } = await dialog.showMessageBox({
     type: "warning",
-    buttons: ["Cancel", "Turn Approval Off"],
+    buttons: [t("Cancel"), t("Turn Approval Off")],
     defaultId: 0,
     cancelId: 0,
-    message: "Run every tool without asking?",
+    message: t("Run every tool without asking?"),
     detail:
-      "The assistant will run every tool it chooses, with no prompt. These tools read and " +
-      "write files on disk and can run simulations, and some overwrite the file they are " +
-      "given when no output path is set. Only turn this off for a session you are watching.",
+      t("The assistant will run every tool it chooses, with no prompt. These tools read and write files on disk and can run simulations, and some overwrite the file they are given when no output path is set. Only turn this off for a session you are watching."),
   });
   return response === 1;
 }
@@ -200,32 +199,32 @@ function cloudAccountsSubmenu(deps: MenuDeps): Electron.MenuItemConstructorOptio
           // A disabled row is the whole status display: connected as whom, or
           // exactly which step is still missing.
           label: status.connected
-            ? `Connected as ${status.account?.label ?? "?"}`
+            ? t("Connected as {0}", {0: status.account?.label ?? "?"})
             : status.hasClientId
-              ? "Not connected"
-              : "Client ID not set",
+              ? t("Not connected")
+              : t("Client ID not set"),
           enabled: false,
         },
         { type: "separator" },
         {
-          label: "Client ID…" + (stateStore.isManaged(`cloud.${status.id}.clientId`) ? " (set by the environment)" : ""),
+          label: t("Client ID…") + (stateStore.isManaged(`cloud.${status.id}.clientId`) ? t(" (set by the environment)") : ""),
           enabled: !stateStore.isManaged(`cloud.${status.id}.clientId`),
           click: () => void promptCloudClientId(deps, status),
         },
         {
           enabled: !stateStore.isManaged(`cloud.${status.id}.clientSecret`),
-          label: (status.needsClientSecret ? "Client Secret…" : "Client Secret… (optional)") +
-            (stateStore.isManaged(`cloud.${status.id}.clientSecret`) ? " (set by the environment)" : ""),
+          label: (status.needsClientSecret ? t("Client Secret…") : t("Client Secret… (optional)")) +
+            (stateStore.isManaged(`cloud.${status.id}.clientSecret`) ? t(" (set by the environment)") : ""),
           click: () => void promptCloudSecret(deps, status),
         },
         { type: "separator" },
         {
-          label: status.connected ? "Reconnect…" : "Connect…",
+          label: status.connected ? t("Reconnect…") : t("Connect…"),
           enabled: status.hasClientId,
           click: () => deps.cloud.connect(status.id),
         },
         {
-          label: "Disconnect…",
+          label: t("Disconnect…"),
           enabled: status.connected,
           click: () => deps.cloud.disconnect(status.id),
         },
@@ -235,20 +234,20 @@ function cloudAccountsSubmenu(deps: MenuDeps): Electron.MenuItemConstructorOptio
   items.push(
     { type: "separator" },
     {
-      label: `Cache Size Limit… (${deps.cloud.cacheLimitMb()} MB)`,
+      label: t("Cache Size Limit… ({0} MB)", {0: deps.cloud.cacheLimitMb()}),
       click: () => void promptCacheLimit(deps),
     },
-    { label: "Clear Cloud Cache…", click: () => deps.cloud.clearCache() }
+    { label: t("Clear Cloud Cache…"), click: () => deps.cloud.clearCache() }
   );
   return items;
 }
 
 async function promptCloudClientId(deps: MenuDeps, status: CloudStatus): Promise<void> {
   const value = await showInputBox({
-    title: `${status.label} Client ID`,
+    title: t("{0} Client ID", {0: status.label}),
     // The redirect URI is the single most common setup mistake, so it is stated
     // here rather than left to the docs.
-    prompt: `Create a desktop/installed-app OAuth client in your ${status.label} console with redirect URI ${deps.cloud.redirectHint(status.id)}, then paste its client ID. Leave empty to clear.`,
+    prompt: t("Create a desktop/installed-app OAuth client in your {0} console with redirect URI {1}, then paste its client ID. Leave empty to clear.", {0: status.label, 1: deps.cloud.redirectHint(status.id)}),
   });
   if (value === undefined) return; // cancelled
   deps.cloud.setClientId(status.id, value.trim() || undefined);
@@ -256,10 +255,10 @@ async function promptCloudClientId(deps: MenuDeps, status: CloudStatus): Promise
 
 async function promptCloudSecret(deps: MenuDeps, status: CloudStatus): Promise<void> {
   const value = await showInputBox({
-    title: `${status.label} Client Secret`,
+    title: t("{0} Client Secret", {0: status.label}),
     prompt: status.needsClientSecret
-      ? "Required for this provider's desktop clients. Stored encrypted. Leave empty to clear."
-      : "Not needed for this provider (PKCE public client). Leave empty to clear.",
+      ? t("Required for this provider's desktop clients. Stored encrypted. Leave empty to clear.")
+      : t("Not needed for this provider (PKCE public client). Leave empty to clear."),
   });
   if (value === undefined) return; // cancelled
   deps.cloud.setClientSecret(status.id, value.trim());
@@ -267,7 +266,7 @@ async function promptCloudSecret(deps: MenuDeps, status: CloudStatus): Promise<v
 
 async function promptCacheLimit(deps: MenuDeps): Promise<void> {
   const value = await showInputBox({
-    title: "Cloud Cache Size Limit (MB)",
+    title: t("Cloud Cache Size Limit (MB)"),
     value: String(deps.cloud.cacheLimitMb()),
   });
   if (value === undefined) return; // cancelled
@@ -291,7 +290,7 @@ export function installMenu(deps: MenuDeps): void {
   const meshExportPick = async (): Promise<void> => {
     const pick = await showQuickPick(
       exportFormats().map((f) => ({ label: f.label, description: f.ext, ext: f.ext })),
-      { placeHolder: "Export mesh as…" }
+      { placeHolder: t("Export mesh as…") }
     );
     if (pick) activeMeshHost()?.dispatchMenu({ type: "menuExport", format: pick.ext });
   };
@@ -307,7 +306,7 @@ export function installMenu(deps: MenuDeps): void {
    */
   const recentFilesSubmenu = (): Electron.MenuItemConstructorOptions[] => {
     const entries = deps.recentFiles.list();
-    if (entries.length === 0) return [{ label: "No Recent Files", enabled: false }];
+    if (entries.length === 0) return [{ label: t("No Recent Files"), enabled: false }];
     return [
       ...entries.map((entry) => ({
         label: recentLabel(entry.path),
@@ -321,25 +320,25 @@ export function installMenu(deps: MenuDeps): void {
         click: () => deps.recentFiles.open(entry.path, entry.mode),
       })),
       { type: "separator" as const },
-      { label: "Clear Recent", click: () => deps.recentFiles.clear() },
+      { label: t("Clear Recent"), click: () => deps.recentFiles.clear() },
     ];
   };
 
   const menu = Menu.buildFromTemplate([
     {
-      label: "&File",
+      label: t("&File"),
       submenu: [
         {
           // Scope, not a document — so it leads the File menu, above the
           // document group, and the label names the current root.
           label: deps.projectRoot.current()
-            ? `Project Root: ${rootLabel(deps.projectRoot.current()!)}…`
-            : "Open Folder…",
+            ? t("Project Root: {0}…", {0: rootLabel(deps.projectRoot.current()!)})
+            : t("Open Folder…"),
           toolTip: deps.projectRoot.current(),
           click: () => deps.projectRoot.choose(),
         },
         {
-          label: "Clear Project Root" + (stateStore.isManaged("projectRoot") ? " (set by the environment)" : ""),
+          label: t("Clear Project Root") + (stateStore.isManaged("projectRoot") ? t(" (set by the environment)") : ""),
           // Stays available for a stored-but-missing root (deleted or unmounted),
           // which `current()` hides but the user still needs to be able to drop.
           enabled: deps.projectRoot.isSet() && !stateStore.isManaged("projectRoot"),
@@ -347,29 +346,29 @@ export function installMenu(deps: MenuDeps): void {
         },
         { type: "separator" },
         {
-          label: "Open…",
+          label: t("Open…"),
           accelerator: "CmdOrCtrl+O",
           click: () => (inCad() ? void activeCadHost()?.openFileDialog() : void openMesh()),
         },
         {
-          label: "Open Recent",
+          label: t("Open Recent"),
           submenu: recentFilesSubmenu(),
         },
         {
           // Degrades honestly rather than opening an empty picker: the label
           // itself says why it is unavailable.
           label: deps.cloud.isConnected()
-            ? "Open from Cloud…"
-            : "Open from Cloud… (no account connected)",
+            ? t("Open from Cloud…")
+            : t("Open from Cloud… (no account connected)"),
           enabled: deps.cloud.isConnected(),
           click: () => deps.cloud.openFromCloud(),
         },
         {
-          label: "Open in Text Editor…",
+          label: t("Open in Text Editor…"),
           click: () => void editor.open(),
         },
         {
-          label: "Save",
+          label: t("Save"),
           accelerator: "CmdOrCtrl+S",
           click: () => {
             if (inEditor()) {
@@ -386,7 +385,7 @@ export function installMenu(deps: MenuDeps): void {
           },
         },
         {
-          label: "Save As…",
+          label: t("Save As…"),
           accelerator: "CmdOrCtrl+Shift+S",
           click: () => {
             if (inEditor()) return editor.requestSave(true);
@@ -394,7 +393,7 @@ export function installMenu(deps: MenuDeps): void {
           },
         },
         {
-          label: "Export…",
+          label: t("Export…"),
           accelerator: "CmdOrCtrl+E",
           click: () => (inCad() ? activeCadHost()?.export() : void meshExportPick()),
         },
@@ -404,20 +403,20 @@ export function installMenu(deps: MenuDeps): void {
           // ("must work with no CAD tab focused"), and it CREATES a document —
           // so it routes through onOpenRequest like the Open dialog rather than
           // needing a tab of its own first.
-          label: "New Blank Model…",
+          label: t("New Blank Model…"),
           click: () => activeCadHost()?.newBlankModel(),
         },
         { type: "separator" },
         {
-          label: "New CAD Tab",
+          label: t("New CAD Tab"),
           click: () => deps.newTab("cad"),
         },
         {
-          label: "New Mesh Tab",
+          label: t("New Mesh Tab"),
           click: () => deps.newTab("mesh"),
         },
         {
-          label: "Close Tab",
+          label: t("Close Tab"),
           accelerator: "CmdOrCtrl+W",
           click: () => {
             const mode = main.mode();
@@ -434,7 +433,7 @@ export function installMenu(deps: MenuDeps): void {
           // mesh 3.2.0's kratos.mesh.reload. Re-reads the file and REBASES the
           // edit history onto it (applied ops are replayed, not dropped), so
           // this is also how you pick up an external change on purpose.
-          label: "Reload from Disk",
+          label: t("Reload from Disk"),
           accelerator: "CmdOrCtrl+Alt+R",
           enabled: !inCad(),
           click: () => void activeMeshHost()?.dispatchReload(),
@@ -442,7 +441,7 @@ export function installMenu(deps: MenuDeps): void {
         {
           // mesh 3.7.0's kratos.mesh.exportTable — Advanced ▸ Data table…
           // owns the in-viewport route; this is the palette-command parity.
-          label: "Export Data Table…",
+          label: t("Export Data Table…"),
           enabled: !inCad(),
           click: () => void activeMeshHost()?.dispatchMenu({ type: "menuExportTable" }),
         },
@@ -450,7 +449,7 @@ export function installMenu(deps: MenuDeps): void {
           // mesh 3.8.0's kratos.case.stop — the run manager's stop ladder
           // (SIGINT → SIGTERM → SIGKILL). Runs outlive the tab that started
           // them, so this is reachable whatever the focused tab shows.
-          label: "Stop Kratos Run",
+          label: t("Stop Kratos Run"),
           enabled: !inCad(),
           click: () => void activeMeshHost()?.dispatchCase("stop"),
         },
@@ -459,7 +458,7 @@ export function installMenu(deps: MenuDeps): void {
           // files into one XDMF time series. Upstream this is reachable only
           // from the Command Palette and the Kratos Runs tree, neither of
           // which KKSS runs, so this menu item is the sole entry point.
-          label: "Pack Time Series Into One File…",
+          label: t("Pack Time Series Into One File…"),
           enabled: !inCad(),
           click: () => void activeMeshHost()?.packSeries(),
         },
@@ -475,25 +474,25 @@ export function installMenu(deps: MenuDeps): void {
           // mesh-parity commands with no natural KKSS-level shortcut (Reload
           // from Disk, Save/Load Problem, Screenshot). The sidebar's own
           // Undo/Redo buttons remain the mouse route.
-          label: "Undo Mesh Operation",
+          label: t("Undo Mesh Operation"),
           accelerator: "CmdOrCtrl+Alt+Z",
           enabled: !inCad(),
           click: () => void activeMeshHost()?.dispatchHistory("undo"),
         },
         {
-          label: "Redo Mesh Operation",
+          label: t("Redo Mesh Operation"),
           accelerator: "CmdOrCtrl+Alt+Shift+Z",
           enabled: !inCad(),
           click: () => void activeMeshHost()?.dispatchHistory("redo"),
         },
         { type: "separator" },
         {
-          label: "Save Problem…",
+          label: t("Save Problem…"),
           accelerator: "CmdOrCtrl+Alt+S",
           click: () => void activeMeshHost()?.dispatchMenu({ type: "menuSaveProblem" }),
         },
         {
-          label: "Load Problem…",
+          label: t("Load Problem…"),
           accelerator: "CmdOrCtrl+Alt+O",
           click: () => void activeMeshHost()?.dispatchMenu({ type: "menuLoadProblem" }),
         },
@@ -502,36 +501,36 @@ export function installMenu(deps: MenuDeps): void {
         // no open document, so it is never mode-gated — both act on whichever
         // CAD tab is currently focused (any tab will do for Load, since it
         // hands off to the router rather than touching the tab's own document).
-        { label: "Save Preprocess…", click: () => activeCadHost()?.savePreprocess() },
-        { label: "Load Preprocess…", click: () => activeCadHost()?.loadPreprocess() },
+        { label: t("Save Preprocess…"), click: () => activeCadHost()?.savePreprocess() },
+        { label: t("Load Preprocess…"), click: () => activeCadHost()?.loadPreprocess() },
         { type: "separator" },
         {
           // cad-preview.screenshot / kratos.mdpa.screenshot — both viewers gained
           // one in this submodule bump; dispatch to whichever mode is active.
-          label: "Screenshot…",
+          label: t("Screenshot…"),
           accelerator: "CmdOrCtrl+Alt+P",
           click: () =>
             inCad() ? activeCadHost()?.screenshot() : activeMeshHost()?.postToActive({ type: "takeScreenshot" }),
         },
         { type: "separator" },
-        { role: "quit" },
+        { role: "quit", label: t("Quit") },
       ],
     },
     {
-      label: "&View",
+      label: t("&View"),
       submenu: [
         {
-          label: "Home",
+          label: t("Home"),
           accelerator: "CmdOrCtrl+0",
           click: () => deps.setScreen("home"),
         },
         {
-          label: "Pre-Processing (CAD)",
+          label: t("Pre-Processing (CAD)"),
           accelerator: "CmdOrCtrl+1",
           click: () => deps.setScreen("cad"),
         },
         {
-          label: "Post-Processing (Mesh)",
+          label: t("Post-Processing (Mesh)"),
           accelerator: "CmdOrCtrl+2",
           click: () => deps.setScreen("mesh"),
         },
@@ -539,48 +538,48 @@ export function installMenu(deps: MenuDeps): void {
         {
           // Interface scale: applies to every view + the chrome, persisted.
           // Ctrl+0 is "Home", so Reset uses Ctrl+Shift+0.
-          label: "Zoom In" + (stateStore.isManaged("uiZoom") ? " (set by the environment)" : ""),
+          label: t("Zoom In") + (stateStore.isManaged("uiZoom") ? t(" (set by the environment)") : ""),
           enabled: !stateStore.isManaged("uiZoom"),
           accelerator: "CmdOrCtrl+Plus",
           click: () => deps.zoom.stepIn(),
         },
         // Hidden twin so the unshifted "Ctrl+=" also zooms in (Plus needs Shift).
         {
-          label: "Zoom In" + (stateStore.isManaged("uiZoom") ? " (set by the environment)" : ""),
+          label: t("Zoom In") + (stateStore.isManaged("uiZoom") ? t(" (set by the environment)") : ""),
           enabled: !stateStore.isManaged("uiZoom"),
           accelerator: "CmdOrCtrl+=",
           visible: false,
           click: () => deps.zoom.stepIn(),
         },
         {
-          label: "Zoom Out" + (stateStore.isManaged("uiZoom") ? " (set by the environment)" : ""),
+          label: t("Zoom Out") + (stateStore.isManaged("uiZoom") ? t(" (set by the environment)") : ""),
           enabled: !stateStore.isManaged("uiZoom"),
           accelerator: "CmdOrCtrl+-",
           click: () => deps.zoom.stepOut(),
         },
         {
-          label: "Reset Zoom" + (stateStore.isManaged("uiZoom") ? " (set by the environment)" : ""),
+          label: t("Reset Zoom") + (stateStore.isManaged("uiZoom") ? t(" (set by the environment)") : ""),
           enabled: !stateStore.isManaged("uiZoom"),
           accelerator: "CmdOrCtrl+Shift+0",
           click: () => deps.zoom.reset(),
         },
         { type: "separator" },
         {
-          label: "Toggle Terminal",
+          label: t("Toggle Terminal"),
           accelerator: "CmdOrCtrl+`",
           click: () => deps.toggleTerminal(),
         },
         {
-          label: "Toggle AI Chat",
+          label: t("Toggle AI Chat"),
           accelerator: "CmdOrCtrl+Shift+L",
           click: () => deps.toggleChat(),
         },
         { type: "separator" },
-        { label: "Toggle Jobs", click: () => deps.toggleJobs() },
-        { label: "Reset Camera", click: () => activeMeshHost()?.postToActive({ type: "resetCamera" }) },
-        { label: "Toggle Node IDs", click: () => activeMeshHost()?.postToActive({ type: "toggleNodeIds" }) },
+        { label: t("Toggle Jobs"), click: () => deps.toggleJobs() },
+        { label: t("Reset Camera"), click: () => activeMeshHost()?.postToActive({ type: "resetCamera" }) },
+        { label: t("Toggle Node IDs"), click: () => activeMeshHost()?.postToActive({ type: "toggleNodeIds" }) },
         { type: "separator" },
-        { label: "Toggle Developer Tools", accelerator: "CmdOrCtrl+Shift+I", click: () => {
+        { label: t("Toggle Developer Tools"), accelerator: "CmdOrCtrl+Shift+I", click: () => {
           const screen = main.screen();
           const view =
             screen === "home" ? main.home : screen === "editor" ? main.editor : activeModeView();
@@ -591,10 +590,10 @@ export function installMenu(deps: MenuDeps): void {
     // App-level preferences only — viewer actions (quality, fields, find…)
     // live in the submodules' own toolbars, so they are not duplicated here.
     {
-      label: "&Settings",
+      label: t("&Settings"),
       submenu: [
         {
-          label: "Open Settings…",
+          label: t("Open Settings…"),
           accelerator: "CmdOrCtrl+,",
           click: () => deps.openSettings(),
         },
@@ -608,14 +607,14 @@ export function installMenu(deps: MenuDeps): void {
           // Reopens the last run's documents, screen and panels at launch.
           // Also skipped by KKSS_E2E (the harness launches the real app) and by
           // KKSS_NO_RESTORE=1 — see services/session.ts.
-          label: "Restore Last Session" + (stateStore.isManaged(RESTORE_SESSION_KEY) ? " (set by the environment)" : ""),
+          label: t("Restore Last Session") + (stateStore.isManaged(RESTORE_SESSION_KEY) ? t(" (set by the environment)") : ""),
           enabled: !stateStore.isManaged(RESTORE_SESSION_KEY),
           type: "checkbox" as const,
           checked: stateStore.get<boolean>(RESTORE_SESSION_KEY, true) !== false,
           click: (item) => void stateStore.update(RESTORE_SESSION_KEY, item.checked),
         },
         {
-          label: "Include prerelease updates" + (stateStore.isManaged("updateChannel") ? " (set by the environment)" : ""),
+          label: t("Include prerelease updates") + (stateStore.isManaged("updateChannel") ? t(" (set by the environment)") : ""),
           enabled: !stateStore.isManaged("updateChannel"),
           type: "checkbox",
           checked: updateChannel() === "prerelease",
@@ -627,16 +626,16 @@ export function installMenu(deps: MenuDeps): void {
         {
           // All values are read per chat request — changes apply immediately,
           // no restart. API keys are stored safeStorage-encrypted (secrets.ts).
-          label: "LLM Assistant",
+          label: t("LLM Assistant"),
           submenu: [
             {
-              label: "Provider" + (stateStore.isManaged("llmProvider") ? " (set by the environment)" : ""),
+              label: t("Provider") + (stateStore.isManaged("llmProvider") ? t(" (set by the environment)") : ""),
               enabled: !stateStore.isManaged("llmProvider"),
               submenu: [
-                { value: "anthropic", label: "Anthropic (Claude)" },
-                { value: "openai", label: "OpenAI-compatible" },
-                { value: "codex", label: "ChatGPT subscription (Codex)" },
-                { value: "claude-code", label: "Claude subscription (Claude Code)" },
+                { value: "anthropic", label: t("Anthropic (Claude)") },
+                { value: "openai", label: t("OpenAI-compatible") },
+                { value: "codex", label: t("ChatGPT subscription (Codex)") },
+                { value: "claude-code", label: t("Claude subscription (Claude Code)") },
               ].map((p) => ({
                 label: p.label,
                 type: "radio" as const,
@@ -648,12 +647,12 @@ export function installMenu(deps: MenuDeps): void {
               // Read per tool call, so a change applies to the very next one.
               // Read-only tools never prompt; a tool KKSS has no policy for
               // (every kratos__* one today) always does.
-              label: "Tool Approval",
+              label: t("Tool Approval"),
               submenu: (
                 [
-                  { value: "askOnWrite", label: "Ask before tools that change files (recommended)" },
-                  { value: "askAlways", label: "Ask before every tool" },
-                  { value: "never", label: "Never ask" },
+                  { value: "askOnWrite", label: t("Ask before tools that change files (recommended)") },
+                  { value: "askAlways", label: t("Ask before every tool") },
+                  { value: "never", label: t("Never ask") },
                 ] as Array<{ value: ApprovalMode; label: string }>
               ).map((m) => ({
                 label: m.label,
@@ -668,45 +667,45 @@ export function installMenu(deps: MenuDeps): void {
               const modelKey = provider === "codex" ? LLM_KEYS.codexModel : LLM_KEYS.claudeCodeModel;
               const executableKey = provider === "codex" ? LLM_KEYS.codexExecutable : LLM_KEYS.claudeCodeExecutable;
               return { label: setup.label, submenu: [
-                { label: "Check installation and sign-in…", click: async () => {
-                  let detail = "Installed and signed in with a subscription. Provider model availability and usage limits apply.";
+                { label: t("Check installation and sign-in…"), click: async () => {
+                  let detail = t("Installed and signed in with a subscription. Provider model availability and usage limits apply.");
                   try {
                     const executable = resolveExecutable(provider, stateStore.get<string>(executableKey, ""));
                     if (provider === "codex") await checkCodexAuth(executable); else await checkClaudeAuth(executable);
-                  } catch (error) { detail = error instanceof Error ? error.message : "Runtime check failed."; }
-                  await dialog.showMessageBox({ type: "info", title: setup.label, message: detail, detail: `Sign in in a terminal using: ${setup.command}\nKKSS uses the official tool’s account. It never falls back to an API key.` });
+                  } catch (error) { detail = error instanceof Error ? error.message : t("Runtime check failed."); }
+                  await dialog.showMessageBox({ type: "info", title: setup.label, message: detail, detail: t("Sign in in a terminal using: {0}\nKKSS uses the official tool’s account. It never falls back to an API key.", {0: setup.command}) });
                 } },
-                { label: "Installation and sign-in instructions…", click: () => { void shell.openExternal(setup.url); } },
-                { label: "Model…", enabled: !stateStore.isManaged(modelKey), click: () => void promptValue(modelKey, `${setup.label} model (empty uses runtime default)`, "") },
-                { label: "Executable path…", enabled: !stateStore.isManaged(executableKey), click: () => void promptValue(executableKey, "Absolute executable path (empty uses automatic detection)", "") },
+                { label: t("Installation and sign-in instructions…"), click: () => { void shell.openExternal(setup.url); } },
+                { label: t("Model…"), enabled: !stateStore.isManaged(modelKey), click: () => void promptValue(modelKey, t("{0} model (empty uses runtime default)", {0: setup.label}), "") },
+                { label: t("Executable path…"), enabled: !stateStore.isManaged(executableKey), click: () => void promptValue(executableKey, t("Absolute executable path (empty uses automatic detection)"), "") },
               ] };
             }),
             { type: "separator" as const },
             {
-              label: "Anthropic API Key…" + (stateStore.isManaged("llmKeyAnthropic") ? " (set by the environment)" : ""),
+              label: t("Anthropic API Key…") + (stateStore.isManaged("llmKeyAnthropic") ? t(" (set by the environment)") : ""),
               enabled: !stateStore.isManaged("llmKeyAnthropic"),
-              click: () => void promptSecret(LLM_KEYS.anthropicKey, "Anthropic API Key", "sk-ant-…"),
+              click: () => void promptSecret(LLM_KEYS.anthropicKey, t("Anthropic API Key"), "sk-ant-…"),
             },
             {
-              label: "Anthropic Model…" + (stateStore.isManaged("llmModelAnthropic") ? " (set by the environment)" : ""),
+              label: t("Anthropic Model…") + (stateStore.isManaged("llmModelAnthropic") ? t(" (set by the environment)") : ""),
               enabled: !stateStore.isManaged("llmModelAnthropic"),
-              click: () => void promptValue(LLM_KEYS.anthropicModel, "Anthropic Model", DEFAULT_ANTHROPIC_MODEL),
+              click: () => void promptValue(LLM_KEYS.anthropicModel, t("Anthropic Model"), DEFAULT_ANTHROPIC_MODEL),
             },
             { type: "separator" },
             {
-              label: "OpenAI-compatible API Key…" + (stateStore.isManaged("llmKeyOpenai") ? " (set by the environment)" : ""),
+              label: t("OpenAI-compatible API Key…") + (stateStore.isManaged("llmKeyOpenai") ? t(" (set by the environment)") : ""),
               enabled: !stateStore.isManaged("llmKeyOpenai"),
-              click: () => void promptSecret(LLM_KEYS.openaiKey, "OpenAI-compatible API Key", "sk-… (leave empty for keyless backends like Ollama)"),
+              click: () => void promptSecret(LLM_KEYS.openaiKey, t("OpenAI-compatible API Key"), t("sk-… (leave empty for keyless backends like Ollama)")),
             },
             {
-              label: "OpenAI-compatible Base URL…" + (stateStore.isManaged("llmOpenaiBaseUrl") ? " (set by the environment)" : ""),
+              label: t("OpenAI-compatible Base URL…") + (stateStore.isManaged("llmOpenaiBaseUrl") ? t(" (set by the environment)") : ""),
               enabled: !stateStore.isManaged("llmOpenaiBaseUrl"),
-              click: () => void promptValue(LLM_KEYS.openaiBaseUrl, "OpenAI-compatible Base URL", DEFAULT_OPENAI_BASE_URL),
+              click: () => void promptValue(LLM_KEYS.openaiBaseUrl, t("OpenAI-compatible Base URL"), DEFAULT_OPENAI_BASE_URL),
             },
             {
-              label: "OpenAI-compatible Model…" + (stateStore.isManaged("llmModelOpenai") ? " (set by the environment)" : ""),
+              label: t("OpenAI-compatible Model…") + (stateStore.isManaged("llmModelOpenai") ? t(" (set by the environment)") : ""),
               enabled: !stateStore.isManaged("llmModelOpenai"),
-              click: () => void promptValue(LLM_KEYS.openaiModel, "OpenAI-compatible Model", DEFAULT_OPENAI_MODEL),
+              click: () => void promptValue(LLM_KEYS.openaiModel, t("OpenAI-compatible Model"), DEFAULT_OPENAI_MODEL),
             },
           ],
         },
@@ -714,10 +713,10 @@ export function installMenu(deps: MenuDeps): void {
           // Exposes the same cad+mesh+kratos toolset over a localhost HTTP MCP
           // endpoint so an external LLM client can drive KKSS. Off by default;
           // localhost-bound + bearer-token protected (these tools touch disk).
-          label: "MCP Server",
+          label: t("MCP Server"),
           submenu: [
             {
-              label: "Enable (external LLM access)" + (stateStore.isManaged("metaServerEnabled") ? " (set by the environment)" : ""),
+              label: t("Enable (external LLM access)") + (stateStore.isManaged("metaServerEnabled") ? t(" (set by the environment)") : ""),
               enabled: !stateStore.isManaged("metaServerEnabled"),
               type: "checkbox" as const,
               checked: deps.metaServer.enabled(),
@@ -725,17 +724,17 @@ export function installMenu(deps: MenuDeps): void {
             },
             { type: "separator" },
             {
-              label: "Port…" + (stateStore.isManaged("metaServerPort") ? " (set by the environment)" : ""),
+              label: t("Port…") + (stateStore.isManaged("metaServerPort") ? t(" (set by the environment)") : ""),
               enabled: !stateStore.isManaged("metaServerPort"),
               // Applies on next enable (toggle off/on to rebind).
-              click: () => void promptValue(META_SERVER_KEYS.port, "MCP Server Port", String(DEFAULT_META_SERVER_PORT)),
+              click: () => void promptValue(META_SERVER_KEYS.port, t("MCP Server Port"), String(DEFAULT_META_SERVER_PORT)),
             },
             {
-              label: "Copy Address & Token…",
+              label: t("Copy Address & Token…"),
               click: () => deps.metaServer.copyConfig(),
             },
             {
-              label: "Regenerate Token…" + (stateStore.isManaged("metaServerToken") ? " (set by the environment)" : ""),
+              label: t("Regenerate Token…") + (stateStore.isManaged("metaServerToken") ? t(" (set by the environment)") : ""),
               enabled: !stateStore.isManaged("metaServerToken"),
               click: () => deps.metaServer.regenerateToken(),
             },
@@ -745,26 +744,26 @@ export function installMenu(deps: MenuDeps): void {
           // Bring-your-own OAuth client: no KKSS-owned credentials are baked
           // in, so every provider starts at "set a client ID" rather than at a
           // confusing failure inside the consent flow.
-          label: "Cloud Accounts",
+          label: t("Cloud Accounts"),
           submenu: cloudAccountsSubmenu(deps),
         },
       ],
     },
     {
-      label: "&Help",
+      label: t("&Help"),
       submenu: [
-        { label: "KKSS Documentation", click: () => void shell.openExternal(DOCS_URL) },
+        { label: t("KKSS Documentation"), click: () => void shell.openExternal(DOCS_URL) },
         {
-          label: "CAD-Preview (pre-processing submodule)",
+          label: t("CAD-Preview (pre-processing submodule)"),
           click: () => void shell.openExternal("https://github.com/loumalouomega/CAD-Preview"),
         },
         {
-          label: "VSCode-MDPA-Preview (post-processing submodule)",
+          label: t("VSCode-MDPA-Preview (post-processing submodule)"),
           click: () => void shell.openExternal("https://github.com/loumalouomega/VSCode-MDPA-Preview"),
         },
         { type: "separator" },
-        { label: "What's New…", click: () => showChangelog() },
-        { label: "About KKSS…", click: () => showAbout() },
+        { label: t("What's New…"), click: () => showChangelog() },
+        { label: t("About KKSS…"), click: () => showAbout() },
       ],
     },
   ]);

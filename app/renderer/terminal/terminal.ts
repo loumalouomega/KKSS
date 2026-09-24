@@ -1,3 +1,5 @@
+import "../localization";
+import { t } from "../../shared/i18n";
 /** Embedded terminal panel: xterm.js wired to the main-process pty service. */
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -16,7 +18,7 @@ declare global {
 
 const api = window.termApi;
 const container = document.getElementById("terminal") as HTMLDivElement;
-document.getElementById("hide-btn")!.innerHTML = `${glyph("x", "sm")}<span>Hide</span>`;
+document.getElementById("hide-btn")!.innerHTML = `${glyph("x", "sm")}<span>${t("Hide")}</span>`;
 
 /** xterm theme from the same --vscode-* variables the rest of the app uses —
  *  re-read on every appearance change, since the UI theme swaps them. */
@@ -46,7 +48,7 @@ function terminalOptions(a: Appearance | undefined) {
   };
 }
 
-const term = new Terminal(terminalOptions(window.kkssAppearance?.current()));
+const term = new Terminal({ ...terminalOptions(window.kkssAppearance?.current()), screenReaderMode: true });
 const fit = new FitAddon();
 term.loadAddon(fit);
 term.open(container);
@@ -81,7 +83,7 @@ api.onMessage((raw) => {
       break;
     case "exit":
       exited = true;
-      term.write(`\r\n\x1b[90m[process exited with code ${msg.code} — press Enter to restart]\x1b[0m\r\n`);
+      term.write(`\r\n\x1b[90m${t("[process exited with code {0} — press Enter to restart]", {0: msg.code})}\x1b[0m\r\n`);
       break;
   }
 });
