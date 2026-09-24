@@ -5,6 +5,15 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.3.1] - 2026-09-24
+
+- feat: simulation environment reports now expose verified runner capabilities
+  independently for manual and MCP execution, including supported thread and
+  MPI controls.
+- feat: run reviews include versioned preparation provenance and solver-reported
+  structural residuals, with verified convergence kept distinct from successful
+  process exit or incomplete solver output.
+
 ## [2.3.0] - 2026-09-23
 
 - feat: **guided simulation studies** connect environment checks, geometry,
@@ -214,6 +223,7 @@ full auto-generated compare links.
   HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
   functional change to the app itself
 
+[2.3.1]: https://github.com/loumalouomega/KKSS/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/loumalouomega/KKSS/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/loumalouomega/KKSS/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/loumalouomega/KKSS/compare/v2.0.0...v2.1.0
