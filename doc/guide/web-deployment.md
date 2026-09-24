@@ -270,7 +270,7 @@ to authenticated session users.
 ## Licenses
 
 The image additionally distributes x11vnc (GPL-2.0) and noVNC (MPL-2.0),
-both compatible with distributing alongside the AGPL-3.0 application.
+both compatible with distributing alongside the AGPL-3.0-or-later application.
 
 ## Multi-user reference deployment
 

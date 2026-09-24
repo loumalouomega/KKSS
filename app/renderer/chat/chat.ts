@@ -750,7 +750,9 @@ api.onMessage((raw) => {
       break;
     }
     case "entry":
-      addEntry(msg.entry);
+      // Assistant entries are finalized by assistantDone, which replaces the
+      // streaming bubble. Rendering both messages duplicates every reply.
+      if (msg.entry.kind !== "assistant") addEntry(msg.entry);
       break;
     case "assistantStart":
       streaming = { el: addAssistant(""), text: "" };

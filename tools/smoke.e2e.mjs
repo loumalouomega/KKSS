@@ -9,16 +9,11 @@
  *
  * Runs under xvfb in CI: xvfb-run -a node tools/smoke.e2e.mjs
  */
-import { launchApp, waitForMarkers, appWindow, closeApp } from "./e2eShared.mjs";
+import { launchApp, waitForMarkers, appWindow, closeApp, diagnostics } from "./e2eShared.mjs";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-
-// A throwaway profile per run, so the smoke test neither reads nor writes the
-// developer's real ~/.config/kkss — it starts from stock settings every time,
-// and cannot leave recents or a saved session behind.
-const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-smoke-profile-"));
 
 // Headless CI runners have no real GPU. Left to auto-pick, Chromium crashes the
 // mesh viewer's vtk.js renderer mid-frame — the GPU compositor fails to allocate
@@ -38,13 +33,6 @@ const SOFTWARE_GL = [
   "--disable-dev-shm-usage",
 ];
 
-/**
- * Software rendering in CI is occasionally still flaky — the mesh view's
- * renderer can die on load (its window then reports a bogus URL like ":").
- * Each attempt is a fresh launch; the dead-renderer fast-fail in appWindow
- * keeps failed attempts cheap, so allow two clean retries.
- */
-const ATTEMPTS = 3;
 const DEAD_RENDERER_GRACE_MS = 15_000;
 
 const CASES = [
@@ -84,13 +72,19 @@ async function attempt(c) {
   // deadline below — otherwise a slow-booting case (e.g. cad's heavier
   // OCCT+WebGL startup) can hit Playwright's launch timeout before its own
   // waitForMarkers/appWindow deadline ever gets a chance to apply.
-  const { app, output } = await launchApp(c.file, {
-    extraArgs: SOFTWARE_GL,
-    timeout: c.timeoutMs,
-    userDataDir: profileDir,
-  });
-  const deadline = Date.now() + c.timeoutMs;
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-smoke-case-"));
+  const fixtureDir = path.join(workspace, "files");
+  let app;
+  let output = () => "";
   try {
+    fs.cpSync(path.dirname(c.file), fixtureDir, { recursive: true });
+    const launched = await launchApp(path.join(fixtureDir, path.basename(c.file)), {
+      extraArgs: SOFTWARE_GL,
+      timeout: c.timeoutMs,
+      userDataDir: path.join(workspace, "profile"),
+    });
+    ({ app, output } = launched);
+    const deadline = Date.now() + c.timeoutMs;
     // 1. Grab the mode's webview page and assert its viewer DOM mounts *as the
     //    view loads* — before the host pushes the model and vtk.js starts the
     //    GPU render. Headless CI runners have no real GPU, so that render can
@@ -144,22 +138,18 @@ async function attempt(c) {
     await settingsPage.waitForSelector('.row[data-id="appearance.uiTheme"]', { timeout: 15_000 });
     const theme = await settingsPage.$eval('.row[data-id="appearance.uiTheme"] select', (s) => s.value);
     if (theme !== "light") throw new Error(`Settings page shows UI theme "${theme}", expected "light"`);
+  } catch (error) {
+    await diagnostics(app, output, c.name).catch(() => {});
+    throw error;
   } finally {
-    await closeApp(app);
+    if (app) await closeApp(app).catch(() => {});
+    fs.rmSync(workspace, { recursive: true, force: true });
   }
 }
 
 async function runCase(c) {
-  for (let i = 1; i <= ATTEMPTS; i++) {
-    try {
-      await attempt(c);
-      console.log(`PASS ${c.name}${i > 1 ? ` (attempt ${i})` : ""}`);
-      return;
-    } catch (err) {
-      if (i === ATTEMPTS) throw err;
-      console.error(`retry ${c.name} (attempt ${i} failed: ${err instanceof Error ? err.message : err})`);
-    }
-  }
+  await attempt(c);
+  console.log(`PASS ${c.name}`);
 }
 
 let failed = false;
@@ -220,6 +210,7 @@ try {
   console.log("PASS Home workflow (study creation, readiness and environment check)");
 } catch (err) {
   failed = true;
+  await diagnostics(workflowApp, workflowOutput, "home-workflow").catch(() => {});
   console.error(`FAIL Home workflow (${workflowStage})\n${err instanceof Error ? err.message : err}\n${workflowOutput()}`);
 } finally {
   if (workflowApp) await closeApp(workflowApp);
@@ -227,5 +218,4 @@ try {
   fs.rmSync(workflowProfile, { recursive: true, force: true });
 }
 
-fs.rmSync(profileDir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

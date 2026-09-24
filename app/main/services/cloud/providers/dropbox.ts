@@ -1,5 +1,5 @@
 /**
- * Dropbox, via the plain REST API — no SDK. KKSS is AGPL-3.0 and every shipped
+ * Dropbox, via the plain REST API — no SDK. KKSS is AGPL-3.0-or-later and every shipped
  * dependency has to be checked for compatibility, so three endpoints' worth of
  * work does not justify dragging a vendor SDK's transitive tree into
  * `out/main.js`. `net.fetch` (the house style, services/updates.ts) covers all

@@ -49,6 +49,8 @@ npm start          # build everything and launch
 npm run dist       # package installers into release/
 ```
 
+`npm run smoke` checks the core viewer workflows. After building, `npm run e2e` runs the full Electron acceptance suite (use `xvfb-run -a npm run e2e` on headless Linux), including editor, terminal, chat/MCP, cloud shutdown and session lifecycle checks. It uses temporary profiles and local service fixtures; no API keys, cloud accounts or Kratos installation are needed. Failure artifacts go to `test-results/`.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, testing, and the submodule update procedure.
 
 ### Run in a browser (Docker)
@@ -78,4 +80,4 @@ pinned Kratos MCP server and application wheels.
 
 ## Licensing
 
-KKSS is licensed **AGPL-3.0** (see [LICENSE](LICENSE)). It bundles the GPL-2.0-or-later licensed CAD-Preview engine — whose shipped WASM statically links [Gmsh](https://gmsh.info) and OpenCASCADE — and the AGPL-3.0-or-later licensed VSCode-MDPA-Preview engine, whose Flowgraph problemtype embeds the AGPL-3.0 [`@kratos-flowgraph/flowgraph`](https://www.npmjs.com/package/@kratos-flowgraph/flowgraph) node editor; AGPL-3.0 is the compatible license for the combined distribution.
+KKSS is licensed **AGPL-3.0-or-later** (see [LICENSE](LICENSE)). It bundles the GPL-2.0-or-later licensed CAD-Preview engine — whose shipped WASM statically links [Gmsh](https://gmsh.info) and OpenCASCADE — and the AGPL-3.0-or-later licensed VSCode-MDPA-Preview engine, whose Flowgraph problemtype embeds the AGPL-3.0-or-later [`@kratos-flowgraph/flowgraph`](https://www.npmjs.com/package/@kratos-flowgraph/flowgraph) node editor; every bundled GPL/AGPL component grants an "or later" option, which is why AGPL-3.0-or-later — not the AGPL-3.0-only this project carried until 2026-09-24 — is the correct license for the combined distribution.

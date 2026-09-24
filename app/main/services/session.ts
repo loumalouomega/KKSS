@@ -4,7 +4,7 @@
  * Thin Electron binding over `sessionCore` — this module owns the stateStore
  * keys, the filesystem check and the gating rules. Restore is skipped when:
  *
- * - `KKSS_E2E` is set. Required, not cosmetic: tools/smoke.e2e.mjs and
+ * - `KKSS_E2E` is set without `KKSS_E2E_RESTORE=1`. Required, not cosmetic: tools/smoke.e2e.mjs and
  *   tools/screenshots.mjs launch the real app, and a restore reopening the
  *   previous run's documents would perturb every case and every screenshot.
  * - the user turned it off (Settings ▸ Restore Last Session).
@@ -30,7 +30,7 @@ import {
 export const RESTORE_SESSION_KEY = "restoreSession";
 
 export function restoreEnabled(): boolean {
-  if (process.env.KKSS_E2E || process.env.KKSS_NO_RESTORE === "1") return false;
+  if ((process.env.KKSS_E2E && process.env.KKSS_E2E_RESTORE !== "1") || process.env.KKSS_NO_RESTORE === "1") return false;
   return stateStore.get<boolean>(RESTORE_SESSION_KEY, true) !== false;
 }
 

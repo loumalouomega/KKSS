@@ -85,7 +85,7 @@ LABEL org.opencontainers.image.title="KKSS" \
       org.opencontainers.image.description="Keep Kratos Simple Stupid — pre- and post-processing for Kratos Multiphysics, streamed to the browser" \
       org.opencontainers.image.source="https://github.com/loumalouomega/KKSS" \
       org.opencontainers.image.documentation="https://loumalouomega.github.io/KKSS/guide/web-deployment" \
-      org.opencontainers.image.licenses="AGPL-3.0-only"
+      org.opencontainers.image.licenses="AGPL-3.0-or-later"
 
 # Electron/Chromium runtime libs + display/streaming stack + glue. x11-utils
 # supplies xdpyinfo, which entrypoint.sh polls to know the display is up (and

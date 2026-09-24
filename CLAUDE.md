@@ -14,7 +14,8 @@ npm run build:app      # app only (skip submodule rebuild)
 npm run watch          # rebuild app bundles on change
 npm run typecheck      # tsc --noEmit (esbuild owns ALL emit — never tsc-emit)
 npm test               # vitest glue tests in test/ (submodules run their own suites)
-npm run smoke          # headless e2e (Linux: xvfb-run -a npm run smoke)
+npm run smoke          # quick viewer/Home checks
+npm run e2e            # full Electron acceptance (Linux: xvfb-run -a npm run e2e)
 npm start              # full build + launch
 npm run dist           # package installers into release/
 npm run docker:build   # build the streamed-desktop web image (docker compose build)
@@ -215,7 +216,7 @@ resubmitted automatically.
   after a mesh bump, rerun `npm run package --prefix mesh` so `mesh/dist/meshio/`
   is regenerated before the parent build copies it.
 - **Flowgraph embedding is a forked child process, not WASM.** The mesh
-  submodule's Flowgraph problemtype embeds the AGPL-3.0
+  submodule's Flowgraph problemtype embeds the AGPL-3.0-or-later
   `@kratos-flowgraph/flowgraph` node editor in an iframe backed by a small
   Express server the submodule forks on demand. `app/main/index.ts`
   owns one shared `FlowgraphController` (mirroring `mesh/src/extension.ts`
@@ -443,10 +444,10 @@ resubmitted automatically.
   formats, so they route to **cad** with no `router.ts` change at all. **Pre →
   post is one-way synced:** a mesh exported from
   CAD/pre that post mode can display (`.mdpa`, `.vtk`, …) auto-opens in a
-  **new** mesh tab (`CadHost.onMeshExported` → `createTab("mesh")` +
-  `openPath(...)` in `app/main/index.ts`, gated by `modeForFile` so
-  shared/CAD-only outputs never jump) — deliberately never replacing whatever
-  the user currently has focused in mesh mode. Post → pre is deliberately not
+  **new** mesh tab, or refreshes and focuses an existing clean tab for the
+  same resolved path (`CadHost.onMeshExported` in `app/main/index.ts`, gated
+  by `modeForFile` so shared/CAD-only outputs never jump). Unrelated tabs and
+  tabs with unsaved mesh operations are preserved. Post → pre is deliberately not
   synced. The text editor screen is **not** part of this tab model — it stays
   single-document with its own dirty-guard-on-close, unaffected.
 - **node-pty is the ONLY native module and the ONLY shipped node_modules
@@ -532,8 +533,8 @@ resubmitted automatically.
   `out/main.js` as a document). `KKSS_ALLOW_MULTIPLE_INSTANCES=1` opts out and
   **`tools/e2eShared.mjs` sets it** — the harness relaunches repeatedly and
   SIGKILLs the tree between runs, so a leftover lock would make every later
-  launch quit on startup; that also makes lock acquisition the one startup
-  path e2e never covers.
+  launch quit on startup. The lifecycle suite explicitly enables the lock with
+  an isolated profile and verifies acquisition, forwarding and reacquisition.
 - **`state.json` is written atomically, and never with a bare `writeFile`.**
   `app/main/services/jsonStore.ts` (the Electron-free half of `stateStore.ts`,
   split out to be testable — same shape as `chat/secretCodec.ts` under
@@ -696,7 +697,7 @@ resubmitted automatically.
   `session` and `restoreSession` were chosen that way.
 - **Session restore is opt-out, prunes first, and never records.** Gated by
   `KKSS_E2E` (the e2e harnesses launch the real app, so a restore would perturb
-  every case and screenshot), `KKSS_NO_RESTORE=1`, and **Settings ▸ Restore Last
+  every case and screenshot unless `KKSS_E2E_RESTORE=1` opts in), `KKSS_NO_RESTORE=1`, and **Settings ▸ Restore Last
   Session**; the gate covers restoring only — recording and saving stay live, or
   the docs' home-screen shot would have an empty recents list. It persists each
   mode's files plus the focused **path** (tab ids are a per-process counter; an
@@ -1347,12 +1348,16 @@ together.
 
 ## License
 
-KKSS is **AGPL-3.0** because it distributes the GPL-2.0-or-later CAD-Preview
-engine (whose WASM statically links Gmsh + OpenCASCADE) together with the
-now-AGPL-3.0-or-later mesh engine — its Flowgraph problemtype embeds the
-AGPL-3.0 `@kratos-flowgraph/flowgraph` node editor. Before adding any
-dependency that ships in the packaged app, check GPL/AGPL compatibility first
-(same rule as cad's CLAUDE.md).
+KKSS is **AGPL-3.0-or-later** because it distributes the GPL-2.0-or-later
+CAD-Preview engine (whose WASM statically links Gmsh + OpenCASCADE) together
+with the AGPL-3.0-or-later mesh engine — its Flowgraph problemtype embeds the
+AGPL-3.0-or-later `@kratos-flowgraph/flowgraph` node editor. Every bundled
+GPL/AGPL component has an "or later" grant, which is what makes
+AGPL-3.0-or-later the correct (and least restrictive available) license for
+the combined distribution — not AGPL-3.0-only, which this project carried
+until 2026-09-24 as a stale holdover from a time when a dependency was more
+restrictive. Before adding any dependency that ships in the packaged app,
+check GPL/AGPL compatibility first (same rule as cad's CLAUDE.md).
 
 
 ## Kratos MCP jobs panel
@@ -1384,3 +1389,31 @@ explicit allowlist independent of model-initiated calls.
 Tests: `test/jobs.test.ts`, `test/kratosStartup.test.ts`; real Electron/MCP
 fixture scenario `tools/jobs.e2e.mjs` also supplies `kratos-jobs.png` to
 `tools/screenshots.mjs`. No real solver or LLM key is required for that scenario.
+
+
+## Electron acceptance coverage
+
+`npm run e2e` runs smoke plus `tools/e2e/` workspace, viewer/export, chat/MCP,
+lifecycle and cloud scenarios sequentially. Linux CI runs under Xvfb and retains
+failure artifacts in `test-results/`. Cases use temporary profiles/copied files,
+condition-based waits and bounded deadlines, with no assertion retries. The
+short `npm run smoke` command stays available.
+
+Chat uses loopback SSE and a local stdio Kratos fixture, not credentials or a
+solver installation. Cloud injects only the provider transport, gated by
+`!app.isPackaged`, exact `KKSS_E2E=1`, and an absolute `KKSS_E2E_CLOUD_DIR`.
+The real staging watcher/manifest/sync/quit path must run; there is no fixture
+IPC. Successful uploads must finish before exit; failed/stalled uploads retain
+recoverable dirty state. `openFile` calls `trackIfStaged` for local launch and
+file-dialog paths as well as the existing session-restore path.
+
+`launchApp` supports explicit `env`, `restore` and `singleInstance` options.
+Restore opt-in never overrides the user's restore setting or `KKSS_NO_RESTORE`.
+Graceful-quit acceptance observes a natural zero exit; forced cleanup is only
+cleanup. Session tests cover tab ordering/focus, screens/panels, missing-file
+pruning and launch precedence. The lock test launches a real second process.
+
+Chat's `entry` event records assistant text, but the renderer paints its
+`assistantDone` event only, replacing the streaming bubble; rendering both
+would duplicate every reply. Live chat acceptance checks a single reply,
+approval/denial side effects, cancellation and transcript persistence.

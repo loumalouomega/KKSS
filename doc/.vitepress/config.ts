@@ -61,7 +61,7 @@ export default defineConfig({
     socialLinks: [{ icon: 'github', link: repo }],
 
     footer: {
-      message: 'Released under the AGPL-3.0 License.',
+      message: 'Released under the AGPL-3.0-or-later License.',
       copyright: '© Vicente Mataix Ferrándiz'
     },
 

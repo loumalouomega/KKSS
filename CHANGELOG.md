@@ -7,6 +7,15 @@ full auto-generated compare links.
 
 ## Unreleased
 
+- chore: relicense KKSS from AGPL-3.0-only back to **AGPL-3.0-or-later**. The
+  AGPL-3.0-only choice made in an earlier release (see below) was required at
+  the time by a dependency that was itself more restrictive; both the mesh
+  engine (VSCode-MDPA-Preview) and the embedded `@kratos-flowgraph/flowgraph`
+  node editor have since moved to AGPL-3.0-or-later upstream, and CAD-Preview
+  has always been GPL-2.0-or-later — so nothing bundled today requires
+  AGPL-3.0-only, and it was a stale, needlessly restrictive holdover.
+  `LICENSE`, `package.json`/`package-lock.json`, the Docker image label and
+  `electron-builder.yml`'s copyright string are all updated to match.
 - Update Kratos MCP Server to 0.5.0 across desktop launch, environment probes,
   and the bundled Docker runtime.
 

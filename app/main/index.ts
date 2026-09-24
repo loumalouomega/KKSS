@@ -75,8 +75,8 @@ managedConfig(); // Validate operator configuration before opening any documents
  * process tree between runs (a wedged GPU child must not survive); a lock left
  * behind by one of those kills would make every later launch quit on startup
  * and turn both `npm run smoke` and `npm run docs:screenshots` permanently red.
- * It is also the escape hatch for a developer who keeps KKSS open while running
- * them, since both share ~/.config/kkss.
+ * Lifecycle acceptance opts back into the real lock in an isolated profile.
+ * Every harness profile is separate from the developer's ~/.config/kkss.
  */
 const gotInstanceLock =
   process.env.KKSS_ALLOW_MULTIPLE_INSTANCES === "1" || app.requestSingleInstanceLock();
@@ -446,13 +446,22 @@ const cadHostHooks = {
   onOpenRequest: (fsPath: string) => openFile(fsPath),
   onTitle: () => syncTabs("cad"),
   // Pre → post sync: a mesh exported from CAD that post mode can display
-  // (.mdpa, .vtk, …) opens in a NEW mesh tab — never silently replacing
-  // whatever the user currently has focused there. The router gates this so
-  // shared formats (.stl/.obj/.ply) and CAD-only outputs never jump.
+  // (.mdpa, .vtk, …) refreshes a matching clean tab or opens a NEW mesh tab.
+  // Unrelated documents and tabs with unsaved operations are preserved.
+  // The router gates this so shared formats (.stl/.obj/.ply) and CAD-only outputs never jump.
   onMeshExported: (fsPath: string) => {
     if (!main || modeForFile(fsPath, main.mode()) !== "mesh") return;
+    const resolved = path.resolve(fsPath);
+    for (const [id, host] of meshHosts) {
+      if (!host.isDirty() && host.currentFile && path.resolve(host.currentFile) === resolved) {
+        host.openPath(resolved);
+        selectTab("mesh", id);
+        setScreen("mesh");
+        return;
+      }
+    }
     const tab = createTab("mesh");
-    meshHosts.get(tab.id)?.openPath(path.resolve(fsPath));
+    meshHosts.get(tab.id)?.openPath(resolved);
     setScreen("mesh");
   },
 };
@@ -789,6 +798,7 @@ function openFile(fsPath: string, forcedMode?: Mode): void {
   const tabId = ensureActiveTab(mode);
   const host = mode === "cad" ? cadHosts.get(tabId) : meshHosts.get(tabId);
   host?.openPath(resolved);
+  cloud?.trackIfStaged(resolved);
   // The ONE place recents are recorded, which is why every user-facing open is
   // routed through this function. Deliberately NOT recorded: the three
   // host.openPath() callers that bypass it — crash replay (recoverView), a

@@ -19,7 +19,7 @@
  * that choice belongs to the submodule and may change on a bump.
  *
  * License note: float-tetwild-wasm is MPL-2.0 — file-level copyleft,
- * compatible with KKSS's AGPL-3.0 via MPL 2.0 §3.3. It ships verbatim.
+ * compatible with KKSS's AGPL-3.0-or-later via MPL 2.0 §3.3. It ships verbatim.
  */
 import * as fs from "node:fs";
 import * as path from "node:path";

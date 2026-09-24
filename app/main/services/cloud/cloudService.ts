@@ -34,6 +34,7 @@ import { DropboxProvider } from "./providers/dropbox";
 import { GoogleDriveProvider } from "./providers/gdrive";
 import { OneDriveProvider } from "./providers/onedrive";
 import { StagingCache, type StagedDocument } from "./stagingCache";
+import { fixtureDirectory, fixtureProvider } from "./e2eProvider";
 import { CloudSync } from "./cloudSync";
 
 export interface CloudStatus {
@@ -66,6 +67,8 @@ export class CloudService {
   constructor(userDataDir: string = app.getPath("userData")) {
     this.cache = new StagingCache(path.join(userDataDir, "cloud-cache"));
     for (const id of PROVIDER_IDS) this.providers.set(id, makeProvider(id, storeFor(id)));
+    const fixture = fixtureDirectory(process.env, app.isPackaged);
+    if (fixture) this.providers.set("dropbox", fixtureProvider(fixture));
     this.sync = new CloudSync({
       provider: (id) => (this.providers.get(id)?.isConnected() ? this.providers.get(id) : undefined),
       entry: (key) => this.cache.entry(key),

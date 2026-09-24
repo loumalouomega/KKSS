@@ -7,3 +7,6 @@ icons/build-os/
 doc/.vitepress/dist/
 doc/.vitepress/cache/
 *.log
+
+# Live Electron acceptance diagnostics
+/test-results/

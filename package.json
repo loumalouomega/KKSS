@@ -4,7 +4,7 @@
   "description": "Cross-platform desktop application for pre- and post-processing Kratos Multiphysics simulations, built on the CAD-Preview and VSCode-MDPA-Preview extensions.",
   "version": "2.3.1",
   "kkssSignedRelease": false,
-  "license": "AGPL-3.0-only",
+  "license": "AGPL-3.0-or-later",
   "author": "Vicente Mataix Ferrándiz",
   "repository": {
     "type": "git",
@@ -38,7 +38,8 @@
     "docker:up": "docker compose up",
     "docker:up:ghcr": "docker compose -f docker-compose.ghcr.yml up -d",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f"
+    "docker:logs": "docker compose logs -f",
+    "e2e": "node tools/e2e.mjs"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.278",
