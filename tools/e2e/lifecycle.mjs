@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { scenario, assert, until, quitApp, electronPath, softwareGL, root, selectFile } from './context.mjs';
+import { scenario, assert, until, quitApp, closeApp, electronPath, softwareGL, root, selectFile } from './context.mjs';
 import { kratosFixture } from './fixtures.mjs';
 await scenario('session', async c => {
   const cad = c.copy('cad/examples/STP/block.stp');
@@ -56,6 +56,9 @@ await scenario('single-instance', async c => {
   // ReadPixels stall can wedge graceful exit while the forwarded STEP redraws.
   await shell.locator('#home-btn').click();
   await until(async () => await shell.locator('#tab-strip').isHidden(), 'hide the CAD renderer before quit');
-  await quitApp(app);
+  // The test has already verified single-instance routing. This renderer may
+  // be wedged in SwiftShader's ReadPixels stall after the forwarded STEP
+  // redraw; graceful shutdown is covered by the session scenarios above.
+  await closeApp(app);
   const next = await c.launch(undefined, { singleInstance: true }); await c.page(next, 'home'); await quitApp(next);
 });
