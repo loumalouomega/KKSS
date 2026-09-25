@@ -7,27 +7,18 @@ full auto-generated compare links.
 
 ## Unreleased
 
-- feat: KKSS-owned controls and dialogs are available in English and Spanish.
-  Language is selectable in Settings and applies after restart; visible-view
-  focus cycling and keyboard-accessible document tabs and chat approvals make
-  the same paths usable without a mouse.
-- test: the Electron acceptance suite checks keyboard focus restoration and
-  runs axe-core's WCAG 2.1 A/AA rules across representative app-owned screens,
-  both languages and all four themes.
-- chore: add an opt-in five-sample, fresh-process launch/CAD/mesh performance
-  baseline with raw samples and machine metadata. Runs warn above 3× and only
-  fail regressions when `PERF_STRICT=1`; filesystem caches are uncontrolled.
-- chore: relicense KKSS from AGPL-3.0-only back to **AGPL-3.0-or-later**. The
-  AGPL-3.0-only choice made in an earlier release (see below) was required at
-  the time by a dependency that was itself more restrictive; both the mesh
-  engine (VSCode-MDPA-Preview) and the embedded `@kratos-flowgraph/flowgraph`
-  node editor have since moved to AGPL-3.0-or-later upstream, and CAD-Preview
-  has always been GPL-2.0-or-later — so nothing bundled today requires
-  AGPL-3.0-only, and it was a stale, needlessly restrictive holdover.
-  `LICENSE`, `package.json`/`package-lock.json`, the Docker image label and
-  `electron-builder.yml`'s copyright string are all updated to match.
-- Update Kratos MCP Server to 0.5.0 across desktop launch, environment probes,
-  and the bundled Docker runtime.
+## [2.4.0] - 2026-09-25
+
+- feat: integrate Mesh 4.6.0 selection sets, property editing, selection-based
+  SubModelParts, entity deletion and undo, and interactive line probes with
+  sampling and CSV export.
+- feat: add CAD mesh sweep and hole-table workflows, and improve the fluid
+  dynamics tutorial with obstacle flow and verification checks.
+- feat: make KKSS controls and dialogs available in English and Spanish, with
+  keyboard-accessible focus cycling, document tabs and chat approvals.
+- chore: update Kratos MCP Server to 0.5.0 across desktop launch, environment
+  probes and the bundled Docker runtime.
+- chore: license KKSS under **AGPL-3.0-or-later**.
 
 ## [2.3.1] - 2026-09-24
 
@@ -247,6 +238,7 @@ full auto-generated compare links.
   HIGH-severity CVEs in `libaom3`/`libssh2-1` for exactly this reason — no
   functional change to the app itself
 
+[2.4.0]: https://github.com/loumalouomega/KKSS/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/loumalouomega/KKSS/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/loumalouomega/KKSS/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/loumalouomega/KKSS/compare/v2.1.0...v2.2.0
