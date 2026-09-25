@@ -7,6 +7,19 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.5.0] - 2026-09-25
+
+- feat: CAD meshing now replays pending model edits from supported source
+  meshes in the compute worker, including meshio companions and external glTF
+  buffers. Viewer-provided geometry remains authoritative to prevent replaying
+  edits twice.
+- fix: preserve CAD replay provenance and warnings when edits are partially
+  applied or skipped, and keep raw-source fallback diagnostics visible.
+- fix: refresh mesh selection counts and action availability after edits,
+  undo/redo, reloads and timeline changes while preserving panel input/focus.
+- fix: resolve CAD and mesh meshio++ from the shared packaged runtime despite
+  independent version pins, and ignore late host callbacks after window close.
+
 ## [2.4.0] - 2026-09-25
 
 - feat: integrate Mesh 4.6.0 selection sets, property editing, selection-based
