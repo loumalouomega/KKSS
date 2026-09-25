@@ -161,6 +161,8 @@ The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**) 
 
 The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**) opens a chat sidebar on the right where an LLM can drive KKSS for you: load and edit CAD models, define sub-model-parts, generate and export meshes, inspect and transform MDPA/VTK files, set up Kratos cases, and run simulations. The assistant works through the same tool servers (MCP) that power the two viewers plus the standalone [kratos-mcp-server](https://pypi.org/project/kratos-mcp-server/); the three dots in the sidebar header show each server's status (green = ready, red = unavailable — hover for details). The first two ship with KKSS; the Kratos one is fetched with [`uvx`](https://docs.astral.sh/uv/) and can install an app-local copy of uv when it is missing.
 
+For mesh-format CAD models, the assistant replays pending edits when it generates a mesh, exports an FE mesh or compares models. `save_model` can bake edits into STL, OBJ or PLY sources after approval, keeping a `.bak` copy; mesh health, inspection and promotion tools report the raw source. The CAD viewer’s **File ▸ Save** continues to save its edit history and settings to sidecars.
+
 The assistant can also pack a run's per-step results into an XDMF timeline with `mesh_pack_series`, matching **File ▸ Pack Time Series Into One File…**. Keep the resulting `.xdmf` and its sibling `.h5` together when copying or sharing the results.
 
 Each message uses the tools available when you send it. If a server becomes ready while the assistant is responding, its tools become available on your next message. You can wait for its status dot to turn green before sending a task that needs it.

@@ -17,6 +17,7 @@ import type * as massProps from "../../cad/src/massProperties";
 import type * as entityFacts from "../../cad/src/entityFacts";
 import type * as meshio from "../../cad/src/meshioService";
 import type * as meshioParts from "../../cad/src/meshioRegionParts";
+import type * as meshEditBake from "../../cad/src/meshEditBake";
 import type * as hitTestService from "../../cad/src/hitTestService";
 import type * as meshHeal from "../../cad/src/meshHeal";
 import type * as primitiveReport from "../../cad/src/primitiveReport";
@@ -208,6 +209,7 @@ function rpc<F extends (...args: never[]) => unknown>(method: string) {
  * thread (cadCompute.worker.ts), which is why the method names match exactly.
  */
 export const cadCompute = {
+  bakeMeshEdits: rpc<typeof meshEditBake.bakeMeshEdits>("bakeMeshEdits"),
   // ---- OCCT ------------------------------------------------------------
   loadBRep: rpc<typeof occt.loadBRep>("loadBRep"),
   exportBRep: rpc<typeof occt.exportBRep>("exportBRep"),

@@ -16,6 +16,7 @@ import * as meshio from "../../cad/src/meshioService";
 // CPU-only, but it pulls in three + the webview facet segmenter — keep that
 // out of the main bundle.
 import * as meshioParts from "../../cad/src/meshioRegionParts";
+import * as meshEditBake from "../../cad/src/meshEditBake";
 // cad 1.3.0 moved every kernel call behind a forked child (kernelWorker.ts);
 // this worker is KKSS's equivalent, so it mirrors that file's handler table.
 import * as hitTestService from "../../cad/src/hitTestService";
@@ -46,6 +47,7 @@ const modules: Array<[string, object]> = [
   ["entityFacts", entityFacts],
   ["meshioService", meshio],
   ["meshioRegionParts", meshioParts],
+  ["meshEditBake", meshEditBake],
   ["hitTestService", hitTestService],
   ["meshHeal", meshHeal],
   ["primitiveReport", primitiveReport],

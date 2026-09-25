@@ -63,7 +63,7 @@ describe("kernel tracker", () => {
 describe("KKSS RPC names", () => {
   // These legitimately touch no WASM kernel (CPU-only three.js/STL work) or are
   // KKSS-side; everything else must resolve to a kernel or an explicit alias.
-  const NO_KERNEL = new Set(["buildPartsFromMeshioRegions", "fitMeshRegion", "searchStandardParts", "downloadStandardPart"]);
+  const NO_KERNEL = new Set(["bakeMeshEdits", "buildPartsFromMeshioRegions", "fitMeshRegion", "searchStandardParts", "downloadStandardPart"]);
 
   it("every cadCompute method is known to cad's table, aliased, or explicitly kernel-free", () => {
     for (const method of Object.keys(cadCompute)) {

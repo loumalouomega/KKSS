@@ -102,7 +102,7 @@ import { meshExportFormat } from "../../cad/src/meshExportFormats";
 import { DISPLAY_UNITS, UNIT_LABELS, unitScaleFactor, type DisplayUnit } from "../../cad/src/lengthUnits";
 import { detectStepLengthUnit } from "../../cad/src/stepUnits";
 import { detectIgesLengthUnit } from "../../cad/src/igesUnits";
-import { scaleStlBytes } from "../../cad/src/stlParser";
+import { resolveCadMeshInput } from "./cadMeshInput";
 import { normalizeViewerDefaults } from "../../cad/src/viewerDefaults";
 import { validateEditOp, type EditOp } from "../../cad/src/editOps";
 import { resolvePlaneRefs } from "../../cad/src/planeRefs";
@@ -2322,10 +2322,12 @@ export class CadHost {
       );
       return { kind: "brep", stepBytes };
     }
-    if (!stl) return undefined;
-    const stlBytes = Buffer.from(stl, "base64");
-    const factor = unitScaleFactor(unit);
-    return { kind: "stl", stlBytes: factor === 1 ? stlBytes : scaleStlBytes(stlBytes, factor) };
+    if (!doc.route) return undefined;
+    const warnings: string[] = [];
+    const input = await resolveCadMeshInput(doc.path, doc.route,
+      replayTail(this.currentEdits, this.currentBakedThrough), stl, unit, cadCompute, warnings);
+    for (const text of warnings) this.post({ type: "status", text });
+    return input;
   }
 
   /**
