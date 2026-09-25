@@ -1,0 +1,72 @@
+{
+  "id": "thermal",
+  "title": "Stationary heat conduction",
+  "problemtype": "convectionDiffusion",
+  "source": "cad/examples/STP/block.stp",
+  "geometry": "body.stp",
+  "ops": [],
+  "parts": [
+    {
+      "name": "Domain",
+      "volumes": [
+        "solid-0"
+      ]
+    },
+    {
+      "name": "Cold",
+      "surfaces": [
+        "face-3"
+      ]
+    },
+    {
+      "name": "Hot",
+      "surfaces": [
+        "face-5"
+      ]
+    }
+  ],
+  "options": {
+    "dimension": 3,
+    "sizeMin": 0.8,
+    "sizeMax": 0.8
+  },
+  "problem": {
+    "solverType": "stationary",
+    "timeStep": 1,
+    "endTime": 1
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Domain",
+      "values": {}
+    },
+    {
+      "conditionId": "temperature",
+      "smpPath": "Cold",
+      "values": {
+        "value": 300
+      }
+    },
+    {
+      "conditionId": "temperature",
+      "smpPath": "Hot",
+      "values": {
+        "value": 400
+      }
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Domain",
+      "lawId": "thermal",
+      "values": {
+        "DENSITY": 1000,
+        "CONDUCTIVITY": 1,
+        "SPECIFIC_HEAT": 1000
+      }
+    }
+  ],
+  "field": "TEMPERATURE",
+  "exportUnit": "m"
+}

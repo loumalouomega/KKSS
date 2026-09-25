@@ -1,0 +1,99 @@
+{
+    "analysis_stage": "KratosMultiphysics.ShallowWaterApplication.shallow_water_analysis",
+    "problem_data": {
+        "problem_name": "mesh",
+        "parallel_type": "OpenMP",
+        "echo_level": 1,
+        "start_time": 0,
+        "end_time": 0.125
+    },
+    "solver_settings": {
+        "solver_type": "stabilized_shallow_water_solver",
+        "model_part_name": "main_model_part",
+        "domain_size": 2,
+        "gravity": 9.81,
+        "model_import_settings": {
+            "input_type": "mdpa",
+            "input_filename": "mesh"
+        },
+        "material_import_settings": {
+            "materials_filename": "TopographyMaterials.json"
+        },
+        "echo_level": 1,
+        "maximum_iterations": 10,
+        "shock_capturing_type": "residual_viscosity",
+        "shock_capturing_factor": 0.5,
+        "time_stepping": {
+            "automatic_time_step": false,
+            "time_step": 0.015625
+        }
+    },
+    "processes": {
+        "constraints_process_list": [],
+        "loads_process_list": [],
+        "list_other_processes": [],
+        "boundary_conditions_process_list": [
+            {
+                "python_module": "apply_slip_process",
+                "kratos_module": "KratosMultiphysics.ShallowWaterApplication",
+                "process_name": "ApplySlipProcess",
+                "Parameters": {
+                    "model_part_name": "main_model_part.Boundary"
+                }
+            }
+        ],
+        "initial_conditions_process_list": [
+            {
+                "python_module": "set_initial_water_level_process",
+                "kratos_module": "KratosMultiphysics.ShallowWaterApplication",
+                "process_name": "SetInitialWaterLevelProcess",
+                "Parameters": {
+                    "model_part_name": "main_model_part.Domain",
+                    "variable_name": "HEIGHT",
+                    "value": 1
+                }
+            }
+        ],
+        "topography_process_list": [
+            {
+                "python_module": "set_topography_process",
+                "kratos_module": "KratosMultiphysics.ShallowWaterApplication",
+                "process_name": "SetTopographyProcess",
+                "Parameters": {
+                    "model_part_name": "main_model_part.Domain",
+                    "value": "0.0"
+                }
+            }
+        ]
+    },
+    "output_processes": {
+        "gid_output": [],
+        "vtk_output": [
+            {
+                "python_module": "vtk_output_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "VtkOutputProcess",
+                "help": "This process writes postprocessing files for Paraview",
+                "Parameters": {
+                    "model_part_name": "main_model_part",
+                    "output_control_type": "step",
+                    "output_interval": 1,
+                    "file_format": "ascii",
+                    "output_precision": 7,
+                    "output_sub_model_parts": false,
+                    "output_path": "vtk_output",
+                    "save_output_files_in_folder": true,
+                    "nodal_solution_step_data_variables": [
+                        "HEIGHT",
+                        "MOMENTUM",
+                        "VELOCITY"
+                    ],
+                    "nodal_data_value_variables": [],
+                    "element_data_value_variables": [],
+                    "condition_data_value_variables": [],
+                    "gauss_point_variables_extrapolated_to_nodes": []
+                }
+            }
+        ]
+    }
+}

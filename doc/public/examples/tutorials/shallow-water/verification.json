@@ -1,0 +1,57 @@
+{
+  "case": "shallow-water",
+  "python": "3.12.14",
+  "kratos": "10.4.3",
+  "threads": 2,
+  "nodes": 150,
+  "elements": 248,
+  "fields": [
+    "HEIGHT",
+    "MOMENTUM",
+    "VELOCITY"
+  ],
+  "result": "vtk_output/main_model_part_0_8.vtk",
+  "frames": 8,
+  "end_time": 0.125,
+  "checks": {
+    "depth_error_m": {
+      "measured": 0,
+      "maximum": 0.000001
+    },
+    "momentum_m2_per_s": {
+      "measured": 2.9253637591731377e-15,
+      "maximum": 0.000001
+    },
+    "water_volume_error_m3": {
+      "measured": 8.881784197001252e-16,
+      "maximum": 0.000001
+    },
+    "water_volume_m3": 3.999999999999999
+  },
+  "files": {
+    "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
+    "MainKratos.py": "e9a2c95a61ec5e82463a556bcc175b8e6808f5bb2946d850046020bf63483369",
+    "mesh.kratoscase.json": "7aa691728dd969e24d587e964798273ea64fac66fa6483e831ca2388abf1dc54",
+    "mesh.mdpa": "89895aefa1479eeb79de0c6eadb470bb34fc8d79e753f9fc5acf292ab27fc9d7",
+    "ProjectParameters.json": "332eebf4da292fdceb6d45f8a92536f717a72f14168df0216631fb066d6fd98d",
+    "recipe.json": "45ee8d47b9895064160b40b970d44e822701cf67c26876e29b383cb7eb5f597e",
+    "rectangle.brep": "d94d6764f1a229976a427da3d54079d14917079076fe7de18881302f3f5820d7",
+    "rectangle.brep.edits.json": "26b5066c988ca2b04500b04ef1eabd9eba0d650c0c001ee78b640a80d27c9b75",
+    "rectangle.brep.mesh.json": "8ce45dfb39674c9d847063e561a6bddb7d0bd05c5aa55cbd590c55bb9faa9dce",
+    "rectangle.brep.parts.json": "03f0bf2738fa47e104f95672fce9a3c3c841ef08cd4c8bd118c14dd483af5b99",
+    "TopographyMaterials.json": "ba5fff817dc444723acd8815d5fc7621905afd0648b78ce1c0c6d4102d8548ae",
+    "vtk_output/main_model_part_0_1.vtk": "f5ce86fbff39f575185b444421d701672d22b2183b3563d582cecef41873163d",
+    "vtk_output/main_model_part_0_2.vtk": "ba3b8c46dff8bafe75f34041f07bcae5dd657972d66e50ca7201b870fcd5be7d",
+    "vtk_output/main_model_part_0_3.vtk": "84d0a1f91fb20193a3a8bfe7e529a43078d16984c27a6311532c975664ff502e",
+    "vtk_output/main_model_part_0_4.vtk": "a7b1c3c4d9610a643862e3facd84e562352f80a3f637c162544b3c6219f036f3",
+    "vtk_output/main_model_part_0_5.vtk": "bc48e1d78c15f4adcbc0f9a7baec6790d062540dd501abd186d62225c098d8f8",
+    "vtk_output/main_model_part_0_6.vtk": "bb8b0ba971669793221f4411740e73c914fd24030d5ccaf9f5dfd66715327ad0",
+    "vtk_output/main_model_part_0_7.vtk": "02a46c3270589360c3d90a3d8aa3f72d1c09fea5998d6ad03f802cdafaa256a8",
+    "vtk_output/main_model_part_0_8.vtk": "30d3903804897aa3efec50d09345e0c71642ba3e4a9da1bcdbbe7d165f927ae1"
+  },
+  "source": "cad/examples/BREP/blank.brep",
+  "revisions": {
+    "cad": "ad236ece898bdaaa58496545128df8e1c78077d4",
+    "mesh": "9f33b560c8c3774cfa664dea417aebf744a9e91c"
+  }
+}

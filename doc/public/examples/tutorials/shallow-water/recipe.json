@@ -1,0 +1,95 @@
+{
+  "id": "shallow-water",
+  "title": "Still-water basin",
+  "problemtype": "shallowWater",
+  "planar": true,
+  "problem": {
+    "timeStep": 0.015625,
+    "endTime": 0.125,
+    "gravity": 9.81
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Domain",
+      "values": {}
+    },
+    {
+      "conditionId": "topography",
+      "smpPath": "Domain",
+      "values": {
+        "value": "0.0"
+      }
+    },
+    {
+      "conditionId": "initialWaterLevel",
+      "smpPath": "Domain",
+      "values": {
+        "variable": "HEIGHT",
+        "value": 1
+      }
+    },
+    {
+      "conditionId": "slip",
+      "smpPath": "Boundary",
+      "values": {}
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Domain",
+      "lawId": "manning",
+      "values": {
+        "MANNING": 0.01
+      }
+    }
+  ],
+  "field": "HEIGHT",
+  "source": "cad/examples/BREP/blank.brep",
+  "geometry": "rectangle.brep",
+  "ops": [
+    {
+      "op": "addRectangleProfile",
+      "center": [
+        2000,
+        500,
+        0
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ],
+      "width": 4000,
+      "height": 1000
+    }
+  ],
+  "options": {
+    "dimension": 2,
+    "sizeMin": 200,
+    "sizeMax": 200
+  },
+  "parts": [
+    {
+      "name": "Domain",
+      "surfaces": [
+        "face-0"
+      ]
+    },
+    {
+      "name": "Boundary",
+      "lines": [
+        "edge-3",
+        "edge-1",
+        "edge-0",
+        "edge-2"
+      ]
+    }
+  ],
+  "exportUnit": "m"
+}

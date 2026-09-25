@@ -1,0 +1,75 @@
+{
+    "analysis_stage": "KratosMultiphysics.CompressiblePotentialFlowApplication.potential_flow_analysis",
+    "problem_data": {
+        "problem_name": "mesh",
+        "parallel_type": "OpenMP",
+        "echo_level": 1,
+        "start_time": 0,
+        "end_time": 1
+    },
+    "solver_settings": {
+        "model_part_name": "FluidModelPart",
+        "domain_size": 2,
+        "solver_type": "potential_flow",
+        "model_import_settings": {
+            "input_type": "mdpa",
+            "input_filename": "mesh"
+        },
+        "formulation": {
+            "element_type": "incompressible"
+        },
+        "maximum_iterations": 10,
+        "echo_level": 1,
+        "volume_model_part_name": "FluidModelPart.Domain",
+        "skin_parts": [
+            "FluidModelPart.Boundary"
+        ],
+        "no_skin_parts": []
+    },
+    "processes": {
+        "constraints_process_list": [
+            {
+                "python_module": "apply_far_field_and_wake_process",
+                "kratos_module": "KratosMultiphysics.CompressiblePotentialFlowApplication",
+                "process_name": "ApplyFarFieldAndWakeProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Boundary",
+                    "angle_of_attack": 0,
+                    "mach_infinity": 0.03,
+                    "speed_of_sound": 340
+                }
+            }
+        ],
+        "loads_process_list": [],
+        "list_other_processes": []
+    },
+    "output_processes": {
+        "gid_output": [],
+        "vtk_output": [
+            {
+                "python_module": "vtk_output_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "VtkOutputProcess",
+                "help": "This process writes postprocessing files for Paraview",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart",
+                    "output_control_type": "step",
+                    "output_interval": 1,
+                    "file_format": "ascii",
+                    "output_precision": 7,
+                    "output_sub_model_parts": false,
+                    "output_path": "vtk_output",
+                    "save_output_files_in_folder": true,
+                    "nodal_solution_step_data_variables": [
+                        "VELOCITY_POTENTIAL",
+                        "AUXILIARY_VELOCITY_POTENTIAL"
+                    ],
+                    "nodal_data_value_variables": [],
+                    "element_data_value_variables": [],
+                    "condition_data_value_variables": [],
+                    "gauss_point_variables_extrapolated_to_nodes": []
+                }
+            }
+        ]
+    }
+}

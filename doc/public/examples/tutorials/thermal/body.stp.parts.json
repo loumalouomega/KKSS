@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "source": "body.stp",
+  "parts": [
+    {
+      "name": "Domain",
+      "color": "#e6194b",
+      "volumes": [
+        "solid-0"
+      ],
+      "surfaces": [],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Cold",
+      "color": "#3cb44b",
+      "volumes": [],
+      "surfaces": [
+        "face-3"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Hot",
+      "color": "#4363d8",
+      "volumes": [],
+      "surfaces": [
+        "face-5"
+      ],
+      "lines": [],
+      "points": []
+    }
+  ]
+}

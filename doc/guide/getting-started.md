@@ -35,6 +35,8 @@ The toolbar at the top of the window holds the mode toggle:
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved. The two viewers share one layout — a document chip in the menubar, an icon-headed sidebar with a collapsed **Advanced** group, a floating toolbar and dock, and a status bar — described in [Pre-Processing](/guide/cad-mode#reading-the-window-at-a-glance) and [Post-Processing](/guide/mesh-mode#reading-the-window-at-a-glance). The app's own toolbar, home screen, chat and jobs panels use the same look, and the **Terminal**, **Chat** and **Jobs** buttons show as pressed while their panel is open.
 
+For a complete first simulation, follow the [geometry-to-results tutorials](/guide/tutorial-geometry-to-results): each of the five built-in physics cases starts with CAD geometry, runs through the Problemtype sidebar and checks actual solver results.
+
 ### The project folder
 
 **File ▸ Open Folder…** sets a project folder — the one place KKSS treats as "where you are working". It is remembered across launches, shown in the toolbar (hover for the full path, click to change) and on the home screen, and it seeds:

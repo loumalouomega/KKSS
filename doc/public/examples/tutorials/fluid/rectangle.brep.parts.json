@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "source": "rectangle.brep",
+  "parts": [
+    {
+      "name": "Domain",
+      "color": "#e6194b",
+      "volumes": [],
+      "surfaces": [
+        "face-0"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Left",
+      "color": "#3cb44b",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-3"
+      ],
+      "points": []
+    },
+    {
+      "name": "Right",
+      "color": "#4363d8",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-1"
+      ],
+      "points": []
+    },
+    {
+      "name": "Walls",
+      "color": "#f58231",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-0",
+        "edge-2"
+      ],
+      "points": []
+    }
+  ]
+}

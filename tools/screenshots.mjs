@@ -23,6 +23,8 @@ import { launchApp, waitForMarkers, appWindow, closeApp, sleep, root } from "./e
 
 import { jobsScenario } from "./jobs.e2e.mjs";
 import { kratosStartupScenario } from "./kratosStartup.e2e.mjs";
+import { manualTutorials } from "./tutorials/manual.mjs";
+import { scriptedCapture } from "./tutorials/assistant.mjs";
 
 const OUT = path.join(root, "doc", "public", "screenshots");
 const IMAGES = path.join(root, "images");
@@ -273,6 +275,11 @@ await sessionVtk();
 await sessionHome();
 await kratosStartupScenario(path.join(OUT, "chat-kratos-setup.png"));
 await jobsScenario(path.join(OUT, "kratos-jobs.png"));
+// These captures use the real CAD/mesh app, the configured manual Python
+// interpreter and actual solver-produced tutorial results. The companion uses
+// a local OpenAI-compatible fixture but routes every tool call through KKSS.
+await manualTutorials(OUT);
+await scriptedCapture(OUT);
 
 // ---- README hero refresh (same pattern as cad's capture.mjs tail) -------------
 

@@ -1,0 +1,75 @@
+{
+  "id": "potential-flow",
+  "title": "Uniform potential flow",
+  "problemtype": "potentialFlow",
+  "planar": true,
+  "problem": {
+    "formulation": "incompressible",
+    "echoLevel": 1
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Domain",
+      "values": {}
+    },
+    {
+      "conditionId": "farField",
+      "smpPath": "Boundary",
+      "values": {
+        "angleOfAttack": 0,
+        "machInfinity": 0.03,
+        "speedOfSound": 340
+      }
+    }
+  ],
+  "materials": [],
+  "field": "VELOCITY_POTENTIAL",
+  "source": "cad/examples/BREP/blank.brep",
+  "geometry": "rectangle.brep",
+  "ops": [
+    {
+      "op": "addRectangleProfile",
+      "center": [
+        2000,
+        500,
+        0
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ],
+      "width": 4000,
+      "height": 1000
+    }
+  ],
+  "options": {
+    "dimension": 2,
+    "sizeMin": 200,
+    "sizeMax": 200
+  },
+  "parts": [
+    {
+      "name": "Domain",
+      "surfaces": [
+        "face-0"
+      ]
+    },
+    {
+      "name": "Boundary",
+      "lines": [
+        "edge-3",
+        "edge-1",
+        "edge-0",
+        "edge-2"
+      ]
+    }
+  ],
+  "exportUnit": "m"
+}

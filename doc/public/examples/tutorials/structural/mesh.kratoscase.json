@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "problemtypeId": "structural",
+  "values": {
+    "problem": {
+      "solverType": "static",
+      "analysisType": "non_linear",
+      "elementBase": "SmallDisplacementElement",
+      "timeStep": 0.125,
+      "endTime": 1,
+      "echoLevel": 1
+    }
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Solid",
+      "values": {}
+    },
+    {
+      "conditionId": "displacement",
+      "smpPath": "Support",
+      "values": {
+        "value": [
+          0,
+          0,
+          0
+        ],
+        "constrained": true
+      }
+    },
+    {
+      "conditionId": "surfacePressure",
+      "smpPath": "Load",
+      "values": {
+        "value": 100000
+      }
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Solid",
+      "lawId": "linear_elastic_3d",
+      "values": {
+        "DENSITY": 0,
+        "YOUNG_MODULUS": 210000000000,
+        "POISSON_RATIO": 0.3
+      }
+    }
+  ],
+  "output": {
+    "format": "ascii",
+    "controlType": "step",
+    "interval": 1,
+    "nodalVariables": [
+      "DISPLACEMENT",
+      "REACTION"
+    ]
+  }
+}

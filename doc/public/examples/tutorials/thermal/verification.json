@@ -1,0 +1,38 @@
+{
+  "case": "thermal",
+  "python": "3.12.14",
+  "kratos": "10.4.3",
+  "threads": 2,
+  "nodes": 263,
+  "elements": 814,
+  "fields": [
+    "TEMPERATURE"
+  ],
+  "result": "vtk_output/ThermalModelPart_0_1.vtk",
+  "frames": 1,
+  "end_time": 1,
+  "checks": {
+    "linear_temperature_error_K": {
+      "measured": 0.00001900000000887303,
+      "maximum": 0.001
+    }
+  },
+  "files": {
+    "body.stp": "b28fd918992b03d8cb905e178633d082e6e97738bcc8ceb32c7f910d61ab6ce8",
+    "body.stp.mesh.json": "7c5c591263627dd78ec6fa20ae19eb08c7799b2562e1fcfce38bd7502c4d249c",
+    "body.stp.parts.json": "5b4e79dabdc0c56bdfeaadcb6f28b2c4de0a67cabb2c06c57708aa09666f3262",
+    "ConvectionDiffusionMaterials.json": "938d22b6599e7fc215743ae09f015bcb636e21fd0ce4be43dd0986fa458749e2",
+    "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
+    "MainKratos.py": "e9a2c95a61ec5e82463a556bcc175b8e6808f5bb2946d850046020bf63483369",
+    "mesh.kratoscase.json": "06647a14290b6d13feb5dd2aad60945d77aa408c8f71a4bc3b03dd7dcd2c5251",
+    "mesh.mdpa": "dcdbbed23801e2b807ce26a242c4563ea52f6256d9c17d4fd45bc31ac9644bd2",
+    "ProjectParameters.json": "99944489af12c93f625f8000f4983df6892be6301629ba62ba745ffea93d082c",
+    "recipe.json": "ee23635b737d5187993a125dd213449ade28059ee4afc40808fc4dc9af95ed1d",
+    "vtk_output/ThermalModelPart_0_1.vtk": "4d7e377e1b5ea1c3d41cb97bb01a65bf312e92079a2cdd49ac6787ed3a3c6dec"
+  },
+  "source": "cad/examples/STP/block.stp",
+  "revisions": {
+    "cad": "ad236ece898bdaaa58496545128df8e1c78077d4",
+    "mesh": "9f33b560c8c3774cfa664dea417aebf744a9e91c"
+  }
+}

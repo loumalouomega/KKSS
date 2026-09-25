@@ -1,5 +1,7 @@
 # Pre-Processing (CAD) Mode
 
+To continue from CAD into a real Kratos solve, see [Geometry to results](/guide/tutorial-geometry-to-results), including the five named-part and mesh-export examples.
+
 Pre-Processing mode embeds the full [CAD-Preview](https://loumalouomega.github.io/CAD-Preview/) viewer. Everything documented for the extension applies inside KKSS too — this page summarizes the highlights; see the [CAD-Preview documentation](https://loumalouomega.github.io/CAD-Preview/) for the complete feature guide.
 
 ![CAD mode: bull.stp with the components tree, parts, edits and FE mesh panels](/screenshots/cad-viewer.png)

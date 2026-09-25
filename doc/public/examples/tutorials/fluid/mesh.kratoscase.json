@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "problemtypeId": "fluid",
+  "values": {
+    "problem": {
+      "timeStep": 0.1,
+      "endTime": 2,
+      "echoLevel": 1,
+      "maxIterations": 10,
+      "relVelTol": 0.001,
+      "absVelTol": 0.00001,
+      "relPresTol": 0.001,
+      "absPresTol": 0.00001,
+      "dynamicTau": 1
+    }
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Domain",
+      "values": {}
+    },
+    {
+      "conditionId": "inlet",
+      "smpPath": "Left",
+      "values": {
+        "modulus": 1,
+        "direction": "x"
+      }
+    },
+    {
+      "conditionId": "outlet",
+      "smpPath": "Right",
+      "values": {
+        "value": 0
+      }
+    },
+    {
+      "conditionId": "slip",
+      "smpPath": "Walls",
+      "values": {}
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Domain",
+      "lawId": "newtonian_2d",
+      "values": {
+        "DENSITY": 1000,
+        "DYNAMIC_VISCOSITY": 0.001
+      }
+    }
+  ],
+  "output": {
+    "format": "ascii",
+    "controlType": "step",
+    "interval": 1,
+    "nodalVariables": [
+      "VELOCITY",
+      "PRESSURE"
+    ]
+  }
+}

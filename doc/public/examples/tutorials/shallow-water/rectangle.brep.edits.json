@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "source": "rectangle.brep",
+  "ops": [
+    {
+      "op": "addRectangleProfile",
+      "width": 4000,
+      "height": 1000,
+      "center": [
+        2000,
+        500,
+        0
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ]
+    }
+  ]
+}

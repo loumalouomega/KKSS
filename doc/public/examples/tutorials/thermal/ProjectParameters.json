@@ -1,0 +1,102 @@
+{
+    "analysis_stage": "KratosMultiphysics.ConvectionDiffusionApplication.convection_diffusion_analysis",
+    "problem_data": {
+        "problem_name": "mesh",
+        "parallel_type": "OpenMP",
+        "echo_level": 1,
+        "start_time": 0,
+        "end_time": 1
+    },
+    "solver_settings": {
+        "solver_type": "stationary",
+        "analysis_type": "linear",
+        "model_part_name": "ThermalModelPart",
+        "domain_size": 3,
+        "model_import_settings": {
+            "input_type": "mdpa",
+            "input_filename": "mesh"
+        },
+        "material_import_settings": {
+            "materials_filename": "ConvectionDiffusionMaterials.json"
+        },
+        "echo_level": 1,
+        "problem_domain_sub_model_part_list": [
+            "ThermalModelPart.Domain"
+        ],
+        "processes_sub_model_part_list": [
+            "ThermalModelPart.Cold",
+            "ThermalModelPart.Hot"
+        ],
+        "time_stepping": {
+            "time_step": 1
+        },
+        "element_replace_settings": {
+            "element_name": "LaplacianElement",
+            "condition_name": "ThermalFace"
+        }
+    },
+    "processes": {
+        "constraints_process_list": [
+            {
+                "python_module": "assign_scalar_variable_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignScalarVariableProcess",
+                "Parameters": {
+                    "model_part_name": "ThermalModelPart.Cold",
+                    "variable_name": "TEMPERATURE",
+                    "constrained": true,
+                    "value": 300,
+                    "interval": [
+                        0,
+                        "End"
+                    ]
+                }
+            },
+            {
+                "python_module": "assign_scalar_variable_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignScalarVariableProcess",
+                "Parameters": {
+                    "model_part_name": "ThermalModelPart.Hot",
+                    "variable_name": "TEMPERATURE",
+                    "constrained": true,
+                    "value": 400,
+                    "interval": [
+                        0,
+                        "End"
+                    ]
+                }
+            }
+        ],
+        "loads_process_list": [],
+        "list_other_processes": []
+    },
+    "output_processes": {
+        "gid_output": [],
+        "vtk_output": [
+            {
+                "python_module": "vtk_output_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "VtkOutputProcess",
+                "help": "This process writes postprocessing files for Paraview",
+                "Parameters": {
+                    "model_part_name": "ThermalModelPart",
+                    "output_control_type": "step",
+                    "output_interval": 1,
+                    "file_format": "ascii",
+                    "output_precision": 7,
+                    "output_sub_model_parts": false,
+                    "output_path": "vtk_output",
+                    "save_output_files_in_folder": true,
+                    "nodal_solution_step_data_variables": [
+                        "TEMPERATURE"
+                    ],
+                    "nodal_data_value_variables": [],
+                    "element_data_value_variables": [],
+                    "condition_data_value_variables": [],
+                    "gauss_point_variables_extrapolated_to_nodes": []
+                }
+            }
+        ]
+    }
+}

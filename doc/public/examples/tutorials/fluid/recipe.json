@@ -1,0 +1,106 @@
+{
+  "id": "fluid",
+  "title": "Slip-wall channel",
+  "problemtype": "fluid",
+  "planar": true,
+  "problem": {
+    "timeStep": 0.1,
+    "endTime": 2,
+    "echoLevel": 1
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Domain",
+      "values": {}
+    },
+    {
+      "conditionId": "inlet",
+      "smpPath": "Left",
+      "values": {
+        "modulus": 1,
+        "direction": "x"
+      }
+    },
+    {
+      "conditionId": "outlet",
+      "smpPath": "Right",
+      "values": {
+        "value": 0
+      }
+    },
+    {
+      "conditionId": "slip",
+      "smpPath": "Walls",
+      "values": {}
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Domain",
+      "lawId": "newtonian_2d",
+      "values": {
+        "DENSITY": 1000,
+        "DYNAMIC_VISCOSITY": 0.001
+      }
+    }
+  ],
+  "field": "VELOCITY",
+  "source": "cad/examples/BREP/blank.brep",
+  "geometry": "rectangle.brep",
+  "ops": [
+    {
+      "op": "addRectangleProfile",
+      "center": [
+        2000,
+        500,
+        0
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ],
+      "width": 4000,
+      "height": 1000
+    }
+  ],
+  "options": {
+    "dimension": 2,
+    "sizeMin": 200,
+    "sizeMax": 200
+  },
+  "parts": [
+    {
+      "name": "Domain",
+      "surfaces": [
+        "face-0"
+      ]
+    },
+    {
+      "name": "Left",
+      "lines": [
+        "edge-3"
+      ]
+    },
+    {
+      "name": "Right",
+      "lines": [
+        "edge-1"
+      ]
+    },
+    {
+      "name": "Walls",
+      "lines": [
+        "edge-0",
+        "edge-2"
+      ]
+    }
+  ],
+  "exportUnit": "m"
+}

@@ -3,7 +3,8 @@
 Project memory for KKSS (Keep Kratos Simple Stupid) — an Electron desktop app
 for pre- and post-processing Kratos Multiphysics simulations, built on two
 VS Code extensions embedded as git submodules (`cad/` = CAD-Preview, `mesh/` =
-VSCode-MDPA-Preview) and reused **without modification**.
+VSCode-MDPA-Preview), with KKSS integration changes committed on their
+designated downstream branches.
 
 ## Commands
 
@@ -1102,10 +1103,12 @@ resubmitted automatically.
 ## Verified submodule integration (Tier 0)
 
 CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
-(`55cf1ca`, also the `redesign` branch) are integrated without edits to either submodule. The recurring release-bump
-checklist lives in `doc/guide/development.md` under **Submodule release
-maintenance**; repeat it for every bump, including live MCP tool discovery
-(current sets: 56 CAD + 24 mesh + 4 aggregation + 30 app-owned workflow tools).
+(`55cf1ca`, also the `redesign` branch) are the integrated baseline. Later
+workflow changes on the designated branches are recorded below. The recurring
+release-bump checklist lives in `doc/guide/development.md` under **Submodule
+release maintenance**; repeat it for every bump, including live MCP tool
+discovery (current sets: 56 CAD + 24 mesh + 4 aggregation + 30 app-owned
+workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
 port, not just a gitlink bump.** Two classes of change, both in
@@ -1344,6 +1347,40 @@ runs axe-core's WCAG 2.1 A/AA rules on representative app-owned pages in English
 and Spanish under all four application themes. This is automated coverage, not
 formal certification or manual screen-reader sign-off.
 
+## Geometry-to-results tutorials (Tier 1, verified)
+
+`doc/guide/tutorial-geometry-to-results.md` is the landing page for five manual
+CAD → MDPA → Problemtype → Kratos → VTK walkthroughs; each has a downloadable
+case and solver-produced results. Shared definitions live in
+`tools/tutorials/cases.mjs`; `generate.mjs` creates clean cases through the
+real CAD and mesh MCP servers, runs Kratos, and invokes `verify.py` for
+physical checks. `publish.mjs` freezes measured results, input hashes and
+CAD/mesh revisions into the archives. Verified on Python 3.12.14 / Kratos
+10.4.3 with two threads: structural 1048 nodes / 3896 elements and 1.786%
+beam-reference displacement error (25% limit); fluid 150 / 248, zero flux
+imbalance; thermal 263 / 814, 0.000019 K maximum linear-profile error
+(0.001 K limit); potential flow 150 / 248, 0.0000328 m/s maximum gradient
+error (0.001 m/s limit); shallow water 150 / 248, 4.0 m³ volume with zero
+measured depth error. Limits are separate from the recorded baselines.
+
+`manual.mjs` is also an Electron acceptance test: it opens each case in the
+real app, exports a fresh CAD mesh, configures and generates the Problemtype
+case in the sidebar, clicks **Run**, checks the terminal receipt and solver
+fields, then opens results and captures the selected field/timeline. The full
+`npm run docs:screenshots` pipeline runs those five sessions and
+`assistant.mjs`; its local scripted OpenAI-compatible provider performs real
+tool calls and a solver run, tests dry-run/denial/approval and snapshot output,
+then reopens the persisted conversation without repeating tool calls. The
+transcript is labeled scripted and needs no provider credentials.
+
+Tutorial integration commits are CAD `ad236ece` on `kkss.dev` (including
+planar-domain export and CAD snapshot rendering in the KKSS worker) and mesh
+`9f33b560` on `kkss.dev` (solver-compatible built-in cases and Problemtype
+fixes). `esbuild.mjs` copies CAD viewer assets to the runtime snapshot server.
+Their full revisions are recorded in each published `verification.json`.
+Keep submodule changes committed on the designated branch before moving these
+pointers.
+
 ## Screenshots are generated, not hand-captured
 
 `npm run docs:screenshots` (`tools/screenshots.mjs`) launches the **real app**
@@ -1356,11 +1393,11 @@ generated webview pages, or visible viewer behavior means re-running it** —
 don't hand-edit the PNGs. Prereq: one full `npm run build`; run headless with
 `env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots`. Shared
 launch helpers live in `tools/e2eShared.mjs` (used by the smoke test too).
-**Both harnesses launch with an isolated `--user-data-dir`** (`launchApp`'s
+**All screenshot harnesses launch with an isolated `--user-data-dir`** (`launchApp`'s
 `userDataDir`): the home screen renders the recent-files list, so the real
 profile would put whoever regenerated the PNGs into a committed image, and a
 fresh profile also pins theme/zoom/viewer defaults so the shots are
-reproducible. screenshots.mjs shares **one** temp profile across its four
+reproducible. screenshots.mjs shares **one** temp profile across its four base
 sessions *in order* — that is what makes the home shot deterministic, since the
 first three sessions are what populate its recents list.
 

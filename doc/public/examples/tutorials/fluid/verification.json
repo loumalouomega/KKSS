@@ -1,0 +1,74 @@
+{
+  "case": "fluid",
+  "python": "3.12.14",
+  "kratos": "10.4.3",
+  "threads": 2,
+  "nodes": 150,
+  "elements": 248,
+  "fields": [
+    "VELOCITY",
+    "PRESSURE"
+  ],
+  "result": "vtk_output/FluidModelPart_0_20.vtk",
+  "frames": 20,
+  "end_time": 2,
+  "checks": {
+    "uniform_velocity_error_m_per_s": {
+      "measured": 5.8899347e-16,
+      "maximum": 0.01
+    },
+    "inlet_velocity_error_m_per_s": {
+      "measured": 0,
+      "maximum": 1e-7
+    },
+    "outlet_pressure_error_Pa": {
+      "measured": 0,
+      "maximum": 1e-7
+    },
+    "flux_imbalance_m2_per_s": {
+      "measured": 0,
+      "maximum": 0.01
+    },
+    "inlet_flux_m2_per_s": 1,
+    "outlet_flux_m2_per_s": 1
+  },
+  "files": {
+    "FluidMaterials.json": "2b358fe2a8cc68d06a2f90dd70fee6f28243477c4020a25881855b73754a0a91",
+    "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
+    "MainKratos.py": "e9a2c95a61ec5e82463a556bcc175b8e6808f5bb2946d850046020bf63483369",
+    "mesh_case.mdpa": "cd90d766fc5c2f9a9d0d10a898ea402c180abfba5ea453c519b90ea20e4ab3d4",
+    "mesh.kratoscase.json": "510ebc3d2423454fb500e30da5176e550e26ff1bcf6353111aea5ea0a88495f9",
+    "mesh.mdpa": "34ee23aec819a00e7ef295f87189bc07e82f7e824dfb74f99bac8a5ca0f926ab",
+    "ProjectParameters.json": "029d612241dc5b3aa963f321bc0c52f49d807fab9e58d9b179aba2f8b29bf392",
+    "recipe.json": "4b80059ec847388633bb0d072e3254c20cbef91ba215b873ab003dc35de3d996",
+    "rectangle.brep": "d94d6764f1a229976a427da3d54079d14917079076fe7de18881302f3f5820d7",
+    "rectangle.brep.edits.json": "26b5066c988ca2b04500b04ef1eabd9eba0d650c0c001ee78b640a80d27c9b75",
+    "rectangle.brep.mesh.json": "8ce45dfb39674c9d847063e561a6bddb7d0bd05c5aa55cbd590c55bb9faa9dce",
+    "rectangle.brep.parts.json": "95733343ec3e3229e1bef0b85d1d9d88943e0dfce8d1dd15b45bf4ae849d233a",
+    "vtk_output/FluidModelPart_0_1.vtk": "1d68058240fcf1d8622b16632e61a576205a3859d095860e36340ab25a046ffd",
+    "vtk_output/FluidModelPart_0_10.vtk": "f242b0c10d4ce8274f2329bcf2259f65c148ab652d82d36bb9b867b90a47ab6b",
+    "vtk_output/FluidModelPart_0_11.vtk": "2f2e00c425bd17c04540572ee4c21520cdbfcf9a3bbda47cce58312dbfe08bd5",
+    "vtk_output/FluidModelPart_0_12.vtk": "8e08f50db125329c512cbb693df42ae3ba55f9057e090701f4523c4dafb350d7",
+    "vtk_output/FluidModelPart_0_13.vtk": "f5e8111cba218cb0f47a300e98d5a3828f2ba66ce5011195805dd3877b47a7c5",
+    "vtk_output/FluidModelPart_0_14.vtk": "159560ac926a911239f7b5c5710bd1cba5d8a40f20151e6d41e41385484370a3",
+    "vtk_output/FluidModelPart_0_15.vtk": "18b9ae6aecafdec636fff924e049a92e57b6728a255a4b6c0872517f8f75a38a",
+    "vtk_output/FluidModelPart_0_16.vtk": "ae5a97a6642f8792c412c1278544a41dcb997484d50129b15a0d7bbcabab10dc",
+    "vtk_output/FluidModelPart_0_17.vtk": "7afca042b0fd2c59484771e80e62644cff363321b90d3a40b8b56432d5da28a6",
+    "vtk_output/FluidModelPart_0_18.vtk": "2b0784b870df752d0d4d71fe1b3166adb1a17de73180bb1320dc77aa53be20f3",
+    "vtk_output/FluidModelPart_0_19.vtk": "889bc7b1adf861f89d7171b94cc28167e01d36a12db3f7a8eafed621e962fc34",
+    "vtk_output/FluidModelPart_0_2.vtk": "48aa3148173bea58d39bc07bac0a05d2ce84bb63ae27ac0388c4dca4b965d0a7",
+    "vtk_output/FluidModelPart_0_20.vtk": "fdea4d3e3d62ba34ff0dac09b610436df4e798ef3b63d8b299eadd602a71b2c2",
+    "vtk_output/FluidModelPart_0_3.vtk": "5c3e8f48917326499f1fe4e4ca688bdae32c5a18f89780dea303c6abb540a36c",
+    "vtk_output/FluidModelPart_0_4.vtk": "8187aa0ca1d289f5490ee72255d60b0f3cbde3e2d8a38831756f81b116021181",
+    "vtk_output/FluidModelPart_0_5.vtk": "460de1913b270d7dbddfafcd9bd002f02f52ed1c2cf8be72b8e8d491d1d2ea79",
+    "vtk_output/FluidModelPart_0_6.vtk": "ac82b3bef1120d7550404de7a308957aee170c831076150b7efd715fea943acc",
+    "vtk_output/FluidModelPart_0_7.vtk": "cf11159a0311200efef2e53d21a263da9f4280f6a4b6cc6d74869075e0d8aaa6",
+    "vtk_output/FluidModelPart_0_8.vtk": "c12bc1d930f2db650acbd2e4a2ab11356bb0ef36becefd829b1fefb4e0b80008",
+    "vtk_output/FluidModelPart_0_9.vtk": "f15d15b3a9501fcda5c2548ed723afb7a6ad800c720533b827928aafad5423b8"
+  },
+  "source": "cad/examples/BREP/blank.brep",
+  "revisions": {
+    "cad": "ad236ece898bdaaa58496545128df8e1c78077d4",
+    "mesh": "9f33b560c8c3774cfa664dea417aebf744a9e91c"
+  }
+}

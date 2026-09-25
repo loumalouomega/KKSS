@@ -5,6 +5,8 @@ runner, and VTK output from a completed Kratos solve. They start from an MDPA
 case so you can inspect real result fields in KKSS without first building a
 geometry or mesh.
 
+For the full CAD-to-solver workflow, see [Geometry to results](/guide/tutorial-geometry-to-results).
+
 The cases were rerun with Python 3.12 and Kratos Multiphysics 10.4.3 on Linux
 x86-64, using two OpenMP threads. The checked-in VTK files are the solver output
 from those runs. Each `MainKratos.py` reads the adjacent `ProjectParameters.json`

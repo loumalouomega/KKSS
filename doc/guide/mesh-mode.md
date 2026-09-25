@@ -1,5 +1,7 @@
 # Post-Processing (Mesh) Mode
 
+To follow a mesh from its CAD source through a generated case and solver results, start with the [Geometry to results tutorials](/guide/tutorial-geometry-to-results).
+
 Post-Processing mode embeds the full [VSCode-MDPA-Preview](https://loumalouomega.github.io/VSCode-MDPA-Preview/) viewer — KKSS drives the extension's own host code, so behavior matches the extension exactly. This page summarizes the highlights; see the [extension documentation](https://loumalouomega.github.io/VSCode-MDPA-Preview/) for the complete guide.
 
 ![Mesh mode: an MDPA model with the outline, edit history and mesh-modification sidebar](/screenshots/mesh-viewer.png)
