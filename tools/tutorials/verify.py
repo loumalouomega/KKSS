@@ -49,6 +49,10 @@ def verify(case, directory):
         assert math.isfinite(value) and value <= limit, f'{name}: {value} > {limit}'
         checks[name] = {'measured': value, 'maximum': limit}
 
+    def check_min(name, value, limit):
+        assert math.isfinite(value) and value >= limit, f'{name}: {value} < {limit}'
+        checks[name] = {'measured': value, 'minimum': limit}
+
     if case == 'structural':
         uz = max(abs(v[2]) for v in fields['DISPLACEMENT']) * 1000
         reference = (0.1 * 4 * 18**4) / (8 * 210000 * (4 * 5**3 / 12))
@@ -61,17 +65,43 @@ def verify(case, directory):
         xmin, xmax = min(v[0] for v in p), max(v[0] for v in p)
         check('linear_temperature_error_K', max(abs(t[0] - (300 + 100 * (v[0] - xmin) / (xmax - xmin))) for v, t in zip(p, fields['TEMPERATURE'])), 0.001)
     elif case == 'fluid':
+        recipe = json.loads((directory / 'recipe.json').read_text())
+        obstacle = recipe['obstacle']
+        width = obstacle['widthMm'] / 1000
+        height = obstacle['heightMm'] / 1000
+        cx, cy = (v / 1000 for v in obstacle['centerMm'])
+        radius = obstacle['radiusMm'] / 1000
+        inlet_speed = next(a['values']['modulus'] for a in recipe['assignments'] if a['conditionId'] == 'inlet')
+        density = next(m['values']['DENSITY'] for m in recipe['materials'])
+        viscosity = next(m['values']['DYNAMIC_VISCOSITY'] for m in recipe['materials'])
+        reynolds = density * inlet_speed * (2 * radius) / viscosity
+        mdpa = (directory / 'mesh_case.mdpa').read_text()
+        for name in ('Domain', 'Inlet', 'Outlet', 'Walls', 'Obstacle'):
+            assert f'Begin SubModelPart {name}\n' in mdpa, f'Missing named region {name} in generated MDPA'
         velocity, pressure = fields['VELOCITY'], fields['PRESSURE']
-        check('uniform_velocity_error_m_per_s', max(math.dist(v, [1, 0, 0]) for v in velocity), 0.01)
-        check('inlet_velocity_error_m_per_s', max(math.dist(v, [1, 0, 0]) for xyz, v in zip(p, velocity) if abs(xyz[0]) < 1e-8), 1e-7)
-        check('outlet_pressure_error_Pa', max(abs(v[0]) for xyz, v in zip(p, pressure) if abs(xyz[0] - 4) < 1e-8), 1e-7)
+        check('inlet_velocity_error_m_per_s', max(math.dist(v, [inlet_speed, 0, 0]) for xyz, v in zip(p, velocity) if abs(xyz[0]) < 1e-8), 1e-6)
+        check('outlet_pressure_error_Pa', max(abs(v[0]) for xyz, v in zip(p, pressure) if abs(xyz[0] - width) < 1e-8), 1e-6)
         def flux(x):
             boundary = sorted((xyz[1], v[0]) for xyz, v in zip(p, velocity) if abs(xyz[0] - x) < 1e-8)
             assert len(boundary) >= 2
             return sum((b[0] - a[0]) * (a[1] + b[1]) / 2 for a, b in zip(boundary, boundary[1:]))
-        check('flux_imbalance_m2_per_s', abs(flux(0) - flux(4)), 0.01)
+        check('flux_imbalance_m2_per_s', abs(flux(0) - flux(width)), 0.001)
         checks['inlet_flux_m2_per_s'] = flux(0)
-        checks['outlet_flux_m2_per_s'] = flux(4)
+        checks['outlet_flux_m2_per_s'] = flux(width)
+        obstacle_nodes = [v for xyz, v in zip(p, velocity) if abs(math.hypot(xyz[0] - cx, xyz[1] - cy) - radius) <= 0.0015]
+        assert len(obstacle_nodes) >= 24, f'Obstacle boundary has only {len(obstacle_nodes)} sampled result nodes'
+        check('obstacle_no_slip_speed_m_per_s', max(math.sqrt(v[0]**2 + v[1]**2) for v in obstacle_nodes), 2e-5)
+        wake = [v[0] for xyz, v in zip(p, velocity)
+                if cx + 1.5 * radius <= xyz[0] <= cx + 5 * radius and abs(xyz[1] - cy) <= 0.35 * radius]
+        assert wake, 'The refined near-wake sample contains no result nodes'
+        check_min('near_wake_velocity_deficit_m_per_s', inlet_speed - min(wake), 0.025)
+        check_min('pressure_range_Pa', max(v[0] for v in pressure) - min(v[0] for v in pressure), 0.05)
+        checks['reynolds_number'] = reynolds
+        checks['obstacle_boundary_nodes'] = len(obstacle_nodes)
+        checks['wake_sample_nodes'] = len(wake)
+        checks['minimum_near_wake_axial_velocity_m_per_s'] = min(wake)
+        checks['pressure_minimum_Pa'] = min(v[0] for v in pressure)
+        checks['pressure_maximum_Pa'] = max(v[0] for v in pressure)
     elif case == 'potential-flow':
         potential = fields['VELOCITY_POTENTIAL']
         errors = []

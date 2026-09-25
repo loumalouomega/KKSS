@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "source": "rectangle.brep",
+  "source": "obstacle-channel.brep",
   "options": {
     "dimension": 2,
-    "sizeMin": 200,
-    "sizeMax": 200,
+    "sizeMin": 15,
+    "sizeMax": 70,
     "algorithm2D": 6,
     "algorithm3D": 1,
     "elementOrder": 1,

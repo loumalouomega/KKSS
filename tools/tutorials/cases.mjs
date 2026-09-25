@@ -14,10 +14,11 @@ export const cases = [
     field: 'DISPLACEMENT',
   },
   {
-    id: 'fluid', title: 'Slip-wall channel', problemtype: 'fluid', planar: true,
-    problem: { timeStep: 0.1, endTime: 2, echoLevel: 1 },
-    assignments: [assignment('parts', 'Domain'), assignment('inlet', 'Left', { modulus: 1, direction: 'x' }), assignment('outlet', 'Right', { value: 0 }), assignment('slip', 'Walls')],
-    materials: [material('Domain', 'newtonian_2d', { DENSITY: 1000, DYNAMIC_VISCOSITY: 0.001 })], field: 'VELOCITY',
+    id: 'fluid', title: 'Laminar flow around an obstacle', problemtype: 'fluid', planar: true, planarGeometry: 'obstacle',
+    obstacle: { widthMm: 2000, heightMm: 600, centerMm: [500, 300], radiusMm: 60, sides: 32 },
+    problem: { timeStep: 0.1, endTime: 5, echoLevel: 0, maxIterations: 20 },
+    assignments: [assignment('parts', 'Domain'), assignment('inlet', 'Inlet', { modulus: 0.1, direction: 'x' }), assignment('outlet', 'Outlet', { value: 0 }), assignment('slip', 'Walls'), assignment('noSlip', 'Obstacle')],
+    materials: [material('Domain', 'newtonian_2d', { DENSITY: 1000, DYNAMIC_VISCOSITY: 0.6 })], field: 'VELOCITY',
   },
   {
     id: 'thermal', title: 'Stationary heat conduction', problemtype: 'convectionDiffusion',
@@ -41,7 +42,21 @@ export const cases = [
     materials: [material('Domain', 'manning', { MANNING: 0.01 })], field: 'HEIGHT',
   },
 ].map(c => c.planar ? {
-  ...c, source: 'cad/examples/BREP/blank.brep', geometry: 'rectangle.brep',
-  ops: [{ op: 'addRectangleProfile', center: [2000, 500, 0], normal: [0, 0, 1], up: [1, 0, 0], width: 4000, height: 1000 }],
-  options: { dimension: 2, sizeMin: 200, sizeMax: 200 },
+  ...c,
+  source: 'cad/examples/BREP/blank.brep',
+  geometry: c.planarGeometry === 'obstacle' ? 'obstacle-channel.brep' : 'rectangle.brep',
+  ops: c.planarGeometry === 'obstacle'
+    ? [
+      { op: 'addPolyline', points: [[0, 0, 0], [c.obstacle.widthMm, 0, 0], [c.obstacle.widthMm, c.obstacle.heightMm, 0], [0, c.obstacle.heightMm, 0]], closed: true },
+      { op: 'addPolyline', points: Array.from({ length: c.obstacle.sides }, (_, i) => {
+        // The outer boundary is counter-clockwise; reverse the obstacle loop
+        // so the hole's skin conditions inherit the fluid-outward normal.
+        const angle = -2 * Math.PI * i / c.obstacle.sides;
+        return [c.obstacle.centerMm[0] + c.obstacle.radiusMm * Math.cos(angle), c.obstacle.centerMm[1] + c.obstacle.radiusMm * Math.sin(angle), 0];
+      }), closed: true },
+    ]
+    : [{ op: 'addRectangleProfile', center: [2000, 500, 0], normal: [0, 0, 1], up: [1, 0, 0], width: 4000, height: 1000 }],
+  options: c.planarGeometry === 'obstacle'
+    ? { dimension: 2, sizeMin: 15, sizeMax: 70 }
+    : { dimension: 2, sizeMin: 200, sizeMax: 200 },
 } : c);

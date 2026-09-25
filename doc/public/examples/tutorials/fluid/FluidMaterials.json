@@ -6,7 +6,7 @@
             "Material": {
                 "Variables": {
                     "DENSITY": 1000.0,
-                    "DYNAMIC_VISCOSITY": 0.001
+                    "DYNAMIC_VISCOSITY": 0.6
                 },
                 "Tables": {},
                 "constitutive_law": {

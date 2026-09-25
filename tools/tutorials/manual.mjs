@@ -101,6 +101,13 @@ export async function manualTutorials(out, selected = []) {
       await result.locator('#toolbar button[data-action="reset"]').click();
       await sleep(1800);
       if (out) await result.screenshot({ path: path.join(out, `tutorial-${c.id}-results.png`) });
+      if (c.id === 'fluid') {
+        const pressure = options.find(o => o.text.startsWith('PRESSURE '));
+        assert.ok(pressure, 'Missing PRESSURE');
+        await selector.selectOption(pressure.value);
+        await sleep(700);
+        if (out) await result.screenshot({ path: path.join(out, 'tutorial-fluid-pressure.png') });
+      }
       if (c.id === 'structural') {
         const deformedMode = result.locator('.field-mode-btn').filter({ hasText: 'Deformed' });
         await deformedMode.click();

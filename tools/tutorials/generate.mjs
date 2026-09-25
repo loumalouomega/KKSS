@@ -19,22 +19,47 @@ try {
     try {
       const geometry = path.join(dir, c.geometry), meshPath = path.join(dir, 'mesh.mdpa');
       await fs.copyFile(path.join(root, c.source), geometry);
+      if (c.planarGeometry === 'obstacle') await fs.writeFile(path.join(dir, 'obstacle-channel.svg'),
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -600 2000 600" width="2000" height="600">\n  <path d="M 0 -600 L 0 0 L 2000 0 L 2000 -600 Z"/>\n  <circle cx="500" cy="-300" r="60"/>\n</svg>\n');
       if (c.ops.length) await mcp.call('cad__apply_edit_ops', { path: geometry, ops: c.ops });
-      const inventory = await mcp.call('cad__load_model', { path: geometry });
+      let inventory = await mcp.call('cad__load_model', { path: geometry });
       let parts = c.parts;
       if (c.planar) {
-        const edges = [];
-        for (let n = 0; n < 4; n++) edges.push(await mcp.call('cad__inspect', { path: geometry, entityId: `edge-${n}` }));
-        await fs.writeFile(path.join(dir, 'edges.json'), JSON.stringify(edges, null, 2));
-        const left = [], right = [], walls = [];
-        edges.forEach((edge, n) => {
-          const x = edge.center[0];
-          (Math.abs(x) < 1e-6 ? left : Math.abs(x - 4000) < 1e-6 ? right : walls).push(`edge-${n}`);
-        });
-        if (left.length !== 1 || right.length !== 1 || walls.length !== 2) throw Error('Unexpected rectangle orientation');
-        parts = [{ name: 'Domain', surfaces: ['face-0'] }, ...(c.id === 'fluid'
-          ? [{ name: 'Left', lines: left }, { name: 'Right', lines: right }, { name: 'Walls', lines: walls }]
-          : [{ name: 'Boundary', lines: [...left, ...right, ...walls] }])];
+        if (c.planarGeometry === 'obstacle') {
+          const edgeCount = 4 + c.obstacle.sides;
+          const edges = [];
+          for (let n = 0; n < edgeCount; n++) edges.push(await mcp.call('cad__inspect', { path: geometry, entityId: `edge-${n}` }));
+          const loop = await mcp.call('cad__apply_edit_ops', { path: geometry, ops: [{ op: 'addSurfaceFromLines', edges: edges.map((_, n) => `edge-${n}`) }] });
+          if (!loop.report?.every(row => row.accepted && row.applied !== false)) throw Error('CAD did not build the channel face with an obstacle hole');
+          inventory = await mcp.call('cad__load_model', { path: geometry });
+          const inlet = [], outlet = [], walls = [], obstacle = [];
+          const { widthMm, heightMm } = c.obstacle;
+          edges.forEach((edge, n) => {
+            const id = `edge-${n}`, [x, y] = edge.center;
+            if (n >= 4) obstacle.push(id);
+            else if (Math.abs(x) < 1e-6) inlet.push(id);
+            else if (Math.abs(x - widthMm) < 1e-6) outlet.push(id);
+            else if (Math.abs(y) < 1e-6 || Math.abs(y - heightMm) < 1e-6) walls.push(id);
+            else throw Error(`Could not classify channel boundary edge ${id} at ${edge.center}`);
+          });
+          if (inlet.length !== 1 || outlet.length !== 1 || walls.length !== 2 || obstacle.length !== c.obstacle.sides) throw Error('Unexpected obstacle-channel boundary topology');
+          parts = [
+            { name: 'Domain', surfaces: ['face-0'] },
+            { name: 'Inlet', lines: inlet }, { name: 'Outlet', lines: outlet }, { name: 'Walls', lines: walls },
+            { name: 'Obstacle', lines: obstacle, meshGrading: { sizeAtWall: 12, sizeFar: 60, distNear: 25, distFar: 350 } },
+          ];
+        } else {
+          const edges = [];
+          for (let n = 0; n < 4; n++) edges.push(await mcp.call('cad__inspect', { path: geometry, entityId: `edge-${n}` }));
+          await fs.writeFile(path.join(dir, 'edges.json'), JSON.stringify(edges, null, 2));
+          const left = [], right = [], walls = [];
+          edges.forEach((edge, n) => {
+            const x = edge.center[0];
+            (Math.abs(x) < 1e-6 ? left : Math.abs(x - 4000) < 1e-6 ? right : walls).push(`edge-${n}`);
+          });
+          if (left.length !== 1 || right.length !== 1 || walls.length !== 2) throw Error('Unexpected rectangle orientation');
+          parts = [{ name: 'Domain', surfaces: ['face-0'] }, { name: 'Boundary', lines: [...left, ...right, ...walls] }];
+        }
       }
       for (const part of parts) await mcp.call('cad__set_part', { path: geometry, ...part });
       await mcp.call('cad__set_mesh_options', { path: geometry, options: c.options });
@@ -46,14 +71,16 @@ try {
       state.materials = c.materials;
       await mcp.call('mesh__case_write_state', { meshPath, state });
       await mcp.call('mesh__case_generate', { meshPath });
-      await fs.writeFile(path.join(dir, 'recipe.json'), JSON.stringify({ ...c, parts, exportUnit: 'm', inventory, exported }, null, 2));
+      await fs.writeFile(path.join(dir, 'recipe.json'), JSON.stringify({ ...c, parts, ops: c.planarGeometry === 'obstacle'
+        ? [...c.ops, { op: 'addSurfaceFromLines', edges: Array.from({ length: 4 + c.obstacle.sides }, (_, n) => `edge-${n}`) }]
+        : c.ops, exportUnit: 'm', inventory, exported }, null, 2));
       console.log(`${c.id}: generated; solving`);
       const { stdout, stderr } = await exec(python, ['MainKratos.py'], { cwd: dir, env: { ...process.env, OMP_NUM_THREADS: '2' }, timeout: 180000, maxBuffer: 16 * 1024 * 1024 });
       await fs.writeFile(path.join(dir, 'solver.log'), stdout + stderr);
       const verification = await exec(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { maxBuffer: 1024 * 1024 });
       const report = JSON.parse(verification.stdout);
       const inputs = {};
-      for (const name of await fs.readdir(dir)) if (/\.(mdpa|json|py|stp|brep)$/.test(name) && !name.includes('preparation') && name !== 'recipe.json') inputs[name] = createHash('sha256').update(await fs.readFile(path.join(dir, name))).digest('hex');
+      for (const name of await fs.readdir(dir)) if (/\.(mdpa|json|py|stp|brep|svg)$/.test(name) && !name.includes('preparation') && name !== 'recipe.json') inputs[name] = createHash('sha256').update(await fs.readFile(path.join(dir, name))).digest('hex');
       await fs.writeFile(path.join(dir, 'verification.json'), JSON.stringify({ ...report, inputs }, null, 2) + '\n');
       console.log(`${c.id}: ${JSON.stringify(report.checks)}`);
     } catch (e) {
