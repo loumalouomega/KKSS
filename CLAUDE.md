@@ -1178,6 +1178,14 @@ port, not just a gitlink bump.** Two classes of change, both in
   `modeForFile`), which is itself a native dialog — verified by typecheck and
   line-by-line comparison against `provider.ts` instead.
 
+CAD-Preview 3.4 adds two interactive protocol branches KKSS carries in its
+host port: `meshSweepRequest` uses the shared `runMeshSweep` calculation with
+document-owned cancellation checks before each run and output write;
+`holeTableRequest` calls `computeHoleTable` through the existing
+`massProperties` worker module. Free-text annotation notes share the existing
+`.annotations.json` sidecar. Mesh 4.4's displacement multiplier stays in the
+viewer and arrives through the normal mesh 4.4.1 bundle build.
+
 **The cad 2.3.0 → 2.7.0 jump (four releases) needed one correctness fix and
 four small ports; mesh 3.27.0 → 4.0.7 needed no code at all.**
 

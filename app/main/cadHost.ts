@@ -137,6 +137,7 @@ import {
 import { compileParametricScript } from "../../cad/src/parametricScript";
 import { evaluateVariables } from "../../cad/src/editVariables";
 import type { MeshGenerationInput } from "../../cad/src/gmshService";
+import { sweepOutputName, SWEEP_NOTE, validateSweepSizes } from "../../cad/src/meshSweep";
 import {
   isMeshioFieldFailure,
   describeMeshioFieldFailure,
@@ -145,6 +146,7 @@ import {
   AUTO_DECIMATE_TARGET_TRIANGLES,
 } from "../../cad/src/meshioService";
 import { cadCompute, kernelState, onKernelState, runOwnedJob, jobStatus, cancelOwnedJob } from "./cadComputeClient";
+import { runCadMeshSweep } from "./cadMeshSweep";
 import { toKkssUrl, allowRoot } from "./protocol";
 import { projectRoot } from "./services/projectRoot";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
@@ -733,6 +735,10 @@ export class CadHost {
         this.post({ type: "error", message: `Unsupported file type: ${this.doc.path}` });
         return;
       }
+      // A renderer reload loses its document chip even when the host's
+      // document state did not change. Force the ready handshake to resend
+      // documentInfo instead of treating the unchanged value as a duplicate.
+      this.lastDocumentInfo = "";
       // Load edits before the model so a B-rep source is tessellated already-edited.
       // Planes are loaded alongside them so any `planeId` resolves before the
       // first tessellation (provider.ready): since cad 2.5.0 a plane-authored
@@ -887,6 +893,67 @@ export class CadHost {
         });
       } catch (err) {
         this.post({ type: "meshingError", requestId: msg.requestId, message: (err as Error).message });
+      } finally {
+        this.post({ type: "meshingJobSettled", requestId: msg.requestId });
+      }
+      return;
+    }
+
+    if (msg.type === "meshSweepRequest") {
+      try {
+        const sizes = validateSweepSizes(msg.sizes);
+        let outputDir: string | undefined;
+        if (msg.writeOutputs) {
+          const picked = await showOpenDialog({
+            title: "Choose a folder for sweep meshes",
+            openLabel: "Write sweep meshes here",
+            canSelectFolders: true,
+            defaultPath: path.dirname(doc.path),
+          });
+          if (!picked?.length) {
+            this.post({ type: "meshSweepError", requestId: msg.requestId, message: "No output folder chosen — sweep not run." });
+            return;
+          }
+          outputDir = picked[0];
+        }
+
+        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId }, async () => {
+          const assertJobActive = () => {
+            const state = jobStatus(doc.path, msg.requestId)?.state;
+            if (state === "cancelling" || state === "cancelled") {
+              throw new Error(`CAD job ${msg.requestId} was cancelled.`);
+            }
+          };
+          const input = await this.resolveMeshInput(msg.stl);
+          if (!input) throw new Error("No mesh geometry available: missing STL data.");
+          const { parts, options } = await this.resolveMeshPartsAndOptions(input, msg.options);
+          const warnings: string[] = [];
+          const baseName = path.basename(doc.path).replace(/\.[^.]+$/, "");
+          const runs = await runCadMeshSweep(
+            sizes,
+            options,
+            (runOptions) => cadCompute.generateMesh(this.runtimePath, input, runOptions, parts),
+            {
+              warnings,
+              assertActive: assertJobActive,
+              onRunStart: (index, size) => {
+                this.post({ type: "status", text: `Sweep: meshing at size ${size} (${index + 1}/${sizes.length})…` });
+              },
+              writeOutputs: outputDir
+                ? async (size, _runOptions, result) => {
+                    assertJobActive();
+                    const target = path.join(outputDir!, sweepOutputName(baseName, size, "msh"));
+                    await fs.writeFile(target, Buffer.from(result.mshText, "utf8"));
+                    return [target];
+                  }
+                : undefined,
+            }
+          );
+          assertJobActive();
+          this.post({ type: "meshSweepResult", requestId: msg.requestId, runs, warnings, note: SWEEP_NOTE, outputDir: outputDir ?? null });
+        });
+      } catch (err) {
+        this.post({ type: "meshSweepError", requestId: msg.requestId, message: (err as Error).message });
       } finally {
         this.post({ type: "meshingJobSettled", requestId: msg.requestId });
       }
@@ -1068,6 +1135,27 @@ export class CadHost {
         this.post({ type: "massPropertiesResult", requestId: msg.requestId, properties });
       } catch (err) {
         this.post({ type: "massPropertiesError", requestId: msg.requestId, message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (msg.type === "holeTableRequest") {
+      try {
+        if (!doc.route || doc.route.strategy !== "occt") {
+          throw new Error("Hole tables enumerate analytic B-rep cylinder faces; mesh sources have none.");
+        }
+        const sourceWarnings: string[] = [];
+        const source = await this.readOcctSource(doc.path, doc.route.format, sourceWarnings);
+        for (const warning of sourceWarnings) this.post({ type: "status", text: warning });
+        const result = await cadCompute.computeHoleTable(
+          this.runtimePath,
+          source.bytes,
+          source.format as Extract<CadFormat, "step" | "iges" | "brep" | "csg">,
+          replayTail(this.currentEdits, this.currentBakedThrough)
+        );
+        this.post({ type: "holeTableResult", requestId: msg.requestId, rows: result.rows, warnings: [...sourceWarnings, ...result.warnings] });
+      } catch (err) {
+        this.post({ type: "holeTableError", requestId: msg.requestId, message: (err as Error).message });
       }
       return;
     }
