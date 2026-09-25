@@ -212,7 +212,7 @@ API keys are entered via **Settings ▸ LLM Assistant** (`showInputBox` modals) 
 
 `app/main/services/chat/toolPolicy.ts` decides whether a tool the model asked for runs straight away or has to be approved. It is a **pure** module (no `electron`, no `node:*`, the approval mode passed in rather than read from the stateStore) so `test/` drives it directly — `test/chatToolPolicy.test.ts`.
 
-Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering 114 bundled/in-process tools: 56 CAD, 24 mesh, four in-process `mcp__*` tools, and 30 app-owned `app__*` workflow tools. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (tools resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
+Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering 118 bundled/in-process tools: 58 CAD, 26 mesh, four in-process `mcp__*` tools, and 30 app-owned `app__*` workflow tools. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (tools resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
 
 The gate sits in `chatService.ts`'s tool loop, between appending the `toolCall` entry (so the user can read the arguments they are approving) and `mcp.callTool`. Three rules are load-bearing and easy to break:
 
@@ -550,3 +550,9 @@ the CAD geometry fixture and **517.5 ms** for the meshio++ model fixture. These
 are reference measurements from fresh processes; the harness neither warms
 WASM nor controls operating-system filesystem caches, so they are not cold
 cache figures or cross-machine performance targets.
+
+### Mesh 4.6 integration
+
+The embedded upstream viewer supplies Selection, the Properties editor and line probes. Existing provider delegation handles `menuExportSelection` and `meshAnalysis` probe requests without new application IPC. Selection and Properties entry points come from the shared toolbar/Advanced markup; the panels are created by the viewer at runtime. The mesh stylesheet overrides give the Properties Clone button and assignment/value controls enough space in the embedded panel.
+
+Chat classifies `mesh__mesh_select` and `mesh__mesh_probe` as write because `outputPath` can write uncapped selection ids to JSON or a probe profile to CSV, matching the policy for optional table/series output. Property and entity mutations remain under `mesh__mesh_transform`. The Electron mesh-submodule-features scenario covers these provider paths in the real application.

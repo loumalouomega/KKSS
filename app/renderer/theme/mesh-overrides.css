@@ -21,3 +21,28 @@
 #theme-select {
   display: none;
 }
+
+/* mesh 4.6 uses an icon-sized button for the textual Clone action. Keep the
+ * new Properties controls readable within the embedded panel's fixed width. */
+#properties-panel .prop-set-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s-2);
+}
+#properties-panel .prop-set-head .panel-icon-btn {
+  width: auto;
+  flex: 0 0 auto;
+  padding-inline: var(--ui-s-2);
+}
+#properties-panel .prop-set-name {
+  flex: 1;
+  min-width: 0;
+}
+#properties-panel .prop-assign-row select {
+  width: 100%;
+  min-width: 0;
+}
+#properties-panel .prop-var-row input {
+  min-width: 0;
+  flex: 1;
+}

@@ -15,6 +15,7 @@
  *
  * Run (after a full `npm run build` at least once):
  *   env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots
+ *   npm run docs:screenshots -- --mesh-only  # mesh viewer/panels/timeline only
  */
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -205,6 +206,29 @@ async function sessionMdpa() {
     // documents instead.
     await click(page, '[data-action="viewMenu"]');
     await shoot(page, "mesh-view-menu.png", "#view-popup");
+    await click(page, '[data-action="viewMenu"]');
+    await click(page, '[data-action="selection"]');
+    await shoot(page, "mesh-selection.png", "#selection-panel");
+    await click(page, '[data-action="selection"]');
+
+  } finally {
+    await restoreWindow(prepared);
+    await closeApp(app);
+  }
+}
+
+// A property-bearing frame makes the authoring controls visible in the guide.
+async function sessionProperties() {
+  const { app, output } = await launchApp("mesh/example/MDPA/portal_frame.mdpa", { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
+  const deadline = Date.now() + 90_000;
+  let prepared;
+  try {
+    await waitForMarkers(output, ["[mesh] host → webview: model"], deadline);
+    const page = await appWindow(app, "/renderer/mesh/", deadline);
+    prepared = await prepareWindow(app, deadline);
+    await click(page, '[data-action="advanced"]');
+    await click(page, '[data-action="propertiesEditor"]');
+    await shoot(page, "mesh-properties.png", "#properties-panel");
   } finally {
     await restoreWindow(prepared);
     await closeApp(app);
@@ -268,18 +292,22 @@ async function sessionHome() {
   }
 }
 
-await sessionCad();
+const meshOnly = process.argv.includes("--mesh-only");
+if (!meshOnly) await sessionCad();
 await sessionMdpa();
 await sessionVtk();
-// Last, so its recents list is the three documents the sessions above opened.
-await sessionHome();
-await kratosStartupScenario(path.join(OUT, "chat-kratos-setup.png"));
-await jobsScenario(path.join(OUT, "kratos-jobs.png"));
-// These captures use the real CAD/mesh app, the configured manual Python
-// interpreter and actual solver-produced tutorial results. The companion uses
-// a local OpenAI-compatible fixture but routes every tool call through KKSS.
-await manualTutorials(OUT);
-await scriptedCapture(OUT);
+await sessionProperties();
+// Last, so its recents list contains the documents the sessions above opened.
+if (!meshOnly) {
+  await sessionHome();
+  await kratosStartupScenario(path.join(OUT, "chat-kratos-setup.png"));
+  await jobsScenario(path.join(OUT, "kratos-jobs.png"));
+  // These captures use the real CAD/mesh app, the configured manual Python
+  // interpreter and actual solver-produced tutorial results. The companion uses
+  // a local OpenAI-compatible fixture but routes every tool call through KKSS.
+  await manualTutorials(OUT);
+  await scriptedCapture(OUT);
+}
 
 // ---- README hero refresh (same pattern as cad's capture.mjs tail) -------------
 
@@ -287,6 +315,7 @@ for (const [src, dst] of [
   ["cad-viewer.png", "pre_processing.png"],
   ["mesh-viewer.png", "post_processing.png"],
 ]) {
+  if (meshOnly && src.startsWith("cad-")) continue;
   fs.copyFileSync(path.join(OUT, src), path.join(IMAGES, dst));
   console.log(`hero ${dst} ← ${src}`);
 }

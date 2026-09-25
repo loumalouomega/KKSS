@@ -38,6 +38,8 @@ The [geometry-to-results tutorials](doc/guide/tutorial-geometry-to-results.md) a
 
 If the assistant’s Kratos tools cannot start, the chat sidebar explains why and offers **Install uv for KKSS** or **Retry**. Installation is optional and app-local; it does not change your system PATH or require administrator privileges. CAD and mesh tools remain usable during setup. See the [assistant setup guide](https://loumalouomega.github.io/KKSS/guide/getting-started#ai-assistant).
 
+Mesh tools include named selection sets, shared Properties editing, selection export and deletion, and line probes that follow the results timeline. See the [mesh guide](doc/guide/mesh-mode.md#selection-properties-and-line-probes).
+
 ## How it works
 
 Both extensions already separate a browser-side viewer bundle (whose only VS Code touchpoint is `acquireVsCodeApi()`) from thin vscode-coupled glue. KKSS loads the built viewer bundles unchanged behind a tiny shim and provides Electron equivalents of the glue: native dialogs, a `vscode` module shim for the reused mesh host code, custom `kkss://`/`kkss-file://` schemes in place of `asWebviewUri`, and worker threads for the heavy WASM kernels (OpenCascade, Gmsh, MMG). Upstream extension improvements are inherited by bumping a submodule pointer. See the [architecture guide](https://loumalouomega.github.io/KKSS/guide/development) for details.

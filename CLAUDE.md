@@ -1107,7 +1107,7 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 56 CAD + 24 mesh + 4 aggregation + 30 app-owned
+discovery (current sets: 58 CAD + 26 mesh + 4 aggregation + 30 app-owned
 workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
@@ -1501,3 +1501,7 @@ Chat's `entry` event records assistant text, but the renderer paints its
 `assistantDone` event only, replacing the streaming bubble; rendering both
 would duplicate every reply. Live chat acceptance checks a single reply,
 approval/denial side effects, cancellation and transcript persistence.
+
+### Mesh 4.6.0 integration
+
+Selection, Properties authoring and line probes are inherited from mesh `66a71fc` through the existing provider/shim bridge. Do not duplicate their panels or protocols in KKSS. `mesh__mesh_select` and `mesh__mesh_probe` are write-class tools: optional `outputPath` writes JSON or probe CSV. Keep that policy and chat capabilities synchronized with the bundled server.

@@ -53,7 +53,7 @@ Post-Processing uses the same layout as [Pre-Processing](/guide/cad-mode#reading
 | --- | --- |
 | ![Sidebar](/screenshots/mesh-outline.png) | ![View menu](/screenshots/mesh-view-menu.png) |
 
-> The viewer's toolbar is **Reset · Pan · Quality · Field · Find · Inspect · View ▾ · Advanced ▾**: the display toggles (Node IDs, Grid, Edges) and Screenshot live in **View ▾**, and Clip moved into the nav card. The extension also draws its own File menu in a strip at the top of the view; KKSS hides it, since the native **File** menu already covers Open / Save / Save As / Export — plus **Save Problem…** (`Ctrl+Alt+S`), **Load Problem…** (`Ctrl+Alt+O`), **Pack Time Series Into One File…**, and **Undo/Redo Mesh Operation** (`Ctrl+Alt+Z` / `Ctrl+Alt+Shift+Z` — not the plain `Ctrl+Z`/`Ctrl+Shift+Z` upstream binds, which would otherwise steal the text editor's own undo), which only exist in that strip, or the Command Palette, upstream.
+> The viewer's toolbar is **Reset · Pan · Quality · Field · Find · Inspect · Selection · View ▾ · Advanced ▾**: the display toggles (Node IDs, Grid, Edges) and Screenshot live in **View ▾**, and Clip moved into the nav card. The extension also draws its own File menu in a strip at the top of the view; KKSS hides it, since the native **File** menu already covers Open / Save / Save As / Export — plus **Save Problem…** (`Ctrl+Alt+S`), **Load Problem…** (`Ctrl+Alt+O`), **Pack Time Series Into One File…**, and **Undo/Redo Mesh Operation** (`Ctrl+Alt+Z` / `Ctrl+Alt+Shift+Z` — not the plain `Ctrl+Z`/`Ctrl+Shift+Z` upstream binds, which would otherwise steal the text editor's own undo), which only exist in that strip, or the Command Palette, upstream.
 
 ## Problemtypes: Kratos case setup
 
@@ -68,3 +68,19 @@ Opening one file of a Kratos-style series (`<prefix>_<rank>_<step>.vtk`) discove
 Exodus (`.e`/`.exo`/`.ex2`) drives the same timeline from the steps recorded **inside the single file**, so no sibling naming is needed; that one file is watched instead of the directory, and a solver still appending steps to it extends the timeline live.
 
 ![A VTK time series with the playback timeline](/screenshots/mesh-vtk-timeline.png)
+
+## Selection, Properties and line probes
+
+**Selection** opens named sets built from Ctrl+click, Box or Lasso picks, or seeds based on a SubModelPart, field range, quality metric or property id. Element, condition and geometry ids remain separate. Seeds re-resolve when the model changes; explicit picks retain only surviving ids. In mesh 4.6.0, reopen the Selection panel to refresh its displayed counts and SubModelPart choices after an edit.
+
+Use **New SubModelPart**, **Export**, or **Delete entities** on the active set. Creation and deletion are undoable mesh operations. Export writes a separate mesh with original ids and corresponding fields. Isolate and Hide act at block granularity; Restore reverses that visibility change.
+
+**Advanced ▸ Properties editor…** edits shared `Begin Properties` values. Clone a set and assign it to a SubModelPart to change only that region. A referenced set cannot be deleted. Save the mesh to persist edits.
+
+**Inspect ▸ Probe line** takes two node picks and plots a nodal field against distance. Choose the field and sample count, or export CSV. Gaps remain gaps in the plot; a timeline change resamples the same endpoints for the new frame.
+
+The assistant can use `mesh_select` for selection predicates and `mesh_transform` for property edits, selection-based SubModelParts and entity deletion. `mesh_select` follows write-tool approval because its optional `outputPath` writes JSON.
+
+| Selection panel | Properties editor |
+| --- | --- |
+| ![Selection panel](/screenshots/mesh-selection.png) | ![Properties editor](/screenshots/mesh-properties.png) |

@@ -367,3 +367,5 @@ visible regions and `Shift+F6` to move backward; hidden panels are skipped and
 closing a panel returns focus to the region that opened it. In the document tab
 strip, use the arrow keys or Home/End to move between tabs, Enter to activate a
 tab, and Delete to close it.
+
+Mesh mode also provides **Selection** in the toolbar, **Properties editor…** under Advanced, and **Probe line** inside Inspect. See [selection, Properties and line probes](./mesh-mode#selection-properties-and-line-probes) for editing, export and timeline behavior. The AI assistant can select entities by predicate and apply property or selection-based edits through the mesh tools.

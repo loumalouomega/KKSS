@@ -201,6 +201,13 @@ values for one of those and not the mesh itself; summary: true is the looser sib
 report (counts, blocks, field names, regions, time steps) for ANY supported format, at whatever cost that \
 format's header/scan/full-read actually takes (a cost field says which), so prefer it when metadataOnly \
 refuses. \
+mesh__mesh_select resolves SubModelPart, field-range, quality or property predicates into separate element, \
+condition and geometry id lists; outputPath writes the uncapped selection as JSON. mesh__mesh_transform \
+also supports setProperty/createProperty/cloneProperty/deleteProperty/assignProperty, \
+createSubModelPartFromSelection (explicit per-kind ids or a seed resolved at apply time), and deleteEntities. \
+Shared property edits affect every referencing entity; clone and reassign for a selective change. Deleting \
+entities also cleans orphan nodes and narrows fields and SubModelParts. The viewer exposes Selection sets, \
+Advanced > Properties editor, and Inspect > Probe line; mesh_probe samples the same distance-versus-value profile. \
 mesh_field_integrate gives cell-measure-weighted totals and means per region, mesh_export_table writes the \
 whole entity table as CSV/XLSX, mesh_field_series samples one entity across every step of a time series, \
 and mesh_pack_series combines a run's per-step files into an XDMF time series (.xdmf plus its required sibling .h5; keep both) in one streamed pass (a lone \
