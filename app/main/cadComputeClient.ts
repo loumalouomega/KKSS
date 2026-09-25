@@ -227,6 +227,7 @@ export const cadCompute = {
   // ---- Facts, measurement, interference --------------------------------
   computeMassProperties: rpc<typeof massProps.computeMassProperties>("computeMassProperties"),
   computeBom: rpc<typeof massProps.computeBom>("computeBom"),
+  computeHoleTable: rpc<typeof massProps.computeHoleTable>("computeHoleTable"),
   getEntityFacts: rpc<typeof entityFacts.getEntityFacts>("getEntityFacts"),
   measureEntities: rpc<typeof entityFacts.measureEntities>("measureEntities"),
   measureExact: rpc<typeof entityFacts.measureExact>("measureExact"),

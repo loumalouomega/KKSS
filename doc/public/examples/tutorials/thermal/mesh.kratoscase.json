@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "problemtypeId": "convectionDiffusion",
+  "values": {
+    "problem": {
+      "solverType": "stationary",
+      "timeStep": 1,
+      "endTime": 1,
+      "echoLevel": 1
+    }
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Domain",
+      "values": {}
+    },
+    {
+      "conditionId": "temperature",
+      "smpPath": "Cold",
+      "values": {
+        "value": 300
+      }
+    },
+    {
+      "conditionId": "temperature",
+      "smpPath": "Hot",
+      "values": {
+        "value": 400
+      }
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Domain",
+      "lawId": "thermal",
+      "values": {
+        "DENSITY": 1000,
+        "CONDUCTIVITY": 1,
+        "SPECIFIC_HEAT": 1000
+      }
+    }
+  ],
+  "output": {
+    "format": "ascii",
+    "controlType": "step",
+    "interval": 1,
+    "nodalVariables": [
+      "TEMPERATURE"
+    ]
+  }
+}

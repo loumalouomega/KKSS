@@ -24,14 +24,14 @@ export const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
  */
 /**
  * @param {string|undefined} file  Document to open on launch.
- * @param {{extraArgs?: string[], timeout?: number, userDataDir?: string}} opts
+ * @param {{extraArgs?: string[], timeout?: number, userDataDir?: string, env?: Record<string, string|undefined>, restore?: boolean, singleInstance?: boolean}} opts
  *   `userDataDir` isolates the run from the developer's real ~/.config/kkss.
  *   Callers that render persisted state (the docs screenshots now show the
  *   recent-files list) must pass one, or a committed PNG would capture whoever
  *   regenerated it; every caller passing one also keeps e2e runs from writing
  *   to the real profile at all.
  */
-export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDataDir } = {}) {
+export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDataDir, env = {}, restore = false, singleInstance = false } = {}) {
   // The UI theme defaults to "Follow system", so an isolated profile would
   // render in whatever theme the generating machine (or a headless Xvfb)
   // reports — seed Dark+ so committed screenshots stay reproducible. Seeded
@@ -63,7 +63,9 @@ export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDa
     env: {
       ...process.env,
       KKSS_E2E: "1",
-      KKSS_ALLOW_MULTIPLE_INSTANCES: "1",
+      KKSS_ALLOW_MULTIPLE_INSTANCES: singleInstance ? undefined : "1",
+      KKSS_E2E_RESTORE: restore ? "1" : undefined,
+      ...env,
       ELECTRON_RUN_AS_NODE: undefined,
     },
     timeout,
@@ -160,6 +162,69 @@ function killTree(pid) {
  */
 export async function closeApp(app) {
   const pid = app.process().pid;
-  await app.close().catch(() => {});
+  await Promise.race([app.close().catch(() => {}), sleep(5000)]);
   if (pid) killTree(pid);
+}
+
+/** Quit must complete naturally in lifecycle assertions; cleanup may force-kill later. */
+export async function quitApp(app, timeout = 40_000) {
+  const child = app.process();
+  let timer;
+  let onExit;
+  const exited = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error("Graceful quit timed out")), timeout);
+    onExit = (code, signal) => code === 0 ? resolve() : reject(new Error(`Exit ${code}${signal ? ` via ${signal}` : ""}`));
+    child.once("exit", onExit);
+  });
+  try {
+    // Schedule quit after this IPC evaluation returns. Electron may close the
+    // window before the evaluate reply otherwise reaches Playwright.
+    await Promise.all([app.evaluate(({ app }) => { setImmediate(() => app.quit()); }), exited]);
+  } finally {
+    clearTimeout(timer);
+    child.off("exit", onExit);
+  }
+}
+
+export async function until(check, label = "condition", timeout = 30_000) {
+  const end = Date.now() + timeout;
+  while (!await check()) {
+    if (Date.now() > end) throw new Error(`Timed out: ${label}`);
+    await sleep(100);
+  }
+}
+
+export async function menu(app, label) {
+  return app.evaluate(({ Menu }, label) => {
+    const find = (m) => { for (const i of m.items) { if (i.label === label) return i; const nested = i.submenu && find(i.submenu); if (nested) return nested; } };
+    const item = find(Menu.getApplicationMenu());
+    if (!item || !item.enabled) throw new Error(`Unavailable menu: ${label}`);
+    item.click(item);
+  }, label);
+}
+
+export async function selectFile(app, file, save = false) {
+  await app.evaluate(({ dialog }, { file, save }) => {
+    if (save) dialog.showSaveDialog = async () => ({ canceled: false, filePath: file });
+    else dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
+  }, { file, save });
+}
+
+export const softwareGL = ["--use-gl=angle", "--use-angle=swiftshader", "--disable-gpu-compositing", "--disable-dev-shm-usage"];
+
+/** Best-effort artifacts must never hide the original assertion. */
+export async function diagnostics(app, output, name) {
+  const dir = path.join(root, "test-results", name.replace(/[^a-z0-9-]/gi, "-"));
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "electron.log"), output());
+  if (!app) return;
+  fs.writeFileSync(path.join(dir, "pages.json"), JSON.stringify(app.windows().map(p => p.url()), null, 2));
+  await Promise.allSettled(app.windows().map(async (p, i) => {
+    await Promise.allSettled([
+      p.screenshot({ path: path.join(dir, `${i}.png`), timeout: 3000 }),
+      Promise.race([p.content(), sleep(3000).then(() => null)]).then(html => {
+        if (html !== null) fs.writeFileSync(path.join(dir, `${i}.html`), html);
+      }),
+    ]);
+  }));
 }

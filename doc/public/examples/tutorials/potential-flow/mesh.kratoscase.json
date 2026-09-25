@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "problemtypeId": "potentialFlow",
+  "values": {
+    "problem": {
+      "formulation": "incompressible",
+      "echoLevel": 1,
+      "maxIterations": 10
+    }
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Domain",
+      "values": {}
+    },
+    {
+      "conditionId": "farField",
+      "smpPath": "Boundary",
+      "values": {
+        "angleOfAttack": 0,
+        "machInfinity": 0.03,
+        "speedOfSound": 340
+      }
+    }
+  ],
+  "materials": [],
+  "output": {
+    "format": "ascii",
+    "controlType": "step",
+    "interval": 1,
+    "nodalVariables": [
+      "VELOCITY_POTENTIAL",
+      "AUXILIARY_VELOCITY_POTENTIAL"
+    ]
+  }
+}

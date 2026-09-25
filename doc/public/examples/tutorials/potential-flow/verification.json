@@ -1,0 +1,40 @@
+{
+  "case": "potential-flow",
+  "python": "3.12.14",
+  "kratos": "10.4.3",
+  "threads": 2,
+  "nodes": 150,
+  "elements": 248,
+  "fields": [
+    "VELOCITY_POTENTIAL",
+    "AUXILIARY_VELOCITY_POTENTIAL"
+  ],
+  "result": "vtk_output/FluidModelPart_0_1.vtk",
+  "frames": 1,
+  "end_time": 1,
+  "checks": {
+    "potential_gradient_error_m_per_s": {
+      "measured": 0.000032760142692151516,
+      "maximum": 0.001
+    }
+  },
+  "files": {
+    "FluidMaterials.json": "6d16aee01d82f777f6f50d783bd226896ec92b3e75652d827c66be796055d211",
+    "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
+    "MainKratos.py": "e9a2c95a61ec5e82463a556bcc175b8e6808f5bb2946d850046020bf63483369",
+    "mesh.kratoscase.json": "6eeda75b4a022d7e65d0c81a029166697006d2cd8ca423afbc540d0a4aae85d9",
+    "mesh.mdpa": "89895aefa1479eeb79de0c6eadb470bb34fc8d79e753f9fc5acf292ab27fc9d7",
+    "ProjectParameters.json": "3964d61e4e3ba25e1c2884f8487ec7bebc286d331ee5875dfbdfcfa53efb6d98",
+    "recipe.json": "1a2c7a0651e2f8be128857abc8bdb0b495c5bbf46a51110c282941e66a997275",
+    "rectangle.brep": "d94d6764f1a229976a427da3d54079d14917079076fe7de18881302f3f5820d7",
+    "rectangle.brep.edits.json": "26b5066c988ca2b04500b04ef1eabd9eba0d650c0c001ee78b640a80d27c9b75",
+    "rectangle.brep.mesh.json": "8ce45dfb39674c9d847063e561a6bddb7d0bd05c5aa55cbd590c55bb9faa9dce",
+    "rectangle.brep.parts.json": "03f0bf2738fa47e104f95672fce9a3c3c841ef08cd4c8bd118c14dd483af5b99",
+    "vtk_output/FluidModelPart_0_1.vtk": "0ea90a6d55936e64bac34f49fc7c7f0167212b78dbddb37e46f5098a09bbbd76"
+  },
+  "source": "cad/examples/BREP/blank.brep",
+  "revisions": {
+    "cad": "6137f6471dd61d3861167beb638194711f4c89f0",
+    "mesh": "5814a819930f0f13f2d5243b6150b72213ccd1af"
+  }
+}

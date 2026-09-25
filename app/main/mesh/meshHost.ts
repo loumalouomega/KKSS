@@ -1,3 +1,4 @@
+import { finishOpen } from "../services/performance";
 /**
  * Mesh mode host — reuses the submodule's MdpaEditorProvider and
  * VtkEditorProvider classes UNMODIFIED. Their `vscode` import is satisfied by
@@ -135,7 +136,7 @@ class FakeWebviewPanel {
     onDidReceiveMessage: (cb: MessageHandler) => { dispose(): void };
   };
 
-  constructor(private readonly view: WebContentsView) {
+  constructor(private readonly view: WebContentsView, private readonly file: string) {
     const panel = this;
     this.webview = {
       options: {},
@@ -149,6 +150,7 @@ class FakeWebviewPanel {
           const t = (message as { type?: string })?.type;
           console.log(`[mesh] host → webview: ${t}`);
         }
+        finishOpen(panel.file, (message as { type: string }).type);
         panel.view.webContents.send("mesh:toWebview", message);
         return Promise.resolve(true);
       },
@@ -427,7 +429,7 @@ export class MeshHost {
    * which a bare `{uri, dispose(){}}` stand-in does not have.
    */
   private async resolveProviderFor(fsPath: string): Promise<void> {
-    const panel = new FakeWebviewPanel(this.view);
+    const panel = new FakeWebviewPanel(this.view, fsPath);
     panel.onReveal(() => this.hooks.onReveal());
     this.currentPanel = panel;
     const isMdpa = path.extname(fsPath).toLowerCase() === ".mdpa";

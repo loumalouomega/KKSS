@@ -1,3 +1,5 @@
+import "../localization";
+import { t, currentLocale } from "../../shared/i18n";
 /**
  * Chat sidebar renderer: message list with streaming assistant text,
  * expandable tool-call chips, MCP server status dots, and the composer.
@@ -52,7 +54,7 @@ hideBtn.innerHTML = glyph("x");
 
 /** Markup for the composer's one button: Send or Stop. */
 function sendLabel(stop: boolean): string {
-  return stop ? `${glyph("square", "sm")}<span>Stop</span>` : `${glyph("send", "sm")}<span>Send</span>`;
+  return stop ? `${glyph("square", "sm")}<span>${t("Stop")}</span>` : `${glyph("send", "sm")}<span>${t("Send")}</span>`;
 }
 
 let busy = false;
@@ -144,7 +146,7 @@ function addAssistant(text: string, stopped?: boolean): HTMLDivElement {
   if (stopped) {
     const note = document.createElement("div");
     note.className = "stopped";
-    note.textContent = "(stopped)";
+    note.textContent = t("(stopped)");
     el.appendChild(note);
   }
   messages.appendChild(el);
@@ -177,7 +179,7 @@ function addToolChip(entry: Extract<ChatWireEntry, { kind: "toolCall" }>): void 
   // transcript looks like the app broke.
   if (entry.approval) {
     if (entry.approval === "denied") setToolStatus(details, "denied", "⊘");
-    details.appendChild(decidedRow(entry.approval === "denied" ? "Denied by you." : "Approved by you."));
+    details.appendChild(decidedRow(entry.approval === "denied" ? t("Denied by you.") : t("Approved by you.")));
   }
 
   messages.appendChild(details);
@@ -228,7 +230,7 @@ function attachImages(callId: string, images: ChatImage[], live: boolean): void 
       img.src = `data:${image.mimeType};base64,${image.dataBase64}`;
       // cad labels its views in the result's JSON text, not in the image block,
       // so the index is all that can honestly be claimed here.
-      img.alt = `Tool result image ${index + 1} of ${images.length}`;
+      img.alt = t("Tool result image {0} of {1}", {0: index + 1, 1: images.length});
       img.title = `${image.mimeType} (${index + 1}/${images.length})`;
       chip.appendChild(img);
     });
@@ -261,8 +263,8 @@ function showApproval(pending: ChatPendingApproval): void {
   msg.className = "approval-msg";
   msg.textContent =
     pending.access === "write"
-      ? "This tool can create, overwrite or delete files. Run it?"
-      : "KKSS has no policy for this tool, so it is treated as unsafe. Run it?";
+      ? t("This tool can create, overwrite or delete files. Run it?")
+      : t("KKSS has no policy for this tool, so it is treated as unsafe. Run it?");
   row.appendChild(msg);
 
   // Not a fourth decision: it re-runs the call in validate-only mode and leaves
@@ -270,19 +272,19 @@ function showApproval(pending: ChatPendingApproval): void {
   if (pending.dryRunnable) {
     const dry = document.createElement("button");
     dry.className = "dryrun btn btn-secondary btn-sm";
-    dry.textContent = "Validate (dry run)";
+    dry.textContent = t("Validate (dry run)");
     dry.addEventListener("click", () => {
       dry.disabled = true;
-      dry.textContent = "Validating…";
+      dry.textContent = t("Validating…");
       post({ type: "dryRunTool", callId: pending.callId });
     });
     row.appendChild(dry);
   }
 
   const choices: Array<[string, "allow" | "allowAlways" | "deny", string]> = [
-    ["Allow", "allow", "allow"],
-    ["Always allow in this chat", "allowAlways", "always"],
-    ["Deny", "deny", "deny"],
+    [t("Allow"), "allow", "allow"],
+    [t("Always allow in this chat"), "allowAlways", "always"],
+    [t("Deny"), "deny", "deny"],
   ];
   for (const [label, decision, cls] of choices) {
     const button = document.createElement("button");
@@ -294,12 +296,13 @@ function showApproval(pending: ChatPendingApproval): void {
       // `busy:false` both re-sync if a message is ever lost.
       settleApproval(
         pending.callId,
-        decision === "deny" ? "Denied." : "Allowed — running…"
+        decision === "deny" ? t("Denied.") : t("Allowed — running…")
       );
     });
     row.appendChild(button);
   }
 
+  msg.setAttribute("role", "status");
   chip.appendChild(row);
   // A validation already run for this call, replayed with the prompt: a
   // renderer reload must not silently discard the answer it is looking at.
@@ -327,8 +330,8 @@ function showDryRunResult(callId: string, result: { ok: boolean; text: string })
   const heading = document.createElement("div");
   heading.className = "dry-run-heading";
   heading.textContent = result.ok
-    ? "Validated without running — nothing was executed or written."
-    : "Validation failed — nothing was executed or written.";
+    ? t("Validated without running — nothing was executed or written.")
+    : t("Validation failed — nothing was executed or written.");
   const body = document.createElement("pre");
   body.textContent = result.text;
   block.appendChild(heading);
@@ -385,7 +388,7 @@ function addError(entry: Extract<ChatWireEntry, { kind: "error" }>): void {
   if (entry.errorKind === "auth" || entry.errorKind === "noKey") {
     const button = document.createElement("button");
     button.className = "btn btn-primary btn-sm";
-    button.textContent = "Open Settings…";
+    button.textContent = t("Open Settings…");
     button.addEventListener("click", () => post({ type: "openSettings" }));
     el.appendChild(button);
   }
@@ -423,7 +426,7 @@ function addEntry(entry: ChatWireEntry): void {
 
 // ---- history popover ---------------------------------------------------------
 
-const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+const relative = new Intl.RelativeTimeFormat(currentLocale(), { numeric: "auto" });
 const UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
   ["year", 365 * 24 * 3600e3],
   ["month", 30 * 24 * 3600e3],
@@ -439,13 +442,14 @@ function relativeTime(updatedAt: number): string {
   for (const [unit, ms] of UNITS) {
     if (Math.abs(delta) >= ms) return relative.format(Math.round(delta / ms), unit);
   }
-  return "just now";
+  return t("just now");
 }
 
 /** Swaps the title for an input in place; Enter commits, Escape/blur cancels. */
 function startRename(convo: ChatConversationInfo, titleSpan: HTMLSpanElement): void {
   const field = document.createElement("input");
   field.className = "convo-rename field";
+  field.setAttribute("aria-label", t("Rename"));
   field.value = convo.title;
   let done = false;
   const finish = (commit: boolean) => {
@@ -489,14 +493,16 @@ function conversationRow(convo: ChatConversationInfo): HTMLDivElement {
   open.appendChild(when);
   open.addEventListener("click", () => {
     historyEl.hidden = true;
+    historyBtn.setAttribute("aria-expanded", "false");
+    input.focus();
     if (convo.id !== activeId) post({ type: "selectConversation", id: convo.id });
   });
 
   const rename = document.createElement("button");
   rename.className = "convo-act icon-btn";
   rename.innerHTML = glyph("pencil", "sm");
-  rename.setAttribute("aria-label", "Rename");
-  rename.title = "Rename";
+  rename.setAttribute("aria-label", t("Rename"));
+  rename.title = t("Rename");
   rename.addEventListener("click", () => startRename(convo, title));
 
   // Two-click armed rather than a modal: this renderer has no dialog, and
@@ -504,8 +510,8 @@ function conversationRow(convo: ChatConversationInfo): HTMLDivElement {
   const del = document.createElement("button");
   del.className = "convo-act icon-btn";
   del.innerHTML = glyph("trash", "sm");
-  del.title = "Delete";
-  del.setAttribute("aria-label", "Delete");
+  del.title = t("Delete");
+  del.setAttribute("aria-label", t("Delete"));
   del.addEventListener("click", () => {
     if (del.classList.contains("armed")) {
       post({ type: "deleteConversation", id: convo.id });
@@ -513,7 +519,7 @@ function conversationRow(convo: ChatConversationInfo): HTMLDivElement {
     }
     disarmAll();
     del.classList.add("armed");
-    del.textContent = "Delete?";
+    del.textContent = t("Delete?");
   });
 
   row.appendChild(open);
@@ -536,7 +542,7 @@ function renderConversations(list: ChatConversationInfo[], active: string): void
   if (!list.length) {
     const empty = document.createElement("div");
     empty.className = "convo-empty";
-    empty.textContent = "No saved conversations yet.";
+    empty.textContent = t("No saved conversations yet.");
     historyEl.appendChild(empty);
     return;
   }
@@ -558,7 +564,7 @@ function renderServers(servers: ChatServerStatus[]): void {
       const button = document.createElement("button");
       button.className = "btn btn-primary btn-sm";
       const action = view.action;
-      button.textContent = action === "installKratosRuntime" ? "Install uv for KKSS" : "Retry";
+      button.textContent = action === "installKratosRuntime" ? t("Install uv for KKSS") : t("Retry");
       button.addEventListener("click", () => {
         button.disabled = true;
         api.post({ type: action });
@@ -566,7 +572,7 @@ function renderServers(servers: ChatServerStatus[]): void {
       panel.appendChild(button);
       if (action === "installKratosRuntime") {
         const hint = document.createElement("p");
-        hint.textContent = "Downloads uv from Astral into KKSS’s data directory. Your system installation and PATH stay unchanged.";
+        hint.textContent = t("Downloads uv from Astral into KKSS’s data directory. Your system installation and PATH stay unchanged.");
         panel.appendChild(hint);
       }
     }
@@ -578,10 +584,10 @@ function renderServers(servers: ChatServerStatus[]): void {
     dot.className = `server-dot ${server.state}`;
     const detail =
       server.state === "ready"
-        ? `${server.toolCount ?? 0} tools`
+        ? t("{0} tools", {0: server.toolCount ?? 0})
         : server.state === "starting"
-          ? "starting…"
-          : `unavailable — ${server.error ?? "unknown error"}`;
+          ? t("starting…")
+          : t("unavailable — {0}", {0: server.error ?? t("unknown error")});
     dot.title = `${server.name}: ${detail}`;
     serversEl.appendChild(dot);
   }
@@ -613,20 +619,20 @@ function renderUsage(usage: ChatUsage | undefined): void {
     usage.contextWindow ? `${compactTokens(usage.lastInput)}/${compactTokens(usage.contextWindow)}` : compactTokens(usage.lastInput),
   ];
   if (usage.costUsd !== undefined) parts.push(usage.costUsd < 0.01 ? "<$0.01" : `$${usage.costUsd.toFixed(2)}`);
-  if (usage.billingMode === "subscription") parts.push("Subscription");
-  if (usage.billingMode === "mixed") parts.push("Mixed providers");
+  if (usage.billingMode === "subscription") parts.push(t("Subscription"));
+  if (usage.billingMode === "mixed") parts.push(t("Mixed providers"));
   usageEl.textContent = parts.join(" · ");
 
   const share = usage.contextWindow ? usage.lastInput / usage.contextWindow : 0;
   usageEl.classList.toggle("near-limit", share >= 0.8);
 
   const detail = [
-    `Model: ${usage.model}`,
-    `Last request: ${usage.lastInput.toLocaleString()} input tokens${usage.contextWindow ? ` of ${usage.contextWindow.toLocaleString()}` : ""}`,
-    `This conversation: ${usage.input.toLocaleString()} in, ${usage.output.toLocaleString()} out`,
-    `Cache: ${usage.cacheRead.toLocaleString()} read, ${usage.cacheWrite.toLocaleString()} written`,
+    t("Model: {0}", {0: usage.model}),
+    t("Last request: {0} input tokens{1}", {0: usage.lastInput.toLocaleString(), 1: usage.contextWindow ? t(" of {0}", {0: usage.contextWindow.toLocaleString()}) : ""}),
+    t("This conversation: {0} in, {1} out", {0: usage.input.toLocaleString(), 1: usage.output.toLocaleString()}),
+    t("Cache: {0} read, {1} written", {0: usage.cacheRead.toLocaleString(), 1: usage.cacheWrite.toLocaleString()}),
   ];
-  if (usage.costUsd === undefined) detail.push(usage.billingMode === "subscription" ? "Subscription usage; provider limits apply. API prices do not represent your bill." : usage.billingMode === "mixed" ? "Mixed providers or billing modes — token counts only." : "No pricing on record for this model — token counts only.");
+  if (usage.costUsd === undefined) detail.push(usage.billingMode === "subscription" ? t("Subscription usage; provider limits apply. API prices do not represent your bill.") : usage.billingMode === "mixed" ? t("Mixed providers or billing modes — token counts only.") : t("No pricing on record for this model — token counts only."));
   usageEl.title = detail.join("\n");
 }
 
@@ -645,9 +651,9 @@ function renderCompaction(count: number | undefined): void {
   compactionEl.hidden = false;
   compactionEl.textContent =
     count === 1
-      ? "1 older tool result is no longer sent to the model, to fit the context window."
-      : `${count} older tool results are no longer sent to the model, to fit the context window.`;
-  compactionEl.title = "The transcript still shows them in full. The assistant can re-run a tool if it needs the result again.";
+      ? t("1 older tool result is no longer sent to the model, to fit the context window.")
+      : t("{0} older tool results are no longer sent to the model, to fit the context window.", {0: count});
+  compactionEl.title = t("The transcript still shows them in full. The assistant can re-run a tool if it needs the result again.");
 }
 
 // ---- busy / composer state ---------------------------------------------------
@@ -655,11 +661,12 @@ function renderCompaction(count: number | undefined): void {
 function setBusy(value: boolean): void {
   busy = value;
   sendBtn.innerHTML = sendLabel(busy);
+  sendBtn.setAttribute("aria-label", busy ? t("Stop") : t("Send message"));
   sendBtn.classList.toggle("stop", busy);
   // The turn ended with a prompt still open — Stop, a conversation switch, a
   // delete or a quit. One line here covers every one of them without the
   // renderer needing to know which happened.
-  if (!busy && armedApproval) settleApproval(armedApproval, "Cancelled.");
+  if (!busy && armedApproval) settleApproval(armedApproval, t("Cancelled."));
 }
 
 function submit(): void {
@@ -683,6 +690,7 @@ input.addEventListener("keydown", (event) => {
 });
 historyBtn.addEventListener("click", () => {
   historyEl.hidden = !historyEl.hidden;
+  historyBtn.setAttribute("aria-expanded", String(!historyEl.hidden));
   // Re-list on open so the relative times (and any eviction) are current.
   if (!historyEl.hidden) post({ type: "listConversations" });
 });
@@ -692,7 +700,7 @@ newBtn.addEventListener("click", () => {
 });
 hideBtn.addEventListener("click", () => post({ type: "hide" }));
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !historyEl.hidden) historyEl.hidden = true;
+  if (event.key === "Escape" && !historyEl.hidden) { historyEl.hidden = true; historyBtn.setAttribute("aria-expanded", "false"); historyBtn.focus(); }
 });
 
 // ---- host messages -----------------------------------------------------------
@@ -707,7 +715,7 @@ api.onMessage((raw) => {
       // The tooltip stays the provider label; the visible name is the
       // conversation, which is what tells two of them apart.
       titleEl.title = msg.providerLabel;
-      titleEl.textContent = msg.conversationTitle || "AI Chat";
+      titleEl.textContent = msg.conversationTitle || t("AI Chat");
       renderConversations(msg.conversations, msg.conversationId);
       msg.entries.forEach(addEntry);
       // After the entries, so the chip it attaches to exists. This is what
@@ -741,7 +749,7 @@ api.onMessage((raw) => {
         const chip = chipFor(msg.callId);
         if (chip) setToolStatus(chip, "denied", "⊘");
       }
-      settleApproval(msg.callId, msg.approval === "denied" ? "Denied." : "Allowed — running…");
+      settleApproval(msg.callId, msg.approval === "denied" ? t("Denied.") : t("Allowed — running…"));
       break;
     case "conversations": {
       renderConversations(msg.conversations, msg.activeId);
@@ -750,7 +758,9 @@ api.onMessage((raw) => {
       break;
     }
     case "entry":
-      addEntry(msg.entry);
+      // Assistant entries are finalized by assistantDone, which replaces the
+      // streaming bubble. Rendering both messages duplicates every reply.
+      if (msg.entry.kind !== "assistant") addEntry(msg.entry);
       break;
     case "assistantStart":
       streaming = { el: addAssistant(""), text: "" };
@@ -762,12 +772,13 @@ api.onMessage((raw) => {
       scrollDown();
       break;
     case "assistantDone":
+      document.getElementById("announcement")!.textContent = t("Assistant response ready");
       if (streaming && msg.entry.kind === "assistant") {
         renderRich(streaming.el, msg.entry.text);
         if (msg.entry.stopped) {
           const note = document.createElement("div");
           note.className = "stopped";
-          note.textContent = "(stopped)";
+          note.textContent = t("(stopped)");
           streaming.el.appendChild(note);
         }
         if (!msg.entry.text.trim() && !msg.entry.stopped) streaming.el.remove();

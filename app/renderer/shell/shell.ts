@@ -1,3 +1,5 @@
+import "../localization";
+import { t } from "../../shared/i18n";
 /** Shell toolbar: mode toggle, Open button, project-root chip, current-file
  *  title, toasts, tab strip. */
 import type { Mode, Screen, ShellTabInfo, ShellToWebview } from "../../main/ipc";
@@ -62,13 +64,13 @@ function setZoomValue(factor: number): void {
 }
 
 // TikZ-generated, currentColor-based glyphs (icons/tikz-ui — see icons/README.md).
-homeBtn.innerHTML = withLabel(icon("home"), "Home");
-btnCad.innerHTML = withLabel(icon("preMode"), "Pre-Processing");
-btnMesh.innerHTML = withLabel(icon("postMode"), "Post-Processing");
-openBtn.innerHTML = withLabel(icon("open"), "Open…");
-editBtn.innerHTML = withLabel(icon("edit"), "Edit");
-terminalBtn.innerHTML = withLabel(icon("terminal"), "Terminal");
-chatBtn.innerHTML = withLabel(icon("chat"), "Chat");
+homeBtn.innerHTML = withLabel(icon("home"), t("Home"));
+btnCad.innerHTML = withLabel(icon("preMode"), t("Pre-Processing"));
+btnMesh.innerHTML = withLabel(icon("postMode"), t("Post-Processing"));
+openBtn.innerHTML = withLabel(icon("open"), t("Open…"));
+editBtn.innerHTML = withLabel(icon("edit"), t("Edit"));
+terminalBtn.innerHTML = withLabel(icon("terminal"), t("Terminal"));
+chatBtn.innerHTML = withLabel(icon("chat"), t("Chat"));
 
 let editorTitle: string | null = null;
 let editorDirty = false;
@@ -84,7 +86,7 @@ const tabState: Record<Mode, { tabs: ShellTabInfo[]; activeTabId: string | undef
 function dirtyDot(): HTMLSpanElement {
   const dot = document.createElement("span");
   dot.className = "ui-dot";
-  dot.title = "Unsaved changes";
+  dot.title = t("Unsaved changes");
   return dot;
 }
 
@@ -93,8 +95,10 @@ function renderMode(): void {
   btnMesh.classList.toggle("active", screen === "mesh");
   btnCad.setAttribute("aria-selected", String(screen === "cad"));
   btnMesh.setAttribute("aria-selected", String(screen === "mesh"));
+  btnCad.tabIndex = screen === "mesh" ? -1 : 0;
+  btnMesh.tabIndex = screen === "mesh" ? 0 : -1;
   if (screen === "editor") {
-    fileTitle.textContent = editorTitle ?? "Text editor";
+    fileTitle.textContent = editorTitle ?? t("Text editor");
     if (editorTitle && editorDirty) fileTitle.append(dirtyDot());
     return;
   }
@@ -111,31 +115,51 @@ function renderTabStrip(): void {
   }
   const mode = activeScreen;
   tabStrip.hidden = false;
+  const focusId = (document.activeElement as HTMLElement)?.closest<HTMLElement>("[data-tab-id]")?.dataset.tabId;
+  const focusClose = document.activeElement?.classList.contains("tab-close");
   tabStrip.innerHTML = "";
   const { tabs, activeTabId } = tabState[mode];
   for (const tab of tabs) {
     const row = document.createElement("div");
     row.className = tab.id === activeTabId ? "tab active" : "tab";
-    row.setAttribute("role", "tab");
+    row.setAttribute("role", "presentation");
+    row.dataset.tabId = tab.id;
+    row.addEventListener("keydown", event => {
+      if (!(event.target as HTMLElement).classList.contains("tab-label")) return;
+      const index = tabs.indexOf(tab);
+      const target = event.key === "Home" ? tabs[0] : event.key === "End" ? tabs[tabs.length - 1]
+        : event.key === "ArrowRight" ? tabs[(index + 1) % tabs.length] : event.key === "ArrowLeft" ? tabs[(index + tabs.length - 1) % tabs.length] : undefined;
+      if (target) {
+        event.preventDefault();
+        tabStrip.querySelector<HTMLElement>(`[data-tab-id="${target.id}"] .tab-label`)?.focus();
+        api.post({ type: "selectTab", mode, tabId: target.id });
+      } else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); row.click(); }
+      else if (event.key === "Delete") { event.preventDefault(); api.post({ type: "closeTab", mode, tabId: tab.id }); }
+    });
     // A cloud document's real home is the remote folder, not the staging path,
     // so that is what the tooltip says.
     row.title = tab.cloud
       ? `${tab.cloud.provider} · ${tab.cloud.name}`
-      : (tab.fileName ?? "Untitled");
+      : (tab.fileName ?? t("Untitled"));
     row.addEventListener("click", () => api.post({ type: "selectTab", mode, tabId: tab.id }));
 
-    const label = document.createElement("span");
+    const label = document.createElement("button");
+    label.type = "button";
     label.className = "tab-label";
+    label.setAttribute("role", "tab");
+    label.setAttribute("aria-selected", String(tab.id === activeTabId));
+    label.tabIndex = tab.id === activeTabId ? 0 : -1;
     const cloudMark = tab.cloud ? "☁ " : "";
-    label.textContent = `${cloudMark}${tab.fileName ?? "Untitled"}`;
+    label.textContent = `${cloudMark}${tab.fileName ?? t("Untitled")}`;
     row.appendChild(label);
     if (tab.dirty) row.appendChild(dirtyDot());
 
     const close = document.createElement("button");
     close.className = "tab-close icon-btn";
+    close.tabIndex = tab.id === activeTabId ? 0 : -1;
     close.innerHTML = glyph("x", "sm");
-    close.title = "Close tab";
-    close.setAttribute("aria-label", "Close tab");
+    close.title = t("Close tab");
+    close.setAttribute("aria-label", t("Close tab"));
     close.addEventListener("click", (event) => {
       event.stopPropagation();
       api.post({ type: "closeTab", mode, tabId: tab.id });
@@ -148,10 +172,14 @@ function renderTabStrip(): void {
   const add = document.createElement("button");
   add.className = "tab-new icon-btn";
   add.innerHTML = glyph("plus");
-  add.setAttribute("aria-label", "New tab");
-  add.title = mode === "cad" ? "New pre-processing tab" : "New post-processing tab";
+  add.setAttribute("aria-label", t("New tab"));
+  add.title = mode === "cad" ? t("New pre-processing tab") : t("New post-processing tab");
   add.addEventListener("click", () => api.post({ type: "newTab", mode }));
   tabStrip.appendChild(add);
+  if (focusId) {
+    const target = tabStrip.querySelector<HTMLElement>(`[data-tab-id="${focusId}"]`) ?? tabStrip.querySelector<HTMLElement>(".tab.active");
+    target?.querySelector<HTMLElement>(focusClose ? ".tab-close" : ".tab-label")?.focus();
+  }
 }
 
 homeBtn.addEventListener("click", () => api.post({ type: "goHome" }));
@@ -182,7 +210,7 @@ api.onMessage((raw) => {
       if (msg.label) {
         rootBtn.innerHTML = `${glyph("folder")}<span id="root-btn-label"></span>`;
         (rootBtn.querySelector("#root-btn-label") as HTMLElement).textContent = msg.label;
-        rootBtn.title = `Project root: ${msg.display ?? msg.label}\nClick to change`;
+        rootBtn.title = t("Project root: {0}\nClick to change", {0: msg.display ?? msg.label});
       }
       rootBtn.hidden = !msg.label;
       break;
@@ -196,6 +224,7 @@ api.onMessage((raw) => {
     case "toast": {
       const el = document.createElement("div");
       el.className = `toast ${msg.kind}`;
+      el.setAttribute("role", msg.kind === "error" ? "alert" : "status");
       el.dataset.toastId = String(msg.id);
       if (msg.kind === "progress") {
         const spin = document.createElement("span");
@@ -240,14 +269,14 @@ renderMode();
 
 const jobsBtn = byId<HTMLButtonElement>("jobs-btn");
 const jobsIcon = glyph("listChecks");
-jobsBtn.innerHTML = withLabel(jobsIcon, "Jobs");
+jobsBtn.innerHTML = withLabel(jobsIcon, t("Jobs"));
 jobsBtn.addEventListener("click", () => api.post({ type: "toggleJobs" }));
 api.onMessage((raw) => {
   const msg = raw as ShellToWebview;
   if (msg.type !== "jobs") return;
-  jobsBtn.innerHTML = withLabel(jobsIcon, msg.active ? `Jobs (${msg.active})` : "Jobs");
+  jobsBtn.innerHTML = withLabel(jobsIcon, msg.active ? t("Jobs ({0})", {0: msg.active}) : t("Jobs"));
   jobsBtn.setAttribute("aria-pressed", String(msg.visible));
-  jobsBtn.title = msg.stale ? "Kratos jobs — status unavailable; showing last known count" : "Kratos background jobs";
+  jobsBtn.title = msg.stale ? t("Kratos jobs — status unavailable; showing last known count") : t("Kratos background jobs");
 });
 
 // Terminal and Chat are plain toggles: the main process is the source of truth
@@ -261,3 +290,10 @@ api.onMessage((raw) => {
 });
 
 api.post({ type: "shellReady" });
+
+for (const button of [btnCad, btnMesh]) button.addEventListener("keydown", event => {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const target = event.key === "Home" ? btnCad : event.key === "End" ? btnMesh : button === btnCad ? btnMesh : btnCad;
+  target.focus(); target.click();
+});

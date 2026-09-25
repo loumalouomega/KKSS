@@ -1,0 +1,94 @@
+{
+  "id": "structural",
+  "title": "Structural cantilever",
+  "problemtype": "structural",
+  "source": "cad/examples/STP/block.stp",
+  "geometry": "cantilever.stp",
+  "ops": [
+    {
+      "op": "scale",
+      "targets": [
+        "solid-0"
+      ],
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "factors": [
+        6,
+        1,
+        1
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "Solid",
+      "volumes": [
+        "solid-0"
+      ]
+    },
+    {
+      "name": "Support",
+      "surfaces": [
+        "face-3"
+      ]
+    },
+    {
+      "name": "Load",
+      "surfaces": [
+        "face-1"
+      ]
+    }
+  ],
+  "options": {
+    "dimension": 3,
+    "sizeMin": 0.8,
+    "sizeMax": 0.8
+  },
+  "problem": {
+    "analysisType": "non_linear",
+    "endTime": 1,
+    "timeStep": 0.125
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Solid",
+      "values": {}
+    },
+    {
+      "conditionId": "displacement",
+      "smpPath": "Support",
+      "values": {
+        "value": [
+          0,
+          0,
+          0
+        ],
+        "constrained": true
+      }
+    },
+    {
+      "conditionId": "surfacePressure",
+      "smpPath": "Load",
+      "values": {
+        "value": 100000
+      }
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Solid",
+      "lawId": "linear_elastic_3d",
+      "values": {
+        "DENSITY": 0,
+        "YOUNG_MODULUS": 210000000000,
+        "POISSON_RATIO": 0.3
+      }
+    }
+  ],
+  "field": "DISPLACEMENT",
+  "exportUnit": "m"
+}

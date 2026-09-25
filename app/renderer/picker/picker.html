@@ -7,14 +7,14 @@
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
   <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./picker.css" rel="stylesheet" />
-  <title>KKSS Picker</title>
+  <title data-i18n="KKSS Picker">KKSS Picker</title>
 </head>
 <body>
   <div id="picker">
     <div id="picker-title"></div>
-    <input id="picker-input" class="field" type="text" hidden />
-    <div id="picker-list"></div>
-    <div id="picker-hint">Enter to confirm · Esc to cancel</div>
+    <input id="picker-input" aria-labelledby="picker-title" class="field" type="text" hidden />
+    <div id="picker-list" role="listbox" tabindex="0" aria-labelledby="picker-title"></div>
+    <div id="picker-hint" data-i18n="Enter to confirm · Esc to cancel">Enter to confirm · Esc to cancel</div>
   </div>
   <script src="./picker.js"></script>
 </body>

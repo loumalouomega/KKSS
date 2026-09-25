@@ -143,3 +143,5 @@ body {
 .tab-new {
   align-self: center;
 }
+
+button.tab-label { border: 0; background: transparent; color: inherit; font: inherit; padding: 0; cursor: pointer; }

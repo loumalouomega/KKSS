@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n";
 /**
  * Text-editor backend: owns the current file path + dirty state and does all
  * fs work (the CodeMirror renderer never touches the filesystem). Bridged to
@@ -120,7 +121,7 @@ export class EditorService {
   async open(): Promise<void> {
     if (!(await this.confirmDiscard())) return;
     const result = await dialog.showOpenDialog(this.deps.getWindow(), {
-      title: "Open in Text Editor",
+      title: t("Open in Text Editor"),
       filters: FILE_FILTERS,
       // This service talks to Electron directly rather than through
       // services/dialogs.ts, so it applies the project-root default itself.
@@ -141,8 +142,8 @@ export class EditorService {
     if (!this.dirty) return true;
     const { response } = await dialog.showMessageBox(this.deps.getWindow(), {
       type: "warning",
-      message: `Discard unsaved changes to ${this.currentPath ? path.basename(this.currentPath) : "the current file"}?`,
-      buttons: ["Discard changes", "Cancel"],
+      message: t("Discard unsaved changes to {0}?", {0: this.currentPath ? path.basename(this.currentPath) : "the current file"}),
+      buttons: [t("Discard changes"), t("Cancel")],
       defaultId: 1,
       cancelId: 1,
     });
@@ -153,12 +154,12 @@ export class EditorService {
     const name = path.basename(fsPath);
     const stat = await fs.promises.stat(fsPath);
     if (stat.size > MAX_EDIT_BYTES) {
-      toast("warning", `${name} is too large to edit as text (${Math.round(stat.size / 1024 / 1024)} MB).`);
+      toast("warning", t("{0} is too large to edit as text ({1} MB).", {0: name, 1: Math.round(stat.size / 1024 / 1024)}));
       return;
     }
     const buffer = await fs.promises.readFile(fsPath);
     if (looksBinary(buffer)) {
-      toast("warning", `${name} is a binary file — it can't be edited as text.`);
+      toast("warning", t("{0} is a binary file — it can't be edited as text.", {0: name}));
       return;
     }
     this.currentPath = fsPath;
@@ -202,7 +203,7 @@ export class EditorService {
     let target = this.currentPath;
     if (saveAs || !target) {
       const result = await dialog.showSaveDialog(this.deps.getWindow(), {
-        title: "Save As",
+        title: t("Save As"),
         // An open document keeps its own folder; an unsaved buffer lands in the
         // project root instead of wherever the OS last left the picker.
         defaultPath: target ?? projectRoot.effective(),
@@ -230,8 +231,8 @@ export class EditorService {
     const win = this.deps.getWindow();
     const { response } = await dialog.showMessageBox(win, {
       type: "warning",
-      message: `Save changes to ${this.currentPath ? path.basename(this.currentPath) : "the edited file"}?`,
-      buttons: ["Save", "Don't Save", "Cancel"],
+      message: t("Save changes to {0}?", {0: this.currentPath ? path.basename(this.currentPath) : "the edited file"}),
+      buttons: [t("Save"), t("Don't Save"), t("Cancel")],
       defaultId: 0,
       cancelId: 2,
     });

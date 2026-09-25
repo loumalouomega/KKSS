@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "measuredAt": "2026-09-24T16:57:16.352Z",
+  "method": "five fresh processes/profiles; no WASM warmup; filesystem cache uncontrolled",
+  "revisions": {
+    "app": "732bc80b0e6f5a6fbe87196729905e1f0b70f214",
+    "cad": "96b74cc9941076a77bfef8b281a50348547a7781",
+    "mesh": "f35e5d171de63637cfa4b2ac9c8354f8d11aefe7",
+    "dirty": true
+  },
+  "runtime": {
+    "node": "v26.10.0",
+    "electron": "44.4.3"
+  },
+  "machine": {
+    "platform": "linux",
+    "release": "7.2.6-1-cachyos",
+    "arch": "x64",
+    "cpu": "AMD Ryzen 7 255 w/ Radeon 780M Graphics",
+    "cores": 16,
+    "memory": 24430292992,
+    "rendering": [
+      "--use-gl=angle",
+      "--use-angle=swiftshader",
+      "--disable-gpu-compositing",
+      "--disable-dev-shm-usage"
+    ]
+  },
+  "fixtures": {
+    "geometry": {
+      "file": "cad/examples/STP/bull.stp",
+      "sha256": "c41e1910de882ddbac51c648098411d4a7c680bf369b988bca9877f0f11c4ce4"
+    },
+    "model": {
+      "file": "mesh/src/test/fixtures/regions/UUea.inp",
+      "sha256": "0263bf32e6bd93bbdaf9fe0ff531aaad9ac9af8722100ef8f92813f8c2ccdb3b"
+    }
+  },
+  "samples": {
+    "launch": [
+      797.248046875,
+      753.419677734375,
+      753.268310546875,
+      723.09423828125,
+      736.300537109375
+    ],
+    "geometry": [
+      2318.43359375,
+      2126.0556640625,
+      2233.56591796875,
+      2197.764404296875,
+      2235.501220703125
+    ],
+    "model": [
+      518.42626953125,
+      517.50244140625,
+      516.881591796875,
+      511.64208984375,
+      530.033203125
+    ]
+  },
+  "medians": {
+    "launch": 753.268310546875,
+    "geometry": 2233.56591796875,
+    "model": 517.50244140625
+  }
+}

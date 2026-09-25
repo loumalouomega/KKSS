@@ -44,5 +44,13 @@ jobs:
 
       - run: npm test
 
-      - name: Smoke test (headless Electron, both modes)
-        run: xvfb-run -a node tools/smoke.e2e.mjs
+      - name: End-to-end acceptance (headless Electron)
+        run: xvfb-run -a npm run e2e
+
+      - name: Upload E2E failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-e2e-failures
+          path: test-results/
+          if-no-files-found: ignore

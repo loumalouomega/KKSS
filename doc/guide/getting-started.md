@@ -35,6 +35,8 @@ The toolbar at the top of the window holds the mode toggle:
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved. The two viewers share one layout — a document chip in the menubar, an icon-headed sidebar with a collapsed **Advanced** group, a floating toolbar and dock, and a status bar — described in [Pre-Processing](/guide/cad-mode#reading-the-window-at-a-glance) and [Post-Processing](/guide/mesh-mode#reading-the-window-at-a-glance). The app's own toolbar, home screen, chat and jobs panels use the same look, and the **Terminal**, **Chat** and **Jobs** buttons show as pressed while their panel is open.
 
+For a complete first simulation, follow the [geometry-to-results tutorials](/guide/tutorial-geometry-to-results): each of the five built-in physics cases starts with CAD geometry, runs through the Problemtype sidebar and checks actual solver results.
+
 ### The project folder
 
 **File ▸ Open Folder…** sets a project folder — the one place KKSS treats as "where you are working". It is remembered across launches, shown in the toolbar (hover for the full path, click to change) and on the home screen, and it seeds:
@@ -321,7 +323,7 @@ Viewer actions (mesh quality, field visualization, find entity…) are *not* in 
 
 ### Tabs — several open documents at once
 
-Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the toolbar, one per open document. Click **+** at the end of the strip, or **File ▸ New CAD Tab** / **New Mesh Tab**, to open a second document alongside the first — each tab keeps its own camera position, edit history, and (in Post-Processing) its own Flowgraph session, completely independent of the others. Click a tab to switch to it; click its **×** to close it (closing needs no confirmation — nothing about tabs is unsaved in the way a text buffer can be, since both viewers autosave their sidecars). A mesh exported from a Pre-Processing tab (**File ▸ Export…** to `.mdpa`/`.vtk`/…) opens in a *new* Post-Processing tab rather than replacing whatever you're currently viewing there.
+Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the toolbar, one per open document. Click **+** at the end of the strip, or **File ▸ New CAD Tab** / **New Mesh Tab**, to open a second document alongside the first — each tab keeps its own camera position, edit history, and (in Post-Processing) its own Flowgraph session, completely independent of the others. Click a tab to switch to it; click its **×** to close it (closing needs no confirmation — nothing about tabs is unsaved in the way a text buffer can be, since both viewers autosave their sidecars). A mesh exported from a Pre-Processing tab (**File ▸ Export…** to `.mdpa`/`.vtk`/…) opens in a *new* Post-Processing tab. Exporting again to the same path refreshes its existing tab if it has no unsaved mesh edits; unrelated and dirty tabs are preserved.
 
 ## Keyboard shortcuts
 
@@ -355,3 +357,15 @@ from the Command Palette and the Kratos Runs tree — neither of which KKSS runs
 
 A mesh tab with unsaved operations shows a dot in the tab strip; closing it, or quitting with one
 open, prompts Save / Don't Save / Cancel.
+
+### Language and keyboard navigation
+
+Choose **Settings → Language** to select English or Spanish. Restart KKSS for the
+change to reach menus, panels and dialogs. CAD-Preview and VSCode-MDPA-Preview
+keep their own interface language. Press `F6` to move forward through the
+visible regions and `Shift+F6` to move backward; hidden panels are skipped and
+closing a panel returns focus to the region that opened it. In the document tab
+strip, use the arrow keys or Home/End to move between tabs, Enter to activate a
+tab, and Delete to close it.
+
+Mesh mode also provides **Selection** in the toolbar, **Properties editor…** under Advanced, and **Probe line** inside Inspect. See [selection, Properties and line probes](./mesh-mode#selection-properties-and-line-probes) for editing, export and timeline behavior. The AI assistant can select entities by predicate and apply property or selection-based edits through the mesh tools.

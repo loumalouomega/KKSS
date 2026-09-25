@@ -210,9 +210,9 @@ jsonschema-specifications==2025.9.1 \
     --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe \
     --hash=sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d
     # via jsonschema
-kratos-mcp-server==0.3.0 \
-    --hash=sha256:67a012dfa009c46e9f78114593c85d6393b618caf4c5eff250e9cad05ec87407 \
-    --hash=sha256:7f3b1d050bfefac0101e3e864e831421086945f0cee36e0f75a9fb2281ba8ca0
+kratos-mcp-server==0.5.0 \
+    --hash=sha256:5eb7d94a89ee3a4362f9e3057f976087496a5551c1fb9a25a94641c722d18d4b \
+    --hash=sha256:de97517a0b043700623b3afdf5d0b97db91b1945eb2b1722c414e2c705a7cd53
     # via -r docker/kratos/requirements.in
 kratoscompressiblepotentialflowapplication==10.4.3 \
     --hash=sha256:0d22b8d6cb015c285cdfb17e805b167f605250add065e667aa003985d81222f4 \

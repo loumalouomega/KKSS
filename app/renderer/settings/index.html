@@ -6,21 +6,21 @@
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
   <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./settings.css" rel="stylesheet" />
-  <title>Settings</title>
+  <title data-i18n="Settings">Settings</title>
 </head>
 <body>
   <header id="top">
     <label id="search-box" class="field">
       <span id="search-icon"></span>
-      <input id="search" type="search" placeholder="Search settings" aria-label="Search settings" autocomplete="off" spellcheck="false" />
+      <input id="search" type="search" placeholder="Search settings" data-i18n-placeholder="Search settings" aria-label="Search settings" data-i18n-aria-label="Search settings" autocomplete="off" spellcheck="false" />
     </label>
     <span id="count" class="ui-num" aria-live="polite"></span>
   </header>
   <div id="layout">
-    <nav id="nav" aria-label="Categories"></nav>
+    <nav id="nav" aria-label="Categories" data-i18n-aria-label="Categories"></nav>
     <main id="rows" tabindex="-1"></main>
   </div>
-  <p id="empty" hidden>No settings match.</p>
+  <p id="empty" hidden data-i18n="No settings match.">No settings match.</p>
   <script src="./settings.js"></script>
 </body>
 </html>

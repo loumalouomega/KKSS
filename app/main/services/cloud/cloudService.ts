@@ -1,3 +1,4 @@
+import { t } from "../../../shared/i18n";
 /**
  * The one object `index.ts` and `menu.ts` talk to. Owns the three providers,
  * the staging cache, the sync engine, and the quick-pick file browser.
@@ -34,6 +35,7 @@ import { DropboxProvider } from "./providers/dropbox";
 import { GoogleDriveProvider } from "./providers/gdrive";
 import { OneDriveProvider } from "./providers/onedrive";
 import { StagingCache, type StagedDocument } from "./stagingCache";
+import { fixtureDirectory, fixtureProvider } from "./e2eProvider";
 import { CloudSync } from "./cloudSync";
 
 export interface CloudStatus {
@@ -66,6 +68,8 @@ export class CloudService {
   constructor(userDataDir: string = app.getPath("userData")) {
     this.cache = new StagingCache(path.join(userDataDir, "cloud-cache"));
     for (const id of PROVIDER_IDS) this.providers.set(id, makeProvider(id, storeFor(id)));
+    const fixture = fixtureDirectory(process.env, app.isPackaged);
+    if (fixture) this.providers.set("dropbox", fixtureProvider(fixture));
     this.sync = new CloudSync({
       provider: (id) => (this.providers.get(id)?.isConnected() ? this.providers.get(id) : undefined),
       entry: (key) => this.cache.entry(key),
@@ -127,7 +131,7 @@ export class CloudService {
     if (!provider) return;
     try {
       const account = await provider.connect();
-      toast("info", `Connected to ${provider.label} as ${account.label}.`);
+      toast("info", t("Connected to {0} as {1}.", {0: provider.label, 1: account.label}));
     } catch (err) {
       toast("error", describe(err));
     }
@@ -210,7 +214,7 @@ export class CloudService {
 
       const items: Row[] = [
         ...(trail.length > 1
-          ? [{ label: "⬆  ..", description: "Parent folder", kind: "up" as RowKind }]
+          ? [{ label: "⬆  ..", description: t("Parent folder"), kind: "up" as RowKind }]
           : []),
         ...accumulated.map((file) => ({
           label: file.isFolder ? `📁  ${file.name}` : file.name,
@@ -219,12 +223,12 @@ export class CloudService {
           file,
         })),
         ...(page.nextPageToken
-          ? [{ label: "Load more…", description: "This folder has more items", kind: "more" as RowKind }]
+          ? [{ label: t("Load more…"), description: t("This folder has more items"), kind: "more" as RowKind }]
           : []),
       ];
       // An empty folder still needs a row, or the picker shows nothing at all
       // and the user cannot tell it apart from a failed listing.
-      if (items.length === 0) items.push({ label: "(empty folder)", kind: "empty" });
+      if (items.length === 0) items.push({ label: t("(empty folder)"), kind: "empty" });
 
       const picked = await pickOne(items, trail.map((t) => t.label).join(" / "));
       if (!picked || picked.kind === "empty") return undefined;
@@ -361,8 +365,8 @@ export class CloudService {
     const names = dirty.map((d) => d.entry.name).join(", ");
     toast(
       "warning",
-      `${dirty.length} cloud file(s) have local changes that never reached the provider: ${names}. ` +
-        `They are safe in the staging cache — open one and save to retry.`
+      t("{0} cloud file(s) have local changes that never reached the provider: {1}. ", {0: dirty.length, 1: names}) +
+        t("They are safe in the staging cache — open one and save to retry.")
     );
   }
 

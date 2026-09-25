@@ -1,5 +1,5 @@
 # Python 3.12, linux/amd64 only. Regenerate with tools/lock-kratos.sh.
-kratos-mcp-server==0.3.0
+kratos-mcp-server==0.5.0
 mcp<2
 KratosMultiphysics==10.4.3
 KratosStructuralMechanicsApplication==10.4.3

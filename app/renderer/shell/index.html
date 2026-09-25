@@ -7,30 +7,30 @@
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
   <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./shell.css" rel="stylesheet" />
-  <title>KKSS Shell</title>
+  <title data-i18n="KKSS Shell">KKSS Shell</title>
 </head>
 <body>
   <div id="shell">
-    <span id="brand">KKSS</span>
-    <button id="home-btn" class="btn" title="Back to the main menu (Ctrl+0)">Home</button>
+    <span id="brand" data-i18n="KKSS">KKSS</span>
+    <button id="home-btn" class="btn" title="Back to the main menu (Ctrl+0)" data-i18n-title="Back to the main menu (Ctrl+0)">Home</button>
     <span class="tb-div"></span>
-    <div id="mode-toggle" class="seg" role="tablist" aria-label="Application mode">
-      <button id="mode-cad" class="mode-btn active" role="tab" title="Pre-processing: CAD geometry and model preparation">Pre-Processing</button>
-      <button id="mode-mesh" class="mode-btn" role="tab" title="Post-processing: mesh inspection, modification and results">Post-Processing</button>
+    <div id="mode-toggle" class="seg" role="tablist" aria-label="Application mode" data-i18n-aria-label="Application mode">
+      <button id="mode-cad" class="mode-btn active" role="tab" title="Pre-processing: CAD geometry and model preparation" data-i18n-title="Pre-processing: CAD geometry and model preparation">Pre-Processing</button>
+      <button id="mode-mesh" class="mode-btn" role="tab" title="Post-processing: mesh inspection, modification and results" data-i18n-title="Post-processing: mesh inspection, modification and results">Post-Processing</button>
     </div>
     <span class="tb-div"></span>
-    <button id="open-btn" class="btn" title="Open a file in the current mode (Ctrl+O)">Open&hellip;</button>
-    <button id="edit-btn" class="btn" title="Open the current file in the text editor">Edit</button>
+    <button id="open-btn" class="btn" title="Open a file in the current mode (Ctrl+O)" data-i18n-title="Open a file in the current mode (Ctrl+O)">Open&hellip;</button>
+    <button id="edit-btn" class="btn" title="Open the current file in the text editor" data-i18n-title="Open the current file in the text editor">Edit</button>
     <span class="tb-div"></span>
-    <button id="terminal-btn" class="btn" title="Toggle the embedded terminal (Ctrl+`)" aria-pressed="false">Terminal</button>
-    <button id="chat-btn" class="btn" title="Toggle the AI chat sidebar (Ctrl+Shift+L)" aria-pressed="false">Chat</button>
-    <button id="jobs-btn" class="btn" title="Kratos background jobs" aria-pressed="false">Jobs</button>
+    <button id="terminal-btn" class="btn" title="Toggle the embedded terminal (Ctrl+`)" data-i18n-title="Toggle the embedded terminal (Ctrl+`)" aria-pressed="false">Terminal</button>
+    <button id="chat-btn" class="btn" title="Toggle the AI chat sidebar (Ctrl+Shift+L)" data-i18n-title="Toggle the AI chat sidebar (Ctrl+Shift+L)" aria-pressed="false">Chat</button>
+    <button id="jobs-btn" class="btn" title="Kratos background jobs" data-i18n-title="Kratos background jobs" aria-pressed="false">Jobs</button>
     <button id="root-btn" class="btn btn-outline" type="button" hidden></button>
     <span id="file-title"></span>
-    <select id="zoom-select" class="field" title="Interface scale (Ctrl +/- , Ctrl+Shift+0 to reset)" aria-label="Interface scale"></select>
+    <select id="zoom-select" class="field" title="Interface scale (Ctrl +/- , Ctrl+Shift+0 to reset)" data-i18n-title="Interface scale (Ctrl +/- , Ctrl+Shift+0 to reset)" aria-label="Interface scale" data-i18n-aria-label="Interface scale"></select>
     <div id="toasts"></div>
   </div>
-  <div id="tab-strip" role="tablist" aria-label="Open documents" hidden></div>
+  <div id="tab-strip" role="tablist" aria-label="Open documents" data-i18n-aria-label="Open documents" hidden></div>
   <script src="./shell.js"></script>
 </body>
 </html>

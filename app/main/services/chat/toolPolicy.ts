@@ -19,7 +19,7 @@
  *   reworded description must not silently change a safety class.
  *
  * So: unlisted ⇒ `unknown` ⇒ ask. That is what makes the external
- * `kratos-mcp-server` (40 tools, resolved by uvx at runtime, not in this tree)
+ * `kratos-mcp-server` (tools resolved by uvx at runtime, not in this tree)
  * safe by default without pretending we know what its tools do.
  *
  * ## Judgment calls
@@ -38,8 +38,8 @@
  * - `cad__decompose_to_primitives` — **write** for the same reason: an optional
  *   `outputPath` writes a B-rep and `saveScript.libraryPath` writes the script
  *   library.
- * - `mesh__mesh_export_table`, `mesh__mesh_field_series` — **write**. They write
- *   only *when* `outputPath` is given, but this table is keyed by name and
+ * - `mesh__mesh_export_table`, `mesh__mesh_field_series`, `mesh__mesh_select`,
+ *   `mesh__mesh_probe` — **write**. They write only *when* `outputPath` is given, but this table is keyed by name and
  *   cannot see arguments, so the conservative class wins.
  * - `mesh__problemtype_list`, `mesh__problemtype_describe` — **write**, which is
  *   the least obvious row here. Given `workspaceDirs` they load workspace
@@ -188,6 +188,8 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__case_validate: "read",
   mesh__case_status: "read",
   mesh__case_evaluate_quantity: "read",
+  mesh__mesh_select: "write",
+  mesh__mesh_probe: "write",
   mesh__mesh_transform: "write",
   mesh__mesh_convert: "write",
   mesh__mesh_extract_submodelpart: "write",

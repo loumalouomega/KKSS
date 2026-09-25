@@ -1,6 +1,7 @@
 /*
  * Text editor page: a toolbar (shared `.btn`s) over the CodeMirror host. The
- * oneDark theme is CodeMirror's own and deliberately not restyled here.
+ * CodeMirror's dark syntax colors are contrast-tuned in editor.ts; this sheet
+ * owns the editor page layout and its theme-aware controls.
  */
 html,
 body {
@@ -40,6 +41,11 @@ body {
    an ID-specific rule here would override it. */
 #editor-host .cm-editor {
   height: 100%;
+}
+
+/* CodeMirror theme modules can be inserted after the user preference theme. */
+#editor-host .cm-editor .cm-gutters {
+  color: var(--vscode-editor-foreground) !important;
 }
 
 #editor-host .cm-editor.cm-focused {

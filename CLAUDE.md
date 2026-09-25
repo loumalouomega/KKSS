@@ -3,7 +3,8 @@
 Project memory for KKSS (Keep Kratos Simple Stupid) — an Electron desktop app
 for pre- and post-processing Kratos Multiphysics simulations, built on two
 VS Code extensions embedded as git submodules (`cad/` = CAD-Preview, `mesh/` =
-VSCode-MDPA-Preview) and reused **without modification**.
+VSCode-MDPA-Preview), with KKSS integration changes committed on their
+designated downstream branches.
 
 ## Commands
 
@@ -14,7 +15,8 @@ npm run build:app      # app only (skip submodule rebuild)
 npm run watch          # rebuild app bundles on change
 npm run typecheck      # tsc --noEmit (esbuild owns ALL emit — never tsc-emit)
 npm test               # vitest glue tests in test/ (submodules run their own suites)
-npm run smoke          # headless e2e (Linux: xvfb-run -a npm run smoke)
+npm run smoke          # quick viewer/Home checks
+npm run e2e            # full Electron acceptance (Linux: xvfb-run -a npm run e2e)
 npm start              # full build + launch
 npm run dist           # package installers into release/
 npm run docker:build   # build the streamed-desktop web image (docker compose build)
@@ -215,7 +217,7 @@ resubmitted automatically.
   after a mesh bump, rerun `npm run package --prefix mesh` so `mesh/dist/meshio/`
   is regenerated before the parent build copies it.
 - **Flowgraph embedding is a forked child process, not WASM.** The mesh
-  submodule's Flowgraph problemtype embeds the AGPL-3.0
+  submodule's Flowgraph problemtype embeds the AGPL-3.0-or-later
   `@kratos-flowgraph/flowgraph` node editor in an iframe backed by a small
   Express server the submodule forks on demand. `app/main/index.ts`
   owns one shared `FlowgraphController` (mirroring `mesh/src/extension.ts`
@@ -443,10 +445,10 @@ resubmitted automatically.
   formats, so they route to **cad** with no `router.ts` change at all. **Pre →
   post is one-way synced:** a mesh exported from
   CAD/pre that post mode can display (`.mdpa`, `.vtk`, …) auto-opens in a
-  **new** mesh tab (`CadHost.onMeshExported` → `createTab("mesh")` +
-  `openPath(...)` in `app/main/index.ts`, gated by `modeForFile` so
-  shared/CAD-only outputs never jump) — deliberately never replacing whatever
-  the user currently has focused in mesh mode. Post → pre is deliberately not
+  **new** mesh tab, or refreshes and focuses an existing clean tab for the
+  same resolved path (`CadHost.onMeshExported` in `app/main/index.ts`, gated
+  by `modeForFile` so shared/CAD-only outputs never jump). Unrelated tabs and
+  tabs with unsaved mesh operations are preserved. Post → pre is deliberately not
   synced. The text editor screen is **not** part of this tab model — it stays
   single-document with its own dirty-guard-on-close, unaffected.
 - **node-pty is the ONLY native module and the ONLY shipped node_modules
@@ -532,8 +534,8 @@ resubmitted automatically.
   `out/main.js` as a document). `KKSS_ALLOW_MULTIPLE_INSTANCES=1` opts out and
   **`tools/e2eShared.mjs` sets it** — the harness relaunches repeatedly and
   SIGKILLs the tree between runs, so a leftover lock would make every later
-  launch quit on startup; that also makes lock acquisition the one startup
-  path e2e never covers.
+  launch quit on startup. The lifecycle suite explicitly enables the lock with
+  an isolated profile and verifies acquisition, forwarding and reacquisition.
 - **`state.json` is written atomically, and never with a bare `writeFile`.**
   `app/main/services/jsonStore.ts` (the Electron-free half of `stateStore.ts`,
   split out to be testable — same shape as `chat/secretCodec.ts` under
@@ -696,7 +698,7 @@ resubmitted automatically.
   `session` and `restoreSession` were chosen that way.
 - **Session restore is opt-out, prunes first, and never records.** Gated by
   `KKSS_E2E` (the e2e harnesses launch the real app, so a restore would perturb
-  every case and screenshot), `KKSS_NO_RESTORE=1`, and **Settings ▸ Restore Last
+  every case and screenshot unless `KKSS_E2E_RESTORE=1` opts in), `KKSS_NO_RESTORE=1`, and **Settings ▸ Restore Last
   Session**; the gate covers restoring only — recording and saving stay live, or
   the docs' home-screen shot would have an empty recents list. It persists each
   mode's files plus the focused **path** (tab ids are a per-process counter; an
@@ -730,9 +732,10 @@ resubmitted automatically.
   installs), and **always pass `{...process.env}` to `StdioClientTransport`**
   — the MCP SDK otherwise strips env to a minimal set, silently losing PATH
   (breaks `uvx kratos-mcp-server`). The kratos server is **pinned** to
-  `KRATOS_MCP_VERSION` in `mcpManager.ts` (`uvx --with "mcp<2" kratos-mcp-server@<v>`) — bump
-  that constant to upgrade; its 40 tools + resources + prompts are discovered
-  at runtime, so nothing else changes. `McpManager` also aggregates MCP
+  `KRATOS_MCP_VERSION` in `kratosMcpVersion.ts` (`uvx --with "mcp<2" kratos-mcp-server@<v>`) — bump
+  that constant to upgrade; its tools + resources + prompts are discovered
+  at runtime. Update the Docker requirement and hash lock alongside the pin.
+  `McpManager` also aggregates MCP
   resources/prompts (surfaced to the chat as synthetic `mcp__*` tools via
   `chatTools()`). API keys go through `services/chat/secrets.ts`
   (safeStorage-encrypted in the stateStore) — never store them
@@ -1100,10 +1103,12 @@ resubmitted automatically.
 ## Verified submodule integration (Tier 0)
 
 CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
-(`55cf1ca`, also the `redesign` branch) are integrated without edits to either submodule. The recurring release-bump
-checklist lives in `doc/guide/development.md` under **Submodule release
-maintenance**; repeat it for every bump, including live MCP tool discovery
-(current sets: 56 CAD + 24 mesh + 4 aggregation + 30 app-owned workflow tools).
+(`55cf1ca`, also the `redesign` branch) are the integrated baseline. Later
+workflow changes on the designated branches are recorded below. The recurring
+release-bump checklist lives in `doc/guide/development.md` under **Submodule
+release maintenance**; repeat it for every bump, including live MCP tool
+discovery (current sets: 58 CAD + 26 mesh + 4 aggregation + 30 app-owned
+workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
 port, not just a gitlink bump.** Two classes of change, both in
@@ -1172,6 +1177,14 @@ port, not just a gitlink bump.** Two classes of change, both in
   file-open path routes to mesh mode instead, per `router.ts`'s
   `modeForFile`), which is itself a native dialog — verified by typecheck and
   line-by-line comparison against `provider.ts` instead.
+
+CAD-Preview 3.4 adds two interactive protocol branches KKSS carries in its
+host port: `meshSweepRequest` uses the shared `runMeshSweep` calculation with
+document-owned cancellation checks before each run and output write;
+`holeTableRequest` calls `computeHoleTable` through the existing
+`massProperties` worker module. Free-text annotation notes share the existing
+`.annotations.json` sidecar. Mesh 4.4's displacement multiplier stays in the
+viewer and arrives through the normal mesh 4.4.1 bundle build.
 
 **The cad 2.3.0 → 2.7.0 jump (four releases) needed one correctness fix and
 four small ports; mesh 3.27.0 → 4.0.7 needed no code at all.**
@@ -1308,6 +1321,79 @@ mesh body matches `buildPreviewHtml` with `startEmpty` omitted; all four
 meshio runtime files ship. Format routing tables, not approximate prose
 counts, define the supported read/write formats.
 
+## Localization, focus and performance checks
+
+The KKSS-owned interface locale uses `app/shared/i18n/en.json` as stable typed
+English keys and `es.json` for Spanish translations. `general.language` persists
+as `uiLanguage` and takes effect on the next launch; `configureLocale()` resets
+the settings registry after resolving the preference. Keep setting IDs, saved
+values, protocol fields, filenames, provider content and logs language-neutral.
+Static renderer copy is marked `data-i18n`; runtime-created app copy uses `t()`.
+Do not translate CAD/mesh upstream messages or user-authored content.
+
+`app/main/windows.ts` owns F6/Shift+F6 traversal of visible views, remembers a
+panel's invoking view, and sends `kkss:focus` after focus transfer and reload.
+The order is Shell, active content, Terminal, then Chat or Jobs; Home is the sole
+region while it covers the app. Keep hidden views out of this cycle. Shell mode
+and document tab controls have keyboard tab semantics and roving focus.
+
+`npm run perf` measures five fresh launches and five opens per fixture with new
+Electron processes and profiles; it does not flush the OS filesystem cache. The
+opt-in `KKSS_PERF_TRACE` instrumentation is ignored in packaged apps and records
+Home's interactive acknowledgement plus file-open completion correlated by
+absolute path. `UUea.inp` arrives through the mesh `vtkFrame` protocol; it is the
+model completion point for the meshio++ scenario. The report and baseline keep
+raw samples, medians, fixture SHA-256, gitlink revisions, runtime, host and
+rendering metadata. Warn above 3×; `PERF_STRICT=1` turns that warning into a
+failure. `--update-baseline` is explicit and must follow review of a deliberate
+change. Performance never gates ordinary CI.
+
+`test/verificationQuality.test.ts` pins translation keys/interpolations,
+stable setting IDs/values, focus-cycle math and timing correlation. The Electron
+scenario `tools/e2e/accessibility.mjs` exercises visible-view navigation and
+runs axe-core's WCAG 2.1 A/AA rules on representative app-owned pages in English
+and Spanish under all four application themes. This is automated coverage, not
+formal certification or manual screen-reader sign-off.
+
+## Geometry-to-results tutorials (Tier 1, verified)
+
+`doc/guide/tutorial-geometry-to-results.md` is the landing page for five manual
+CAD → MDPA → Problemtype → Kratos → VTK walkthroughs; each has a downloadable
+case and solver-produced results. Shared definitions live in
+`tools/tutorials/cases.mjs`; `generate.mjs` creates clean cases through the
+real CAD and mesh MCP servers, runs Kratos, and invokes `verify.py` for
+physical checks. `publish.mjs` freezes measured results, input hashes and
+CAD/mesh revisions into the archives. Verified on Python 3.12.14 / Kratos
+10.4.3 with two threads: structural 1048 nodes / 3896 elements and 1.786%
+beam-reference displacement error (25% limit); fluid 150 / 248, zero flux
+imbalance; thermal 263 / 814, 0.000019 K maximum linear-profile error
+(0.001 K limit); potential flow 150 / 248, 0.0000328 m/s maximum gradient
+error (0.001 m/s limit); shallow water 150 / 248, 4.0 m³ volume with zero
+measured depth error. Limits are separate from the recorded baselines.
+
+`manual.mjs` is also an Electron acceptance test: it opens each case in the
+real app, exports a fresh CAD mesh, configures and generates the Problemtype
+case in the sidebar, clicks **Run**, checks the terminal receipt and solver
+fields, then opens results and captures the selected field/timeline. The
+cantilever additionally verifies the display-only displacement warp at 1000×
+and captures both its deformed shape and von Mises stress. The full
+`npm run docs:screenshots` pipeline runs those five sessions and
+`assistant.mjs`; its local scripted OpenAI-compatible provider performs real
+tool calls and a solver run, tests dry-run/denial/approval and snapshot output,
+then reopens the persisted conversation without repeating tool calls. The
+transcript is labeled scripted and needs no provider credentials.
+
+Tutorial integration commits are CAD `ad236ece` on `kkss.dev` (including
+planar-domain export and CAD snapshot rendering in the KKSS worker) and mesh
+`9f33b560` on `kkss.dev` (solver-compatible built-in cases and Problemtype
+fixes). Mesh `0819bdc` extends the Field panel's display-only displacement
+warp to 1000× so small solver deformations remain inspectable; the cantilever
+tutorial captures it at 1000× without changing field values. The published
+`verification.json` files pin the full CAD and mesh generation revisions used
+for their solver baselines. `esbuild.mjs` copies CAD viewer assets to the
+runtime snapshot server. Keep submodule changes committed on the designated
+branch before moving these pointers.
+
 ## Screenshots are generated, not hand-captured
 
 `npm run docs:screenshots` (`tools/screenshots.mjs`) launches the **real app**
@@ -1320,11 +1406,11 @@ generated webview pages, or visible viewer behavior means re-running it** —
 don't hand-edit the PNGs. Prereq: one full `npm run build`; run headless with
 `env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots`. Shared
 launch helpers live in `tools/e2eShared.mjs` (used by the smoke test too).
-**Both harnesses launch with an isolated `--user-data-dir`** (`launchApp`'s
+**All screenshot harnesses launch with an isolated `--user-data-dir`** (`launchApp`'s
 `userDataDir`): the home screen renders the recent-files list, so the real
 profile would put whoever regenerated the PNGs into a committed image, and a
 fresh profile also pins theme/zoom/viewer defaults so the shots are
-reproducible. screenshots.mjs shares **one** temp profile across its four
+reproducible. screenshots.mjs shares **one** temp profile across its four base
 sessions *in order* — that is what makes the home shot deterministic, since the
 first three sessions are what populate its recents list.
 
@@ -1346,18 +1432,22 @@ together.
 
 ## License
 
-KKSS is **AGPL-3.0** because it distributes the GPL-2.0-or-later CAD-Preview
-engine (whose WASM statically links Gmsh + OpenCASCADE) together with the
-now-AGPL-3.0-or-later mesh engine — its Flowgraph problemtype embeds the
-AGPL-3.0 `@kratos-flowgraph/flowgraph` node editor. Before adding any
-dependency that ships in the packaged app, check GPL/AGPL compatibility first
-(same rule as cad's CLAUDE.md).
+KKSS is **AGPL-3.0-or-later** because it distributes the GPL-2.0-or-later
+CAD-Preview engine (whose WASM statically links Gmsh + OpenCASCADE) together
+with the AGPL-3.0-or-later mesh engine — its Flowgraph problemtype embeds the
+AGPL-3.0-or-later `@kratos-flowgraph/flowgraph` node editor. Every bundled
+GPL/AGPL component has an "or later" grant, which is what makes
+AGPL-3.0-or-later the correct (and least restrictive available) license for
+the combined distribution — not AGPL-3.0-only, which this project carried
+until 2026-09-24 as a stale holdover from a time when a dependency was more
+restrictive. Before adding any dependency that ships in the packaged app,
+check GPL/AGPL compatibility first (same rule as cad's CLAUDE.md).
 
 
 ## Kratos MCP jobs panel
 
 `JobsService` (`app/main/services/jobs.ts`) is one app-wide observer sharing
-`McpHub` with chat and the HTTP server. It discovers the pinned 0.3.0 server's
+`McpHub` with chat and the HTTP server. It discovers the pinned 0.5.0 server's
 persistent jobs via `job_list`, polls active `job_status`, retrieves 100-line
 `job_logs`, and exposes explicit user cancellation through `job_cancel`.
 It never owns or signals a solver process and has no duplicate persistent
@@ -1383,3 +1473,35 @@ explicit allowlist independent of model-initiated calls.
 Tests: `test/jobs.test.ts`, `test/kratosStartup.test.ts`; real Electron/MCP
 fixture scenario `tools/jobs.e2e.mjs` also supplies `kratos-jobs.png` to
 `tools/screenshots.mjs`. No real solver or LLM key is required for that scenario.
+
+
+## Electron acceptance coverage
+
+`npm run e2e` runs smoke plus `tools/e2e/` workspace, viewer/export, chat/MCP,
+lifecycle and cloud scenarios sequentially. Linux CI runs under Xvfb and retains
+failure artifacts in `test-results/`. Cases use temporary profiles/copied files,
+condition-based waits and bounded deadlines, with no assertion retries. The
+short `npm run smoke` command stays available.
+
+Chat uses loopback SSE and a local stdio Kratos fixture, not credentials or a
+solver installation. Cloud injects only the provider transport, gated by
+`!app.isPackaged`, exact `KKSS_E2E=1`, and an absolute `KKSS_E2E_CLOUD_DIR`.
+The real staging watcher/manifest/sync/quit path must run; there is no fixture
+IPC. Successful uploads must finish before exit; failed/stalled uploads retain
+recoverable dirty state. `openFile` calls `trackIfStaged` for local launch and
+file-dialog paths as well as the existing session-restore path.
+
+`launchApp` supports explicit `env`, `restore` and `singleInstance` options.
+Restore opt-in never overrides the user's restore setting or `KKSS_NO_RESTORE`.
+Graceful-quit acceptance observes a natural zero exit; forced cleanup is only
+cleanup. Session tests cover tab ordering/focus, screens/panels, missing-file
+pruning and launch precedence. The lock test launches a real second process.
+
+Chat's `entry` event records assistant text, but the renderer paints its
+`assistantDone` event only, replacing the streaming bubble; rendering both
+would duplicate every reply. Live chat acceptance checks a single reply,
+approval/denial side effects, cancellation and transcript persistence.
+
+### Mesh 4.6.0 integration
+
+Selection, Properties authoring and line probes are inherited from mesh `66a71fc` through the existing provider/shim bridge. Do not duplicate their panels or protocols in KKSS. `mesh__mesh_select` and `mesh__mesh_probe` are write-class tools: optional `outputPath` writes JSON or probe CSV. Keep that policy and chat capabilities synchronized with the bundled server.

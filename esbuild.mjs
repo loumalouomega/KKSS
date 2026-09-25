@@ -249,6 +249,10 @@ function copyArtifacts() {
     // Submodule webview bundles + styles, untouched.
     ["cad/media/viewer.js", out("renderer/cad/viewer.js")],
     ["cad/media/viewer.css", out("renderer/cad/viewer.css")],
+    // render_snapshot serves the same CAD webview bundle from the MCP
+    // extension root (`out/cad-runtime/media`) in a headless browser.
+    ["cad/media/viewer.js", out("cad-runtime/media/viewer.js")],
+    ["cad/media/viewer.css", out("cad-runtime/media/viewer.css")],
     ["mesh/media/webview.js", out("renderer/mesh/webview.js")],
     // design-system.css defines the --ds-* tokens style.css resolves; the
     // generated page links it first (tools/webviewMarkup.ts).

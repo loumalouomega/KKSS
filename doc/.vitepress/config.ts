@@ -17,7 +17,7 @@ export default defineConfig({
 
   // localhost URLs (e.g. the Docker/noVNC quickstart) are runtime endpoints,
   // not site pages — don't fail the build on them.
-  ignoreDeadLinks: [/^https?:\/\/localhost/],
+  ignoreDeadLinks: [/^https?:\/\/localhost/, /^\/examples\/kratos\/.*\.(?:mdpa|py|vtk)$/],
 
   themeConfig: {
     nav: [
@@ -28,6 +28,14 @@ export default defineConfig({
         items: [
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },
+          { text: 'Geometry to Results Tutorials', link: '/guide/tutorial-geometry-to-results' },
+          { text: 'AI Simulation Walkthrough', link: '/guide/tutorial-ai-simulation' },
+          { text: 'Structural Cantilever', link: '/guide/tutorial-structural' },
+          { text: 'Fluid Channel', link: '/guide/tutorial-fluid' },
+          { text: 'Conduction', link: '/guide/tutorial-thermal' },
+          { text: 'Potential Flow', link: '/guide/tutorial-potential-flow' },
+          { text: 'Shallow Water', link: '/guide/tutorial-shallow-water' },
+          { text: 'Worked Kratos Cases', link: '/guide/tutorial-kratos-examples' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' },
           { text: 'Web Deployment (Docker)', link: '/guide/web-deployment' }
@@ -45,6 +53,14 @@ export default defineConfig({
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },
+          { text: 'Geometry to Results Tutorials', link: '/guide/tutorial-geometry-to-results' },
+          { text: 'AI Simulation Walkthrough', link: '/guide/tutorial-ai-simulation' },
+          { text: 'Structural Cantilever', link: '/guide/tutorial-structural' },
+          { text: 'Fluid Channel', link: '/guide/tutorial-fluid' },
+          { text: 'Conduction', link: '/guide/tutorial-thermal' },
+          { text: 'Potential Flow', link: '/guide/tutorial-potential-flow' },
+          { text: 'Shallow Water', link: '/guide/tutorial-shallow-water' },
+          { text: 'Worked Kratos Cases', link: '/guide/tutorial-kratos-examples' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' }
         ]
@@ -61,7 +77,7 @@ export default defineConfig({
     socialLinks: [{ icon: 'github', link: repo }],
 
     footer: {
-      message: 'Released under the AGPL-3.0 License.',
+      message: 'Released under the AGPL-3.0-or-later License.',
       copyright: '© Vicente Mataix Ferrándiz'
     },
 

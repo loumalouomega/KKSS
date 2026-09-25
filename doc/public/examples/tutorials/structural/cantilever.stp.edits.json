@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "source": "cantilever.stp",
+  "ops": [
+    {
+      "op": "scale",
+      "targets": [
+        "solid-0"
+      ],
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "factors": [
+        6,
+        1,
+        1
+      ]
+    }
+  ]
+}

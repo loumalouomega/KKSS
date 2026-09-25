@@ -1,0 +1,14 @@
+{
+    "properties": [
+        {
+            "model_part_name": "main_model_part.Domain",
+            "properties_id": 1,
+            "Material": {
+                "Variables": {
+                    "MANNING": 0.01
+                },
+                "Tables": {}
+            }
+        }
+    ]
+}

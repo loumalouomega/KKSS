@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "source": "obstacle-channel.brep",
+  "parts": [
+    {
+      "name": "Domain",
+      "color": "#e6194b",
+      "volumes": [],
+      "surfaces": [
+        "face-0"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Inlet",
+      "color": "#3cb44b",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-3"
+      ],
+      "points": []
+    },
+    {
+      "name": "Outlet",
+      "color": "#4363d8",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-1"
+      ],
+      "points": []
+    },
+    {
+      "name": "Walls",
+      "color": "#f58231",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-0",
+        "edge-2"
+      ],
+      "points": []
+    },
+    {
+      "name": "Obstacle",
+      "color": "#911eb4",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-4",
+        "edge-5",
+        "edge-6",
+        "edge-7",
+        "edge-8",
+        "edge-9",
+        "edge-10",
+        "edge-11",
+        "edge-12",
+        "edge-13",
+        "edge-14",
+        "edge-15",
+        "edge-16",
+        "edge-17",
+        "edge-18",
+        "edge-19",
+        "edge-20",
+        "edge-21",
+        "edge-22",
+        "edge-23",
+        "edge-24",
+        "edge-25",
+        "edge-26",
+        "edge-27",
+        "edge-28",
+        "edge-29",
+        "edge-30",
+        "edge-31",
+        "edge-32",
+        "edge-33",
+        "edge-34",
+        "edge-35"
+      ],
+      "points": [],
+      "meshGrading": {
+        "sizeAtWall": 12,
+        "sizeFar": 60,
+        "distNear": 25,
+        "distFar": 350
+      }
+    }
+  ]
+}

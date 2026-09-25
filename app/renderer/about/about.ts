@@ -1,3 +1,5 @@
+import "../localization";
+import { t } from "../../shared/i18n";
 /** About/Update dialog renderer — status-driven UI over aboutApi IPC. */
 import type { AboutInit, AboutToWebview } from "../../main/ipc";
 
@@ -45,35 +47,35 @@ api.onMessage((raw) => {
   progressEl.hidden = msg.state !== "downloading";
   switch (msg.state) {
     case "checking":
-      textEl.textContent = "Checking for updates…";
+      textEl.textContent = t("Checking for updates…");
       actions([]);
       break;
     case "upToDate":
-      textEl.textContent = "You're up to date.";
+      textEl.textContent = t("You're up to date.");
       actions([]);
       break;
     case "available":
-      textEl.textContent = `Update available: v${msg.latestVersion}` + (msg.message ? ` — ${msg.message}` : "");
+      textEl.textContent = t("Update available: v{0}", {0: msg.latestVersion}) + (msg.message ? ` — ${msg.message}` : "");
       actions(
         msg.canAutoUpdate
-          ? [{ label: "Update now", message: { type: "downloadUpdate" }, primary: true }]
-          : [{ label: "Open releases page", message: { type: "openReleases" }, primary: true }]
+          ? [{ label: t("Update now"), message: { type: "downloadUpdate" }, primary: true }]
+          : [{ label: t("Open releases page"), message: { type: "openReleases" }, primary: true }]
       );
       break;
     case "downloading":
-      textEl.textContent = `Downloading v${msg.latestVersion}… ${msg.percent ?? 0}%`;
+      textEl.textContent = t("Downloading v{0}… {1}%", {0: msg.latestVersion, 1: msg.percent ?? 0});
       progressEl.value = msg.percent ?? 0;
       actions([]);
       break;
     case "downloaded":
-      textEl.textContent = `v${msg.latestVersion} downloaded.`;
-      actions([{ label: "Restart to update", message: { type: "installUpdate" }, primary: true }]);
+      textEl.textContent = t("v{0} downloaded.", {0: msg.latestVersion});
+      actions([{ label: t("Restart to update"), message: { type: "installUpdate" }, primary: true }]);
       break;
     case "error":
-      textEl.textContent = msg.message ?? "Couldn't check for updates.";
+      textEl.textContent = msg.message ?? t("Couldn't check for updates.");
       actions([
-        { label: "Retry", message: { type: "checkUpdates" } },
-        { label: "Open releases page", message: { type: "openReleases" } },
+        { label: t("Retry"), message: { type: "checkUpdates" } },
+        { label: t("Open releases page"), message: { type: "openReleases" } },
       ]);
       break;
   }

@@ -270,7 +270,7 @@ to authenticated session users.
 ## Licenses
 
 The image additionally distributes x11vnc (GPL-2.0) and noVNC (MPL-2.0),
-both compatible with distributing alongside the AGPL-3.0 application.
+both compatible with distributing alongside the AGPL-3.0-or-later application.
 
 ## Multi-user reference deployment
 
@@ -289,6 +289,6 @@ namespace-scoped RBAC and network policy in the operator's cluster before using
 that reference backend.
 
 The Kratos image is a separate amd64 build target (`runtime-kratos`). It pins
-Kratos 10.4.3 and `kratos-mcp-server` 0.3.0 with a hash-locked wheel set; the
+Kratos 10.4.3 and `kratos-mcp-server` 0.5.0 with a hash-locked wheel set; the
 base multi-architecture image remains solver-free. `tools/lock-kratos.sh`
 regenerates the lock when these versions change.

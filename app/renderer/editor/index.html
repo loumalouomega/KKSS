@@ -10,15 +10,15 @@
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
   <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./editor.css" rel="stylesheet" />
-  <title>KKSS Editor</title>
+  <title data-i18n="KKSS Editor">KKSS Editor</title>
 </head>
 <body>
   <div id="editor-bar">
-    <button id="open-btn" class="btn" title="Open a file in the editor">Open&hellip;</button>
+    <button id="open-btn" class="btn" title="Open a file in the editor" data-i18n-title="Open a file in the editor" data-i18n="Open…">Open&hellip;</button>
     <span class="tb-div"></span>
-    <button id="save-btn" class="btn" title="Save (Ctrl+S)">Save</button>
-    <button id="save-as-btn" class="btn" title="Save As (Ctrl+Shift+S)">Save As&hellip;</button>
-    <span id="editor-path">No file open — use Open…</span>
+    <button id="save-btn" class="btn" title="Save (Ctrl+S)" data-i18n-title="Save (Ctrl+S)" data-i18n="Save">Save</button>
+    <button id="save-as-btn" class="btn" title="Save As (Ctrl+Shift+S)" data-i18n-title="Save As (Ctrl+Shift+S)" data-i18n="Save As…">Save As&hellip;</button>
+    <span id="editor-path" data-i18n="No file open — use Open…">No file open — use Open…</span>
   </div>
   <div id="editor-host"></div>
   <script src="./editor.js"></script>

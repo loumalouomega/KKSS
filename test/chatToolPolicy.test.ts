@@ -45,6 +45,12 @@ describe("classifyTool", () => {
     // arguments, so the conservative class wins.
     expect(classifyTool("mesh__mesh_export_table")).toBe("write");
     expect(classifyTool("mesh__mesh_field_series")).toBe("write");
+    expect(classifyTool("mesh__mesh_select")).toBe("write");
+    expect(classifyTool("mesh__mesh_probe")).toBe("write");
+    expect(gate("mesh__mesh_probe", "askOnWrite")).toBe("ask");
+    expect(gate("mesh__mesh_select", "askOnWrite")).toBe("ask");
+    expect(gate("mesh__mesh_select", "askAlways")).toBe("ask");
+    expect(gate("mesh__mesh_select", "never")).toBe("auto");
     // Read-shaped, but loading a workspace problemtype EXECUTES it (node:vm /
     // pyodide) — the same reasoning as CLAUDE.md's workspaceFolders invariant.
     expect(classifyTool("mesh__problemtype_list")).toBe("write");
@@ -82,6 +88,12 @@ describe("classifyTool", () => {
 });
 
 describe("gateFor", () => {
+  it.each(["study_start", "study_cancel", "study_resume", "job_rerun", "job_resume", "configure_checkpoints", "results_time_history", "results_compare"])("keeps new Kratos tool %s unclassified and approval-gated", (name) => {
+    const tool = `kratos__${name}`;
+    expect(classifyTool(tool)).toBe("unknown");
+    expect(gate(tool, "askOnWrite")).toBe("ask");
+    expect(gate(tool, "askAlways")).toBe("ask");
+  });
   it("auto-approves reads and asks for writes in the default mode", () => {
     expect(DEFAULT_APPROVAL_MODE).toBe("askOnWrite");
     expect(gate("cad__inspect", "askOnWrite")).toBe("auto");
@@ -154,17 +166,17 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 58 cad + 24 mesh tools + 4 in-process mcp__ tools + 30 app__ workflow tools.
+    // 58 cad + 26 mesh tools + 4 in-process mcp__ tools + 30 app__ workflow tools.
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(116);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(118);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
     expect(cad).toHaveLength(58);
-    expect(mesh).toHaveLength(24);
+    expect(mesh).toHaveLength(26);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(30);
     // No kratos__ row: its external server is deliberately unclassified.
@@ -236,6 +248,8 @@ describe("the table itself", () => {
       "mesh__mesh_extract_submodelpart",
       "mesh__mesh_field_series",
       "mesh__mesh_pack_series",
+      "mesh__mesh_probe",
+      "mesh__mesh_select",
       "mesh__mesh_transform",
       "mesh__problem_pack",
       "mesh__problem_unpack",

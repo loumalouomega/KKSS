@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n";
 /**
  * Toast + cancellable-progress notifications, rendered by the shell toolbar
  * renderer. Replaces vscode.window.show*Message (non-blocking form) and
@@ -34,7 +35,7 @@ export interface ProgressToast {
 
 export function progressToast(text: string, cancellable: boolean): ProgressToast {
   const id = nextId++;
-  sendShell({ type: "toast", id, kind: "progress", text, buttons: cancellable ? ["Cancel"] : [] });
+  sendShell({ type: "toast", id, kind: "progress", text, buttons: cancellable ? [t("Cancel")] : [] });
   let cancelCb: (() => void) | undefined;
   if (cancellable) {
     buttonWaiters.set(id, () => cancelCb?.());

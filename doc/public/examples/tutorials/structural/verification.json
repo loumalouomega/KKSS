@@ -1,0 +1,52 @@
+{
+  "case": "structural",
+  "python": "3.12.14",
+  "kratos": "10.4.3",
+  "threads": 2,
+  "nodes": 1048,
+  "elements": 3896,
+  "fields": [
+    "DISPLACEMENT",
+    "REACTION",
+    "VON_MISES_STRESS"
+  ],
+  "result": "vtk_output/Structure_0_8.vtk",
+  "frames": 8,
+  "end_time": 1,
+  "checks": {
+    "beam_displacement_relative_error": {
+      "measured": 0.017862294714982505,
+      "maximum": 0.25
+    },
+    "max_abs_z_displacement_mm": 0.00058914793,
+    "beam_reference_mm": 0.0005998628571428572,
+    "max_von_mises_Pa": 3166153.5
+  },
+  "files": {
+    "cantilever.stp": "b28fd918992b03d8cb905e178633d082e6e97738bcc8ceb32c7f910d61ab6ce8",
+    "cantilever.stp.edits.json": "dab716d90755aef8c86f834d144d9fe1c079cf655d4bd992784990605b3997e5",
+    "cantilever.stp.mesh.json": "2dcce5ab0d385a7ad90048a7c0f70a9c9afa5714b02cb029aa25d45de11543b3",
+    "cantilever.stp.parts.json": "5d704079ec6aefd8c66c023fc75b996cfc0f549dba7ff8132e52150cf1dd3250",
+    "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
+    "MainKratos.py": "d4dd2bef719a4b510419779d2bee14b385675898de31f3d331e2f7405b136fc4",
+    "mesh_case.mdpa": "7593791a2a701ee3b1975c03ab0c40aae9095ae5425feede73d28b40ad2ffa8c",
+    "mesh.kratoscase.json": "c13846a2c99f1413129d4a3b4937d8e36b998cbc3c782fd83c0045fd4dce7c1f",
+    "mesh.mdpa": "0c5622909c240fe94afa6e9f1894fb91afcf9b448d36299a9217c5afc9111da2",
+    "ProjectParameters.json": "f987386f83660cb70c07e074ab0c84f1e902f4eccaf67968688a15d11e84984a",
+    "recipe.json": "8ba04382abbc558aa56e47737b23a918cbb94cee8161d7dd1c4ab5423ba5db29",
+    "StructuralMaterials.json": "1a83816b750b4955c3cd31e3e08dacd79f77c675a83accb08ff818c233c7aed9",
+    "vtk_output/Structure_0_1.vtk": "343ec5f4b81819390e344660621e585c19343fd956f037d2996e12b98b877205",
+    "vtk_output/Structure_0_2.vtk": "a447f653dcdcdcf7ef7a268fc6365a395d4c50ef7b12f072db1925ef868ec4c8",
+    "vtk_output/Structure_0_3.vtk": "6f69f76c80ef8728f8ef798ec3292bca813331b7c82cb44cb88bcdb3d59c0ec7",
+    "vtk_output/Structure_0_4.vtk": "841ae21312d7a6e6da66692214aa04068af66d56cdd6701388b1f041707151b5",
+    "vtk_output/Structure_0_5.vtk": "d525a2f7acd356ed7749b159f5dd9b94448b84b94ae323022a1b1c6114959b75",
+    "vtk_output/Structure_0_6.vtk": "a4d75c5bd0596f36092d5789a275c1dfea567f5b9e0e699f5bdd6ab169f94c0b",
+    "vtk_output/Structure_0_7.vtk": "21a629b0a9b04b71eece882eb9a51740860b76f66663791efeacbeda4862622c",
+    "vtk_output/Structure_0_8.vtk": "8fde53817e99e66f29fed88e8cf421093202bf474d64ec51b8648d9adcf0ea58"
+  },
+  "source": "cad/examples/STP/block.stp",
+  "revisions": {
+    "cad": "6137f6471dd61d3861167beb638194711f4c89f0",
+    "mesh": "5814a819930f0f13f2d5243b6150b72213ccd1af"
+  }
+}

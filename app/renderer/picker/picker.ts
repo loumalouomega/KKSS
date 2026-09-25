@@ -1,3 +1,4 @@
+import "../localization";
 /**
  * Modal picker renderer — the Electron replacement for VS Code's
  * showQuickPick (kind: "pick") and showInputBox (kind: "input").
@@ -30,8 +31,12 @@ let kind: PickerInit["kind"] = "pick";
 
 function renderList(): void {
   listEl.innerHTML = "";
+  listEl.setAttribute("aria-activedescendant", `picker-option-${selected}`);
   items.forEach((item, i) => {
     const row = document.createElement("div");
+    row.id = `picker-option-${i}`;
+    row.setAttribute("role", "option");
+    row.setAttribute("aria-selected", String(i === selected));
     row.className = "picker-item" + (i === selected ? " selected" : "");
     const label = document.createElement("span");
     label.textContent = item.label;
@@ -55,6 +60,7 @@ api.onInit((raw) => {
     items = init.items;
     selected = 0;
     renderList();
+    listEl.focus();
   } else {
     inputEl.hidden = false;
     inputEl.value = init.value ?? "";
@@ -74,9 +80,10 @@ window.addEventListener("keydown", (e) => {
     } else {
       api.post({ type: "picked", index: selected });
     }
-  } else if (kind === "pick" && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-    selected = Math.min(items.length - 1, Math.max(0, selected + (e.key === "ArrowDown" ? 1 : -1)));
+  } else if (kind === "pick" && ["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+    selected = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : Math.min(items.length - 1, Math.max(0, selected + (e.key === "ArrowDown" ? 1 : -1)));
     renderList();
+    document.getElementById(`picker-option-${selected}`)?.scrollIntoView({ block: "nearest" });
     e.preventDefault();
   }
 });

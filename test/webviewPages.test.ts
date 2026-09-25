@@ -55,6 +55,8 @@ describe.skipIf(!built)("generated webview pages", () => {
       'id="sidebar"',
       'id="render-root"',
       'id="find-bar"',
+      'data-action="selection"',
+      'data-action="propertiesEditor"',
     ]) {
       expect(html).toContain(anchor);
     }

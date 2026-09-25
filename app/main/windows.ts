@@ -1,3 +1,4 @@
+import { nextRegion } from "../shared/focus";
 /**
  * Main window: one BaseWindow hosting stacked WebContentsViews —
  * a slim shell toolbar (mode toggle, Open, title, toasts, tab strip), the two
@@ -221,9 +222,43 @@ export function createMainWindow(
    * Applied to shell/home/editor below, to each tab view in openTab(), and to
    * the lazily created terminal/chat views in their factories.
    */
+  let intendedFocus: WebContentsView | undefined;
+  const origins = new Map<WebContentsView, WebContentsView>();
+  const regions = (): WebContentsView[] => {
+    if (currentScreen === "home") return [home];
+    const content = currentScreen === "editor" ? editor : tabs[currentMode].find(t => t.id === activeTab[currentMode])?.view;
+    return [shell, content, terminalShown ? terminal : null, chatShown ? chat : jobsShown ? jobs : null]
+      .filter((v): v is WebContentsView => !!v && !v.webContents.isDestroyed());
+  };
+  const focused = () => regions().find(v => v.webContents.isFocused());
+  const focus = (view: WebContentsView | undefined) => {
+    if (!view || !regions().includes(view)) return;
+    intendedFocus = view;
+    view.webContents.focus();
+    view.webContents.send("kkss:focus");
+  };
+  const panelFocus = (view: WebContentsView, visible: boolean, origin: WebContentsView | undefined) => {
+    if (visible) {
+      if (origin && origin !== view) origins.set(view, origin);
+      focus(view);
+    } else if (view.webContents.isFocused() || origin === view) {
+      const previous = origins.get(view);
+      focus(previous && regions().includes(previous) ? previous : regions()[0]);
+    }
+  };
   const wireView = (view: WebContentsView, ref: ViewRef) => {
     const wc = view.webContents;
-    wc.on("did-finish-load", () => wc.setZoomFactor(currentZoom));
+    wc.on("focus", () => { intendedFocus = view; });
+    wc.on("did-finish-load", () => {
+      wc.setZoomFactor(currentZoom);
+      if (intendedFocus === view || wc.isFocused()) focus(view);
+    });
+    wc.on("before-input-event", (event, input) => {
+      if (input.type === "keyDown" && input.key === "F6" && !input.control && !input.alt && !input.meta) {
+        event.preventDefault();
+        focus(nextRegion(regions(), view, input.shift));
+      }
+    });
     const report = (reason: string) => {
       if (closing.has(view) || wc.isDestroyed()) return;
       hooks.onViewCrash?.({ ...ref, reason });
@@ -274,6 +309,7 @@ export function createMainWindow(
     const idx = tabs[mode].findIndex((t) => t.id === tabId);
     if (idx < 0) return;
     const [tab] = tabs[mode].splice(idx, 1);
+    const hadFocus = tab.view.webContents.isFocused();
     closing.add(tab.view);
     win.contentView.removeChildView(tab.view);
     tab.view.webContents.close();
@@ -281,6 +317,7 @@ export function createMainWindow(
       activeTab[mode] = undefined;
       applyTabVisibility();
     }
+    if (hadFocus) focus(shell);
   };
 
   const setActiveTab = (mode: Mode, tabId: string): void => {
@@ -297,6 +334,7 @@ export function createMainWindow(
   layout();
 
   const toggleTerminal = () => {
+    const origin = focused();
     if (!terminal) {
       terminal = new WebContentsView({
         webPreferences: {
@@ -314,11 +352,12 @@ export function createMainWindow(
     terminalShown = !terminalShown;
     terminal.setVisible(terminalShown);
     layout();
-    if (terminalShown) terminal.webContents.focus();
+    panelFocus(terminal, terminalShown, origin);
     return { view: terminal, visible: terminalShown };
   };
 
   const toggleChat = () => {
+    const origin = focused();
     if (!chat) {
       chat = new WebContentsView({
         webPreferences: {
@@ -337,11 +376,12 @@ export function createMainWindow(
     if (chatShown) { jobsShown = false; jobs?.setVisible(false); }
     chat.setVisible(chatShown);
     layout();
-    if (chatShown) chat.webContents.focus();
+    panelFocus(chat, chatShown, origin);
     return { view: chat, visible: chatShown };
   };
 
   const toggleJobs = () => {
+    const origin = focused();
     if (!jobs) {
       jobs = new WebContentsView({ webPreferences: {
         preload: path.join(outDir, "preload", "jobsPreload.js"),
@@ -355,11 +395,12 @@ export function createMainWindow(
     if (jobsShown) { chatShown = false; chat?.setVisible(false); }
     jobs.setVisible(jobsShown);
     layout();
-    if (jobsShown) jobs.webContents.focus();
+    panelFocus(jobs, jobsShown, origin);
     return { view: jobs, visible: jobsShown };
   };
 
   const setScreen = (screen: Screen) => {
+    const changed = currentScreen !== screen;
     currentScreen = screen;
     if (screen === "cad" || screen === "mesh") currentMode = screen;
     home.setVisible(screen === "home");
@@ -368,7 +409,7 @@ export function createMainWindow(
     // The tab strip's reserved height only applies to cad/mesh screens (see
     // layout()), so switching to/from them must re-run it.
     layout();
-    if (screen === "editor") editor.webContents.focus();
+    if (changed || !focused()) focus(screen === "home" ? home : screen === "editor" ? editor : findTab(currentMode, activeTab[currentMode] ?? "")?.view ?? shell);
   };
   setScreen("home");
 

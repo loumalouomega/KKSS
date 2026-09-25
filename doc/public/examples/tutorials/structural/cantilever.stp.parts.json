@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "source": "cantilever.stp",
+  "parts": [
+    {
+      "name": "Solid",
+      "color": "#e6194b",
+      "volumes": [
+        "solid-0"
+      ],
+      "surfaces": [],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Support",
+      "color": "#3cb44b",
+      "volumes": [],
+      "surfaces": [
+        "face-3"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Load",
+      "color": "#4363d8",
+      "volumes": [],
+      "surfaces": [
+        "face-1"
+      ],
+      "lines": [],
+      "points": []
+    }
+  ]
+}

@@ -1,3 +1,5 @@
+import "../localization";
+import { t, translate } from "../../shared/i18n";
 import type { JobsSnapshot, JobsToHost, KratosJob } from "../../main/ipc";
 import { kratosStatusView } from "../chat/serverStatus";
 import { glyph } from "../glyphs";
@@ -23,14 +25,14 @@ function render(state: JobsSnapshot) {
   snapshot = state;
   const setup = kratosStatusView(state.servers);
   const count = state.jobs.filter(active).length;
-  const notice = state.error || setup?.text || (state.loading && state.jobs.length === 0 ? "Loading jobs…" : `${count} active simulation${count === 1 ? "" : "s"}`);
-  const status = state.stale ? `Status unavailable — showing last known state. ${notice}` : notice;
+  const notice = state.error || setup?.text || (state.loading && state.jobs.length === 0 ? t("Loading jobs…") : t("{0} active simulations", {0: count}));
+  const status = state.stale ? t("Status unavailable — showing last known state. {0}", {0: notice}) : notice;
   if (el("status").textContent !== status) el("status").textContent = status;
   el<HTMLButtonElement>("refresh").disabled = state.loading || !!setup;
   el("recovery").hidden = !setup?.action;
   if (setup?.action) {
     recovery = setup.action;
-    el("recovery").textContent = recovery === "installKratosRuntime" ? "Install uv for KKSS" : "Retry";
+    el("recovery").textContent = recovery === "installKratosRuntime" ? t("Install uv for KKSS") : t("Retry");
   }
   el("empty").hidden = state.jobs.length > 0 || state.loading || !!setup || !!state.error;
   const list = el("jobs");
@@ -48,24 +50,24 @@ function render(state: JobsSnapshot) {
     row.children[0].textContent = job.case_dir;
     row.children[1].textContent = job.job_id;
     const elapsed = job.elapsed_seconds ?? (job.started_at ? Math.max(0, (job.finished_at ?? Date.now() / 1000) - job.started_at) : undefined);
-    row.children[2].textContent = `${job.state}${elapsed === undefined ? "" : ` · ${Math.round(elapsed)}s`}`;
+    row.children[2].textContent = `${translate(job.state)}${elapsed === undefined ? "" : ` · ${Math.round(elapsed)}s`}`;
     row.children[2].className = `state${active(job) ? " active" : ""}`;
     const progress = [];
-    if (job.progress?.current_step !== undefined) progress.push(`Step ${job.progress.current_step}`);
-    if (job.progress?.current_time !== undefined) progress.push(`Time ${job.progress.current_time}`);
-    row.children[3].textContent = progress.join(" · ") || (active(job) ? "Waiting for progress…" : job.parameters_file);
+    if (job.progress?.current_step !== undefined) progress.push(t("Step {0}", {0: job.progress.current_step}));
+    if (job.progress?.current_time !== undefined) progress.push(t("Time {0}", {0: job.progress.current_time}));
+    row.children[3].textContent = progress.join(" · ") || (active(job) ? t("Waiting for progress…") : job.parameters_file);
     // Preserve the focused button across polls instead of rebuilding the list.
     if (list.children[index] !== row) list.insertBefore(row, list.children[index] ?? null);
   }
   const selected = state.jobs.find((j) => j.job_id === state.selected);
   el("details").hidden = !selected;
   el("selected-id").textContent = selected?.job_id ?? "";
-  el("log").textContent = state.log ?? "Loading log…";
+  el("log").textContent = state.log ?? t("Loading log…");
   el("log-error").textContent = state.logError ?? "";
   el("cancel-error").textContent = selected ? state.cancelErrors[selected.job_id] ?? "" : "";
   const cancelling = !!selected && state.cancelling.includes(selected.job_id);
   el<HTMLButtonElement>("cancel").disabled = !selected || !active(selected) || cancelling || state.stale || !!setup;
-  el("cancel").textContent = cancelling ? "Cancelling…" : "Cancel simulation";
+  el("cancel").textContent = cancelling ? t("Cancelling…") : t("Cancel simulation");
 }
 api.onMessage(render);
 api.post({ type: "jobsReady" });

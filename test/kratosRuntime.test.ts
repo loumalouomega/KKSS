@@ -3,11 +3,12 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { KratosRuntime, RuntimeFailure, UV_VERSION, classifyStartupFailure, runRuntimeCommand } from "../app/main/services/chat/kratosRuntime";
+import { KRATOS_MCP_VERSION } from "../app/main/services/chat/kratosMcpVersion";
 import type { RuntimeDeps } from "../app/main/services/chat/kratosRuntime";
 import { kratosStatusView } from "../app/renderer/chat/serverStatus";
 
 const dirs: string[] = [];
-afterEach(async () => { for (const dir of dirs.splice(0)) await fs.rm(dir, { recursive: true, force: true }); });
+afterEach(async () => { vi.unstubAllEnvs(); for (const dir of dirs.splice(0)) await fs.rm(dir, { recursive: true, force: true }); });
 const missing = () => Object.assign(new Error("not found"), { code: "ENOENT" });
 const signal = () => new AbortController().signal;
 async function harness(platform: NodeJS.Platform = "linux") {
@@ -19,6 +20,20 @@ async function harness(platform: NodeJS.Platform = "linux") {
 }
 
 describe("Kratos runtime discovery", () => {
+  it("validates the bundled server against the shared version pin", async () => {
+    const { runtime, run, download } = await harness();
+    vi.stubEnv("KKSS_KRATOS_PYTHON", "/opt/kratos/bin/python");
+    expect(await runtime.discover(signal())).toEqual({
+      command: "/opt/kratos/bin/kratos-mcp-server", args: [], bundled: true,
+    });
+    expect(run.mock.calls[0][0]).toBe("/opt/kratos/bin/python");
+    expect(run.mock.calls[0][1]).toEqual(["-c",
+      `import KratosMultiphysics; import importlib.metadata as m; assert m.version('kratos-mcp-server') == '${KRATOS_MCP_VERSION}'`,
+    ]);
+    run.mockRejectedValueOnce(new Error("AssertionError"));
+    await expect(runtime.discover(signal())).rejects.toThrow("AssertionError");
+    expect(download).not.toHaveBeenCalled();
+  });
   it("prefers the app runtime, then uvx, then uv tool run", async () => {
     const { runtime, run } = await harness();
     expect(await runtime.discover(signal())).toEqual({ command: path.join(runtime.directory, "uv"), args: ["tool", "run"] });

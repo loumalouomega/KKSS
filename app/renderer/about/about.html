@@ -7,26 +7,26 @@
   <link href="../theme/vscode-vars.css" rel="stylesheet" />
   <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./about.css" rel="stylesheet" />
-  <title>About KKSS</title>
+  <title data-i18n="About KKSS">About KKSS</title>
 </head>
 <body>
   <div id="about">
     <img id="logo" src="../../icon.png" alt="" />
-    <h1 id="title">KKSS</h1>
-    <p id="subtitle">Keep Kratos Simple Stupid</p>
+    <h1 id="title" data-i18n="KKSS">KKSS</h1>
+    <p id="subtitle" data-i18n="Keep Kratos Simple Stupid">Keep Kratos Simple Stupid</p>
     <dl id="facts">
-      <dt>Version</dt><dd id="version">…</dd>
-      <dt>Author</dt><dd id="author">…</dd>
+      <dt data-i18n="Version">Version</dt><dd id="version">…</dd>
+      <dt data-i18n="Author">Author</dt><dd id="author">…</dd>
     </dl>
     <div id="update">
       <span id="update-spinner" class="spinner" hidden></span>
-      <span id="update-text">Checking for updates…</span>
-      <progress id="update-progress" max="100" value="0" hidden></progress>
+      <span id="update-text" data-i18n="Checking for updates…">Checking for updates…</span>
+      <progress id="update-progress" aria-label="Update progress" data-i18n-aria-label="Update progress" max="100" value="0" hidden></progress>
       <div id="update-actions"></div>
     </div>
     <div id="footer">
-      <button id="docs-btn" class="btn btn-secondary">Documentation</button>
-      <button id="close-btn" class="btn btn-secondary">Close</button>
+      <button id="docs-btn" class="btn btn-secondary" data-i18n="Documentation">Documentation</button>
+      <button id="close-btn" class="btn btn-secondary" data-i18n="Close">Close</button>
     </div>
   </div>
   <script src="./about.js"></script>

@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "problemtypeId": "shallowWater",
+  "values": {
+    "problem": {
+      "timeStep": 0.015625,
+      "endTime": 0.125,
+      "echoLevel": 1,
+      "gravity": 9.81,
+      "maxIterations": 10,
+      "shockCapturing": "residual_viscosity",
+      "shockCapturingFactor": 0.5
+    }
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Domain",
+      "values": {}
+    },
+    {
+      "conditionId": "topography",
+      "smpPath": "Domain",
+      "values": {
+        "value": "0.0"
+      }
+    },
+    {
+      "conditionId": "initialWaterLevel",
+      "smpPath": "Domain",
+      "values": {
+        "variable": "HEIGHT",
+        "value": 1
+      }
+    },
+    {
+      "conditionId": "slip",
+      "smpPath": "Boundary",
+      "values": {}
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Domain",
+      "lawId": "manning",
+      "values": {
+        "MANNING": 0.01
+      }
+    }
+  ],
+  "output": {
+    "format": "ascii",
+    "controlType": "step",
+    "interval": 1,
+    "nodalVariables": [
+      "HEIGHT",
+      "MOMENTUM",
+      "VELOCITY"
+    ]
+  }
+}
