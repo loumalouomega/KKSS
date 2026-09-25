@@ -155,11 +155,13 @@ let cloud: CloudService | null = null;
 let cloudDrainAttempted = false;
 
 function sendShell(message: unknown): void {
-  main?.shell.webContents.send("shell:toWebview", message);
+  if (!main || main.win.isDestroyed() || main.shell.webContents.isDestroyed()) return;
+  main.shell.webContents.send("shell:toWebview", message);
 }
 
 function sendHome(message: HomeToWebview): void {
-  main?.home.webContents.send("home:toWebview", message);
+  if (!main || main.win.isDestroyed() || main.home.webContents.isDestroyed()) return;
+  main.home.webContents.send("home:toWebview", message);
 }
 
 async function pushWorkflows(): Promise<void> {
@@ -408,17 +410,20 @@ let restoring = false;
  * outright. Debounced because it rides on every tab/screen/panel change.
  */
 function saveSessionSoon(): void {
-  if (!main || restoring) return;
+  if (!main || main.win.isDestroyed() || restoring) return;
   if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
   sessionSaveTimer = setTimeout(() => {
     sessionSaveTimer = undefined;
-    if (main) saveSession(currentSession());
+    if (main && !main.win.isDestroyed()) saveSession(currentSession());
   }, SESSION_SAVE_DEBOUNCE_MS);
 }
 
 /** Resyncs one mode's whole tab strip to the shell (open/close/focus/title). */
 function syncTabs(mode: Mode): void {
-  if (!main) return;
+  // Hosts can finish an in-flight title/dirty notification as the user closes
+  // the last window. The main-process state object remains allocated during
+  // Electron teardown, but its BaseWindow methods throw after destruction.
+  if (!main || main.win.isDestroyed()) return;
   const hosts = mode === "cad" ? cadHosts : meshHosts;
   const active = main.activeTabId(mode);
   const activeFile = active ? hosts.get(active)?.currentFile : undefined;
@@ -1388,7 +1393,7 @@ app.whenReady().then(() => {
 
   ipcMain.on("shell:toHost", (_event, raw) => {
     const msg = raw as ShellToHost;
-    if (!main) return;
+    if (!main || main.win.isDestroyed()) return;
     switch (msg.type) {
       case "shellReady":
         jobs?.publish();

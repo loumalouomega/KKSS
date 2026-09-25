@@ -31,9 +31,14 @@ describe.skipIf(!fs.existsSync(server))("bundled CAD MCP runtime", () => {
       expect(JSON.parse(text).volume).toBeCloseTo(60, 5);
 
       const mesh = path.join(dir, "model.mdpa");
-      fs.copyFileSync(path.join(root, "mesh/example/MDPA/double_arch.mdpa"), mesh);
+      fs.writeFileSync(mesh, "Begin Nodes\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\nEnd Nodes\nBegin Elements Element3D4N\n1 0 1 2 3 4\nEnd Elements\n");
       const loaded = await client.callTool({ name: "load_model", arguments: { path: mesh } });
       expect(loaded.isError, JSON.stringify(loaded.content)).not.toBe(true);
+      const generated = await client.callTool({ name: "generate_mesh", arguments: { path: mesh, options: { sizeMax: 0.5 } } });
+      expect(generated.isError, JSON.stringify(generated.content)).not.toBe(true);
+      const payload = JSON.parse((generated.content as Array<{ text?: string }>).find(c => c.text)!.text!);
+      expect(payload.nodeCount).toBeGreaterThanOrEqual(4);
+      expect(payload.elementCount).toBeGreaterThan(0);
     } finally {
       await client.close();
       fs.rmSync(dir, { recursive: true, force: true });

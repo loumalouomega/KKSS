@@ -9,8 +9,9 @@
  * (which ships its own node_modules) but KKSS ships none, so every meshio
  * route would die with ERR_MODULE_NOT_FOUND in a packaged install. The
  * submodule is consumed verbatim, so the fix lives here: same `out/meshio/`
- * tree esbuild.mjs already copies from `mesh/dist/meshio` (cad and mesh both
- * pin ^10.20.2, so one copy serves both).
+ * tree esbuild.mjs copies from `mesh/dist/meshio` (currently 15.4.0). CAD
+ * independently locks 16.7.0; the bundled CAD geometry and mesh MCP runtime
+ * tests verify the shared tree rather than assuming matching dependency pins.
  *
  * The alias only rewrites the bare specifier; mesh's own loader builds its
  * import path at runtime, so it is untouched by it.

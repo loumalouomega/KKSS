@@ -176,6 +176,7 @@ resubmitted automatically.
   `saveMesh(fsPath)`, is KKSS's stand-in for that half of VS Code: it finds the
   `MeshHost` whose document owns the uri and calls its `saveDocument()`, which
   calls `saveCustomDocument` on the exact document object.
+- **CAD mesh-edit replay stays in the compute worker.** When `CadHost` has no viewer-serialized STL, `app/main/cadMeshInput.ts` resolves the source (including glTF and meshio++ companions) and calls CAD’s `bakeMeshEdits` over only the unbaked tail. A viewer-supplied STL already contains edits. Keep source inspection facts raw where their identifiers are defined over the raw file, and surface each replay outcome in export provenance. Native CAD Save persists sidecars; only explicit assistant `cad__save_model` bakes STL/OBJ/PLY sources.
 - **Heavy WASM stays off the UI thread.** OCCT + Gmsh run in
   `app/main/cadCompute.worker.ts` (RPC via `cadComputeClient.ts`); MMG runs in
   the mesh submodule's own worker pair. Path contracts of the unmodified
@@ -188,7 +189,7 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (12.0.0; since 10.20 it has the field-only
+  `@meshioplusplus/wasm` package (15.4.0; since 10.20 it has the field-only
   `.dex`/`.ip`/`.mff` formats — point fields, no geometry — the write-only
   SVG/TikZ figure formats exposed in the export menu's "Figures" group, and,
   since it statically links HDF5/netCDF, the Exodus/CGNS/H5M/HMF/MED family
