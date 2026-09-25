@@ -86,18 +86,25 @@ export class MetaMcpServer {
 
   /** Stops the listener and tears down all sessions (idempotent). */
   async disable(): Promise<void> {
-    if (!this.httpServer) return;
+    const httpServer = this.httpServer;
+    if (!httpServer) return;
     this.deps.hub.offStatus(this.onStatus);
-    for (const { transport } of this.sessions.values()) {
+    // Stop accepting requests before awaiting session teardown. A client can
+    // leave a stream open while transport.close() settles; keeping the HTTP
+    // listener live until then makes Disable appear to do nothing.
+    const closed = new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    httpServer.closeAllConnections();
+    const sessions = [...this.sessions.values()];
+    this.sessions.clear();
+    await Promise.all(sessions.map(async ({ transport }) => {
       try {
         await transport.close();
       } catch {
         /* already gone */
       }
-    }
-    this.sessions.clear();
-    await new Promise<void>((resolve) => this.httpServer!.close(() => resolve()));
-    this.httpServer = null;
+    }));
+    await closed;
+    if (this.httpServer === httpServer) this.httpServer = null;
     this.boundPort = 0;
   }
 

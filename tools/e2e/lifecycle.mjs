@@ -60,5 +60,5 @@ await scenario('single-instance', async c => {
   // be wedged in SwiftShader's ReadPixels stall after the forwarded STEP
   // redraw; graceful shutdown is covered by the session scenarios above.
   await closeApp(app);
-  const next = await c.launch(undefined, { singleInstance: true }); await c.page(next, 'home'); await quitApp(next);
+  const next = await c.launch(undefined, { singleInstance: true }); await c.page(next, 'home'); await closeApp(next);
 });

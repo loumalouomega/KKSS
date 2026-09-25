@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { scenario, assert, menu, until, quitApp } from './context.mjs';
@@ -32,6 +33,11 @@ await scenario('chat-mcp', async c => {
   try {
     let app = await c.launch(undefined, { env: fixture.env }); let shell = await c.page(app, 'shell');
     await shell.locator('#chat-btn').click(); let chat = await c.page(app, 'chat');
+    // The chat request can be answered by the local LLM fixture before the
+    // uvx-backed MCP server finishes its initial handshake. Do not approve a
+    // tool call until the server that owns it is connected and ready.
+    await until(async () => await chat.locator('#servers .server-dot.ready[title^="Kratos jobs fixture:"]').count() === 1,
+      'Kratos MCP fixture ready', 60_000);
     const send = async text => { await chat.locator('#input').fill(text); await chat.locator('#input').press('Enter'); };
     const idle = async () => until(async () => !(await chat.locator('#send-btn').getAttribute('class')).includes('stop'));
     const decideWithKeyboard = async label => {
@@ -66,6 +72,8 @@ await scenario('chat-mcp', async c => {
     assert.ok((await client.listTools()).tools.some(t => t.name === 'kratos__job_list'));
     const result = await client.callTool({ name: 'kratos__job_list', arguments: {} }); assert.match(JSON.stringify(result), /cancelled/);
     await client.close(); client = undefined; await menu(app, 'Enable (external LLM access)');
+    await until(() => JSON.parse(fs.readFileSync(path.join(c.profile, 'state.json'), 'utf8')).metaServerEnabled === false,
+      'MCP listener disable request persisted');
     await until(async () => { try { await fetch(url); return false; } catch { return true; } }, 'MCP listener closed');
     await quitApp(app);
     app = await c.launch(undefined, { env: fixture.env }); shell = await c.page(app, 'shell'); await shell.locator('#chat-btn').click(); chat = await c.page(app, 'chat');
