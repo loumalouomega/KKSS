@@ -102,6 +102,18 @@ export async function manualTutorials(out, selected = []) {
       await sleep(1800);
       if (out) await result.screenshot({ path: path.join(out, `tutorial-${c.id}-results.png`) });
       if (c.id === 'structural') {
+        const deformedMode = result.locator('.field-mode-btn').filter({ hasText: 'Deformed' });
+        await deformedMode.click();
+        const deformForm = result.locator('.field-subform').filter({ hasText: 'Deform by' });
+        await deformForm.locator('select').selectOption(choice.value);
+        const warpScale = deformForm.locator('input[type="range"]');
+        assert.equal(await warpScale.getAttribute('max'), '1000');
+        await warpScale.evaluate(el => { el.value = '1000'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+        assert.match(await deformedMode.getAttribute('class') ?? '', /active/);
+        assert.equal(await warpScale.inputValue(), '1000');
+        await result.locator('body').press('3'); // standard +Y / Top view exposes the X-Z bending plane
+        await sleep(700);
+        if (out) await result.screenshot({ path: path.join(out, 'tutorial-structural-deformed.png') });
         await selector.selectOption(options.find(o => o.text.startsWith('VON_MISES_STRESS ')).value);
         await sleep(600);
         if (out) await result.screenshot({ path: path.join(out, 'tutorial-structural-stress.png') });

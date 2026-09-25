@@ -1366,7 +1366,9 @@ measured depth error. Limits are separate from the recorded baselines.
 `manual.mjs` is also an Electron acceptance test: it opens each case in the
 real app, exports a fresh CAD mesh, configures and generates the Problemtype
 case in the sidebar, clicks **Run**, checks the terminal receipt and solver
-fields, then opens results and captures the selected field/timeline. The full
+fields, then opens results and captures the selected field/timeline. The
+cantilever additionally verifies the display-only displacement warp at 1000×
+and captures both its deformed shape and von Mises stress. The full
 `npm run docs:screenshots` pipeline runs those five sessions and
 `assistant.mjs`; its local scripted OpenAI-compatible provider performs real
 tool calls and a solver run, tests dry-run/denial/approval and snapshot output,
@@ -1376,10 +1378,13 @@ transcript is labeled scripted and needs no provider credentials.
 Tutorial integration commits are CAD `ad236ece` on `kkss.dev` (including
 planar-domain export and CAD snapshot rendering in the KKSS worker) and mesh
 `9f33b560` on `kkss.dev` (solver-compatible built-in cases and Problemtype
-fixes). `esbuild.mjs` copies CAD viewer assets to the runtime snapshot server.
-Their full revisions are recorded in each published `verification.json`.
-Keep submodule changes committed on the designated branch before moving these
-pointers.
+fixes). Mesh `0819bdc` extends the Field panel's display-only displacement
+warp to 1000× so small solver deformations remain inspectable; the cantilever
+tutorial captures it at 1000× without changing field values. The published
+`verification.json` files pin the full CAD and mesh generation revisions used
+for their solver baselines. `esbuild.mjs` copies CAD viewer assets to the
+runtime snapshot server. Keep submodule changes committed on the designated
+branch before moving these pointers.
 
 ## Screenshots are generated, not hand-captured
 

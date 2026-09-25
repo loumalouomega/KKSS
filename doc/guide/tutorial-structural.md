@@ -22,7 +22,7 @@ The shipped [`block.stp`](/guide/cad-mode) is 3 × 4 × 5 mm. Scale it sixfold a
 
 Click **Generate case files**. This writes `ProjectParameters.json`, the materials file (when used), and `MainKratos.py` beside the mesh. Inspect generation warnings under the Problemtype panel. Click **Run case**; the embedded terminal shows solver output. The run record and log are saved alongside the case. A failed import usually means the selected Python environment lacks the named Kratos application.
 
-When the run finishes, click **Open results**. In the VTK tab, click **Field**, select the listed field, and use the timeline to choose a step. The values below came from the verified final frame.
+When the run finishes, click **Open results**. In the VTK tab, click **Field**, select `DISPLACEMENT`, and use the timeline to choose a step. Click **TOP** on the orientation cube (or press `3`) to look along +Y and see the cantilever's X–Z bending plane. Under **Modes**, enable **Deformed**, set **Deform by** to `DISPLACEMENT`, and set **Warp scale** to **1000×** to make this sub-micron physical deflection visible. The warp changes only the displayed geometry; the reported displacement remains the solver value. Select `VON_MISES_STRESS` to inspect stress.
 
 ## Verified result
 
@@ -35,3 +35,7 @@ Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 1048 nodes 
 ![Problemtype setup](/screenshots/tutorial-structural-setup.png)
 
 ![Solver result viewed in KKSS](/screenshots/tutorial-structural-results.png)
+
+![Cantilever with displacement-driven deformed-shape warp](/screenshots/tutorial-structural-deformed.png)
+
+![Von Mises stress field on the deformed cantilever](/screenshots/tutorial-structural-stress.png)

@@ -4,7 +4,7 @@ These five tutorials join the CAD and mesh guides into one complete Kratos workf
 
 | Physics | Worked case | Check |
 |---|---|---|
-| Structural mechanics | [Cantilever](tutorial-structural) | Free-end displacement and von Mises stress |
+| Structural mechanics | [Cantilever](tutorial-structural) | Deformed shape, free-end displacement and von Mises stress |
 | Fluid dynamics | [Slip-wall channel](tutorial-fluid) | Uniform velocity and balanced inlet/outlet flux |
 | Convection-diffusion | [Stationary heat conduction](tutorial-thermal) | Linear 300–400 K profile |
 | Potential flow | [Uniform flow](tutorial-potential-flow) | Potential gradient equals free-stream velocity |
