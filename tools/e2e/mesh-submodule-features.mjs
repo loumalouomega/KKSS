@@ -70,19 +70,26 @@ await scenario('mesh-submodule-features', async c => {
   await until(async () => await mesh.locator('#sidebar option[value="Selected"]').count() > 0, 'selection creates a SubModelPart');
   await menu(app, 'Save');
   await until(() => fs.readFileSync(file, 'utf8').includes('Begin SubModelPart Selected'), 'SubModelPart persisted');
+  await mesh.locator('#sel-seed-name').fill('Draft selection');
   const beforeDelete = await mesh.locator('#sb-count-model').textContent();
   await selection.getByRole('button', { name: 'Delete entities', exact: true }).click();
   await until(async () => await mesh.locator('#sb-count-model').textContent() !== beforeDelete, 'entity removed from model');
-  // Upstream refreshes the selection overlay on model changes but redraws
-  // the panel's count labels only when it is reopened/interacted with.
-  await mesh.locator('#toolbar [data-action="selection"]').click();
-  await mesh.locator('#toolbar [data-action="selection"]').click();
   await until(async () => (await selection.locator('.sel-set-name').last().textContent()).endsWith('— 0'), 'deleted selection becomes empty');
+  assert.equal(await selection.getByRole('button', { name: 'Export', exact: true }).isDisabled(), true);
+  assert.equal(await mesh.locator('#sel-seed-name').inputValue(), 'Draft selection');
+  await mesh.locator('#sel-seed-name').focus();
   await menu(app, 'Undo Mesh Operation');
   await until(async () => await mesh.locator('#sb-count-model').textContent() === beforeDelete, 'undo restores model counts');
-  await mesh.locator('#toolbar [data-action="selection"]').click();
-  await mesh.locator('#toolbar [data-action="selection"]').click();
   await until(async () => (await selection.locator('.sel-set-name').last().textContent()).endsWith('— 1'), 'undo restores deleted entity');
+  assert.equal(await selection.getByRole('button', { name: 'Export', exact: true }).isEnabled(), true);
+  assert.equal(await mesh.locator('#sel-seed-name').inputValue(), 'Draft selection');
+  assert.equal(await mesh.locator('#sel-seed-name').evaluate(el => document.activeElement === el), true);
+  await menu(app, 'Redo Mesh Operation');
+  await until(async () => (await selection.locator('.sel-set-name').last().textContent()).endsWith('— 0'), 'redo updates selection immediately');
+  await menu(app, 'Undo Mesh Operation');
+  await until(async () => (await selection.locator('.sel-set-name').last().textContent()).endsWith('— 1'), 'undo restores selection again');
+  await menu(app, 'Reload from Disk');
+  await until(async () => (await selection.locator('.sel-set-name').last().textContent()).endsWith('— 1'), 'reload preserves resolved selection');
   await selection.getByTitle('Close', { exact: true }).click();
 
   await mesh.locator('[data-action="advanced"]').click();
@@ -119,17 +126,29 @@ await scenario('mesh-submodule-features', async c => {
   await series.locator('#labels .node-label').first().waitFor();
   await series.locator('#toolbar [data-action="inspect"]').click();
   await series.locator('#inspect-panel').getByRole('button', { name: 'Probe line', exact: true }).click();
-  // Node labels expose the live camera projection; click the actual canvas at
-  // those coordinates, so both picks go through vtk.js, not injected replies.
-  for (const id of ['2', '3']) {
-    const point = await series.locator('#labels .node-label').getByText(id, { exact: true }).evaluate(el => {
+  // Node labels expose the live camera projection. Some labels are behind the
+  // front surface and therefore are not pickable; try projected vertices until
+  // the actual vtk.js picker accepts two, rather than assuming every label is
+  // visible from the default camera.
+  const points = await series.locator('#labels .node-label').evaluateAll(labels => labels.map(el => {
       const parent = el.parentElement.getBoundingClientRect();
-      return { x: parent.x + parseFloat(el.style.left), y: parent.y + parseFloat(el.style.top) };
-    });
+      return { id: el.textContent, x: parent.x + parseFloat(el.style.left), y: parent.y + parseFloat(el.style.top) };
+  }));
+  for (const point of points) {
     assert.ok(Number.isFinite(point.x) && Number.isFinite(point.y), 'node projection is ready');
     await series.mouse.click(point.x, point.y);
+    if (await series.locator('#probe-panel').isVisible()) break;
   }
-  await until(async () => await series.evaluate(() => window.probeReplies.some(r => r.probe?.covered > 0)), 'probe sampled by the host');
+  assert.equal(await series.locator('#probe-panel').isVisible(), true, 'vtk.js accepts two visible vertex picks');
+  await until(async () => await series.evaluate(() => window.probeReplies.some(r => r.probe?.covered > 0)), 'probe sampled by the host').catch(async error => {
+    const diagnostic = await series.evaluate(() => ({
+      replies: window.probeReplies,
+      panel: document.querySelector('#probe-panel')?.textContent,
+      inspect: document.querySelector('#inspect-panel')?.textContent,
+      labels: [...document.querySelectorAll('#labels .node-label')].map(label => ({ text: label.textContent, left: label.style.left, top: label.style.top })),
+    }));
+    throw new Error(`${error.message}; probe diagnostic: ${JSON.stringify(diagnostic)}`);
+  });
   const first = await series.evaluate(() => window.probeReplies.at(-1).probe);
   assert.equal(first.rows.length, 101);
   assert.equal(first.uncovered, 0);
@@ -152,6 +171,30 @@ await scenario('mesh-submodule-features', async c => {
   for (let i = 0; i < first.rows.length; i++) {
     assert.ok(Math.abs(second.rows[i].values[0] - first.rows[i].values[0] - 10) < 1e-5);
   }
+  const probeBeforeStale = await series.locator('#probe-panel').textContent();
+  await series.evaluate(() => window.dispatchEvent(new MessageEvent('message', { data: { ...window.probeReplies[0], message: 'STALE REPLY MUST NOT RENDER' } })));
+  assert.equal(await series.locator('#probe-panel').textContent(), probeBeforeStale, 'old probe reply cannot replace the current profile');
+  await series.locator('#probe-panel').getByTitle('Close', { exact: true }).click();
+  await series.locator('#tl-prev').click();
+  await series.locator('#toolbar [data-action="selection"]').click();
+  const timelineSelection = series.locator('#selection-panel');
+  await timelineSelection.getByRole('button', { name: 'Box', exact: true }).click();
+  const seriesCanvas = await series.locator('#render-root canvas').first().boundingBox();
+  await series.mouse.move(seriesCanvas.x + seriesCanvas.width * .35, seriesCanvas.y + seriesCanvas.height * .35);
+  await series.mouse.down();
+  await series.mouse.move(seriesCanvas.x + seriesCanvas.width * .65, seriesCanvas.y + seriesCanvas.height * .65, { steps: 5 });
+  await series.mouse.up();
+  await series.locator('#sel-seed-kind').selectOption('field');
+  await series.locator('#sel-seed-field').selectOption('TEMPERATURE');
+  await series.locator('#sel-seed-lo').fill('0');
+  await series.locator('#sel-seed-hi').fill('3');
+  await timelineSelection.getByRole('button', { name: 'Add set', exact: true }).click();
+  await until(async () => (await timelineSelection.locator('.sel-set-name').last().textContent()).endsWith('— 2'), 'field seed selects both cells');
+  await series.locator('#sel-seed-name').fill('Timeline draft');
+  await series.locator('#tl-next').click();
+  await until(async () => (await timelineSelection.locator('.sel-set-name').last().textContent()).endsWith('— 0'), 'field seed refreshes on the next frame');
+  assert.equal(await series.locator('#sel-seed-name').inputValue(), 'Timeline draft');
+  assert.equal(await timelineSelection.getByRole('button', { name: 'Export', exact: true }).isDisabled(), true);
   const reopenedApp = await c.launch(file);
   const reopened = await c.page(reopenedApp, 'mesh');
   await reopened.locator('#doc-chip-name').getByText('regions.mdpa', { exact: true }).waitFor();

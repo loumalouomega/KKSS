@@ -189,7 +189,7 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (12.0.0; since 10.20 it has the field-only
+  `@meshioplusplus/wasm` package (15.4.0; since 10.20 it has the field-only
   `.dex`/`.ip`/`.mff` formats — point fields, no geometry — the write-only
   SVG/TikZ figure formats exposed in the export menu's "Figures" group, and,
   since it statically links HDF5/netCDF, the Exodus/CGNS/H5M/HMF/MED family

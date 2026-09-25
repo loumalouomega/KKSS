@@ -84,3 +84,5 @@ The assistant can use `mesh_select` for selection predicates and `mesh_transform
 | Selection panel | Properties editor |
 | --- | --- |
 | ![Selection panel](/screenshots/mesh-selection.png) | ![Properties editor](/screenshots/mesh-properties.png) |
+
+Selection counts and enabled actions refresh immediately after edits, undo/redo, reloads and timeline changes, while unfinished panel input is preserved.

@@ -31,7 +31,7 @@ await scenario('viewers-export', async c => {
     const refreshed = exportedView?.waitForEvent('domcontentloaded', { timeout: 120_000 });
     refreshed?.catch(() => {});
     await cad.locator('#meshing-export').click();
-    await until(() => fs.existsSync(exported) && fs.statSync(exported).mtimeMs > before, 'CAD exported mesh', 120_000);
+    await until(() => fs.existsSync(exported) && fs.statSync(exported).mtimeMs > before && /End Nodes/.test(fs.readFileSync(exported, 'utf8')) && /End Elements/.test(fs.readFileSync(exported, 'utf8')), 'CAD exported complete mesh', 120_000);
     assert.match(fs.readFileSync(exported, 'utf8'), /Begin Nodes/);
     await until(async () => (await shell.locator('.tab.active').textContent()).includes('exported.mdpa'), 'export activates mesh');
     await refreshed;
