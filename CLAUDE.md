@@ -754,10 +754,11 @@ resubmitted automatically.
   newly ready tools join the next user turn's snapshot. Failure categories are
   conservative, with bounded stderr; unfamiliar errors remain unknown.
   Kratos connect/listTools each get five minutes; tool-call timeouts are unchanged.
-  **Live finding:** server 0.3.0 needs `mcp<2`, since MCP Python 2.x removed its
+  **Live finding:** server 0.3.0 — and still the pinned 0.5.0 — needs `mcp<2`, since MCP Python 2.x removed its
   `mcp.server.fastmcp` import. Keep that constraint when resolving the pinned
   server unless a newer server has been verified compatible.
-  Linux: real official installer + MCP handshake (40 tools), and live Electron
+  Linux: real official installer + MCP handshake (40 tools at 0.3.0; the published 0.5.0 advertises 52 tools,
+  13 resources and five prompts), and live Electron
   missing-runtime → recovery checked in an isolated profile. Windows/macOS:
   mocked command coverage only; real installation remains unverified.
   `test/kratosRuntime.test.ts`, `test/kratosStartup.test.ts`, the chat IPC tests,
