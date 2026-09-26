@@ -237,3 +237,19 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.workflow-form { padding: var(--ui-s-3); }
+.workflow-form h3 { margin: 0 0 var(--ui-s-3); }
+.workflow-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: var(--ui-s-3); min-width: 0; }
+.workflow-form-field { display: flex; flex-direction: column; gap: var(--ui-s-1); }
+.workflow-form input, .workflow-form select, .workflow-form textarea { width: 100%; box-sizing: border-box; }
+.workflow-form textarea { height: auto; min-height: 100px; padding-top: var(--ui-s-2); resize: vertical; }
+.workflow-form-summary { white-space: pre-wrap; overflow-wrap: anywhere; }
+.workflow-form .workflow-actions { margin-top: var(--ui-s-3); }
+#workflow-form-error { color: var(--vscode-errorForeground); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+#workflow.workflow-editing > :not(#workflow-form):not(.home-section-head) { display: none; }
+.workflow-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.workflow-form-wide { grid-column: 1 / -1; }
+.workflow-form-field > span { font-size: var(--ui-fs-sm); color: var(--vscode-descriptionForeground); }
+@media (max-width: 520px) { .workflow-form-grid { grid-template-columns: minmax(0, 1fr); } }

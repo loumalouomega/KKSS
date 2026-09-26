@@ -182,11 +182,10 @@ try {
   workflowStage = "show the workflow section";
   await page.waitForSelector("#workflow:not([hidden])", { timeout: 15_000 });
   workflowStage = "create a study from Home";
-  await page.evaluate((source) => {
-    const prompts = [source, "Smoke-test study"];
-    Object.defineProperty(window, "prompt", { configurable: true, value: () => prompts.shift() });
-    document.querySelector("#study-create").click();
-  }, geometry);
+  await page.click("#study-create");
+  await page.fill("#workflow-input-source", geometry);
+  await page.fill("#workflow-input-name", "Smoke-test study");
+  await page.click("#workflow-form button[type=submit]");
   workflowStage = "render study readiness";
   try {
     await page.waitForFunction(() => document.querySelector("#study-picker").options.length === 1, null, { timeout: 15_000 });

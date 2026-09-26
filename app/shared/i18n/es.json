@@ -624,5 +624,21 @@
   "Finishing cloud uploads…": "Finalizando las cargas a la nube…",
   "Not connected to {0}; {1} was not uploaded.": "No hay conexión con {0}; no se cargó {1}.",
   "Could not upload {0}: {1}": "No se pudo cargar {0}: {1}",
-  "{0} changed on {1} since KKSS last synced it. Your copy was kept and uploaded as \"{2}\".": "{0} cambió en {1} desde la última sincronización de KKSS. Se conservó su copia y se cargó como \"{2}\"."
+  "{0} changed on {1} since KKSS last synced it. Your copy was kept and uploaded as \"{2}\".": "{0} cambió en {1} desde la última sincronización de KKSS. Se conservó su copia y se cargó como \"{2}\".",
+  "Enter a value for {0}.": "Introduzca un valor para {0}.",
+  "Mesh handling": "Tratamiento de la malla",
+  "Reuse mesh": "Reutilizar malla",
+  "Regenerate mesh": "Regenerar malla",
+  "Enter a non-negative integer time step.": "Introduzca un índice de paso temporal entero no negativo.",
+  "Persist paused plan": "Guardar plan en pausa",
+  "Start plan": "Iniciar plan",
+  "Result field": "Campo de resultados",
+  "Field location": "Ubicación del campo",
+  "Component": "Componente",
+  "Region or SubModelPart path": "Región o ruta del SubModelPart",
+  "Reduction": "Reducción",
+  "Unit": "Unidad",
+  "Time step (optional)": "Paso temporal (opcional)",
+  "Result path (optional)": "Ruta del resultado (opcional)",
+  "The project changed. Cancel and reopen this form.": "El proyecto ha cambiado. Cancele y vuelva a abrir este formulario."
 }

@@ -431,10 +431,11 @@ resubmitted automatically.
   shape), and quitting with any dirty mesh tab open does the same, ahead of the
   text editor's own equivalent guard — both live on `main.win.on("close")`
   rather than adding a second `before-quit` hold, since that hook already
-  carries a single-shot cloud-drain `preventDefault`. Ctrl+O replacing a tab's
-  document is deliberately **not** guarded the same way — same scope as the
-  editor's own dirty-guard-on-close precedent, just not yet extended to this
-  path. Entering a mode screen
+  carries a single-shot cloud-drain `preventDefault`. Replace-in-place opens also await this guard through `openFile` and
+  `documentReplacementQueue`: menu, toolbar, recents and the first OS dropped
+  file all preserve the document on Cancel or failed Save. Queued replacements
+  capture the host/document and recheck it after consent; external launch opens
+  reserve separate tabs and never replace unsaved work. Entering a mode screen
   (`setScreen`) guarantees it has at least one tab, creating a blank one if
   the user closed every tab of that mode, so the viewer is never left
   literally empty. `.stl/.obj/.ply` are viewable in both modes — the active
@@ -1507,3 +1508,47 @@ approval/denial side effects, cancellation and transcript persistence.
 ### Mesh 4.6.0 integration
 
 Selection, Properties authoring and line probes are inherited from mesh `66a71fc` through the existing provider/shim bridge. Do not duplicate their panels or protocols in KKSS. `mesh__mesh_select` and `mesh__mesh_probe` are write-class tools: optional `outputPath` writes JSON or probe CSV. Keep that policy and chat capabilities synchronized with the bundled server.
+
+## Home workflow forms and format-count verification
+
+Home uses `app/renderer/home/workflowForm.ts` for one inline action panel at a
+time, with labelled shared `.field` controls, explicit submit/cancel, Escape,
+focus restoration and local validation. `.field` belongs on the input/select,
+never its wrapping label (it has a fixed control height). The action list is
+hidden while editing; a two-column quantity form keeps controls readable.
+Backend errors retain the entered values and unlock retry. Request serialization
+prevents repeated clicks from submitting twice. Queue preview, paused enqueue
+and starting remain separate confirmations, retaining exact plan identities.
+The Home IPC and `app__*` tool contracts are unchanged.
+
+`tools/e2e/home-workflows.mjs` exercises actual study creation, invalid values,
+backend errors, cancellation, sweep preview/enqueue, explicit start cancellation,
+and quantity persistence through the real mesh MCP server with local VTK data.
+The Electron baseline confirmed `prompt() is not supported.` Raw MCP dispatch
+now awaits only the target server's pending connection before checking readiness;
+first use from Home does not require opening chat. Leave the optional time-step
+input blank for single-file VTK results; mesh MCP accepts an index only for its
+extended-format time-series readers.
+
+`tools/format-registry.mjs` shares the packaging source parse and derives separate
+counts from unique values in `MESHIO_READ_CANDIDATES` and `MESHIO_WRITE_FORMAT`.
+At the current gitlinks: 42 readable and 38 writable extended formats, with 56
+read and 45 write suffixes. Native formats remain separate; field-only formats
+are included, and writable figures SVG/TikZ count only on write. Packaging CI
+rejects mismatched or ambiguous counts in the landing page and format/start guides.
+Regenerate the Home form capture with
+`npm run docs:screenshots -- --home-workflow-only` (or the complete pipeline).
+
+`tools/e2e/mesh-replacement.mjs` verifies menu/toolbar/drop/recent replacement,
+Save / Don’t Save / Cancel, a real save failure, overlapping opens, clean opens
+and independent new tabs. A new MeshHost waits for its initial page's `ready`
+instead of reloading an empty URL. OS drops are resolved in the shared preload
+using `webUtils.getPathForFile`, and `app:dropFile` is sender-checked in main.
+
+Tier 0 closure validation: 622 unit tests passed (one pre-existing skipped test),
+typecheck, app build/theme guard, packaging/count checks, documentation build,
+and all Electron acceptance scenarios passed. The initial full acceptance run
+caught the old smoke test's prompt mock; after replacing it with actual form
+interaction, smoke and the final Home acceptance case passed separately. The
+Home case also checks normal/narrow layout and detects overlapping labels and
+controls. The generated `home-workflow-form.png` was visually inspected.

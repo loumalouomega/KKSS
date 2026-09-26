@@ -435,6 +435,9 @@ export class McpManager {
     const split = splitToolName(namespaced, this.servers.map((s) => s.spec.key));
     const server = split && this.servers.find((s) => s.spec.key === split.server);
     if (!split || !server) return { isError: true, content: [{ type: "text", text: `Unknown tool: ${namespaced}` }] };
+    // Home can invoke a tool immediately after lazy startup. Wait only for its
+    // server, so a mesh quantity never waits for the separate Kratos runtime.
+    await this.connecting.get(server.spec.key);
     if (!server.client || server.status.state !== "ready") return { isError: true, content: [{ type: "text", text: `MCP server "${server.status.name}" is unavailable: ${server.status.error ?? "not connected"}` }] };
     try {
       return (await server.client.callTool({ name: split.tool, arguments: args }, undefined, {

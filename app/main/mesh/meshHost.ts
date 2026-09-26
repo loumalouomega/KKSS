@@ -324,7 +324,10 @@ export class MeshHost {
     this.currentPath = fsPath;
     this.pendingOpen = fsPath;
     this.hooks.onTitle(path.basename(fsPath));
-    this.view.webContents.reload();
+    // A just-created tab may still be loading its initial page. Reloading an
+    // empty URL aborts that navigation; its first ready message can consume
+    // pendingOpen directly instead.
+    if (this.view.webContents.getURL()) this.view.webContents.reload();
   }
 
   /** Routes a File-menu / palette action to the active provider (extension.ts dispatchMenu). */

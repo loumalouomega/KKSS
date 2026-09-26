@@ -1,6 +1,7 @@
 /** Preload for the home-screen renderer. */
 import { contextBridge, ipcRenderer } from "electron";
 import "./appearance";
+import "./fileDrop";
 
 contextBridge.exposeInMainWorld("homeApi", {
   post: (message: unknown) => {

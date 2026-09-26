@@ -23,6 +23,7 @@ export const channels = {
   shellToWebview: "shell:toWebview",
   pickerToHost: "picker:toHost",
   pickerInit: "picker:init",
+  fileDrop: "app:dropFile",
   homeToHost: "home:toHost",
   homeToWebview: "home:toWebview",
   aboutInit: "about:init",

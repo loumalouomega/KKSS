@@ -8,6 +8,7 @@
  */
 import { contextBridge, ipcRenderer } from "electron";
 import "./appearance";
+import "./fileDrop";
 
 const arg = process.argv.find((a) => a.startsWith("--kkss-channel="));
 const mode = arg ? arg.split("=")[1] : "cad";

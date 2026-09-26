@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { root } from './e2eShared.mjs';
 let failed = false;
-for (const file of ['smoke.e2e.mjs', 'e2e/workspace.mjs', 'e2e/viewers.mjs', 'e2e/cad-submodule-features.mjs', 'e2e/mesh-submodule-features.mjs', 'e2e/chat-mcp.mjs', 'e2e/lifecycle.mjs', 'e2e/cloud.mjs', 'e2e/accessibility.mjs']) {
+for (const file of ['smoke.e2e.mjs', 'e2e/workspace.mjs', 'e2e/home-workflows.mjs', 'e2e/mesh-replacement.mjs', 'e2e/viewers.mjs', 'e2e/cad-submodule-features.mjs', 'e2e/mesh-submodule-features.mjs', 'e2e/chat-mcp.mjs', 'e2e/lifecycle.mjs', 'e2e/cloud.mjs', 'e2e/accessibility.mjs']) {
   const child = spawn(process.execPath, [path.join(root, 'tools', file)], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
   let log = ''; let timedOut = false;
   for (const stream of [child.stdout, child.stderr]) stream.on('data', b => { log += b; process.stdout.write(b); });
