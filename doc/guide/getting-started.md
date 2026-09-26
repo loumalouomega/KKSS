@@ -31,7 +31,7 @@ The toolbar at the top of the window holds the mode toggle:
 ![The shell toolbar: mode toggle, Open button, and the current file](/screenshots/shell-toolbar.png)
 
 - **🔷 Pre-Processing** — CAD geometry and model preparation ([details](/guide/cad-mode)). Opens STEP, IGES, BREP, STL, OBJ, PLY, glTF, and OpenSCAD `.csg`/`.scad` (a `.scad` needs a local `openscad` binary). **File ▸ New Blank Model…** starts an empty one instead.
-- **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 39 extended mesh formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, Exodus, CGNS, MED, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and an **Advanced** toolbar menu holds the Mesh Size panel (nodal/element size statistics), sphere glyphs for particle meshes, face normals for spotting inverted elements, and boundary-skin export.
+- **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 42 extended readable formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, Exodus, CGNS, MED, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and an **Advanced** toolbar menu holds the Mesh Size panel (nodal/element size statistics), sphere glyphs for particle meshes, face normals for spotting inverted elements, and boundary-skin export.
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved. The two viewers share one layout — a document chip in the menubar, an icon-headed sidebar with a collapsed **Advanced** group, a floating toolbar and dock, and a status bar — described in [Pre-Processing](/guide/cad-mode#reading-the-window-at-a-glance) and [Post-Processing](/guide/mesh-mode#reading-the-window-at-a-glance). The app's own toolbar, home screen, chat and jobs panels use the same look, and the **Terminal**, **Chat** and **Jobs** buttons show as pressed while their panel is open.
 
@@ -77,9 +77,15 @@ available geometry, mesh/case setup, and result in their existing viewers, and c
 settings. Geometry stays external by default; **Copy geometry in project** creates a project-local
 copy, while **Relink geometry** explicitly repairs a missing or changed source. After exporting a
 mesh, **Attach mesh** records its revision and imports the adjacent case setup when one exists.
+Home opens one inline form at a time. **Cancel** or Escape dismisses it without applying changes;
+validation and service errors keep your entries available to correct and retry. Mesh reuse is an
+explicit choice, and quantity fields use selectors for location, component and reduction.
+
+![Inline quantity evaluation form](/screenshots/home-workflow-form.png)
+
 **Plan run** previews isolated mesh, case-generation and solve tasks under `.kkss/runs/<id>/`.
 **Plan sweep** expands one case-setting path and up to 50 values into fresh variant studies and run
-destinations. Plans persist paused; Resume is bound to the concrete plan revision, and the queue
+destinations. Choose **Persist paused plan** after reviewing the preview, then **Start plan** to launch it. Cancelling the start step leaves the persisted queue paused. Resume is bound to the concrete plan revision, and the queue
 reconciles recorded CAD mesh-export and solver request identities after restart. Home can resume one waiting variant row
 while holding other rows, or preview a failed row retry with fresh study and run identities. Comparisons
 label mesh-sensitivity and solver-parameter studies separately using recorded mesh revisions and settings. A terminal run can be imported as an
@@ -88,7 +94,7 @@ review** report generated-input revisions, MDPA counts, the existing mesh-qualit
 versioned structural solve-step outcomes in offline JSON/HTML.
 **Evaluate quantity** lets you select a result field, location, component, region, time step,
 reduction and unit; the result record keeps the exact source artifact revision. Units must be
-declared explicitly. If that result later changes, its saved value is shown as stale and omitted.
+declared explicitly. Leave the optional time step blank for an ordinary single-result file; use an index for an extended-format time series. Leave the result path blank to use the recorded artifact. If that result later changes, its saved value is shown as stale and omitted.
 Variant comparison pairs matching definitions only when their units agree; missing values stay
 missing. Unsupported-problemtype convergence remains explicitly unavailable. The versioned structural monitor records the solver's residual
 norm and convergence criterion parameters for nonlinear residual-criterion runs. Linear solves,
@@ -318,7 +324,7 @@ Viewer actions (mesh quality, field visualization, find entity…) are *not* in 
 
 ## Opening files
 
-- **Open… button** or `Ctrl+O` — opens a file in the current mode, replacing whatever the focused tab currently shows.
+- **Open… button** or `Ctrl+O` — opens a file in the current mode, replacing whatever the focused tab currently shows. If that mesh has unsaved edits, **Save / Don’t Save / Cancel** appears first. Save must succeed before replacement; Cancel keeps your document. The same protection applies to the toolbar, dropped files and Home recents. A drop opens the first file in the selection.
 - **File ▸ Open** in the CAD viewer's own File menu — same thing. (The mesh viewer's in-view File menu is hidden; use the app's **File** menu, which covers the same actions plus Save/Load Problem.)
 - Formats supported by both modes (`.stl`, `.obj`, `.ply`) open in whichever mode is currently active.
 - Mesh formats Pre-Processing can also import (`.mdpa`, `.vtk`, `.vtu`, `.med`, `.cgns`, `.exo`, `.xdmf`) always open in **Post-Processing**, which reads them natively. Use Pre-Processing's own Open dialog when you want the geometry-only CAD import instead.
@@ -331,7 +337,7 @@ Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the too
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+O` | Open a file into the focused tab of the active mode |
+| `Ctrl+O` | Open a file into the focused tab; prompt before replacing unsaved mesh edits |
 | — | **File ▸ Open Folder…** sets the project folder; **Clear Project Root** reverts to inferring it |
 | — | **File ▸ Open Recent** reopens one of the last ten files, in the mode it was opened in |
 | — | **File ▸ New Blank Model…** creates an empty `.brep` to build from scratch (Pre-Processing) |

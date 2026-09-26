@@ -560,3 +560,23 @@ The embedded upstream viewer supplies Selection, the Properties editor and line 
 Chat classifies `mesh__mesh_select` and `mesh__mesh_probe` as write because `outputPath` can write uncapped selection ids to JSON or a probe profile to CSV, matching the policy for optional table/series output. Property and entity mutations remain under `mesh__mesh_transform`. The Electron mesh-submodule-features scenario covers these provider paths in the real application.
 
 The shared packaged meshio++ tree currently comes from mesh’s locked 15.4.0 dependency; CAD independently locks 16.7.0. Bundled MCP regression tests exercise mesh field interpolation/export/reopen and CAD boundary conversion/meshing against the shipped tree. Recheck both engines whenever either dependency changes; a version mismatch alone is not evidence of runtime compatibility.
+
+### Home forms and guarded document replacement
+
+Home’s `WorkflowForm` renders one inline action panel using the shared input/button recipes,
+with visible validation, focus restoration and retained values on errors. Existing `home:toHost`
+workflow messages and `app__*` schemas are unchanged; submissions are serialized in the renderer.
+Queue previews, paused persistence and starting remain separate user decisions. Raw MCP calls wait
+for the target server’s in-flight connection, so a first quantity evaluation can start from Home
+without opening chat or waiting for the independent Kratos runtime.
+
+`openFile` now returns a promise and uses `documentReplacementQueue` to serialize replacement
+consent. It captures and rechecks the destination tab/host/document before and after the dirty-mesh
+Save / Don’t Save / Cancel guard. Only a successful replacement updates recents and cloud tracking.
+The shim awaits its `openWith` hook. Shared Home/shell/view preloads route the first OS dropped file
+over `app:dropFile`; main validates the sender and absolute path before entering the same guard.
+External launch requests reserve separate tabs; restore and crash replay retain their existing paths.
+
+`tools/format-registry.mjs` parses source routing registries for packaging and separately counts
+unique extended reader/writer identifiers. The packaging CI check also checks the explicit format
+counts in the landing page and guides. Suffix aliases are not additional formats.

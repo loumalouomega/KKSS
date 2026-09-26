@@ -1,3 +1,4 @@
+import { documentReplacementQueue } from "./services/documentReplacement";
 import { configureLocale } from "./services/locale";
 import { t } from "../shared/i18n";
 import { beginOpen, configurePerformance } from "./services/performance";
@@ -451,7 +452,7 @@ function syncTabs(mode: Mode): void {
 // cadHostHooks closes over no specific tab, so one object serves every cad tab.
 // meshHostHooks does (onReveal has to focus *this* tab), so it is a factory.
 const cadHostHooks = {
-  onOpenRequest: (fsPath: string) => openFile(fsPath),
+  onOpenRequest: (fsPath: string) => { void openFile(fsPath); },
   onTitle: () => syncTabs("cad"),
   // Pre → post sync: a mesh exported from CAD that post mode can display
   // (.mdpa, .vtk, …) refreshes a matching clean tab or opens a NEW mesh tab.
@@ -656,7 +657,7 @@ function openRecentEntry(fsPath: string, mode: Mode): void {
   const entry = recentFiles.list().find((e) => e.path === fsPath);
   const ref = entry?.cloud;
   if (!ref) {
-    openFile(fsPath, mode);
+    void openFile(fsPath, mode);
     return;
   }
   // The mode the entry was recorded under wins, exactly as it does for a local
@@ -714,7 +715,7 @@ async function clearCloudCache(): Promise<void> {
  * Downloads with a cancellable progress toast and then hands the **local**
  * staging path to `openFile()` — routing, tab selection, recents and the screen
  * switch are all untouched, which is the whole point of the staging layer.
- * `openFile` stays synchronous and remains the one recents choke point; the
+ * `openFile` awaits the dirty-document guard and remains the one recents choke point; the
  * `cloud` ref is recorded through the same call so the row can re-download in a
  * later session.
  */
@@ -723,8 +724,7 @@ async function openCloudFile(ref: CloudRef, forcedMode?: Mode): Promise<void> {
   // Already on disk from an earlier session: reopen without a round trip.
   const cached = cloud.stagedPath(ref);
   if (cached) {
-    openFile(cached, forcedMode);
-    recordCloudRecent(cached, ref, forcedMode);
+    if (await openFile(cached, forcedMode)) recordCloudRecent(cached, ref, forcedMode);
     return;
   }
   const progress = progressToast(t("Downloading {0}…", {0: ref.name}), true);
@@ -743,8 +743,7 @@ async function openCloudFile(ref: CloudRef, forcedMode?: Mode): Promise<void> {
         progress.report(transferLabel(ref.name, done, total));
       },
     });
-    openFile(staged, forcedMode);
-    recordCloudRecent(staged, ref, forcedMode);
+    if (await openFile(staged, forcedMode)) recordCloudRecent(staged, ref, forcedMode);
   } catch (err) {
     if (!abort.signal.aborted) {
       toast("error", t("Could not open {0}: {1}", {0: ref.name, 1: err instanceof Error ? err.message : err}));
@@ -792,28 +791,39 @@ function openInAnyTab(fsPath: string): boolean {
 /** Opens a file in the mode the router picks (active mode wins on overlap),
  *  replacing the focused tab's document — "+ New Tab" is the explicit way to
  *  open a second document instead. */
-function openFile(fsPath: string, forcedMode?: Mode): void {
-  if (!main) return;
+const replaceDocument = documentReplacementQueue();
+const pendingOpenHosts = new WeakSet<CadHost | MeshHost>();
+function openFile(fsPath: string, forcedMode?: Mode, external = false): Promise<boolean> {
+  if (!main) return Promise.resolve(false);
   const resolved = path.resolve(fsPath);
   const mode = forcedMode ?? modeForFile(resolved, main.mode());
   if (!mode) {
     toast("warning", t("Unsupported file type: {0}", {0: path.basename(resolved)}));
-    return;
+    return Promise.resolve(false);
   }
   const tabId = ensureActiveTab(mode);
-  const host = mode === "cad" ? cadHosts.get(tabId) : meshHosts.get(tabId);
-  beginOpen(resolved);
-  host?.openPath(resolved);
-  cloud?.trackIfStaged(resolved);
-  // The ONE place recents are recorded, which is why every user-facing open is
-  // routed through this function. Deliberately NOT recorded: the three
-  // host.openPath() callers that bypass it — crash replay (recoverView), a
-  // solver step from openLatestResults, and onMeshExported's export product —
-  // plus session restore. None of those is "the user opened this file":
-  // replaying a crash would silently reorder the list, and a derived artifact
-  // would outrank the model actually opened.
-  recentFiles.record(resolved, mode);
-  setScreen(mode);
+  const hosts = mode === "cad" ? cadHosts : meshHosts;
+  const host = hosts.get(tabId);
+  const previous = host?.currentFile;
+  if (!host) return Promise.resolve(false);
+  pendingOpenHosts.add(host);
+  return replaceDocument(
+    () => !!main && !main.win.isDestroyed() && hosts.get(tabId) === host && host.currentFile === previous && (external || main.activeTabId(mode) === tabId),
+    () => host instanceof MeshHost ? confirmDiscardMeshTab(host) : Promise.resolve(true),
+    () => {
+      beginOpen(resolved);
+      host.openPath(resolved);
+      cloud?.trackIfStaged(resolved);
+      if (previous && !openInAnyTab(previous)) cloud?.untrackPath(previous);
+      // The sole user-open recents choke point; cancellation never records a file.
+      recentFiles.record(resolved, mode);
+      main?.setActiveTab(mode, tabId);
+      setScreen(mode);
+    },
+  ).catch(error => {
+    toast("error", error instanceof Error ? error.message : String(error));
+    return false;
+  }).finally(() => pendingOpenHosts.delete(host));
 }
 
 /** Switches screens and keeps the shell's active-screen highlight in sync.
@@ -1038,7 +1048,7 @@ app.whenReady().then(() => {
   });
 
   __configureVscodeShim({
-    openWith: (fsPath, viewType) => openFile(fsPath, modeForViewType(viewType)),
+    openWith: async (fsPath, viewType) => { await openFile(fsPath, modeForViewType(viewType)); },
     openTextDocument: (fsPath) => void editor?.openPath(fsPath),
     openLatestResults,
     // Only the explicit root becomes a workspace folder — see the shim.
@@ -1129,7 +1139,7 @@ app.whenReady().then(() => {
       installPath: stateStore.get<string>("kratos.installPath", "") || undefined,
       extraEnv: stateStore.get<Record<string, string>>("kratos.extraEnv", {}) ?? {},
     }),
-    open: async (file) => { openFile(file); },
+    open: async (file) => { await openFile(file); },
     changed: () => { void pushWorkflows(); },
     callMcpTool: (name, args) => mcpHub?.ensureStarted().callToolRaw(name, args) ?? Promise.resolve({ isError: true, content: [{ type: "text", text: "MCP manager is unavailable." }] }),
     toolReady: (key) => mcpHub?.statuses().some(status => status.key === key && status.state === "ready") ?? false,
@@ -1326,6 +1336,13 @@ app.whenReady().then(() => {
     void cloud?.evict(keep);
   }, CLOUD_STARTUP_DELAY_MS);
 
+  ipcMain.on("app:dropFile", (event, file: unknown) => {
+    if (!main || typeof file !== "string" || !path.isAbsolute(file)) return;
+    const views = [main.home, main.shell, ...main.tabs("cad").map(tab => tab.view), ...main.tabs("mesh").map(tab => tab.view)];
+    if (!views.some(view => view.webContents === event.sender)) return;
+    void openFile(file);
+  });
+
   ipcMain.on("home:toHost", (_event, raw) => {
     if (_event.sender !== main?.home.webContents) return;
     const msg = raw as HomeToHost;
@@ -1348,7 +1365,7 @@ app.whenReady().then(() => {
           catch { sendHome({ type: "workflowResult", value }); }
         }
         void pushWorkflows();
-      });
+      }).catch(error => sendHome({ type: "workflowError", message: String(error) }));
       return;
     }
     if (msg.type === "retrySimulationTools") {
@@ -1471,8 +1488,8 @@ app.whenReady().then(() => {
     const mode = modeForFile(file, main!.mode());
     if (!mode) return;
     const host = mode === "cad" ? activeCadHost() : activeMeshHost();
-    if (host?.currentFile) createTab(mode);
-    openFile(file);
+    if (host && (host.currentFile || pendingOpenHosts.has(host))) createTab(mode);
+    void openFile(file, mode, true);
   });
 });
 

@@ -9,6 +9,7 @@ import { t, translate } from "../../shared/i18n";
  * reload replays them. Both arrive pre-formatted because this is a browser
  * bundle with no node:path.
  */
+import { WorkflowForm, type WorkflowField } from "./workflowForm";
 import { HOME_BUTTONS } from "./homeConfig";
 import { convergencePlots } from "../../shared/convergencePlots";
 import { TOOLBAR_ICONS } from "../shell/shellIcons";
@@ -100,7 +101,22 @@ let manualRuntimeAvailable: boolean | undefined;
 let selectedStudy: { id: string; name: string } | undefined;
 let selectedRunId: string | undefined;
 
+const form = new WorkflowForm(workflow, () => projectRootPath.title);
+let workflowPending = false;
+function meshFields(ready: boolean): WorkflowField[] {
+  return ready ? [{ name: "mesh", label: t("Mesh handling"), choices: [t("Reuse mesh"), t("Regenerate mesh")], value: t("Reuse mesh") }] : [];
+}
+function reuseMesh(values: Record<string, string>): boolean { return values.mesh === t("Reuse mesh"); }
+function meshReady(id: string): boolean {
+  return (workflowSnapshot as { readiness?: Record<string, Record<string, string>> } | undefined)?.readiness?.[id]?.mesh === "ready";
+}
+function confirmAction(title: string, detail: string, accept: () => void): void { form.open(title, [], accept, detail); }
+
 function workflowCall(tool: string, args: Record<string, unknown>): void {
+  if (workflowPending) return;
+  workflowAction = ["queue_plan_preview", "queue_parameter_sweep_preview", "queue_retry_variant_preview"].includes(tool) ? "queue-preview"
+    : tool === "queue_enqueue" ? "queue-enqueue" : tool === "queue_resume" ? "queue-resume" : undefined;
+  workflowPending = true; form.setBusy(true);
   workflowError.hidden = true;
   api.post({ type: "workflow", tool: `app__${tool}`, args });
 }
@@ -109,57 +125,50 @@ document.getElementById("workflow-check")!.addEventListener("click", () => {
   api.post({ type: "checkEnvironment" });
 });
 document.getElementById("study-create")!.addEventListener("click", () => {
-  const source = window.prompt(t("Geometry file path (inside the project is portable):"));
-  if (!source) return;
-  const name = window.prompt(t("Study name:"), source.split(/[\\/]/).pop() ?? t("Study"));
-  if (name) workflowCall("study_create", { name, source });
+  form.open(t("New study"), [
+    { name: "source", label: t("Geometry file path (inside the project is portable):") },
+    { name: "name", label: t("Study name:"), optional: true },
+  ], ({source, name}) => workflowCall("study_create", { source, name: name || source.split(/[\\/]/).pop() || t("Study") }));
 });
 duplicateButton.addEventListener("click", () => {
-  if (!selectedStudy) return;
-  const name = window.prompt(t("Name for the duplicate:"), t("{0} copy", {0: selectedStudy.name}));
-  if (!name) return;
-  const reuseMesh = window.confirm(t("Reuse this study’s existing mesh? Choose Cancel to regenerate the mesh."));
-  workflowCall("study_duplicate", { studyId: selectedStudy.id, name, reuseMesh });
+  const study = selectedStudy; if (!study) return;
+  form.open(t("Duplicate"), [{ name: "name", label: t("Name for the duplicate:"), value: t("{0} copy", {0: study.name}) }, ...meshFields(meshReady(study.id))],
+    values => workflowCall("study_duplicate", { studyId: study.id, name: values.name, reuseMesh: reuseMesh(values) }));
 });
 planRunButton.addEventListener("click", () => {
-  if (!selectedStudy) return;
-  const readyMesh = workflowSnapshot?.project && selectedStudy
-    ? (workflowSnapshot as unknown as { readiness?: Record<string, Record<string, string>> }).readiness?.[selectedStudy.id]?.mesh === "ready"
-    : false;
-  const reuseMesh = readyMesh && window.confirm(t("Reuse this study’s current mesh? Choose Cancel to regenerate it."));
-  workflowAction = "queue-preview";
-  workflowCall("queue_plan_preview", { studyId: selectedStudy.id, reuseMesh });
+  const study = selectedStudy; if (!study) return;
+  form.open(t("Plan run"), meshFields(meshReady(study.id)), values => {
+    workflowCall("queue_plan_preview", { studyId: study.id, reuseMesh: reuseMesh(values) });
+  });
 });
 planSweepButton.addEventListener("click", () => {
-  if (!selectedStudy) return;
-  const parameterPath = window.prompt(t("Case setting path (for example values.problem.timeStep):"));
-  if (!parameterPath) return;
-  const rawValues = window.prompt(t("Sweep values as a JSON array (maximum 50):"), "[0.05, 0.1, 0.2]");
-  if (!rawValues) return;
-  let values: unknown;
-  try { values = JSON.parse(rawValues); }
-  catch { workflowError.textContent = t("Enter a valid JSON array."); workflowError.hidden = false; return; }
-  if (!Array.isArray(values) || values.length < 1 || values.length > 50) { workflowError.textContent = t("Enter 1–50 values in a JSON array."); workflowError.hidden = false; return; }
-  const readyMesh = (workflowSnapshot as unknown as { readiness?: Record<string, Record<string, string>> } | undefined)?.readiness?.[selectedStudy.id]?.mesh === "ready";
-  const reuseMesh = readyMesh && window.confirm(t("Reuse this study’s current mesh? Choose Cancel to regenerate one for every row."));
-  workflowAction = "queue-preview";
-  workflowCall("queue_parameter_sweep_preview", { studyId: selectedStudy.id, reuseMesh, parameterPath, values });
+  const study = selectedStudy; if (!study) return;
+  form.open(t("Plan sweep"), [
+    { name: "parameterPath", label: t("Case setting path (for example values.problem.timeStep):") },
+    { name: "values", label: t("Sweep values as a JSON array (maximum 50):"), value: "[0.05, 0.1, 0.2]", multiline: true },
+    ...meshFields(meshReady(study.id)),
+  ], inputs => {
+    let values: unknown;
+    try { values = JSON.parse(inputs.values); } catch { throw new Error(t("Enter a valid JSON array.")); }
+    if (!Array.isArray(values) || values.length < 1 || values.length > 50) throw new Error(t("Enter 1–50 values in a JSON array."));
+
+    workflowCall("queue_parameter_sweep_preview", { studyId: study.id, reuseMesh: reuseMesh(inputs), parameterPath: inputs.parameterPath, values });
+  });
 });
 document.getElementById("queue-resume")!.addEventListener("click", () => {
   const revision = workflowSnapshot?.queuePlanRevision;
   const tasks = workflowSnapshot?.project?.queue?.tasks ?? [];
   if (!revision || !tasks.length) return;
   const plan = tasks.map(task => `${task.kind}: ${task.id} (${task.state})`).join("\n");
-  if (!window.confirm(t("Resume this exact persisted plan?\n\n{0}", {0: plan}))) return;
-  workflowAction = "queue-resume";
-  workflowCall("queue_resume", { planRevision: revision });
+  confirmAction(t("Resume queue"), `${t("Resume this exact persisted plan?\n\n{0}", {0: plan})}\n${revision}`, () => {
+    workflowCall("queue_resume", { planRevision: revision });
+  });
 });
 document.getElementById("queue-pause")!.addEventListener("click", () => workflowCall("queue_pause", {}));
 document.getElementById("queue-cancel")!.addEventListener("click", () => {
   const tasks = workflowSnapshot?.project?.queue?.tasks ?? [];
   const task = tasks.find(row => ["dispatching", "running", "uncertain"].includes(row.state)) ?? tasks.find(row => ["waiting", "held"].includes(row.state));
-  if (!task || !window.confirm(t("Cancel {0} task {1}?", {0: task.kind, 1: task.id}))) return;
-  workflowCall("queue_cancel", { taskId: task.id });
+  if (task) confirmAction(t("Cancel task"), t("Cancel {0} task {1}?", {0: task.kind, 1: task.id}), () => workflowCall("queue_cancel", { taskId: task.id }));
 });
 studyPicker.addEventListener("change", () => {
   selectedStudy = studyPicker.selectedOptions[0]
@@ -173,30 +182,28 @@ for (const [id, stage] of [["study-open-geometry", "geometry"], ["study-open-mes
     if (selectedStudy) workflowCall("study_open", { studyId: selectedStudy.id, stage, ...(stage === "results" && selectedRunId ? { runId: selectedRunId } : {}) });
   });
 }
-document.getElementById("study-relink-source")!.addEventListener("click", () => {
-  if (!selectedStudy) return;
-  const sourcePath = window.prompt(t("Path to the replacement geometry file:"));
-  if (sourcePath) workflowCall("study_relink_source", { studyId: selectedStudy.id, sourcePath });
+for (const [id, title, tool, name, label] of [
+  ["study-relink-source", t("Relink geometry"), "study_relink_source", "sourcePath", t("Path to the replacement geometry file:")],
+  ["study-attach-mesh", t("Attach mesh"), "study_attach_mesh", "meshPath", t("Exported mesh path:")],
+] as const) document.getElementById(id)!.addEventListener("click", () => {
+  const study = selectedStudy; if (!study) return;
+  form.open(title, [{ name, label }], values => workflowCall(tool, { studyId: study.id, ...values }));
 });
 document.getElementById("study-copy-source")!.addEventListener("click", () => {
-  if (selectedStudy && window.confirm(t("Copy this geometry into the project? The original file will stay unchanged."))) workflowCall("study_copy_source_into_project", { studyId: selectedStudy.id });
+  const study = selectedStudy; if (!study) return;
+  confirmAction(t("Copy geometry in project"), t("Copy this geometry into the project? The original file will stay unchanged."),
+    () => workflowCall("study_copy_source_into_project", { studyId: study.id }));
 });
 document.getElementById("environment-retry")!.addEventListener("click", () => api.post({ type: "retrySimulationTools", install: false }));
 document.getElementById("environment-install")!.addEventListener("click", () => api.post({ type: "retrySimulationTools", install: true }));
-document.getElementById("study-attach-mesh")!.addEventListener("click", () => {
-  if (!selectedStudy) return;
-  const meshPath = window.prompt(t("Exported mesh path:"));
-  if (meshPath) workflowCall("study_attach_mesh", { studyId: selectedStudy.id, meshPath });
-});
 document.getElementById("study-set-case")!.addEventListener("click", () => {
-  if (!selectedStudy) return;
-  const raw = window.prompt(t("Case state JSON (the mesh viewer writes this beside the mesh):"));
-  if (!raw) return;
-  try {
-    const caseSettings = JSON.parse(raw);
+  const study = selectedStudy; if (!study) return;
+  form.open(t("Set case snapshot"), [{ name: "settings", label: t("Case state JSON (the mesh viewer writes this beside the mesh):"), multiline: true }], values => {
+    let caseSettings: unknown;
+    try { caseSettings = JSON.parse(values.settings); } catch { throw new Error(t("Enter a JSON object.")); }
     if (!caseSettings || typeof caseSettings !== "object" || Array.isArray(caseSettings)) throw new Error(t("Enter a JSON object."));
-    workflowCall("study_set_settings", { studyId: selectedStudy.id, caseSettings });
-  } catch (error) { workflowError.textContent = String(error); workflowError.hidden = false; }
+    workflowCall("study_set_settings", { studyId: study.id, caseSettings });
+  });
 });
 document.getElementById("study-import-run")!.addEventListener("click", () => {
   if (selectedStudy) workflowCall("study_import_run", { studyId: selectedStudy.id });
@@ -207,29 +214,21 @@ for (const [id, tool] of [["study-review-run", "run_review"], ["study-export-rev
   });
 }
 document.getElementById("study-evaluate-quantity")!.addEventListener("click", () => {
-  if (!selectedStudy || !selectedRunId) return;
-  const field = window.prompt(t("Result field name:"), "DISPLACEMENT");
-  if (!field) return;
-  const kind = window.prompt(t("Field location (Nodal, Elemental or Conditional):"), "Nodal");
-  if (!kind) return;
-  const component = window.prompt(t("Component (scalar, x, y, z or magnitude):"), "magnitude");
-  if (!component) return;
-  const region = window.prompt(t("Region (global or exact SubModelPart path):"), "global");
-  if (!region) return;
-  const reduction = window.prompt(t("Reduction (min, max, mean, maxAbs, etc.):"), "max");
-  if (!reduction) return;
-  const study = workflowSnapshot?.project?.studies?.find(row => row.id === selectedStudy?.id);
-  const lengthUnit = study?.handoff?.units?.length ?? "";
-  const defaultUnit = field.toUpperCase() === "DISPLACEMENT" ? lengthUnit : "";
-  const unit = window.prompt(t("Quantity unit (declare explicitly):"), defaultUnit);
-  if (!unit) return;
-  const rawStep = window.prompt(t("Time step index (blank for the first result):"), "0");
-  if (rawStep === null) return;
-  const timeStep = rawStep.trim() ? Number(rawStep) : undefined;
-  if (timeStep !== undefined && !Number.isInteger(timeStep)) { workflowError.textContent = t("Enter an integer time step."); workflowError.hidden = false; return; }
-  const resultPath = window.prompt(t("Optional result file path (blank uses the run's recorded result):"), "");
-  if (resultPath === null) return;
-  workflowCall("run_quantity_evaluate", { studyId: selectedStudy.id, runId: selectedRunId, field, kind, component, region, reduction, unit, ...(timeStep !== undefined ? { timeStep } : {}), ...(resultPath.trim() ? { resultPath: resultPath.trim() } : {}) });
+  const study = selectedStudy; const runId = selectedRunId; if (!study || !runId) return;
+  form.open(t("Evaluate quantity"), [
+    { name: "field", label: t("Result field"), value: "DISPLACEMENT" },
+    { name: "kind", label: t("Field location"), choices: ["Nodal", "Elemental", "Conditional"], value: "Nodal" },
+    { name: "component", label: t("Component"), choices: ["scalar", "x", "y", "z", "magnitude"], value: "magnitude" },
+    { name: "reduction", label: t("Reduction"), choices: ["min", "max", "minAbs", "maxAbs", "mean", "std", "median", "sum", "count", "q1", "q3", "iqr"], value: "max" },
+    { name: "unit", label: t("Unit") },
+    { name: "timeStep", label: t("Time step (optional)"), optional: true },
+    { name: "region", label: t("Region or SubModelPart path"), value: "global" },
+    { name: "resultPath", label: t("Result path (optional)"), optional: true },
+  ], ({timeStep: rawStep, resultPath, ...values}) => {
+    const timeStep = rawStep ? Number(rawStep) : undefined;
+    if (timeStep !== undefined && (!Number.isSafeInteger(timeStep) || timeStep < 0)) throw new Error(t("Enter a non-negative integer time step."));
+    workflowCall("run_quantity_evaluate", { studyId: study.id, runId, ...values, ...(timeStep !== undefined ? { timeStep } : {}), ...(resultPath ? { resultPath } : {}) });
+  });
 });
 for (const [id, tool] of [["study-compare-variants", "variants_compare"], ["study-export-comparison", "variants_compare_export"]] as const) {
   (document.getElementById(id) as HTMLButtonElement).addEventListener("click", () => {
@@ -305,18 +304,18 @@ function renderWorkflow(raw: unknown): void {
         const resume = document.createElement("button"); resume.type = "button"; resume.className = "btn-link"; resume.textContent = t("Resume row");
         resume.addEventListener("click", () => {
           const taskList = waitingTasks.map(task => `${task.kind}: ${task.state}`).join(" · ");
-          if (window.confirm(t("Resume only {0} from the approved queue plan? Other waiting rows will stay held.\n\n{1}\nPlan revision: {2}", {0: study.name, 1: taskList, 2: value.queuePlanRevision})))
-            workflowCall("queue_resume_row", { taskId: waitingTasks[0].id, planRevision: value.queuePlanRevision });
+          confirmAction(t("Resume row"), t("Resume only {0} from the approved queue plan? Other waiting rows will stay held.\n\n{1}\nPlan revision: {2}", {0: study.name, 1: taskList, 2: value.queuePlanRevision}), () =>
+            workflowCall("queue_resume_row", { taskId: waitingTasks[0].id, planRevision: value.queuePlanRevision }));
         });
         actions.append(resume);
       }
       if (failure && !hasOpenTasks) {
         const retry = document.createElement("button"); retry.type = "button"; retry.className = "btn-link"; retry.textContent = t("Retry row");
         retry.addEventListener("click", () => {
-          const meshReady = value.readiness?.[study.id]?.mesh === "ready";
-          const reuseMesh = meshReady && window.confirm(t("Reuse {0}'s immutable mesh? Choose Cancel to regenerate it.", {0: study.name}));
-          workflowAction = "queue-preview";
-          workflowCall("queue_retry_variant_preview", { studyId: study.id, reuseMesh });
+          form.open(t("Retry row"), meshFields(value.readiness?.[study.id]?.mesh === "ready"), values => {
+
+            workflowCall("queue_retry_variant_preview", { studyId: study.id, reuseMesh: reuseMesh(values) });
+          });
         });
         actions.append(retry);
       }
@@ -392,6 +391,7 @@ api.onMessage((raw) => {
     (document.getElementById("queue-resume") as HTMLButtonElement).disabled = !queue?.paused || !queue.tasks.length || manualRuntimeAvailable === false;
   }
   else if (message?.type === "workflowResult") {
+    workflowPending = false; form.complete();
     const value = message.value;
     const plots = document.getElementById("run-review-plots")!;
     plots.replaceChildren();
@@ -404,10 +404,9 @@ api.onMessage((raw) => {
       const preview = value as { previewId?: string; summary?: string[]; tasks?: { kind: string; id: string; runId: string }[]; runId?: string };
       workflowAction = undefined;
       const summary = preview.summary?.join("\n") ?? JSON.stringify(value, null, 2);
-      if (preview.previewId && window.confirm(t("Queue preview\n\n{0}\n\nPersist this paused plan?", {0: summary}))) {
-        workflowAction = "queue-enqueue";
+      if (preview.previewId) confirmAction(t("Persist paused plan"), t("Queue preview\n\n{0}\n\nPersist this paused plan?", {0: summary}), () => {
         workflowCall("queue_enqueue", { previewId: preview.previewId });
-      }
+      });
       (document.getElementById("run-review") as HTMLElement).textContent = t("Run plan preview:\n{0}", {0: summary});
       return;
     }
@@ -417,10 +416,9 @@ api.onMessage((raw) => {
       if (action === "queue-enqueue") {
         const queued = value as { planRevision?: string; tasks?: { kind: string; id: string; runId: string }[] };
         const taskList = queued.tasks?.map(task => `${task.kind}: ${task.id} · run ${task.runId}`).join("\n") ?? t("No tasks");
-        if (queued.planRevision && window.confirm(t("The exact plan is persisted and paused. Start it now?\n\nPlan revision: {0}\n{1}", {0: queued.planRevision, 1: taskList}))) {
-          workflowAction = "queue-resume";
+        if (queued.planRevision) confirmAction(t("Start plan"), t("The exact plan is persisted and paused. Start it now?\n\nPlan revision: {0}\n{1}", {0: queued.planRevision, 1: taskList}), () => {
           workflowCall("queue_resume", { planRevision: queued.planRevision });
-        }
+        });
       }
       (document.getElementById("run-review") as HTMLElement).textContent = JSON.stringify(value, null, 2);
       return;
@@ -429,7 +427,7 @@ api.onMessage((raw) => {
     review.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
   }
   else if (message?.type === "workflowBusy") (document.getElementById("workflow-check") as HTMLButtonElement).disabled = message.busy;
-  else if (message?.type === "workflowError") { workflowAction = undefined; workflowError.textContent = message.message; workflowError.hidden = false; }
+  else if (message?.type === "workflowError") { workflowPending = false; form.fail(message.message); workflowError.textContent = message.message; workflowError.hidden = false; }
 });
 
 api.post({ type: "homeReady" });

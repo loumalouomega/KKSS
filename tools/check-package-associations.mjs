@@ -5,22 +5,12 @@
 import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 
-const cad = readFileSync("cad/src/fileRouter.ts", "utf8");
-const mesh = readFileSync("mesh/src/parser/meshioFormats.ts", "utf8");
-const meshFormats = readFileSync("mesh/src/parser/meshFormats.ts", "utf8");
-const cadBody = cad.match(/const EXTENSION_MAP:[\s\S]*?= \{([\s\S]*?)\n\};/)?.[1] ?? "";
-const meshBody = mesh.match(/MESHIO_READ_CANDIDATES:[\s\S]*?= \{([\s\S]*?)\n\};/)?.[1] ?? "";
-const nativeBody = meshFormats.match(/NATIVE_MESH_EXTENSIONS:[\s\S]*?= \[([\s\S]*?)\n\];/)?.[1] ?? "";
-const suffixes = new Set();
-for (const line of cadBody.split("\n")) {
-  const match = line.match(/^\s*"?([a-z0-9]+(?:\.[a-z0-9]+)*)"?\s*:/);
-  if (match) suffixes.add(match[1]);
+import { readRoutingRegistry, checkFormatDocumentation } from "./format-registry.mjs";
+const { counts, suffixes } = readRoutingRegistry();
+for (const file of ["doc/index.md", "doc/guide/file-formats.md", "doc/guide/getting-started.md"]) {
+  checkFormatDocumentation(readFileSync(file, "utf8"), counts, file);
 }
-for (const match of meshBody.matchAll(/"(\.[a-z0-9]+(?:\.[a-z0-9]+)*)"\s*:/g)) suffixes.add(match[1].slice(1));
-for (const match of nativeBody.matchAll(/"\.?([a-z0-9]+)"/g)) suffixes.add(match[1]);
-const xmlBody = meshFormats.match(/VTK_XML_EXTENSIONS\s*= \[([\s\S]*?)\]/)?.[1] ?? "";
-for (const match of xmlBody.matchAll(/"\.([a-z0-9]+)"/g)) suffixes.add(match[1]);
-suffixes.add("mdpa");
+console.log(`Extended formats: ${counts.read} readable / ${counts.write} writable (${counts.readExtensions.length} read suffixes / ${counts.writeExtensions.length} write suffixes).`);
 const config = yaml.load(readFileSync("electron-builder.yml", "utf8"));
 const packaged = new Set((config.fileAssociations ?? []).map(({ ext }) => String(ext).replace(/^\./, "")));
 const missing = [...suffixes].filter(ext => !packaged.has(ext)).sort();

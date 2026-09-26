@@ -624,5 +624,21 @@
   "Finishing cloud uploads…": "Finishing cloud uploads…",
   "Not connected to {0}; {1} was not uploaded.": "Not connected to {0}; {1} was not uploaded.",
   "Could not upload {0}: {1}": "Could not upload {0}: {1}",
-  "{0} changed on {1} since KKSS last synced it. Your copy was kept and uploaded as \"{2}\".": "{0} changed on {1} since KKSS last synced it. Your copy was kept and uploaded as \"{2}\"."
+  "{0} changed on {1} since KKSS last synced it. Your copy was kept and uploaded as \"{2}\".": "{0} changed on {1} since KKSS last synced it. Your copy was kept and uploaded as \"{2}\".",
+  "Enter a value for {0}.": "Enter a value for {0}.",
+  "Mesh handling": "Mesh handling",
+  "Reuse mesh": "Reuse mesh",
+  "Regenerate mesh": "Regenerate mesh",
+  "Enter a non-negative integer time step.": "Enter a non-negative integer time step.",
+  "Persist paused plan": "Persist paused plan",
+  "Start plan": "Start plan",
+  "Result field": "Result field",
+  "Field location": "Field location",
+  "Component": "Component",
+  "Region or SubModelPart path": "Region or SubModelPart path",
+  "Reduction": "Reduction",
+  "Unit": "Unit",
+  "Time step (optional)": "Time step (optional)",
+  "Result path (optional)": "Result path (optional)",
+  "The project changed. Cancel and reopen this form.": "The project changed. Cancel and reopen this form."
 }

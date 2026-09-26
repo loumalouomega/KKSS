@@ -84,7 +84,7 @@ import { entryForVscode, normalize, registry, toStored } from "./services/settin
 
 export interface VscodeShimHooks {
   /** Implements the "vscode.openWith" command (routes into cad/mesh views). */
-  openWith(fsPath: string, viewType: string): void;
+  openWith(fsPath: string, viewType: string): void | Promise<void>;
   /** Implements the openTextDocument/showTextDocument "reveal a file" flow. */
   openTextDocument(fsPath: string): void;
   /**
@@ -565,7 +565,7 @@ export const commands = {
     switch (command) {
       case "vscode.openWith": {
         const uri = args[0] as Uri;
-        hooks.openWith(uri.fsPath, String(args[1] ?? ""));
+        await hooks.openWith(uri.fsPath, String(args[1] ?? ""));
         return;
       }
       // RunManager.changed() fires this on every registry mutation to gate the

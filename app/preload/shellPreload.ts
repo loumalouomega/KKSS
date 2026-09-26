@@ -1,6 +1,7 @@
 /** Preload for the shell toolbar renderer. */
 import { contextBridge, ipcRenderer } from "electron";
 import "./appearance";
+import "./fileDrop";
 
 contextBridge.exposeInMainWorld("shellApi", {
   post: (message: unknown) => ipcRenderer.send("shell:toHost", message),

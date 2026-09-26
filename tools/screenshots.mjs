@@ -292,6 +292,32 @@ async function sessionHome() {
   }
 }
 
+// A seeded local study exposes the actual quantity form without launching a solver.
+async function sessionHomeWorkflow() {
+  const project = path.join(profileDir, "Cantilever study");
+  fs.mkdirSync(path.join(project, ".kkss"), { recursive: true });
+  const profile = path.join(profileDir, "workflow-profile"); fs.mkdirSync(profile);
+  fs.writeFileSync(path.join(profile, "state.json"), JSON.stringify({ uiTheme: "dark", projectRoot: project }));
+  fs.writeFileSync(path.join(project, ".kkss/project.json"), JSON.stringify({ version: 1, id: "docs", revision: 1,
+    activeStudyId: "baseline", activeRunId: "example-run", queue: { paused: true, tasks: [] },
+    studies: [{ id: "baseline", name: "Cantilever", source: { kind: "project", path: "beam.step", revision: "example" }, meshing: {}, caseSettings: {},
+      runs: [{ id: "example-run", studyId: "baseline", directory: ".kkss/runs/example-run", state: "succeeded", artifacts: [] }] }] }));
+  const { app } = await launchApp(undefined, { extraArgs: EXTRA_ARGS, userDataDir: profile });
+  try {
+    const page = await appWindow(app, "/renderer/home/", Date.now() + 60000);
+    await page.locator("#study-evaluate-quantity:enabled").click();
+    await page.locator("#workflow-input-unit").fill("m");
+    await page.locator("#workflow-form-title").click();
+    await page.mouse.move(0, 0);
+    await shoot(page, "home-workflow-form.png");
+  } finally { await closeApp(app); }
+}
+
+if (process.argv.includes("--home-workflow-only")) {
+  try { await sessionHomeWorkflow(); }
+  finally { fs.rmSync(profileDir, { recursive: true, force: true }); }
+  process.exit(0);
+}
 const meshOnly = process.argv.includes("--mesh-only");
 if (!meshOnly) await sessionCad();
 await sessionMdpa();
@@ -300,6 +326,7 @@ await sessionProperties();
 // Last, so its recents list contains the documents the sessions above opened.
 if (!meshOnly) {
   await sessionHome();
+  await sessionHomeWorkflow();
   await kratosStartupScenario(path.join(OUT, "chat-kratos-setup.png"));
   await jobsScenario(path.join(OUT, "kratos-jobs.png"));
   // These captures use the real CAD/mesh app, the configured manual Python
