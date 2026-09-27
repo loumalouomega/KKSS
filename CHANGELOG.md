@@ -7,6 +7,8 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.6.0] - 2026-09-27
+
 - feat: add **Settings ▸ Mesh Viewer ▸ 3D Renderer** (`kratos.preview.renderer`),
   an opt-in experimental VTK-wasm backend for mesh previews, with a matching
   **View ▸ 3D Renderer** quick radio beside the other viewer toggles, enabled
