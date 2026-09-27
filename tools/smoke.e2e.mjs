@@ -117,11 +117,27 @@ async function attempt(c) {
           throw new Error(`Packing menu enabled state should be ${enabled}`);
         }
       };
+      // mesh 4.8.0's renderer quick radio: it only makes sense in
+      // Post-Processing (the backend is read when a preview's page loads), and
+      // vtk.js must be the checked default with both options offered.
+      const checkRenderer = (enabled) => {
+        const item = find("3D Renderer");
+        if (!item) throw new Error("View menu has no 3D Renderer item");
+        if (item.enabled !== enabled) throw new Error(`3D Renderer enabled state should be ${enabled}`);
+        const options = item.submenu.items;
+        if (options.length !== 2) throw new Error(`3D Renderer offers ${options.length} options, expected 2`);
+        if (!options[0].checked || options[0].label !== "vtk.js (default)") {
+          throw new Error(`3D Renderer default is "${options[0].label}" (checked ${options[0].checked})`);
+        }
+      };
       check(isMesh);
+      checkRenderer(isMesh);
       find("Pre-Processing (CAD)").click();
       check(false);
+      checkRenderer(false);
       find("Post-Processing (Mesh)").click();
       check(true);
+      checkRenderer(true);
     }, c.windowUrl === "/renderer/mesh/");
 
     // Settings ▸ UI Theme reaches every view live: the viewers only follow it

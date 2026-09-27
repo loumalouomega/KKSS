@@ -7,6 +7,30 @@ full auto-generated compare links.
 
 ## Unreleased
 
+- feat: add **Settings ▸ Mesh Viewer ▸ 3D Renderer** (`kratos.preview.renderer`),
+  an opt-in experimental VTK-wasm backend for mesh previews, with a matching
+  **View ▸ 3D Renderer** quick radio beside the other viewer toggles, enabled
+  only in Post-Processing. vtk.js remains the default and its page is unchanged;
+  VTK-wasm needs WebAssembly JSPI and WebGL2 and falls back to vtk.js with a
+  status line when either is missing. In a build without the runtime the menu
+  marks VTK-wasm *unavailable in this build* and refuses it, so the fallback is
+  explained before it is picked. Pin it for a shared deployment with
+  `KKSS_MESH_RENDERER`.
+- feat: read eleven more meshio++ formats — Abaqus `.fil`, ANSYS MAPDL
+  `.rst`/`.rth`, LS-DYNA `.d3plot`, MSC Marc `.t19`, MSC Nastran `.op2`/`.h5`
+  and FEBio `.xplt` — all read-only and all as filename series, since none of
+  them reports its step count from a header. Extended readable formats go from
+  42 to 49, and the new suffixes join the packaged file associations.
+- fix: settle a CAD mesh save-in-place that another process left in flight
+  before the document loads, so a file whose geometry was baked ahead of its
+  edit history no longer replays the same edit over geometry that already
+  contains it.
+- chore: update CAD Preview to 3.7.1 and Kratos MDPA Preview to 4.9.0, and
+  unify both engines on meshio++ 16.22.0 — which also corrects node ordering for
+  20- and 27-node hexahedra, so Exodus files with those cells now load with the
+  right nodes. CAD resolves meshio++ and fTetWild from the staged runtime trees
+  KKSS already ships, replacing the two loader shims they needed.
+
 ## [2.5.0] - 2026-09-25
 
 - feat: CAD meshing now replays pending model edits from supported source

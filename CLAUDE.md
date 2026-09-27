@@ -189,12 +189,17 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (15.4.0; since 10.20 it has the field-only
-  `.dex`/`.ip`/`.mff` formats — point fields, no geometry — the write-only
-  SVG/TikZ figure formats exposed in the export menu's "Figures" group, and,
-  since it statically links HDF5/netCDF, the Exodus/CGNS/H5M/HMF/MED family
-  plus `timeStep`/`timeValues` for the in-file Exodus timeline — and, since
-  11.3.0/12.0.0, header-only in-file timelines for MED, CGNS and Tecplot too).
+  `@meshioplusplus/wasm` package (**16.22.0**, the version BOTH submodules now
+  lock; since 10.20 the package has the field-only `.dex`/`.ip`/`.mff` formats —
+  point fields, no geometry — the write-only SVG/TikZ figure formats exposed in
+  the export menu's "Figures" group, and, since it statically links HDF5/netCDF,
+  the Exodus/CGNS/H5M/HMF/MED family plus `timeStep`/`timeValues` for the
+  in-file Exodus timeline — and, since 11.3.0/12.0.0, header-only in-file
+  timelines for MED, CGNS and Tecplot too. mesh 4.7.0 routed eleven more
+  readers, the solver-result family (`.fil` Abaqus, `.rst`/`.rth` MAPDL,
+  `.d3plot` LS-DYNA, `.t19` MSC Marc, `.op2`/`.h5` MSC Nastran, `.xplt` FEBio)
+  — all read-only and all filename-series, none driving an in-file timeline,
+  because none reports its step count from a header alone).
   **Both WASM
   variants must ship**: since 8.8.0 the package carries
   `meshioplusplus_wasm_mt.{mjs,wasm}` beside the sequential pair (~+6.2 MB) and
@@ -208,7 +213,16 @@ resubmitted automatically.
   tree beside `out/main.js` — `mesh/src/parser/meshio.ts`'s `packageDir()` falls
   back to `__dirname/meshio`, and since `meshio.ts` is bundled into **both**
   `out/main.js` and `out/mcpServer.js` (`__dirname === out/` for each) that one
-  copy serves the mesh host and the MCP server. It loads the `.wasm` via meshio++'s
+  copy serves the mesh host and the MCP server. **It now also serves CAD**:
+  cad 3.6.0 replaced its bare `import("@meshioplusplus/wasm")` with
+  `runtimePackage.ts`, which resolves an installed package first and then a
+  *staged* tree — `<bundle dir>/meshio`, or the same two levels up — so
+  `out/cadCompute.worker.js` finds `out/meshio/` and
+  `out/cad-runtime/dist/kernel-worker.js` finds it at
+  `out/cad-runtime/dist/../../meshio`. That is why KKSS's
+  `cadMeshioLoader.ts` shim and its esbuild alias are gone, and why one version
+  must serve both consumers: mesh's lock is pinned to cad's 16.22.0 rather than
+  leaving the two a major apart. It loads the `.wasm` via meshio++'s
   `locateFile` hook (the `wasmBinary` buffer hook MMG uses is pruned from this
   build), so the tree must exist on disk — another reason for `asar: false`.
   `@meshioplusplus/wasm` (and `@meshioplusplus/wasm/*`) is in `mainConfig.external`
@@ -217,6 +231,25 @@ resubmitted automatically.
   otherwise resolve at build time. Not bundled → **never patch the submodule**;
   after a mesh bump, rerun `npm run package --prefix mesh` so `mesh/dist/meshio/`
   is regenerated before the parent build copies it.
+- **The VTK-wasm renderer runtime is copied as a tree, and is optional.**
+  mesh 4.8.0 added an experimental VTK-wasm backend behind
+  `kratos.preview.renderer`. The runtime (patched, eval-free glue + a ~86 MB
+  `.wasm` + both licence notices) is prepared and hash-verified by mesh's own
+  `scripts/vtk-wasm/prepare-assets.mjs`, which its production build runs when
+  `out/vtk-wasm/prepared/` is missing, and staged into `mesh/media/vtk-wasm/`.
+  `copyArtifacts()` mirrors that to **`out/renderer/mesh/vtk-wasm/`**, beside the
+  mesh page that imports `vtkWebAssembly.mjs` from it. It is deliberately NOT a
+  `required` preflight entry: an offline build, or `KRATOS_VTK_WASM=skip`, has
+  none and must still build, so a missing tree is a warning and the setting
+  falls back to vtk.js with a status line. See the renderer paragraph under
+  **Custom schemes** for the page-side half.
+- **fTetWild rides cad's own staged runtime.** cad 3.6.0 stages
+  `dist/ftetwild/` (its `scripts/runtimeAssets.mjs` is also what its `.vsix`
+  checker verifies), and `copyArtifacts()` mirrors that — no longer a copy of
+  `cad/node_modules/float-tetwild-wasm`. Its `runtimePackage.ts` finds it the
+  same way it finds meshio++, and the `import.meta.url` shim in both worker
+  builds is what makes that lookup work in a cjs bundle at all. KKSS's
+  `cadFtetwildLoader.ts` shim and its esbuild alias are gone with it.
 - **Flowgraph embedding is a forked child process, not WASM.** The mesh
   submodule's Flowgraph problemtype embeds the AGPL-3.0-or-later
   `@kratos-flowgraph/flowgraph` node editor in an iframe backed by a small
@@ -235,6 +268,33 @@ resubmitted automatically.
   equivalent). cad's `loadUrl` strategy fetches `kkss-file:` URLs; the CSP in
   each generated page must keep allowing that (and `worker-src blob:` for
   vtk.js).
+- **The mesh page is the ONE asset the host rewrites on the way out.**
+  `kkss://app/renderer/mesh/index.html` is read as text and passed through
+  `app/main/mesh/rendererPage.ts` before it is served; everything else — the
+  bundles, the styles, the VTK-wasm runtime itself — is `net.fetch`ed off disk.
+  The reason is mesh 4.8.0's renderer backend: mesh picks it in
+  `previewHtml.ts` while it *builds* a preview's HTML, but KKSS's page is a
+  build artifact and the fake panel's `html` setter is inert, so a setting read
+  at build time would be a row that silently does nothing. `rendererPage.ts`
+  therefore makes the same decision from the same pure module
+  (`mesh/src/parser/render/rendererSelect.ts`) and emits the same two things
+  `buildCsp`/`buildPreviewHtml` do: `data-renderer` +
+  `data-vtk-wasm-base` on `<body>`, and `'wasm-unsafe-eval'` on `script-src`
+  (never `'unsafe-eval'`; `connect-src` already carries the scheme the glue
+  needs to fetch its own `.wasm`). With vtk.js selected the served bytes are
+  identical to the generated ones. Consequences: the choice is read per page
+  load, so a change applies to the previews opened afterwards (the row says
+  `nextOpen`); the runtime's presence is what
+  `selectRendererAtHost(requested, assetsPresent)` decides on, with a missing
+  runtime reported as `data-renderer-fallback="assets-missing"` so the webview
+  shows upstream's own status line; and `applyRenderer` THROWS if it cannot
+  find `<body>` or `script-src`, because a silently-missed rewrite would leave
+  the app on vtk.js forever with nothing to show for it.
+  `tools/renderer-probe.mjs` drives all three cases against the real app
+  (by hand — VTK-wasm needs WebAssembly JSPI, which headless CI may lack), and
+  also reads the View menu off the real `Menu.getApplicationMenu()` to check the
+  quick radio's options and its *disabled + annotated* state in a
+  runtime-less build, which is the one thing no CI build can reach.
 - **Webview HTML pages are build-generated — never hand-edit
   `out/renderer/*/index.html`.** `tools/gen-webview-html.mjs` assembles them
   from the submodules' own markup modules (`cad/src/viewerDom.ts`,
@@ -301,23 +361,22 @@ resubmitted automatically.
   `node_modules`. esbuild walks up from the importing file and finds them;
   `vitest.config.ts` and `tsconfig.json`'s `paths` need explicit aliases (today:
   `fflate`, for the preprocess archive).
-- **cad's meshio++ loader needs a KKSS-side resolver.**
-  `cad/src/meshioService.ts` does a bare `await import("@meshioplusplus/wasm")`
-  with no directory fallback (mesh's own loader ends at `__dirname/meshio`), so
-  in a packaged install — no `node_modules` — every meshio route would throw
-  `ERR_MODULE_NOT_FOUND`. `app/main/cadMeshioLoader.ts` is aliased in its place
-  in `cadWorkerConfig` and resolves the copied `out/meshio/` tree. It must not
-  use `require.resolve("@meshioplusplus/wasm/package.json")`: the alias catches
-  that subpath too and esbuild fails at build time on it.
-- **fTetWild needs the same treatment, and harder.** cad 1.5.0 added
-  `float-tetwild-wasm` (MPL-2.0 — the first non-permissive runtime dep; keep it
-  in the third-party notices) as a fourth WASM kernel behind mesh repair and
-  mesh→B-rep promotion. It is ESM-only *and* its threaded glue has a
-  **top-level await**, which esbuild refuses to emit into a `cjs` bundle — so
-  unlike meshio++ this is a hard **build** failure, not just a packaged-install
-  one. `app/main/cadFtetwildLoader.ts` is aliased in its place in
-  `cadWorkerConfig` and resolves an `out/ftetwild/` tree copied straight from
-  `cad/node_modules` (the submodule's own build does not stage it into `dist/`).
+- **cad resolves meshio++ and fTetWild itself, from staged trees (cad 3.6.0).**
+  Both used to need a KKSS-side shim, and neither does any more. cad replaced
+  the bare `import("@meshioplusplus/wasm")` / `import("float-tetwild-wasm")` in
+  `meshioService.ts`/`ftetwildService.ts` with its own `runtimePackage.ts`,
+  which resolves an **installed** package first and then a **staged** tree:
+  `<bundle dir>/<name>`, or the same directory two levels up. That is exactly
+  KKSS's layout, so `out/cadCompute.worker.js` finds `out/meshio/` +
+  `out/ftetwild/` and `out/cad-runtime/dist/kernel-worker.js` finds both at
+  `out/cad-runtime/dist/../../`. `app/main/cadMeshioLoader.ts` and
+  `app/main/cadFtetwildLoader.ts` and their esbuild aliases are deleted; the
+  Gmsh alias and the `import.meta.url` shim stay, the latter because that
+  lookup is anchored to the bundle's own file and a cjs bundle has no real
+  `import.meta.url`. `out/ftetwild` now comes from cad's own `dist/ftetwild`
+  staging rather than `cad/node_modules`, and `test/cadMcpRuntime.test.ts` +
+  `test/meshMcpRuntime.test.ts` are what verify the one shared tree serves both
+  engines.
 - **The cad MCP server needs `kernel-worker.js` beside it.** Since cad 1.3.0
   every OCCT/Gmsh/meshio++/fTetWild call from `dist/mcp-server.js` goes through
   a forked child that `kernelClient.ts` looks up as
@@ -1188,6 +1247,94 @@ document-owned cancellation checks before each run and output write;
 `massProperties` worker module. Free-text annotation notes share the existing
 `.annotations.json` sidecar. Mesh 4.4's displacement multiplier stays in the
 viewer and arrives through the normal mesh 4.4.1 bundle build.
+
+**The cad 3.5.0 → 3.7.1 and mesh 4.6.0 → 4.9.0 jump needed one host port, one
+deleted pair of shims, one new setting wired end to end plus a menu quick radio,
+and no webview-markup change.** (cad 3.7.1 and mesh 4.9.0 are both the same
+meshio++ 16.21.0 → 16.22.0 bump, which is a no-op release on both sides: no
+reader, writer or API change, no new contributed setting, no new association, no
+new MCP tool and no new `vscode.*` use — only the capability reason text for the
+two readers meshio++ 16.17.0 gave a writer to, both of which stay deliberately
+unrouted, so the writable count stays 38. The one user-visible gain is upstream's
+corrected node ordering for 20-/27-node hexahedra, so `.exo`/`.e`/`.ex2` files
+with higher-order cells now load correctly.)
+
+- **cad 3.6.0 deleted the reason KKSS's two runtime loader shims existed.**
+  `runtimePackage.ts` resolves an installed package and then a staged tree
+  beside the bundle or two levels up — KKSS's own layout — so
+  `cadMeshioLoader.ts` and `cadFtetwildLoader.ts` and both esbuild aliases are
+  gone, `out/ftetwild` is copied from cad's own `dist/ftetwild` staging instead
+  of `cad/node_modules`, and **one** meshio++ version has to serve both
+  consumers. It does: mesh's lock is now cad's 16.22.0 (mesh 4.7.0 audited
+  15.4.0 → 16.14.0 as an additive-only binding surface, and 16.22.0 ships the
+  same four WASM files, threaded variant included). `test/cadMcpRuntime.test.ts`
+  and `test/meshMcpRuntime.test.ts` are the prescribed verification, and both
+  pass against the one tree.
+- **cad 3.7.0's save journal is ported as the CONSUMER half only.**
+  `meshSaveRecovery.ts` is pure with injected deps, so `cadHost.ts` runs
+  `recoverInterruptedMeshSave()` in the `ready` hydration, before `readEdits`,
+  gated on `MESH_SAVE_IN_PLACE_FORMATS`. KKSS opens no transaction of its own —
+  File ▸ Save still only flushes sidecars and never bakes — so
+  `beginMeshSave`/`endMeshSave` have no call site and `performSaveInPlace` has no
+  counterpart to guard. What KKSS needed is the other direction: a transaction
+  `cad__save_model` left in flight must be settled on open, or the viewer
+  replays the same edit over geometry that already contains it. The provider's
+  `vscode.workspace.fs` becomes node:fs, `askUnrecognised` becomes the modal
+  picker (a dismissed picker is the `null` that means "keep"), and
+  `withSourceWrite` is a no-op because this host has no source watcher to
+  suppress. The `ask` branch posts as an **error**, every other branch as a
+  status line — the provider's own rule, since that is the one case where the
+  document may be showing geometry that does not match its edit history.
+- **mesh 4.8.0's VTK-wasm renderer is a new setting that actually works, and it
+  has a menu quick radio as well as a Settings row.**
+  `kratos.preview.renderer` is a registry row (`nextOpen`), and because KKSS's
+  page is a build artifact the host injects the two attributes and the one CSP
+  token per load — see **Custom schemes** above. The runtime is copied as a tree
+  and is deliberately optional, so an offline build or `KRATOS_VTK_WASM=skip`
+  still builds and the setting falls back with a status line.
+  **View ▸ 3D Renderer** carries the same entry as an `enumRadio`, beside the
+  other mesh-viewer toggles and gated `enabled: !inCad()` like them — it is read
+  when a Post-Processing preview's page loads, so it is meaningless in CAD. The
+  Settings page stays canonical and the radio reads the same row, so they cannot
+  drift. `enumRadio` grew two generic options for it: an `enabled` gate ANDed
+  with the managed lock, and a per-value `disabledValue` + `unavailableNote` for
+  an option this build cannot honour — VTK-wasm is marked *unavailable in this
+  build* and refused when `rendererAssetsPresent(__dirname)` is false, which
+  index.ts passes in as `meshRendererRuntime()` so the menu and the served page
+  cannot disagree. The "applies to previews opened from now on" note is a
+  `stateStore.onDidChange` toast in index.ts, not a menu click handler, so the
+  Settings page produces it too. `tools/renderer-probe.mjs` drives all three
+  cases plus the menu states against the real app; `npm run smoke` guards the
+  radio's presence, options, default and mode gate on the real menu.
+  Two deliberate non-additions: it is **not** in the Settings menu (View is
+  where the viewer toggles live, and offering it in both menus would be noise),
+  and switching it does **not** reload an open preview — reloading drops
+  unsaved mesh operations, so the toast says the change applies to previews
+  opened from now on, which is upstream's own semantics.
+- **Nothing else needed a port.** No new `vscode.*` API, no new command, no new
+  `globalState` key, and no new MCP tool name in either submodule (the
+  `registerTool` lists are byte-identical across the bump, so `toolPolicy.ts`
+  keeps its 58 + 26 + 4 + 30 split). `buildPreviewHtml` gained only the three
+  renderer attributes, which is why `tools/webviewMarkup.ts`'s `meshBody()`
+  replica is still element-for-element valid — and every id
+  `app/renderer/theme/mesh-overrides.css` keys on (`#menubar`, `#file-menu`,
+  `#file-menu-btn`, `#doc-chip`, `#theme-select`, `#properties-panel`) still
+  exists after mesh's renderer refactor.
+- **Eleven new solver-result readers, all filename-series.** mesh 4.7.0 routed
+  `.fil`/`.rst`/`.rth`/`.d3plot`/`.t19`/`.op2`/`.xplt`/`.h5`; none reports its
+  step count from a header, so none drives an in-file timeline. They route for
+  free through `SUPPORTED_MESH_EXTENSIONS`, so the only parent-side work was the
+  eight new `fileAssociations` and the readable count in the docs (42 → 49).
+- **Verified live** (Playwright-Electron on the real app): vtk.js served with
+  no renderer attribute and an unwidened CSP; VTK-wasm served with the
+  attributes, `'wasm-unsafe-eval'` as the only added token, and
+  `#vtk-wasm-canvas` present — i.e. genuinely drawn by VTK; VTK-wasm with the
+  runtime moved aside falling back to vtk.js with `assets-missing` and still
+  drawing; and, with that runtime moved aside, the View menu offering
+  `VTK-wasm (experimental) — unavailable in this build` as a disabled item while
+  vtk.js stayed selectable. `npm run typecheck`, `npm test` (632),
+  `npm run check:packaging`, `npm run smoke` and `npm run e2e` all pass, on
+  meshio++ 16.22.0 with all four WASM variants in `out/meshio/dist`.
 
 **The cad 2.3.0 → 2.7.0 jump (four releases) needed one correctness fix and
 four small ports; mesh 3.27.0 → 4.0.7 needed no code at all.**

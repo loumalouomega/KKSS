@@ -130,6 +130,20 @@ describe.skipIf(!built)("generated webview pages", () => {
     expect(read("mesh")).toContain("worker-src blob:");
   });
 
+  it("emits the mesh page in its vtk.js form, with the renderer left to the host", () => {
+    // The page is a build artifact, so nothing renderer-specific may be baked
+    // into it: `kratos.preview.renderer` is chosen per load by the kkss://app
+    // handler (app/main/mesh/rendererPage.ts), and vtk.js must see the exact
+    // CSP the generator wrote. rendererPage.test.ts covers the rewrite itself.
+    const html = read("mesh");
+    expect(html).not.toContain("data-renderer");
+    expect(html).not.toContain("wasm-unsafe-eval");
+    expect(html).toContain("script-src kkss:");
+    // The injection point the rewrite depends on — emitted bare, and the
+    // attributes go in front of its `>`.
+    expect(html).toMatch(/<body>/);
+  });
+
   it("allows kkss-file fetches in the cad CSP (loadUrl pipeline)", () => {
     expect(read("cad")).toMatch(/connect-src[^;]*kkss-file:/);
   });

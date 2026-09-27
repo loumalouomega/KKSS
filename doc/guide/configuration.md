@@ -16,6 +16,19 @@ The four kinds are VS Code's own, so both viewers restyle exactly as they would 
 
 **Appearance ▸ 3D Scene Theme** (Auto / Dark / Light / Scientific) pins the mesh viewer's scene background and palette independently of the UI. It applies to meshes opened afterwards.
 
+## Mesh 3D renderer
+
+**Mesh Viewer ▸ 3D Renderer** — or the **View ▸ 3D Renderer** quick radio, which reads the same setting — chooses what draws the Post-Processing scene:
+
+| Value | Meaning |
+| --- | --- |
+| `vtkjs` (default) | The established vtk.js renderer, with the panels, field modes, split view and picking you normally see. |
+| `VTK-wasm` | **Experimental.** VTK's own C++ rendering engine compiled to WebAssembly, through the same panels and features. |
+
+VTK-wasm is opt-in and not a replacement: vtk.js stays the default, and switching does nothing to a scene already open — the choice is read when a preview page loads, so it applies to the previews you open afterwards, and KKSS says so when you change it.
+
+It needs a host with **WebAssembly JSPI** (`WebAssembly.Suspending`) and WebGL2, and a build that ships the runtime. When any of those is missing, the runtime fails to load, or the install simply does not include it, the preview opens on vtk.js anyway and says so on the status line — nothing about the rest of the viewer changes. In a build without the runtime, the menu marks VTK-wasm *unavailable in this build* and refuses it, so the fallback is explained before you pick it rather than only afterwards. Only VTK-wasm widens the page's Content Security Policy, and only by `'wasm-unsafe-eval'`, which permits WebAssembly to compile and nothing else; the runtime's JavaScript glue is rewritten at build time so it evaluates no dynamic code.
+
 ## Kratos environment
 
 **Kratos** holds what a problemtype **Run** uses:
