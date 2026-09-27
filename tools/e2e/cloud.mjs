@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { scenario, assert, menu, until, quitApp } from './context.mjs';
+import { scenario, assert, menu, pickOption, until, quitApp } from './context.mjs';
 for (const mode of ['success', 'fail', 'stall']) await scenario(`cloud-${mode}`, async c => {
   c.copy('mesh/example/MDPA/double_arch.mdpa', 'source.mdpa'); fs.writeFileSync(path.join(c.dir, 'mode'), mode);
   const app = await c.launch(undefined, { env: { KKSS_E2E_CLOUD_DIR: c.dir } });
   await menu(app, 'Open from Cloud…');
-  const picker = await c.page(app, 'picker'); await picker.getByText('cloud.mdpa', { exact: true }).click();
+  const picker = await c.page(app, 'picker'); await pickOption(picker, 'cloud.mdpa');
   const shell = await c.page(app, 'shell');
   await until(async () => (await shell.locator('.tab.active').textContent()).includes('cloud.mdpa'));
   const manifestPath = path.join(c.profile, 'cloud-cache', 'manifest.json');

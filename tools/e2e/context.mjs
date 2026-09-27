@@ -4,6 +4,30 @@ import path from 'node:path';
 import { launchApp, closeApp, diagnostics, appWindow, softwareGL, root } from '../e2eShared.mjs';
 export * from '../e2eShared.mjs';
 export { default as assert } from 'node:assert/strict';
+/**
+ * Chooses a row in the modal picker (`app/renderer/picker/picker.ts`) — the one
+ * way the app's own file and save dialogs are driven from a test.
+ *
+ * Clicks the option ROW rather than the `<span>` label inside it. The row is
+ * the element that carries the click handler (`row.addEventListener("click")`),
+ * so clicking it is what a user does — and it is also what keeps the click from
+ * losing a race with the picker's own teardown: choosing a row posts
+ * `picker:toHost`, and the main process closes that window immediately, so a
+ * click aimed at a descendant can surface as Playwright's "Target page, context
+ * or browser has been closed" (CI run 36321308061, cloud-fail) even though the
+ * click worked. A closed target is therefore treated as a completed click;
+ * every caller asserts the real effect on its next line — a tab that opened, a
+ * file that was written — so a click that genuinely did nothing still fails.
+ */
+export async function pickOption(picker, text) {
+  await picker
+    .getByRole('option')
+    .filter({ hasText: text })
+    .click()
+    .catch((error) => {
+      if (!/has been closed/.test(String(error))) throw error;
+    });
+}
 export async function scenario(name, run) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `kkss-${name}-`));
   const launches = [];
