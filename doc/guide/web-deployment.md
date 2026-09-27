@@ -125,7 +125,10 @@ The LLM and application overlay accepts `KKSS_LLM_PROVIDER`,
 `KKSS_CODEX_EXECUTABLE`, and `KKSS_CLAUDE_CODE_EXECUTABLE`,
 `KKSS_PROJECT_ROOT`, `KKSS_RESTORE_SESSION`, `KKSS_THEME` (3D scene), `KKSS_UI_THEME`
 (`system`/`dark`/`light`/`hcDark`/`hcLight`), `KKSS_ZOOM`,
-`KKSS_META_ENABLED`, `KKSS_META_PORT`, and `KKSS_META_TOKEN_FILE`. Secret files
+`KKSS_META_ENABLED`, `KKSS_META_PORT`, and `KKSS_META_TOKEN_FILE`.
+`KKSS_MESH_RENDERER` picks the mesh 3D renderer (`vtkjs`, or the experimental
+`vtkwasm` — which falls back to vtk.js with a status line on a host or build
+without the VTK-wasm runtime). Secret files
 must be mounted read-only into the container. The gateway never logs their
 contents; the application does not write them to `state.json`.
 

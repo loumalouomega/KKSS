@@ -349,6 +349,21 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
         t("Meshes above this size open as a header summary (counts, blocks, fields) with an “Open full mesh anyway” button. 0 always loads in full."),
     },
     {
+      id: "kratos.preview.renderer",
+      label: t("3D Renderer"),
+      category: "Mesh Viewer",
+      type: "enum",
+      storeKey: "kratos.preview.renderer",
+      default: "vtkjs",
+      enum: ["vtkjs", "vtkwasm"],
+      enumLabels: [t("vtk.js (default)"), t("VTK-wasm (experimental)")],
+      applies: "nextOpen",
+      vscode: { section: "kratos", key: "preview.renderer" },
+      description: t(
+        "Rendering backend for mesh previews. VTK-wasm is experimental and opt-in: it falls back to vtk.js with a note when its runtime is missing or cannot start. Applies to previews opened after the change."
+      ),
+    },
+    {
       id: "kratos.flowgraph.splitOrientation",
       label: t("Flowgraph Split"),
       category: "Mesh Viewer",

@@ -60,6 +60,11 @@ export function parseManagedConfig(env: NodeJS.ProcessEnv, read = (file: string)
   bool('KKSS_META_ENABLED', 'metaServerEnabled');
   number('KKSS_META_PORT', 'metaServerPort', 1, 65535, true);
   secret('KKSS_META_TOKEN_FILE', 'metaServerToken');
+  // mesh 4.8.0's experimental VTK-wasm renderer. Worth an operator knob: it is
+  // the one setting that changes what a machine draws with, and a shared
+  // deployment should be able to pin it. A value the bundled installation
+  // cannot honour (vtkwasm without the runtime) falls back with a status line.
+  choice('KKSS_MESH_RENDERER', 'kratos.preview.renderer', ['vtkjs', 'vtkwasm']);
   for (const [name, id] of [['GOOGLE', 'gdrive'], ['DROPBOX', 'dropbox'], ['ONEDRIVE', 'onedrive']]) {
     text(`KKSS_CLOUD_${name}_CLIENT_ID`, `cloud.${id}.clientId`);
     secret(`KKSS_CLOUD_${name}_CLIENT_SECRET_FILE`, `cloud.${id}.clientSecret`);

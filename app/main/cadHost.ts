@@ -48,6 +48,7 @@ import { finishOpen } from "./services/performance";
 import { ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { t } from "../shared/i18n";
 import {
   routeFile,
   COMPARABLE_MESH_FORMATS,
@@ -74,6 +75,12 @@ import {
   MESH_SAVE_IN_PLACE_FORMATS,
   UNIT_CONVERTIBLE_FORMATS,
 } from "../../cad/src/exportTargets";
+import {
+  recoverInterruptedMeshSave,
+  meshSavePaths,
+  type MeshSaveRecoveryDeps,
+  type MeshSaveRecoveryResult,
+} from "../../cad/src/meshSaveRecovery";
 import { parsePartsJson, serializePartsJson } from "../../cad/src/partsSidecar";
 import {
   parseEditsJson,
@@ -455,6 +462,104 @@ export class CadHost {
     this.post({ type: "kernelStatus", state });
   }
 
+  // ---- cad 3.7.0 recoverable mesh save-in-place (roadmap 1.5) ----
+  //
+  // The CONSUMER half of `meshSaveRecovery.ts` only, ported from
+  // provider.ts's `recoverMeshSave`. KKSS opens no transaction of its own: its
+  // File ▸ Save flushes sidecars and never bakes, so `beginMeshSave`/
+  // `endMeshSave` have no call site here and `performSaveInPlace` has no
+  // counterpart to guard. What KKSS does need is the other direction — an
+  // interrupted transaction left by `cad__save_model` (or any other process
+  // baking that file) must be settled on open, or the viewer replays the same
+  // edit over geometry that already contains it, which is exactly the hazard
+  // the journal exists to remove.
+  //
+  // The deps are node:fs rather than `vscode.workspace.fs`, and two of the
+  // extension's hooks have no counterpart: `askUnrecognised` is the modal
+  // picker (a dismissed picker is the `null` that means "keep"), and
+  // `withSourceWrite` is a no-op because this host has no source watcher to
+  // suppress — a change made here is observed the same way any other external
+  // write is.
+  private meshRecoveryDeps(docPath: string): MeshSaveRecoveryDeps {
+    const sibling = (name: string): string => path.join(path.dirname(docPath), name);
+    return {
+      readBytes: (name) => fs.readFile(sibling(name)),
+      readBytesOrNull: async (name) => {
+        // A Buffer IS a Uint8Array, and hashing walks it as one, so the node
+        // read needs no copy — only the absent/unreadable case is special.
+        try {
+          return await fs.readFile(sibling(name));
+        } catch {
+          return null;
+        }
+      },
+      writeBytes: (name, bytes) => fs.writeFile(sibling(name), bytes),
+      renameOver: (from, to) => fs.rename(sibling(from), sibling(to)),
+      deleteFile: (name) => fs.rm(sibling(name), { force: true }),
+      readEdits: () => readEdits(docPath),
+      writeEdits: (ops, variables, bakedThrough) =>
+        writeEdits(docPath, ops, variables, bakedThrough),
+      askUnrecognised: async (info) => {
+        // The same two answers the provider's showWarningMessage offers. The
+        // restore option exists only when that backup genuinely is this
+        // transaction's pre-save state (meshSaveRecovery decides it), so it is
+        // offered conditionally here too.
+        const restore = t("Restore the pre-save backup");
+        const picked = await showQuickPick(
+          [
+            ...(info.canRestoreBackup ? [{ label: restore }] : []),
+            { label: t("Keep the current file") },
+          ],
+          { placeHolder: info.message },
+        );
+        if (!picked) return null;
+        return picked.label === restore ? "restore" : "keep";
+      },
+      withSourceWrite: (fn) => fn(),
+    };
+  }
+
+  /**
+   * Repairs an interrupted mesh save-in-place, if one is pending. Returns the
+   * upstream result so a caller that already holds state can react; the `ready`
+   * hydration simply re-reads the sidecar afterwards, which is correct for
+   * every branch (a `finish` wrote it, a `restore` rewrote the source, and the
+   * rest left both alone).
+   *
+   * Gated on `MESH_SAVE_IN_PLACE_FORMATS` — the same one set the save paths
+   * gate on — so a B-rep, glTF or meshio source never reaches the journal
+   * machinery at all. Non-fatal by construction upstream: a recovery problem
+   * must never be the reason a model refuses to open, so the caller keeps
+   * today's behaviour and only reports the message.
+   */
+  private async recoverMeshSave(): Promise<MeshSaveRecoveryResult> {
+    const route = this.doc?.route;
+    if (!this.doc || !route || !MESH_SAVE_IN_PLACE_FORMATS.has(route.format)) {
+      return {
+        action: "none",
+        reason: "not-savable",
+        bakedThrough: 0,
+        message: null,
+        sidecarChanged: false,
+        sourceChanged: false,
+      };
+    }
+    const fileName = path.basename(this.doc.path);
+    const result = await recoverInterruptedMeshSave(
+      meshSavePaths(fileName, EXPORT_EXTENSION[route.format as CadFormat]),
+      fileName,
+      this.meshRecoveryDeps(this.doc.path)
+    );
+    if (result.message) {
+      // The unrecognised branch is the one case the user must see as an ERROR,
+      // not a status line: the document may be showing geometry that does not
+      // match its edit history (provider.ts, the same rule).
+      if (result.action === "ask") this.post({ type: "error", message: result.message });
+      else this.post({ type: "status", text: result.message });
+    }
+    return result;
+  }
+
   // ---- cad 3.0.0 document chip (provider.ts isDocumentDirty … postEdits) ----
   // ONE predicate feeds both "dirty" and "N unsaved edits" so they cannot
   // disagree. Only sources that can bake count (B-rep, and the three mesh
@@ -739,6 +844,14 @@ export class CadHost {
       // document state did not change. Force the ready handshake to resend
       // documentInfo instead of treating the unchanged value as a duplicate.
       this.lastDocumentInfo = "";
+      // cad 3.7.0's recoverable mesh save-in-place (roadmap 1.5): repair an
+      // interrupted transaction FIRST, so the hydration below reads whatever
+      // watermark recovery landed. KKSS never opens one itself — it has no
+      // interactive bake — but `cad__save_model` (and any other process) bakes
+      // in place, and a `finish` here is the difference between the pending
+      // edits applying once and being replayed over geometry that already
+      // contains them.
+      await this.recoverMeshSave();
       // Load edits before the model so a B-rep source is tessellated already-edited.
       // Planes are loaded alongside them so any `planeId` resolves before the
       // first tessellation (provider.ready): since cad 2.5.0 a plane-authored

@@ -13,6 +13,7 @@ import { registerSchemes, installProtocolHandlers } from "./protocol";
 import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash } from "./windows";
 import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
+import { rendererAssetsPresent } from "./mesh/rendererPage";
 import { FlowgraphController } from "../../mesh/src/flowgraphController";
 import { RunManager } from "../../mesh/src/runManager";
 import { RecentMeshStore } from "../../mesh/src/recentMeshes";
@@ -1258,6 +1259,9 @@ app.whenReady().then(() => {
       clearCache: () => void clearCloudCache(),
     },
     openSettings,
+    // The same check protocol.ts's mesh page rewrite uses, so the View menu's
+    // "unavailable" note and the viewer's actual fallback cannot disagree.
+    meshRendererRuntime: () => rendererAssetsPresent(__dirname),
     metaServer: {
       enabled: () => stateStore.get(META_SERVER_KEYS.enabled, false) ?? false,
       setEnabled: (enabled) => void setMetaServerEnabled(enabled),
@@ -1290,6 +1294,14 @@ app.whenReady().then(() => {
   stateStore.onDidChange((key) => {
     if (settingKeys.has(key)) installMenu(menuDeps);
     if (["kratos.pythonPath", "kratos.installPath", "kratos.extraEnv"].includes(key)) runs?.requestCapabilityRefresh();
+    // The renderer is read when a preview's PAGE loads, so a change cannot
+    // reach a scene already on screen (upstream says the same and shows the
+    // same note). Announced here rather than from the menu's click, so the
+    // Settings page and the View ▸ 3D Renderer radio cannot disagree about
+    // whether the user was told.
+    if (key === "kratos.preview.renderer") {
+      toast("info", t("The 3D renderer applies to mesh previews opened from now on; reopen a preview to switch it."));
+    }
   });
   // An Electron menu is static once built, so the Open Recent submenu only
   // tracks the store by rebuilding the whole template. `record()` fires once

@@ -106,6 +106,13 @@ export interface MenuDeps {
   };
   /** Settings ▸ Open Settings… (Ctrl+,) — the full Settings page. */
   openSettings(): void;
+  /**
+   * Whether the experimental VTK-wasm renderer runtime ships in this build.
+   * Read from the same `rendererPage.ts` check the served mesh page uses, so
+   * the menu's "unavailable" note can never disagree with what the viewer
+   * would actually do with the choice.
+   */
+  meshRendererRuntime(): boolean;
   /** HTTP meta MCP server controls (see index.ts). */
   metaServer: {
     enabled(): boolean;
@@ -119,21 +126,42 @@ export interface MenuDeps {
  * A registry enum as a radio submenu — the quick toggles kept in the native
  * menu read the same entry the Settings page renders, so the two cannot drift
  * (and the menu is rebuilt on every stateStore change, see index.ts).
+ *
+ * `opts` carries the two things an entry can need beyond "write the value":
+ * an extra `enabled` gate for an item that only makes sense in one mode (ANDed
+ * with the managed lock, so an operator-pinned setting stays locked), and a
+ * per-value `disabledValue` for an option this build cannot honour — shown and
+ * annotated rather than hidden, so the menu explains itself instead of the
+ * viewer having to report a fallback afterwards.
  */
-function enumRadio(id: string): Electron.MenuItemConstructorOptions {
+function enumRadio(
+  id: string,
+  opts: {
+    enabled?: boolean;
+    disabledValue?: (value: string | number) => boolean;
+    unavailableNote?: string;
+  } = {}
+): Electron.MenuItemConstructorOptions {
   const entry = entryById(id)!;
   const key = entry.storeKey!;
   const managed = stateStore.isManaged(key);
   const current = effective(entry, stateStore.get(key));
   return {
     label: entry.label + (managed ? t(" (set by the environment)") : ""),
-    enabled: !managed,
-    submenu: (entry.enum ?? []).map((value, i) => ({
-      label: entry.enumLabels?.[i] ?? String(value),
-      type: "radio" as const,
-      checked: current === value,
-      click: () => void stateStore.update(key, value === entry.default ? undefined : value),
-    })),
+    enabled: !managed && opts.enabled !== false,
+    submenu: (entry.enum ?? []).map((value, i) => {
+      const unavailable = opts.disabledValue?.(value) ?? false;
+      return {
+        label:
+          (entry.enumLabels?.[i] ?? String(value)) + (unavailable && opts.unavailableNote ? opts.unavailableNote : ""),
+        type: "radio" as const,
+        checked: current === value,
+        // A disabled option must not be a way to store a value this build
+        // cannot honour, so the click is dropped as well as the highlight.
+        enabled: !unavailable,
+        click: () => void stateStore.update(key, value === entry.default ? undefined : value),
+      };
+    }),
   };
 }
 
@@ -578,6 +606,19 @@ export function installMenu(deps: MenuDeps): void {
         { label: t("Toggle Jobs"), click: () => deps.toggleJobs() },
         { label: t("Reset Camera"), click: () => activeMeshHost()?.postToActive({ type: "resetCamera" }) },
         { label: t("Toggle Node IDs"), click: () => activeMeshHost()?.postToActive({ type: "toggleNodeIds" }) },
+        // mesh 4.8.0's `kratos.preview.renderer`, as the quick radio its other
+        // app-level view preferences have. Same registry entry the Settings
+        // page renders, so the two cannot drift; mesh-only because it is read
+        // when a Post-Processing preview's page loads, hence `!inCad()` like
+        // the two items above it. VTK-wasm is the experimental opt-in and
+        // vtk.js the default, so only the former can be unavailable — a build
+        // without the runtime says so on the item instead of letting the user
+        // pick it and meet a fallback note in the viewport.
+        enumRadio("kratos.preview.renderer", {
+          enabled: !inCad(),
+          disabledValue: (value) => value === "vtkwasm" && !deps.meshRendererRuntime(),
+          unavailableNote: t(" — unavailable in this build"),
+        }),
         { type: "separator" },
         { label: t("Toggle Developer Tools"), accelerator: "CmdOrCtrl+Shift+I", click: () => {
           const screen = main.screen();

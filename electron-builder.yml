@@ -125,6 +125,8 @@ fileAssociations:
     name: KKSS EnSight document
   - ext: dato
     name: KKSS PERMAS document
+  - ext: d3plot
+    name: KKSS LS-DYNA result document
   - ext: dex
     name: KKSS field document
   - ext: ele
@@ -133,6 +135,8 @@ fileAssociations:
     name: KKSS Exodus document
   - ext: f3grid
     name: KKSS FLAC3D document
+  - ext: fil
+    name: KKSS Abaqus result document
   - ext: fem
     name: KKSS Nastran document
   - ext: frd
@@ -141,6 +145,8 @@ fileAssociations:
     name: KKSS EnSight document
   - ext: hdf
     name: KKSS VTK HDF document
+  - ext: h5
+    name: KKSS HDF document
   - ext: h5m
     name: KKSS MOAB document
   - ext: hmf
@@ -163,6 +169,8 @@ fileAssociations:
     name: KKSS Nastran document
   - ext: off
     name: KKSS OFF document
+  - ext: op2
+    name: KKSS MSC Nastran result document
   - ext: pcd
     name: KKSS point cloud document
   - ext: pvd
@@ -183,6 +191,12 @@ fileAssociations:
     name: KKSS parallel VTK XML document
   - ext: pvtu
     name: KKSS parallel VTK XML document
+  - ext: rst
+    name: KKSS MAPDL result document
+  - ext: rth
+    name: KKSS MAPDL result document
+  - ext: t19
+    name: KKSS MSC Marc result document
   - ext: tec
     name: KKSS Tecplot document
   - ext: ugrid
@@ -195,6 +209,8 @@ fileAssociations:
     name: KKSS WKT document
   - ext: xmf
     name: KKSS XDMF document
+  - ext: xplt
+    name: KKSS FEBio result document
   - ext: xyz
     name: KKSS point cloud document
   - ext: xyzn

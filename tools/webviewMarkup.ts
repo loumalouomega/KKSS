@@ -86,6 +86,13 @@ const MESH_CSP = [
   `default-src 'none'`,
   `img-src kkss: https: data: blob:`,
   `style-src kkss: 'unsafe-inline'`,
+  // vtk.js needs nothing beyond the scheme. mesh 4.8.0's experimental VTK-wasm
+  // renderer adds exactly `'wasm-unsafe-eval'` so WebAssembly may compile —
+  // never `'unsafe-eval'`, since the prepared glue is rewritten at build time
+  // to need no dynamic code. That one token, and the two body attributes below,
+  // are added per page load by app/main/mesh/rendererPage.ts (through the
+  // kkss://app handler), never baked in here: the page is a build artifact, so
+  // the runtime choice cannot be known when it is written.
   `script-src kkss:`,
   `worker-src blob:`,
   // The embedded Flowgraph editor is served from a localhost port (or an
@@ -94,6 +101,9 @@ const MESH_CSP = [
   // vtkEditorProvider.ts getHtml).
   `frame-src http://localhost:* http://127.0.0.1:* https:`,
   `child-src blob:`,
+  // connect-src already carries this scheme, which is what the VTK-wasm glue
+  // needs to fetch its own .wasm (upstream adds `connect-src <cspSource>`, and
+  // it is already there).
   `connect-src kkss: blob: data:`,
 ].join("; ");
 
@@ -104,6 +114,14 @@ const MESH_CSP = [
  * links `vscode-vars.css` and `mesh-overrides.css` and must load `shim.js`
  * BEFORE the bundle. Everything that can come from `webviewChrome.ts` does; the
  * only markup written out here is what that module inlines rather than exports.
+ *
+ * `buildPreviewHtml`'s `data-renderer` / `data-vtk-wasm-base` /
+ * `data-renderer-fallback` attributes (mesh 4.8.0's renderer choice) are the
+ * one thing deliberately NOT replicated: they depend on a user setting, and
+ * this page is written once at build time. The kkss://app handler injects them
+ * per load — see app/main/mesh/rendererPage.ts, which mirrors `buildCsp`'s
+ * single `'wasm-unsafe-eval'` addition. The `<body …>` tag in `page()` is
+ * therefore load-bearing: the injection appends to it and throws if it is gone.
  *
  * `MENUBAR_HTML` is emitted in full, but KKSS hides only its File pill and the
  * scene-theme picker (mesh-overrides.css) — the native menu owns both — while

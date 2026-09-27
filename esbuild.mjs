@@ -27,6 +27,9 @@ const required = [
   ["cad/dist/gmsh-core.wasm", "npm run build --prefix cad"],
   // cad 2.7.0's bundled starter meshing presets (cad/esbuild.mjs copyMeshPresets).
   ["cad/dist/mesh-presets/starter-presets.json", "npm run build --prefix cad"],
+  // fTetWild, staged by cad 3.6.0's own build (scripts/runtimeAssets.mjs) and
+  // resolved at runtime by cad's `runtimePackage.ts`.
+  ["cad/dist/ftetwild/index.js", "npm run build --prefix cad"],
   // Stdio MCP servers spawned by the chat sidebar (app/main/services/chat/).
   ["cad/dist/mcp-server.js", "npm run build --prefix cad"],
   ["mesh/dist/mcpServer.js", "npm run package --prefix mesh"],
@@ -101,24 +104,16 @@ const gmshAlias = {
   ),
 };
 
-// cad/src/meshioService.ts loads meshio++ with a bare `await import(...)` and
-// no directory fallback (unlike mesh's own loader, which ends at
-// `__dirname/meshio`). KKSS ships no node_modules, so that specifier is
-// redirected to a shim that resolves the copied out/meshio/ tree — see
-// app/main/cadMeshioLoader.ts. Only the bare specifier is rewritten; mesh's
-// loader builds its path at runtime and is unaffected.
-const meshioAlias = {
-  "@meshioplusplus/wasm": path.join(__dirname, "app/main/cadMeshioLoader.ts"),
-};
-
-// cad 1.5.0's fourth WASM kernel (ftetwildService.ts, behind mesh repair and
-// mesh→B-rep promotion). ESM-only with a top-level await in its threaded glue,
-// which esbuild cannot emit into a cjs bundle at all — so unlike meshio++ this
-// is a hard build error, not just a packaged-install one. Same fix:
-// app/main/cadFtetwildLoader.ts resolves the copied out/ftetwild/ tree.
-const ftetwildAlias = {
-  "float-tetwild-wasm": path.join(__dirname, "app/main/cadFtetwildLoader.ts"),
-};
+// cad 3.6.0 replaced both bare package imports with its own
+// `runtimePackage.ts`, which resolves the installed package first and then a
+// STAGED tree beside the bundle (`<dir>/meshio`, `<dir>/ftetwild`) or two levels
+// above it — i.e. exactly KKSS's `out/meshio` and `out/ftetwild`, for the
+// interactive worker (out/cadCompute.worker.js) and the MCP kernel
+// (out/cad-runtime/dist/kernel-worker.js) alike. So the aliases KKSS used to
+// interpose (app/main/cadMeshioLoader.ts, app/main/cadFtetwildLoader.ts) are
+// gone, and neither bare specifier is ever bundled. What still matters is the
+// `import.meta.url` shim above: the lookup is anchored to the bundle's own
+// file, which in a cjs bundle only works with that shim.
 
 /** @type {import('esbuild').BuildOptions} */
 const mainConfig = {
@@ -130,7 +125,7 @@ const mainConfig = {
   outfile: "out/main.js",
   // node-pty is the app's only native module: kept external and shipped as
   // node_modules/node-pty in the package (see electron-builder.yml files).
-  // @meshioplusplus/wasm is external too (mirroring mesh's own esbuild.js): the
+  // @meshioplusplus/wasm stays external (mirroring mesh's own esbuild.js): the
   // bundled meshio.ts has a `require.resolve("@meshioplusplus/wasm/package.json")`
   // literal esbuild would try to resolve at build time (this repo has no such
   // module), and its ESM-only glue must never be inlined. At runtime meshio.ts
@@ -159,10 +154,10 @@ const cadWorkerConfig = {
   plugins: [wasmPathPlugin("cad-runtime/dist/opencascade.wasm.wasm")],
   // gmshService.ts (bundled into this worker) imports gmsh-wasm — force its
   // CJS build so the top-level await in the ESM entry never reaches this CJS
-  // bundle. meshioService.ts's bare @meshioplusplus/wasm import and
-  // ftetwildService.ts's float-tetwild-wasm import are redirected to the
-  // out/meshio/ and out/ftetwild/ resolver shims (see the aliases above).
-  alias: { ...gmshAlias, ...meshioAlias, ...ftetwildAlias },
+  // bundle. meshio++ and fTetWild need no alias at all: cad 3.6.0 resolves both
+  // from the staged out/meshio/ and out/ftetwild/ trees through its own
+  // runtimePackage.ts (see the note above).
+  alias: { ...gmshAlias },
   // gmsh-core.cjs's emscripten runtime has a `require("ws")` in its Node
   // WebSocket-socket branch — dead code for mesh generation (no networking) and
   // ws isn't even a declared dep. Keep it external so it never has to resolve.
@@ -335,16 +330,39 @@ function copyArtifacts() {
   // meshio++ (@meshioplusplus/wasm) is another verbatim tree: meshio.ts loads
   // it via a runtime dynamic import of out/meshio/src/index.mjs + locateFile
   // pointing at out/meshio/dist/*.wasm (its packageDir() __dirname fallback).
-  // One copy beside out/main.js serves both the mesh host and out/mcpServer.js.
+  // One copy beside out/main.js serves the mesh host, out/mcpServer.js AND
+  // cad's own `runtimePackage.ts` staged-layout lookup (cad 3.6.0 resolves an
+  // installed package first, then `<bundle dir>/meshio`, then two levels up),
+  // so CAD and the mesh viewer share ONE tested version. Both WASM variants
+  // must be in that tree: the main process auto-selects the threaded one.
   fs.cpSync(path.join(__dirname, "mesh/dist/meshio"), out("meshio"), { recursive: true });
-  // float-tetwild-wasm, cad's fourth WASM kernel. Unlike the two trees above,
-  // the submodule's own build does not stage it into dist/ (it stays a plain
-  // node_modules dependency there), so it is copied straight from cad's
-  // node_modules — index.js + dist/, i.e. the package's own `files` list.
-  // Resolved at runtime by app/main/cadFtetwildLoader.ts's `__dirname/ftetwild`.
-  fs.cpSync(path.join(__dirname, "cad/node_modules/float-tetwild-wasm"), out("ftetwild"), {
-    recursive: true,
-  });
+  // float-tetwild-wasm, cad's fourth WASM kernel. Since cad 3.6.0 the
+  // submodule's own build stages it into dist/ftetwild (scripts/runtimeAssets.mjs
+  // is also what its .vsix checker verifies), so KKSS copies cad's staged tree
+  // rather than reaching into cad/node_modules. Resolved at runtime by cad's
+  // `runtimePackage.ts` from the same staged-layout lookup as meshio++.
+  fs.cpSync(path.join(__dirname, "cad/dist/ftetwild"), out("ftetwild"), { recursive: true });
+  // mesh 4.8.0's experimental VTK-wasm renderer runtime (roadmap item 18):
+  // the hash-verified, eval-free patched glue, its .wasm and both licence
+  // notices, staged by mesh's production build. Served from beside the mesh
+  // page, which imports vtkWebAssembly.mjs from this directory and points
+  // locateFile at the .wasm next to it.
+  //
+  // Optional on purpose: mesh only prepares the runtime when it is missing, so
+  // an offline build or an explicit KRATOS_VTK_WASM=skip produces none — and
+  // must still build. The renderer setting then falls back to vtk.js with a
+  // status line (app/main/mesh/rendererPage.ts), which is the documented
+  // behaviour for an installation without the runtime. Hence a warning, not a
+  // preflight entry in `required` above.
+  const vtkWasm = path.join(__dirname, "mesh/media/vtk-wasm");
+  if (fs.existsSync(vtkWasm)) {
+    fs.cpSync(vtkWasm, out("renderer/mesh/vtk-wasm"), { recursive: true });
+  } else {
+    console.warn(
+      "esbuild: mesh/media/vtk-wasm/ absent — the experimental VTK-wasm renderer will fall back to vtk.js.\n" +
+        "  Run `npm run vtkwasm:prepare --prefix mesh` to prepare the runtime, or set KRATOS_VTK_WASM=skip to accept the fallback."
+    );
+  }
   console.log(`Copied ${copies.length} artifacts into out/`);
 }
 
