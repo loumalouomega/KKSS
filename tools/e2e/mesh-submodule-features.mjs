@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { scenario, assert, selectFile, until, menu } from './context.mjs';
+import { scenario, assert, selectFile, until, menu, quitApp } from './context.mjs';
 
 // Small, deterministic fixtures: two property regions and a linear nodal field.
 const nodes = '1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n5 1 1 1';
@@ -195,6 +195,16 @@ await scenario('mesh-submodule-features', async c => {
   await until(async () => (await timelineSelection.locator('.sel-set-name').last().textContent()).endsWith('— 0'), 'field seed refreshes on the next frame');
   assert.equal(await series.locator('#sel-seed-name').inputValue(), 'Timeline draft');
   assert.equal(await timelineSelection.getByRole('button', { name: 'Export', exact: true }).isDisabled(), true);
+  // Close the first app before relaunching, as every other scenario here does.
+  // KKSS is single-instance in production, so two live apps sharing one profile is
+  // a harness-only shape — and a harmful one since Electron 44.4.4: that release
+  // started persisting Skia's GPU shader cache, so a second instance on the same
+  // --user-data-dir kills the GPU process at startup (exit_code=133). The new
+  // renderer's first getContext('webgl2') then returns null, vtk.js throws
+  // "Cannot create proxy with a non-object as target or handler", and the mesh
+  // view is dead for good — the renderer process survives, so the host's
+  // render-process-gone recovery never sees it.
+  await quitApp(app);
   const reopenedApp = await c.launch(file);
   const reopened = await c.page(reopenedApp, 'mesh');
   await reopened.locator('#doc-chip-name').getByText('regions.mdpa', { exact: true }).waitFor();
