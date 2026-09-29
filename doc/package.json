@@ -11,5 +11,8 @@
   },
   "devDependencies": {
     "vitepress": "^2.0.0-alpha.20"
+  },
+  "overrides": {
+    "nanoid": "^3.3.18"
   }
 }
