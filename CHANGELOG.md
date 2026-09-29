@@ -7,6 +7,34 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.7.0] - 2026-09-29
+
+- fix: patch the four open Dependabot advisories, all in transitive
+  dependencies the app never imports directly — `ip-address` 10.4.0 → 10.7.2
+  (SSRF and trust-boundary bypass: `Address6.isLinkLocal()` recognised
+  `fe80::/64` rather than `fe80::/10`, and nothing classified the NAT64
+  local-use range `64:ff9b:1::/48`), `undici` 7.29.0 → 7.30.0 and 6.28.0 →
+  6.29.0 (DoS via an unhandled error in WebSocket permessage-deflate
+  decompression), and `nanoid` 3.3.16 → 3.3.19 in the docs site (custom
+  generators could loop indefinitely when `size` is zero). Each is pinned via
+  `overrides` at its first patched version, matching the existing
+  `fast-uri`/`js-yaml`/`qs`/`hono` entries; the second `undici` copy sits
+  under `node-gyp`, so it stays on the 6.x line instead of being dragged
+  across a major by the flat one. `npm audit` is now clean at the root and
+  in `doc/`.
+- test: quit the first app before the mesh scenario relaunches on a shared
+  profile. Electron 44.4.4 began persisting Skia's GPU shader cache, so a
+  second instance launched against a live app's `--user-data-dir` took the
+  GPU process down at startup (exit code 133); the new renderer's first
+  `getContext('webgl2')` then returned null and the mesh view stayed dead
+  for good. KKSS is single-instance in production, so this only ever affected
+  the test, but the relaunch assertion still needs a fresh process to read the
+  saved property.
+- chore: update Electron to 44.4.5, `@anthropic-ai/sdk` to 0.128.0,
+  `@anthropic-ai/claude-agent-sdk` to 0.3.283, `@modelcontextprotocol/sdk` to
+  1.30.1, `vitest` to 5.0.2 and `@types/node` to 26.6.3.
+- chore: update `actions/upload-artifact` from 4 to 7.
+
 ## [2.6.0] - 2026-09-27
 
 - feat: add **Settings ▸ Mesh Viewer ▸ 3D Renderer** (`kratos.preview.renderer`),
