@@ -1,7 +1,7 @@
 import {
   runMeshSweep,
   type SweepGenerateResult,
-  type MeshSweepRun,
+  type MeshSweepOutcome,
 } from "../../cad/src/meshSweep";
 import type { MeshOptions } from "../../cad/src/meshOptions";
 
@@ -12,20 +12,29 @@ export function runCadMeshSweep<R extends SweepGenerateResult>(
   generate: (options: MeshOptions) => Promise<R>,
   hooks: {
     warnings: string[];
-    assertActive(): void;
+    isCancelled(): boolean;
     writeOutputs?: (size: number, options: MeshOptions, result: R) => Promise<string[]>;
     onRunStart?: (index: number, size: number) => void;
   }
-): Promise<MeshSweepRun[]> {
-  return runMeshSweep(sizes, options, generate, {
+): Promise<MeshSweepOutcome> {
+  const isCancelled = hooks.isCancelled;
+  return runMeshSweep<R>(sizes, options, async (runOptions) => {
+    // A cancellation may land after the sweep loop's entry check but while
+    // Gmsh is queued/running. Preserve the submodule's new contract: that run
+    // contributes no row, and the completed rows return as a partial result.
+    if (isCancelled()) throw new Error("CAD mesh sweep cancelled.");
+    const result = await generate(runOptions);
+    if (isCancelled()) throw new Error("CAD mesh sweep cancelled.");
+    return result;
+  }, {
     warnings: hooks.warnings,
     onRunStart(index, size) {
-      hooks.assertActive();
       hooks.onRunStart?.(index, size);
     },
+    isCancelled,
     writeOutputs: hooks.writeOutputs
       ? async (size, runOptions, result) => {
-          hooks.assertActive();
+          if (isCancelled()) throw new Error("CAD mesh sweep cancelled.");
           return hooks.writeOutputs!(size, runOptions, result);
         }
       : undefined,

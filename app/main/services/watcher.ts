@@ -13,6 +13,7 @@
  *    contentWatchGlob, for `.foam`: the opened file is a 0-byte marker whose
  *    real mesh lives in that subdirectory, so re-running blockMesh leaves the
  *    marker's own mtime untouched)
+ *  - recursive output-watch globs, for isolated queued solve results;
  *  - a bare `*`, which no submodule asks for but the cloud staging layer does:
  *    it has to notice *any* write into a staged document's directory, because
  *    a mesh save happens inside the submodule and is never reported back
@@ -42,6 +43,11 @@ export interface FileWatcher {
  * an unrelated "constant/x" or a root-level "x".
  */
 export function matcherFor(pattern: string): (relPath: string) => boolean {
+  if (pattern.includes("**")) {
+    const escaped = pattern.split(/(\*\*\/|\*\*|\*|\?)/).map(part => part === "**/" ? "(?:.*/)?" : part === "**" ? ".*" : part === "*" ? "[^/]*" : part === "?" ? "[^/]" : part.replace(/[|\\{}()[\]^$+?.]/g, "\\$&")).join("");
+    const expression = new RegExp(`^${escaped}$`, "i");
+    return (relPath) => expression.test(relPath);
+  }
   if (pattern === "*") return () => true;
 
   if (pattern.includes("/")) {
@@ -89,7 +95,7 @@ export function createFileSystemWatcher(base: string, pattern: string): FileWatc
   // root-only depth — exactly as many levels as its own directory prefix has,
   // so "constant/polyMesh/*" (two directory segments) needs depth 2. Every
   // other pattern here has no "/" at all, so this stays 0 — unchanged.
-  const depth = pattern.includes("/") ? pattern.split("/").length - 1 : 0;
+  const depth = pattern.includes("**") ? undefined : pattern.includes("/") ? pattern.split("/").length - 1 : 0;
   const changeCbs: Array<(p: string) => void> = [];
   const createCbs: Array<(p: string) => void> = [];
   const deleteCbs: Array<(p: string) => void> = [];

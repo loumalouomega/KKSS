@@ -35,7 +35,7 @@ for name in json.loads(sys.argv[1]):
   if name=='KratosMultiphysics':
    result['kratosVersion']=str(module.KratosGlobals.Kernel.Version())
    parallel=module.ParallelUtilities if hasattr(module,'ParallelUtilities') else None
-   result['threadControl']=bool(parallel and callable(getattr(parallel,'SetNumThreads',None)))
+   result['threadControl']=bool(parallel and callable(getattr(parallel,'SetNumThreads',None)) and callable(getattr(parallel,'GetNumThreads',None)))
  except Exception as e: result['applications'].append({'name':name,'available':False,'reason':str(e)})
 print('KKSS_PROBE:'+json.dumps(result))`;
 export type Probe = typeof runRuntimeCommand;
@@ -84,5 +84,13 @@ export async function checkEnvironment(options: {
   const cpuCount = os.availableParallelism();
   return { version: 1, checkedAt: new Date().toISOString(), requirementsComplete: options.requirementsComplete,
     directory: options.directory, writable, directoryReason, cpuCount, memoryBytes: os.freemem(), manual, tools,
-    ...(manual.available && manual.capabilities.threads ? { suggestedThreads: Math.max(1, Math.min(4, cpuCount - 1)) } : {}) };
+    ...(manual.available && manual.capabilities.threads ? { suggestedThreads: Math.max(1, cpuCount - 1) } : {}) };
+}
+
+export function resolveThreads(configured: number | undefined, cpuCount: number): number {
+  const value = configured ?? 0;
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error('Solver threads must be a nonnegative integer.');
+  const threads = value || Math.max(1, cpuCount - 1);
+  if (threads > cpuCount) throw new Error('Solver threads exceed the available CPU budget.');
+  return threads;
 }

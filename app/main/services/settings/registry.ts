@@ -364,6 +364,19 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       ),
     },
     {
+      id: "kratos.export.provenance",
+      label: t("Mesh Export Provenance"),
+      category: "Mesh Viewer",
+      type: "enum",
+      storeKey: "kratos.export.provenance",
+      default: "auto",
+      enum: ["auto", "sidecar", "none"],
+      enumLabels: [t("Automatic"), t("Write a full sidecar report"), t("Do not record provenance")],
+      applies: "live",
+      vscode: { section: "kratos.export", key: "provenance" },
+      description: t("Record source and operation provenance in supported mesh formats. Sidecar writes a full .kratosexport.json report beside every export; formats with an embedded provenance slot may carry both."),
+    },
+    {
       id: "kratos.flowgraph.splitOrientation",
       label: t("Flowgraph Split"),
       category: "Mesh Viewer",
@@ -378,6 +391,11 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
     },
 
     // ---- Kratos -------------------------------------------------------------
+    {
+      id: "kratos.threads", label: t("Solver Threads"), category: "Kratos", type: "number",
+      storeKey: "kratos.threads", default: 0, min: 0, integer: true, applies: "nextRun",
+      description: t("0 selects Auto (available CPUs minus one, minimum one). Queued previews freeze the allocation; changing it requires a new preview."),
+    },
     {
       id: "kratos.pythonPath",
       label: t("Python Interpreter"),
@@ -427,6 +445,17 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       vscode: { section: "kratos", key: "problemtypes.extraPaths" },
       description:
         t("Folders (relative to the project folder) scanned for user problemtypes. Only used once a project folder is chosen."),
+    },
+    {
+      id: "kratos.materials.extraPaths",
+      label: t("Material Library Folders"),
+      category: "Kratos",
+      type: "stringList",
+      storeKey: "kratos.materials.extraPaths",
+      default: [".kratos/materials"],
+      applies: "nextOpen",
+      vscode: { section: "kratos", key: "materials.extraPaths" },
+      description: t("Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot."),
     },
     {
       id: "kratos.run.stopOnWindowClose",

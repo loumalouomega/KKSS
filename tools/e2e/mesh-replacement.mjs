@@ -24,8 +24,19 @@ await scenario('mesh-replacement', async c => {
   const decision = async response => app.evaluate(({ dialog }, response) => {
     globalThis.replacementDialogs = [];
     dialog.showMessageBox = async (...args) => {
-      const options = args.at(-1); globalThis.replacementDialogs.push(options);
-      return { response, checkboxChecked: false };
+      const options = args.at(-1);
+      // Saving a mesh can also prompt for the one-time overwrite confirmation
+      // and offer its export-fidelity report. Keep those separate from the
+      // three-button dirty replacement decision so their actions do not pollute
+      // the scenario's prompt count or change the active screen.
+      if (options.buttons?.[0] === 'Save' && options.buttons?.[1] === "Don't Save" && options.buttons?.[2] === 'Cancel') {
+        globalThis.replacementDialogs.push(options);
+        return { response, checkboxChecked: false };
+      }
+      // The first in-place save has its own one-time confirmation before it
+      // can write. Accept it so this scenario tests replacement-save behavior.
+      if (options.buttons?.[0] === 'Overwrite') return { response: 0, checkboxChecked: false };
+      return { response: options.cancelId ?? Math.max(0, (options.buttons?.length ?? 1) - 1), checkboxChecked: false };
     };
   }, response);
   const count = () => app.evaluate(() => globalThis.replacementDialogs.length);

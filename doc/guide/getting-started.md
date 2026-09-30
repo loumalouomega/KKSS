@@ -31,7 +31,7 @@ The toolbar at the top of the window holds the mode toggle:
 ![The shell toolbar: mode toggle, Open button, and the current file](/screenshots/shell-toolbar.png)
 
 - **🔷 Pre-Processing** — CAD geometry and model preparation ([details](/guide/cad-mode)). Opens STEP, IGES, BREP, STL, OBJ, PLY, glTF, and OpenSCAD `.csg`/`.scad` (a `.scad` needs a local `openscad` binary). **File ▸ New Blank Model…** starts an empty one instead.
-- **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 49 extended readable formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, Exodus, CGNS, MED, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and an **Advanced** toolbar menu holds the Mesh Size panel (nodal/element size statistics), sphere glyphs for particle meshes, face normals for spotting inverted elements, and boundary-skin export.
+- **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 60 extended readable formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, Exodus, CGNS, MED, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and an **Advanced** toolbar menu holds mesh-size and curvature/flow analysis, sphere glyphs for particle meshes, face normals for spotting inverted elements, and boundary-skin export.
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved. The two viewers share one layout — a document chip in the menubar, an icon-headed sidebar with a collapsed **Advanced** group, a floating toolbar and dock, and a status bar — described in [Pre-Processing](/guide/cad-mode#reading-the-window-at-a-glance) and [Post-Processing](/guide/mesh-mode#reading-the-window-at-a-glance). The app's own toolbar, home screen, chat and jobs panels use the same look, and the **Terminal**, **Chat** and **Jobs** buttons show as pressed while their panel is open.
 
@@ -83,25 +83,28 @@ explicit choice, and quantity fields use selectors for location, component and r
 
 ![Inline quantity evaluation form](/screenshots/home-workflow-form.png)
 
+![Revision-bound mesh refinement assumptions](/screenshots/home-refinement-form.png)
+
 **Plan run** previews isolated mesh, case-generation and solve tasks under `.kkss/runs/<id>/`.
 **Plan sweep** expands one case-setting path and up to 50 values into fresh variant studies and run
 destinations. Choose **Persist paused plan** after reviewing the preview, then **Start plan** to launch it. Cancelling the start step leaves the persisted queue paused. Resume is bound to the concrete plan revision, and the queue
 reconciles recorded CAD mesh-export and solver request identities after restart. Home can resume one waiting variant row
 while holding other rows, or preview a failed row retry with fresh study and run identities. Comparisons
-label mesh-sensitivity and solver-parameter studies separately using recorded mesh revisions and settings. A terminal run can be imported as an
+label mesh-sensitivity and solver-parameter studies separately using recorded mesh revisions and settings. Set **Refinement metadata** on each run to record revision-bound characteristic size, unit, dimension, sizing method and sizing-definition justification. Adaptive meshes require an explicit characteristic size. Richardson extrapolation and GCI are shown only for at least three compatible finite quantities in a confirmed asymptotic range; the report includes refinement ratios, assumptions, diagnostics and missing values. Four or more levels also compare consecutive observed orders against a visible 10% heuristic. A terminal run can be imported as an
 immutable input snapshot; large results remain revision-checked links. **Review run** and **Export
 review** report generated-input revisions, MDPA counts, the existing mesh-quality diagnostics and
-versioned structural solve-step outcomes in offline JSON/HTML.
+versioned structural, fluid, thermal, potential-flow and shallow-water solve-step outcomes, thread provenance, configured VTK/XDMF/HDF5/GiD outputs, mesh counts and result companions in offline JSON/HTML.
 **Evaluate quantity** lets you select a result field, location, component, region, time step,
 reduction and unit; the result record keeps the exact source artifact revision. Units must be
 declared explicitly. Leave the optional time step blank for an ordinary single-result file; use an index for an extended-format time series. Leave the result path blank to use the recorded artifact. If that result later changes, its saved value is shown as stale and omitted.
-Variant comparison pairs matching definitions only when their units agree; missing values stay
-missing. Unsupported-problemtype convergence remains explicitly unavailable. The versioned structural monitor records the solver's residual
-norm and convergence criterion parameters for nonlinear residual-criterion runs. Linear solves,
-other criteria, interrupted runs and truncated monitor files remain explicitly unavailable; process
-success alone never proves convergence. Run reviews include the upstream preparation report, generated
+Variant comparison pairs matching definitions only when their units agree; missing values stay missing. The five built-in solver monitors record solver-published step outcomes; criteria that do not publish numerical convergence, interrupted runs and truncated monitor files remain explicitly unavailable. Process success alone never proves convergence. Run reviews include the upstream preparation report, generated
 input hashes and runtime identity when available. The assistant has the same environment, study, queue, review, quantity and
 variant tools under the normal transcript approval policy; preview never launches work.
+
+Set **Settings → Kratos → Solver threads** to a positive OpenMP allocation, or leave **Auto** (`0`) to reserve
+one available CPU for the rest of the desktop. The preview shows and freezes the concrete allocation. KKSS
+can run one solve alongside one mesh or case-preparation task only when both verified reservations fit the
+available CPU budget; an interrupted or legacy task with unknown usage holds the budget until reconciled.
 
 ### Working from cloud storage
 

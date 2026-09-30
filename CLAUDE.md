@@ -117,8 +117,61 @@ alternate-criterion, interrupted and truncated cases remain unavailable rather
 than inferred. Quantity
 evaluation explicitly selects a result field/component, region, time, reduction
 and unit, then saves it with its exact artifact reference and source revision.
-Variant comparison labels mesh-sensitivity, solver-parameter and mixed studies
-from recorded mesh revisions and settings; it accepts only matching quantity
+Thread previews freeze a concrete `kratos.threads` allocation (`0` means Auto,
+`max(1, availableParallelism() - 1)`) into the plan fingerprint. Revalidate the
+manual runner's `SetNumThreads`/`GetNumThreads` APIs before dispatch, apply the
+requested count before constructing the simulation, and fail if the effective
+count cannot be verified. Receipts and run provenance retain requested and
+effective counts. `tools/workflows/benchmark.mjs` runs the five tutorial cases
+at 1, 2, 4 and all available CPUs, three repetitions each; raw timings and
+coordinator-delay samples live in `doc/public/benchmarks/thread-benchmark.json`.
+Treat them as machine-specific observations, not evidence that more threads
+improve solve time.
+
+The resource coordinator is shared across registered project stores and writes
+reservations before dispatch. It admits at most one solve and one preparation
+task when verified allocations fit the CPU budget. CAD meshing and MDPA case
+preparation reserve one verified CPU; other preparation costs are unknown and
+run exclusively. Legacy allocations and interrupted/uncertain launches retain
+their reservations until reconciled. Preserve dependency order, selected-row
+resume, pause, cancellation and restart reconciliation.
+
+The versioned convergence monitor has explicit adapters for structural, fluid,
+convection-diffusion, potential-flow and shallow-water solvers. Instrument
+solver hooks and solver-published criteria; keep solve-step outcomes separate
+from numerical convergence. Linear solves, unsupported criteria, missing
+residuals and incomplete/interrupted monitors need explicit unavailable reasons.
+Continue reading structural monitor v1/v2. For mesh counts, keep MDPA's text
+fast path; other formats use read-only `mesh__mesh_info` with before/after
+revision checks.
+
+Shared result discovery reads generated `ProjectParameters.json` output-process
+settings and adapts VTK, XDMF/HDF5 and GiD. Discover result entrypoints and
+timelines together with required companion revisions; queue review, imported
+runs, result opening and quantity evaluation use the same discovery. Missing,
+unreadable, unsafe or unknown configured outputs are findings, not solver
+success. Keep the documented VTK fallback only for legacy cases with no output
+settings. Live VTK and GiD acceptance passed; Kratos 10.4.3's XDMF/HDF5 writer
+fails before producing its XDMF index, so live XDMF acceptance remains open in
+`doc/roadmap.md`.
+
+Mesh-sensitivity metadata is revision-bound and records characteristic size,
+unit, dimension, sizing method and justification. Count-derived effective sizes
+are valid only for explicitly confirmed uniform refinement of the same domain;
+adaptive meshes require an explicit consistent sizing definition. Require three
+distinct revisions, compatible physical/solver settings and quantity units,
+finite values and decreasing sizes. Compute unequal-ratio observed order,
+Richardson extrapolation and GCI with safety factor 1.25; withhold invalid,
+oscillatory, unsolved or incompatible estimates and relative GCI for a zero
+reference value. Three levels need an explicit asymptotic-range assumption;
+four or more also report whether consecutive orders agree within the 10%
+heuristic (not proof).
+
+Review and comparison exports are escaped, self-contained HTML for offline use
+with embedded JSON twins. Include findings, provenance, resources, preparation
+status, mesh statistics/quality, quantities and refinement assumptions. Variant
+comparison labels mesh-sensitivity, solver-parameter and mixed studies from
+recorded mesh revisions and settings; it accepts only matching quantity
 definitions with compatible units and preserves missing values as null. The
 read-only mesh evaluator is
 `mesh__case_evaluate_quantity`; its app-owned persistence wrapper is

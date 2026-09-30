@@ -1,3 +1,4 @@
+import type { Refinement } from './refinement';
 /** Portable workflow contracts. Absolute runtime paths never identify a study. */
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Reference = { kind: 'project' | 'external'; path: string; revision: string };
@@ -23,7 +24,7 @@ export interface Quantity {
 }
 export interface Evidence {
   version: 1; runId: string; findings: Finding[];
-  mesh: { nodes?: number; elements?: number; quality?: Json };
+  mesh: { nodes?: number; elements?: number; conditions?: number; quality?: Json };
   preparation?: {
     state: 'complete' | 'partial' | 'unavailable'; settingsRevision: string;
     files: { role: string; reference: Reference; state: 'current' | 'missing' | 'changed' }[];
@@ -39,8 +40,12 @@ export interface Evidence {
   quantities: Quantity[];
 }
 export type TaskState = 'waiting' | 'held' | 'dispatching' | 'running' | 'uncertain' | 'succeeded' | 'failed' | 'cancelled' | 'blocked';
-export interface Receipt { version: 1; requestId: string; ownerId: string; jobId?: string; state: TaskState; artifacts: Artifact[]; message?: string; startedAt?: number; finishedAt?: number }
+export interface Resources { requestedThreads: number; effectiveThreads?: number }
+export interface Receipt { resources?: Resources; outputFindings?: string[]; version: 1; requestId: string; ownerId: string; jobId?: string; state: TaskState; artifacts: Artifact[]; message?: string; startedAt?: number; finishedAt?: number }
 export interface Run {
+  resources?: Resources;
+  outputFindings?: string[];
+  refinement?: Refinement;
   id: string; studyId: string; sourceRevision: string; meshRevision: string;
   settings: Json; directory: string; state: TaskState; artifacts: Artifact[];
   receipt?: Receipt; evidence?: Evidence; startedAt?: number; finishedAt?: number;
@@ -51,6 +56,7 @@ export interface Study {
   caseMeshRevision?: string; runs: Run[]; parentId?: string; handoff?: Handoff;
 }
 export interface Task {
+  resources?: { threads: number; verified: boolean };
   id: string; studyId: string; runId: string; kind: 'mesh' | 'generate' | 'solve';
   dependencies: string[]; args: { [key: string]: Json }; inputRevision: string;
   requiredArtifacts: string[]; state: TaskState; receipt?: Receipt; error?: string;

@@ -51,6 +51,15 @@
  *   guess like `mesh_export_table`/`mesh_field_series` above: `outputPath` is
  *   required, so it unconditionally writes the packed XDMF plus its sibling
  *   `.h5` companions.
+ * - `mesh__mesh_resample`, `mesh__mesh_periodic`, `mesh__mesh_flow_balance`,
+ *   and `mesh__mesh_compare` — **write** because each accepts an output path;
+ *   this table cannot distinguish report-only calls from file writes.
+ *   `mesh__mesh_derive`, `mesh__mesh_split`, `mesh__mesh_batch_transform`,
+ *   `mesh__case_material_assign` and `mesh__material_preset_import` always
+ *   create or update files. Their read-only siblings remain `read`.
+ * - `cad__measure_mesh_deviation` — **write** because its optional deviation
+ *   mesh path writes a PLY; `cad__generate_prep_report` and `cad__batch_export`
+ *   always create output files. Diagnostic and inventory tools stay `read`.
  *
  * The tool this whole feature exists for is `mesh__mesh_transform`, whose own
  * description carries "WARNING: when `outputPath` is omitted the input file is
@@ -98,6 +107,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__run_review: "read",
   app__run_review_export: "write",
   app__run_quantity_evaluate: "write",
+  app__run_refinement_set: "write",
   app__study_create: "write",
   app__study_select: "write",
   app__study_set_settings: "write",
@@ -115,7 +125,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__queue_resume: "write",
   app__queue_resume_row: "write",
   app__queue_cancel: "write",
-  // ---- cad-preview (58) ---------------------------------------------------
+  // ---- cad-preview (68) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",
   cad__get_mass_properties: "read",
@@ -133,6 +143,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__search_standard_parts: "read",
   cad__compare_models: "read",
   cad__check_mesh_health: "read",
+  cad__check_brep_health: "read",
   cad__recognize_primitives: "read",
   cad__list_workspace_models: "read",
   cad__get_state: "read",
@@ -141,11 +152,20 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__hit_test: "read",
   cad__list_standard_hole_sizes: "read",
   cad__list_mesh_presets: "read",
+  cad__list_sheet_templates: "read",
   cad__generate_mesh: "read",
+  cad__measure_mesh_deviation: "write",
+  cad__analyze_passages: "read",
+  cad__estimate_mesh_budget: "read",
+  cad__check_handoff_manifest: "read",
   cad__job_status: "read",
   cad__generate_hole_table: "read",
   cad__inspect_meshio_fields: "read",
   cad__download_standard_part: "write",
+  cad__batch_export: "write",
+  cad__save_sheet_template: "write",
+  cad__generate_prep_report: "write",
+  cad__export_tessellated_stl: "write",
   cad__transform_mesh: "write",
   cad__decompose_to_primitives: "write",
   cad__fit_mesh_region: "write",
@@ -178,16 +198,25 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
 
-  // ---- kratos-mdpa (24) ---------------------------------------------------
+  // ---- kratos-mdpa (38) ---------------------------------------------------
+  mesh__mesh_resample: "write",
+  mesh__mesh_periodic: "write",
   mesh__mesh_info: "read",
   mesh__mesh_capabilities: "read",
   mesh__mesh_quality: "read",
   mesh__mesh_field_integrate: "read",
+  mesh__mesh_flow_balance: "write",
+  mesh__mesh_curvature: "read",
+  mesh__mesh_compare: "write",
+  mesh__mesh_derive: "write",
   mesh__mesh_size: "read",
+  mesh__mesh_split: "write",
+  mesh__mesh_batch_transform: "write",
   mesh__mesh_find_entity: "read",
   mesh__case_validate: "read",
   mesh__case_status: "read",
   mesh__case_evaluate_quantity: "read",
+  mesh__case_estimate_timestep: "read",
   mesh__mesh_select: "write",
   mesh__mesh_probe: "write",
   mesh__mesh_transform: "write",
@@ -200,11 +229,14 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__problemtype_list: "write",
   mesh__problemtype_describe: "write",
   mesh__case_write_state: "write",
+  mesh__case_material_assign: "write",
   mesh__case_generate: "write",
   mesh__case_run: "write",
   mesh__case_stop: "write",
   mesh__problem_pack: "write",
   mesh__problem_unpack: "write",
+  mesh__material_preset_list: "read",
+  mesh__material_preset_import: "write",
 
   // ---- the aggregation layer's own synthetic tools (4) --------------------
   // Served in-process by McpManager.callMetaTool; they only ever list or read.

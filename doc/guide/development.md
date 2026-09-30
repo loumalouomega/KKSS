@@ -114,6 +114,26 @@ values whose source result is stale; variant comparisons require matching defini
 and classify mesh-sensitivity separately from solver-setting changes using recorded mesh revisions.
 The Home row list can resume one waiting run row at a time while holding other waiting work, or
 preview a failed row's retry as a new study/run identity in the existing comparison group.
+
+Queued solve tasks freeze `kratos.threads` into their arguments, revision and verified CPU reservation. `mesh/src/problemtype/threadControl.ts` applies and reads the Kratos OpenMP count before `runpy` starts the generated analysis stage; the atomic `kkss-resources.json` receipt records the effective allocation. The queue retains active/uncertain reservations across restart and admits at most one solve and one mesh/case preparation task when their checked allocations fit `availableParallelism()`. CAD Gmsh and serial fTetWild preparation are each bounded to one thread; task types with no verified cost run alone.
+
+`mesh/src/problemtype/mainKratosTemplate.ts` shares versioned monitor framing across the structural, fluid, convection-diffusion, potential-flow and shallow-water built-ins. `outputDiscovery.ts` reads generated output process settings and finds supported VTK, XDMF/HDF5 and GiD entrypoints and companions inside the isolated run workspace. Review checks every owned companion revision before accepting a saved quantity. Unknown processes, unsafe destinations and missing companions remain explicit findings. Mesh counts use the MDPA text scanner or `mesh__mesh_info` for other routed formats.
+
+`refinement.ts` converts user-declared revision-bound sizes into metres and computes unequal-ratio observed order, Richardson extrapolation and safety-factor 1.25 GCI. Comparisons require identical solver settings/resource allocations, geometry revision, compatible definitions/units, distinct meshes, current statistics and explicit sizing, comparability and asymptotic assumptions. Four-level asymptotic consistency uses a visible 10% heuristic; a failed check clears all estimates. HTML review/comparison reports render escaped tables and include an offline JSON twin.
+
+`tools/workflows/benchmark.mjs` repeats the five published tutorial solvers at 1, 2, 4 and all available CPUs, verifies solver physics/thread receipts/monitor closure, and records coordinator event-loop delay as a responsiveness proxy. `tools/workflows/outputs.mjs` runs live VTK, GiD and XDMF/HDF5 output and quantity acceptance against the pinned tutorial interpreter. Set `KKSS_TUTORIAL_PYTHON` (and `LD_LIBRARY_PATH` for HDF5 installations that need it), then run `npm run workflows:benchmark -- doc/public/benchmarks/thread-benchmark.json` and `npm run workflows:outputs`. Timing samples are machine-specific; the benchmark reports them without treating higher thread counts as inherently faster.
+
+On the recorded AMD Ryzen 7 255 system (16 available CPUs), three-run median solve times in milliseconds were:
+
+| Tutorial | 1 thread | 2 threads | 4 threads | 16 threads |
+| --- | ---: | ---: | ---: | ---: |
+| Structural | 531 | 473 | 440 | 589 |
+| Fluid | 893 | 852 | 887 | 1,135 |
+| Thermal | 77 | 78 | 79 | 143 |
+| Potential flow | 84 | 87 | 87 | 106 |
+| Shallow water | 86 | 87 | 90 | 151 |
+
+The median coordinator p99 delay was 20.5 ms at a 20 ms sampling resolution; it is not a GUI frame-rate measurement. The full per-run verification and timing samples are in the linked JSON.
 Reviews include revision-checked generated inputs and the mesh runner's existing quality report.
 The versioned structural monitor records solver-published residual norms, criterion parameters,
 and solve-step coordinates for nonlinear residual-criterion runs. Linear solves, other criteria,

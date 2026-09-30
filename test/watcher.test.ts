@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { matcherFor } from "../app/main/services/watcher";
 
 describe("matcherFor", () => {
+  it("matches recursive output trees and ordinary files (queued run discovery)", () => {
+    const m = matcherFor("**/*");
+    expect(m("main.vtu")).toBe(true);
+    expect(m("results/frame_2.vtu")).toBe(true);
+    expect(m("results/0/data/model.h5")).toBe(true);
+  });
+
   it("matches exact filenames (mdpa reparse watcher)", () => {
     const m = matcherFor("model.mdpa");
     expect(m("model.mdpa")).toBe(true);

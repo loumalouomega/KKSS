@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 /** Queue observes runners; it never spawns or adopts solver processes. */
 import type { Receipt, Study, Task } from './contracts';
 import { fingerprint, ProjectStore, validateOrder } from './project';
@@ -9,11 +10,11 @@ export interface Runner {
 }
 const active = (task: Task) => ['dispatching', 'running', 'uncertain'].includes(task.state);
 const failed = (task: Task) => ['failed', 'cancelled', 'blocked'].includes(task.state);
-/** One coordinator owns all project queues, providing the global heavy-task slot. */
+/** One coordinator owns all project queues, providing one solve and one preparation slot. */
 export class ExecutionQueue {
   private stores = new Set<ProjectStore>();
   private ticking?: Promise<void>;
-  constructor(private readonly runner: Runner) {}
+  constructor(private readonly runner: Runner, private readonly cpuBudget = availableParallelism) {}
   async register(store: ProjectStore): Promise<void> {
     if (this.stores.has(store)) return;
     const existing = await store.read();
@@ -95,20 +96,21 @@ export class ExecutionQueue {
     this.ticking = this.step().finally(() => { this.ticking = undefined; });
     return this.ticking;
   }
-  private async step(): Promise<void> {
+  private async step(reconcile = true): Promise<void> {
     // Reconcile every active task before considering any new dispatch.
-    let occupied = false;
+    const occupied: Task[] = [];
     for (const store of this.stores) {
       for (const task of (await store.read())?.queue.tasks.filter(active) ?? []) {
+        if (!reconcile) { occupied.push(task); continue; }
         const receipt = await this.runner.lookup(task, store).catch(() => undefined);
         await store.update(p => {
           const row = p.queue.tasks.find(t => t.id === task.id)!;
           row.state = receipt?.state ?? 'uncertain'; row.receipt = receipt ?? row.receipt;
-          occupied ||= active(row);
+          if (active(row)) occupied.push(structuredClone(row));
         });
       }
     }
-    if (occupied) return;
+
     for (const store of this.stores) {
       let snapshot = await store.read();
       if (snapshot?.queue.dispatchScope) {
@@ -130,6 +132,7 @@ export class ExecutionQueue {
           task.state = 'blocked'; continue;
         }
         if (dependencies.some(t => t.state !== 'succeeded')) continue;
+        if (!canDispatch(task, occupied, this.cpuBudget())) continue;
         const errors = await this.runner.validate(task, store).catch(e => [String(e)]);
         if (errors.length) {
           await store.update(p => { const row = p.queue.tasks.find(t => t.id === task.id)!; row.state = 'held'; row.error = errors.join('\n'); });
@@ -138,7 +141,7 @@ export class ExecutionQueue {
         let dispatch: Task | undefined;
         await store.update(p => {
           const row = p.queue.tasks.find(t => t.id === task.id)!;
-          if (p.queue.paused || row.state !== 'waiting' || fingerprint(row.args) !== fingerprint(task.args)) return;
+          if (p.queue.paused || row.state !== 'waiting' || planRevision([row]) !== planRevision([task])) return;
           row.state = 'dispatching';
           row.receipt = { version: 1, requestId: row.id, ownerId: row.studyId, state: 'dispatching', artifacts: [] };
           dispatch = structuredClone(row);
@@ -147,12 +150,22 @@ export class ExecutionQueue {
         // A thrown transport error is ambiguous: never silently retry it.
         const receipt = await this.runner.dispatch(dispatch, store).catch(() => undefined);
         await store.update(p => { const row = p.queue.tasks.find(t => t.id === task.id)!; row.state = receipt?.state ?? 'uncertain'; row.receipt = receipt ?? row.receipt; if (receipt?.message) row.error = receipt.message; });
-        if (!receipt || active({ ...task, state: receipt.state })) return;
-        return this.step();
+        return this.step(false);
       }
     }
   }
 }
 export function planRevision(tasks: Task[]): string {
-  return fingerprint(tasks.map(({ id, studyId, runId, kind, dependencies, args, inputRevision, requiredArtifacts }) => ({ id, studyId, runId, kind, dependencies, args, inputRevision, requiredArtifacts })));
+  return fingerprint(tasks.map(({ id, studyId, runId, kind, dependencies, args, inputRevision, requiredArtifacts, resources }) => ({ id, studyId, runId, kind, dependencies, args, inputRevision, requiredArtifacts, resources })));
+}
+
+/** Unknown/uncertain legacy allocations are exclusive, never guessed. */
+export function canDispatch(task: Task, occupied: Task[], budget: number): boolean {
+  const allocation = (row: Task) => row.resources?.verified === true && Number.isSafeInteger(row.resources.threads) && row.resources.threads > 0 ? row.resources.threads : undefined;
+  const requested = allocation(task);
+  if (requested !== undefined && requested > budget) return false;
+  if (!occupied.length) return true;
+  if (occupied.some(row => (row.kind === 'solve') === (task.kind === 'solve'))) return false;
+  if (requested === undefined || occupied.some(row => allocation(row) === undefined)) return false;
+  return occupied.reduce((sum, row) => sum + allocation(row)!, requested) <= budget;
 }
