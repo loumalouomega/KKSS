@@ -3,14 +3,16 @@
  * (esbuild alias, main bundle only). It implements exactly the API surface the
  * mesh submodule's host-side code touches at runtime when driven by KKSS:
  *
- *   mesh/src/meshExport.ts       — window.show{Open,Save}Dialog, window.showQuickPick
- *                                  (exportSkin, reached from Advanced ▸ Export skin…
- *                                  with no pre-chosen format), show*Message,
+ *   mesh/src/meshExport.ts       — window.show{Open,Save}Dialog, showQuickPick,
+ *                                  validated showInputBox, show*Message,
+ *                                  extensions.getExtension and object-form
+ *                                  workspace.openTextDocument for fidelity reports,
  *                                  Uri.file, commands.executeCommand("vscode.openWith")
  *   mesh/src/opHistory.ts        — same dialog/message surface
  *   mesh/src/*EditorProvider     — workspace.createFileSystemWatcher(RelativePattern),
  *                                  window.withProgress, Uri.joinPath, globalState
  *                                  (via the fake ExtensionContext in meshHost.ts),
+ *                                  globalStorageUri for durable recording drafts,
  *                                  workspace.getConfiguration("kratos.flowgraph")
  *   mesh/src/flowgraphController — workspace.getConfiguration, Uri.parse (non-file
  *                                  URIs), env.asExternalUri (identity — no
@@ -71,10 +73,12 @@
  * API fails visibly instead of silently misbehaving.
  */
 import { app, dialog, shell } from "electron";
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
+import meshPackage from "../../mesh/package.json";
 import { showOpenDialog as electronOpen, showSaveDialog as electronSave, FileFilter } from "./services/dialogs";
-import { showQuickPick as electronQuickPick, QuickPickItem } from "./services/quickPick";
+import { showInputBox as electronInputBox, showQuickPick as electronQuickPick, QuickPickItem } from "./services/quickPick";
 import { toast, progressToast } from "./services/notifications";
 import { createFileSystemWatcher } from "./services/watcher";
 import { stateStore } from "./services/stateStore";
@@ -182,6 +186,14 @@ export class Uri {
 export class TextDocument {
   constructor(public readonly uri: Uri) {}
 }
+
+/** The metadata lookup used by meshExport.ts when naming report summaries. */
+export const extensions = {
+  getExtension: (id: string): { packageJSON: { version: string } } | undefined =>
+    id === "kratos-multiphysics.vscode-mdpa"
+      ? { packageJSON: { version: meshPackage.version } }
+      : undefined,
+};
 
 // ---- EventEmitter / Disposable ------------------------------------------------
 
@@ -341,6 +353,22 @@ export const window = {
     options?: { title?: string; placeHolder?: string }
   ): Promise<T | undefined> =>
     electronQuickPick(items, { title: options?.title, placeHolder: options?.placeHolder }),
+
+  /** Native, validated number prompts used by mesh grid/export operations. */
+  showInputBox: async (options: {
+    title?: string;
+    prompt?: string;
+    value?: string;
+    placeHolder?: string;
+    validateInput?: (value: string) => string | undefined | Promise<string | undefined>;
+  }): Promise<string | undefined> =>
+    electronInputBox({
+      title: options.title,
+      prompt: options.prompt,
+      value: options.value,
+      placeHolder: options.placeHolder,
+      validateInput: options.validateInput,
+    }),
 
   showInformationMessage: (message: string, ...rest: unknown[]) => showMessage("info", message, rest),
   showWarningMessage: (message: string, ...rest: unknown[]) => showMessage("warning", message, rest),
@@ -527,7 +555,20 @@ export const workspace = {
       });
     }),
 
-  openTextDocument: async (pathOrUri: string | Uri): Promise<TextDocument> => {
+  openTextDocument: async (
+    pathOrUri: string | Uri | { language?: string; content: string }
+  ): Promise<TextDocument> => {
+    if (typeof pathOrUri === "object" && !(pathOrUri instanceof Uri)) {
+      // meshExport's fidelity report uses VS Code's in-memory document form.
+      // KKSS's editor opens paths, so stage the generated content in the OS
+      // temp area and route it through the same editor as every other report.
+      const extension = pathOrUri.language === "json" ? ".json" : pathOrUri.language === "python" ? ".py" : ".txt";
+      const directory = nodePath.join(app.getPath("temp"), "kkss-generated-documents");
+      await fs.promises.mkdir(directory, { recursive: true });
+      const file = nodePath.join(directory, `document-${randomUUID()}${extension}`);
+      await fs.promises.writeFile(file, pathOrUri.content, "utf8");
+      return new TextDocument(Uri.file(file));
+    }
     return new TextDocument(typeof pathOrUri === "string" ? Uri.file(pathOrUri) : pathOrUri);
   },
 

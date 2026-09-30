@@ -3,7 +3,7 @@ import { t } from "../../shared/i18n";
  * Modal picker window — the Electron replacement for vscode.window.
  * showQuickPick and showInputBox, backed by app/renderer/picker/.
  */
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, dialog, ipcMain } from "electron";
 import * as path from "path";
 
 export interface QuickPickItem {
@@ -83,16 +83,29 @@ export async function showInputBox(options: {
   prompt?: string;
   value?: string;
   placeHolder?: string;
+  validateInput?: (value: string) => string | undefined | Promise<string | undefined>;
 }): Promise<string | undefined> {
-  const reply = await openPicker(
-    {
-      kind: "input",
-      title: options.title ?? t("Input"),
-      prompt: options.prompt,
-      value: options.value,
-      placeholder: options.placeHolder,
-    },
-    pickerOutDir
-  );
-  return reply && reply.type === "input" ? reply.value : undefined;
+  let value = options.value;
+  for (;;) {
+    const reply = await openPicker(
+      {
+        kind: "input",
+        title: options.title ?? t("Input"),
+        prompt: options.prompt,
+        value,
+        placeholder: options.placeHolder,
+      },
+      pickerOutDir
+    );
+    if (!reply || reply.type !== "input") return undefined;
+    const problem = await options.validateInput?.(reply.value);
+    if (!problem) return reply.value;
+    value = reply.value;
+    await dialog.showMessageBox({
+      type: "warning",
+      title: options.title ?? t("Invalid input"),
+      message: problem,
+      buttons: [t("OK")],
+    });
+  }
 }

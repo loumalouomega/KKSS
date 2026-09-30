@@ -103,6 +103,7 @@ import {
   applyStlPartSizeOverride,
   scaleMeshOptionsForUnit,
   scalePartsMeshSizeForUnit,
+  SIZE_MAX_SENTINEL,
   type MeshOptions,
 } from "../../cad/src/meshOptions";
 import { meshExportFormat } from "../../cad/src/meshExportFormats";
@@ -144,7 +145,7 @@ import {
 import { compileParametricScript } from "../../cad/src/parametricScript";
 import { evaluateVariables } from "../../cad/src/editVariables";
 import type { MeshGenerationInput } from "../../cad/src/gmshService";
-import { sweepOutputName, SWEEP_NOTE, validateSweepSizes } from "../../cad/src/meshSweep";
+import { sweepOutputName, SWEEP_NOTE, validateSweepSizes, type MeshSweepOutcome } from "../../cad/src/meshSweep";
 import {
   isMeshioFieldFailure,
   describeMeshioFieldFailure,
@@ -977,6 +978,65 @@ export class CadHost {
       return;
     }
 
+    if (msg.type === "meshDeviationRequest") {
+      const epoch = this.epoch;
+      try {
+        if (!doc.route) throw new Error("Unsupported file type.");
+        const input = await this.resolveMeshInput(msg.stl, "mm");
+        if (epoch !== this.epoch) return;
+        if (!input) throw new Error("No mesh geometry available: missing STL data.");
+        const { parts, options } = await this.resolveMeshPartsAndOptions(input, msg.options);
+        if (epoch !== this.epoch) return;
+
+        let reference: Parameters<typeof cadCompute.measureMeshDeviation>[1];
+        const scadWarnings: string[] = [];
+        if (doc.route.strategy === "occt") {
+          const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+          reference = {
+            kind: "brep",
+            bytes: src.bytes,
+            format: src.format as OcctSourceFormat,
+            ops: replayTail(this.currentEdits, this.currentBakedThrough),
+          };
+        } else if (input.kind === "stl") {
+          reference = { kind: "stl", stlBytes: input.stlBytes };
+        } else {
+          throw new Error("No reference surface available for this source.");
+        }
+        const result = await cadCompute.measureMeshDeviation(
+          this.runtimePath,
+          reference,
+          input,
+          options,
+          parts,
+          { tolerance: msg.tolerance, perCorner: true }
+        );
+        if (epoch !== this.epoch) return;
+        for (const warning of [...scadWarnings, ...result.warnings]) {
+          this.post({ type: "status", text: warning });
+        }
+        const corners = result.corners;
+        if (!corners) throw new Error("The deviation worker returned no per-corner boundary data.");
+        let max = msg.tolerance;
+        for (const distance of corners.distances) {
+          if (Number.isFinite(distance) && distance > max) max = distance;
+        }
+        this.post({
+          type: "meshDeviationResult",
+          requestId: msg.requestId,
+          report: result.report,
+          positions: encodeBuffer(corners.positions),
+          distances: encodeBuffer(corners.distances),
+          max,
+        });
+      } catch (err) {
+        if (epoch === this.epoch) {
+          this.post({ type: "meshDeviationError", requestId: msg.requestId, message: (err as Error).message });
+        }
+      }
+      return;
+    }
+
     if (msg.type === "meshingGenerate") {
       try {
         await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId }, async () => {
@@ -1013,9 +1073,14 @@ export class CadHost {
     }
 
     if (msg.type === "meshSweepRequest") {
+      let outputDir: string | undefined;
+      let completedSweep: {
+        outcome: MeshSweepOutcome;
+        warnings: string[];
+        outputDir: string | null;
+      } | undefined;
       try {
         const sizes = validateSweepSizes(msg.sizes);
-        let outputDir: string | undefined;
         if (msg.writeOutputs) {
           const picked = await showOpenDialog({
             title: "Choose a folder for sweep meshes",
@@ -1031,42 +1096,67 @@ export class CadHost {
         }
 
         await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId }, async () => {
-          const assertJobActive = () => {
+          const isJobCancelled = () => {
             const state = jobStatus(doc.path, msg.requestId)?.state;
-            if (state === "cancelling" || state === "cancelled") {
-              throw new Error(`CAD job ${msg.requestId} was cancelled.`);
-            }
+            return state === "cancelling" || state === "cancelled";
           };
           const input = await this.resolveMeshInput(msg.stl);
           if (!input) throw new Error("No mesh geometry available: missing STL data.");
           const { parts, options } = await this.resolveMeshPartsAndOptions(input, msg.options);
           const warnings: string[] = [];
           const baseName = path.basename(doc.path).replace(/\.[^.]+$/, "");
-          const runs = await runCadMeshSweep(
+          const outcome = await runCadMeshSweep(
             sizes,
             options,
             (runOptions) => cadCompute.generateMesh(this.runtimePath, input, runOptions, parts),
             {
               warnings,
-              assertActive: assertJobActive,
+              isCancelled: isJobCancelled,
               onRunStart: (index, size) => {
                 this.post({ type: "status", text: `Sweep: meshing at size ${size} (${index + 1}/${sizes.length})…` });
               },
               writeOutputs: outputDir
                 ? async (size, _runOptions, result) => {
-                    assertJobActive();
                     const target = path.join(outputDir!, sweepOutputName(baseName, size, "msh"));
                     await fs.writeFile(target, Buffer.from(result.mshText, "utf8"));
                     return [target];
                   }
-                : undefined,
+              : undefined,
             }
           );
-          assertJobActive();
-          this.post({ type: "meshSweepResult", requestId: msg.requestId, runs, warnings, note: SWEEP_NOTE, outputDir: outputDir ?? null });
+          completedSweep = { outcome, warnings, outputDir: outputDir ?? null };
         });
+        if (completedSweep) {
+          this.post({
+            type: "meshSweepResult",
+            requestId: msg.requestId,
+            runs: completedSweep.outcome.runs,
+            cancelled: completedSweep.outcome.cancelled,
+            warnings: completedSweep.warnings,
+            note: SWEEP_NOTE,
+            outputDir: completedSweep.outputDir,
+          });
+        }
       } catch (err) {
-        this.post({ type: "meshSweepError", requestId: msg.requestId, message: (err as Error).message });
+        // runOwnedJob marks an owner-cancelled task as rejected after its body
+        // returns. A partial sweep is nevertheless a normal result upstream:
+        // surface its completed rows instead of replacing them with an error.
+        const cancelled = ["cancelling", "cancelled"].includes(
+          jobStatus(doc.path, msg.requestId)?.state ?? ""
+        );
+        if (completedSweep?.outcome.cancelled || cancelled) {
+          this.post({
+            type: "meshSweepResult",
+            requestId: msg.requestId,
+            runs: completedSweep?.outcome.runs ?? [],
+            cancelled: true,
+            warnings: completedSweep?.warnings ?? [],
+            note: SWEEP_NOTE,
+            outputDir: completedSweep?.outputDir ?? outputDir ?? null,
+          });
+        } else {
+          this.post({ type: "meshSweepError", requestId: msg.requestId, message: (err as Error).message });
+        }
       } finally {
         this.post({ type: "meshingJobSettled", requestId: msg.requestId });
       }
@@ -1566,6 +1656,59 @@ export class CadHost {
           requestId: msg.requestId,
           message: (err as Error).message,
         });
+      }
+      return;
+    }
+
+    if (msg.type === "brepHealthRequest") {
+      const epoch = this.epoch;
+      try {
+        if (!doc.route || doc.route.strategy !== "occt") {
+          throw new Error("B-rep Health needs a B-rep source; use Mesh Health for a mesh.");
+        }
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+        const report = await cadCompute.checkBrepHealth(
+          this.runtimePath,
+          src.bytes,
+          src.format as OcctSourceFormat,
+          replayTail(this.currentEdits, this.currentBakedThrough)
+        );
+        if (epoch !== this.epoch) return;
+        for (const warning of scadWarnings) this.post({ type: "status", text: warning });
+        this.post({ type: "brepHealthResult", requestId: msg.requestId, report });
+      } catch (err) {
+        if (epoch === this.epoch) {
+          this.post({ type: "brepHealthError", requestId: msg.requestId, message: (err as Error).message });
+        }
+      }
+      return;
+    }
+
+    if (msg.type === "passagesRequest") {
+      const epoch = this.epoch;
+      try {
+        if (!doc.route || doc.route.strategy !== "occt") {
+          throw new Error("Passage analysis needs a B-rep source; a mesh has no analytic cylinders or planes to measure.");
+        }
+        const scadWarnings: string[] = [];
+        const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+        const options = this.currentMeshOptions ?? (await readMeshOptions(doc.path));
+        const sizeMax = options.sizeMax >= SIZE_MAX_SENTINEL ? null : options.sizeMax;
+        const report = await cadCompute.analyzePassages(
+          this.runtimePath,
+          src.bytes,
+          src.format as OcctSourceFormat,
+          replayTail(this.currentEdits, this.currentBakedThrough),
+          { targetCells: msg.targetCells, sizeMax, parts: this.currentParts }
+        );
+        if (epoch !== this.epoch) return;
+        for (const warning of scadWarnings) this.post({ type: "status", text: warning });
+        this.post({ type: "passagesResult", requestId: msg.requestId, report, sizeMax });
+      } catch (err) {
+        if (epoch === this.epoch) {
+          this.post({ type: "passagesError", requestId: msg.requestId, message: (err as Error).message });
+        }
       }
       return;
     }

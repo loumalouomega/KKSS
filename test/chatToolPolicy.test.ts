@@ -10,6 +10,8 @@
  * the bottom.
  */
 import { describe, expect, it } from "vitest";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import {
   classifyTool,
   DEFAULT_APPROVAL_MODE,
@@ -23,6 +25,7 @@ import {
 } from "../app/main/services/chat/toolPolicy";
 
 const none = new Set<string>();
+const root = path.resolve(__dirname, "..");
 const gate = (name: string, mode: ApprovalMode, allowed = none) => gateFor(name, { mode, allowed });
 
 describe("classifyTool", () => {
@@ -64,6 +67,19 @@ describe("classifyTool", () => {
     expect(classifyTool("cad__download_standard_part")).toBe("write");
     // Slow is not destructive: statistics only, options not persisted.
     expect(classifyTool("cad__generate_mesh")).toBe("read");
+    // New CAD diagnostics are read-only except the deviation map's optional
+    // output PLY; mesh analysis/report-only tools remain read-only where they
+    // do not write a caller-selected output file.
+    expect(classifyTool("cad__check_brep_health")).toBe("read");
+    expect(classifyTool("cad__analyze_passages")).toBe("read");
+    expect(classifyTool("cad__estimate_mesh_budget")).toBe("read");
+    expect(classifyTool("cad__check_handoff_manifest")).toBe("read");
+    expect(classifyTool("cad__measure_mesh_deviation")).toBe("write");
+    expect(classifyTool("mesh__mesh_curvature")).toBe("read");
+    expect(classifyTool("mesh__mesh_flow_balance")).toBe("write");
+    expect(classifyTool("mesh__mesh_resample")).toBe("write");
+    expect(classifyTool("mesh__material_preset_list")).toBe("read");
+    expect(classifyTool("mesh__material_preset_import")).toBe("write");
   });
 
   it("treats anything the table does not name as unknown", () => {
@@ -166,21 +182,38 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 58 cad + 26 mesh tools + 4 in-process mcp__ tools + 30 app__ workflow tools.
+    // 68 cad + 38 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools.
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(119);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(141);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
-    expect(cad).toHaveLength(58);
-    expect(mesh).toHaveLength(26);
+    expect(cad).toHaveLength(68);
+    expect(mesh).toHaveLength(38);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
     // No kratos__ row: its external server is deliberately unclassified.
     expect(cad.length + mesh.length + meta.length + app.length).toBe(Object.keys(TOOL_ACCESS).length);
+  });
+
+  it("matches every currently registered CAD and mesh MCP tool by exact name", () => {
+    const registrations = (file: string, prefix: string) => {
+      const source = fs.readFileSync(path.join(root, file), "utf8");
+      return [...source.matchAll(/(?:server\.)?registerTool\s*\(\s*["']([^"']+)["']/g)]
+        .map((match) => `${prefix}__${match[1]}`)
+        .sort();
+    };
+    const actual = [
+      ...registrations("cad/src/mcpServer.ts", "cad"),
+      ...registrations("mesh/src/mcp/register.ts", "mesh"),
+    ].sort();
+    const classified = Object.keys(TOOL_ACCESS)
+      .filter((name) => name.startsWith("cad__") || name.startsWith("mesh__"))
+      .sort();
+    expect(classified).toEqual(actual);
   });
 
   it("names every write tool explicitly, so the list is reviewable", () => {
@@ -212,6 +245,7 @@ describe("the table itself", () => {
       "app__variants_create",
       "cad__apply_edit_ops",
       "cad__apply_mesh_preset",
+      "cad__batch_export",
       "cad__compare_mesh_refinement",
       "cad__decompose_to_primitives",
       "cad__download_standard_part",
@@ -220,10 +254,13 @@ describe("the table itself", () => {
       "cad__export_mesh",
       "cad__export_svg_silhouette",
       "cad__export_technical_drawing",
+      "cad__export_tessellated_stl",
       "cad__fit_mesh_region",
+      "cad__generate_prep_report",
       "cad__import_svg",
       "cad__job_cancel",
       "cad__load_preprocess",
+      "cad__measure_mesh_deviation",
       "cad__pin_annotation",
       "cad__promote_mesh_to_brep",
       "cad__remove_edit_op",
@@ -234,23 +271,33 @@ describe("the table itself", () => {
       "cad__save_model",
       "cad__save_parametric_script",
       "cad__save_preprocess",
+      "cad__save_sheet_template",
       "cad__set_mesh_options",
       "cad__set_part",
       "cad__set_plane",
       "cad__set_variables",
       "cad__transform_mesh",
       "mesh__case_generate",
+      "mesh__case_material_assign",
       "mesh__case_run",
       "mesh__case_stop",
       "mesh__case_write_state",
+      "mesh__material_preset_import",
+      "mesh__mesh_batch_transform",
+      "mesh__mesh_compare",
       "mesh__mesh_convert",
+      "mesh__mesh_derive",
       "mesh__mesh_export_table",
       "mesh__mesh_extract_skin",
       "mesh__mesh_extract_submodelpart",
       "mesh__mesh_field_series",
+      "mesh__mesh_flow_balance",
       "mesh__mesh_pack_series",
+      "mesh__mesh_periodic",
       "mesh__mesh_probe",
+      "mesh__mesh_resample",
       "mesh__mesh_select",
+      "mesh__mesh_split",
       "mesh__mesh_transform",
       "mesh__problem_pack",
       "mesh__problem_unpack",

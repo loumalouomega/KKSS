@@ -659,5 +659,14 @@
   "Sizing definition (same across levels)": "Definición del tamaño (igual en todos los niveles)",
   "Why this size represents refinement for the quantity": "Por qué este tamaño representa el refinamiento de la magnitud",
   "Comparable geometry and discretization family confirmed": "Geometría y familia de discretización comparables confirmadas",
-  "Asymptotic range assumed (not proven)": "Rango asintótico supuesto (no demostrado)"
+  "Asymptotic range assumed (not proven)": "Rango asintótico supuesto (no demostrado)",
+  "Invalid input": "Entrada no válida",
+  "OK": "Aceptar",
+  "Mesh Export Provenance": "Procedencia de exportación de malla",
+  "Automatic": "Automático",
+  "Write a full sidecar report": "Escribir un informe lateral completo",
+  "Do not record provenance": "No registrar procedencia",
+  "Record source and operation provenance in supported mesh formats. Sidecar writes a full .kratosexport.json report beside every export; formats with an embedded provenance slot may carry both.": "Registrar la procedencia del origen y las operaciones en los formatos de malla compatibles. Sidecar escribe un informe .kratosexport.json completo junto a cada exportación; los formatos que admiten procedencia integrada pueden llevar ambas.",
+  "Material Library Folders": "Carpetas de bibliotecas de materiales",
+  "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.": "Carpetas (relativas a la carpeta del proyecto) donde se buscan preajustes de materiales. Los valores importados se copian en el caso como una instantánea."
 }

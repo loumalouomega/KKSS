@@ -29,6 +29,20 @@ VTK-wasm is opt-in and not a replacement: vtk.js stays the default, and switchin
 
 It needs a host with **WebAssembly JSPI** (`WebAssembly.Suspending`) and WebGL2, and a build that ships the runtime. When any of those is missing, the runtime fails to load, or the install simply does not include it, the preview opens on vtk.js anyway and says so on the status line — nothing about the rest of the viewer changes. In a build without the runtime, the menu marks VTK-wasm *unavailable in this build* and refuses it, so the fallback is explained before you pick it rather than only afterwards. Only VTK-wasm widens the page's Content Security Policy, and only by `'wasm-unsafe-eval'`, which permits WebAssembly to compile and nothing else; the runtime's JavaScript glue is rewritten at build time so it evaluates no dynamic code.
 
+## Mesh exports and material libraries
+
+**Mesh Viewer ▸ Mesh Export Provenance** controls what accompanies mesh exports:
+
+| Value | Behavior |
+| --- | --- |
+| `Automatic` (default) | Embed provenance when the chosen format has a supported slot; otherwise do not add a sidecar. |
+| `Write a full sidecar report` | Write a complete `.kratosexport.json` report beside every export; formats with an embedded provenance slot can carry both. |
+| `Do not record provenance` | Omit provenance records. |
+
+Every export also offers a measured fidelity report, which can be opened in the text editor to review retained, transformed, omitted and unverified data.
+
+**Kratos ▸ Material Library Folders** lists project-relative folders to scan for user material presets (default `.kratos/materials`). Importing a preset into a case writes a snapshot, so generated cases do not depend on the library remaining unchanged.
+
 ## Kratos environment
 
 **Kratos** holds what a problemtype **Run** uses:

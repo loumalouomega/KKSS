@@ -27,6 +27,9 @@ import * as primitiveWrite from "../../cad/src/primitiveWrite";
 import * as svgSilhouetteHost from "../../cad/src/svgSilhouetteHost";
 import * as modelDiffHost from "../../cad/src/modelDiffHost";
 import * as stepPartsService from "../../cad/src/stepPartsService";
+import * as brepHealth from "../../cad/src/brepHealth";
+import * as passageAnalysis from "../../cad/src/passageAnalysisHost";
+import * as meshDeviation from "../../cad/src/meshDeviationHost";
 // The parsed-B-rep cache holds live OCCT handles, so it lives here rather than
 // in the host (see the module's own doc comment).
 import * as brepCache from "./cadBRepCache";
@@ -56,6 +59,9 @@ const modules: Array<[string, object]> = [
   ["svgSilhouetteHost", svgSilhouetteHost],
   ["modelDiffHost", modelDiffHost],
   ["stepPartsService", stepPartsService],
+  ["brepHealth", brepHealth],
+  ["passageAnalysisHost", passageAnalysis],
+  ["meshDeviationHost", meshDeviation],
   ["cadBRepCache", brepCache],
 ];
 

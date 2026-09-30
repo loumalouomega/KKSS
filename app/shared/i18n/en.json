@@ -659,5 +659,14 @@
   "Sizing definition (same across levels)": "Sizing definition (same across levels)",
   "Why this size represents refinement for the quantity": "Why this size represents refinement for the quantity",
   "Comparable geometry and discretization family confirmed": "Comparable geometry and discretization family confirmed",
-  "Asymptotic range assumed (not proven)": "Asymptotic range assumed (not proven)"
+  "Asymptotic range assumed (not proven)": "Asymptotic range assumed (not proven)",
+  "Invalid input": "Invalid input",
+  "OK": "OK",
+  "Mesh Export Provenance": "Mesh Export Provenance",
+  "Automatic": "Automatic",
+  "Write a full sidecar report": "Write a full sidecar report",
+  "Do not record provenance": "Do not record provenance",
+  "Record source and operation provenance in supported mesh formats. Sidecar writes a full .kratosexport.json report beside every export; formats with an embedded provenance slot may carry both.": "Record source and operation provenance in supported mesh formats. Sidecar writes a full .kratosexport.json report beside every export; formats with an embedded provenance slot may carry both.",
+  "Material Library Folders": "Material Library Folders",
+  "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.": "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot."
 }

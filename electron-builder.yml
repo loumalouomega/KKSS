@@ -219,6 +219,38 @@ fileAssociations:
     name: KKSS point cloud document
   - ext: xml
     name: KKSS DOLFIN document
+  - ext: elmer
+    name: KKSS Elmer document
+  - ext: feb
+    name: KKSS FEBio document
+  - ext: mail
+    name: KKSS Code_Aster document
+  - ext: mfem-rank
+    name: KKSS MFEM partition document
+  - ext: mphbin
+    name: KKSS COMSOL binary document
+  - ext: neu
+    name: KKSS Femap document
+  - ext: out
+    name: KKSS mesh result document
+  - ext: pat
+    name: KKSS Patran document
+  - ext: rad
+    name: KKSS Radioss document
+  - ext: xda
+    name: KKSS libMesh document
+  - ext: xda.gz
+    name: KKSS compressed libMesh document
+  - ext: xda.bz2
+    name: KKSS compressed libMesh document
+  - ext: xdr
+    name: KKSS libMesh document
+  - ext: xdr.gz
+    name: KKSS compressed libMesh document
+  - ext: xdr.bz2
+    name: KKSS compressed libMesh document
+  - ext: z88
+    name: KKSS Z88 document
 protocols:
   - name: KKSS document link
     schemes:
