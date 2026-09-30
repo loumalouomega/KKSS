@@ -7,6 +7,27 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.8.0] - 2026-09-30
+
+- feat: add Home-guided, revision-aware simulation workflows: create and manage
+  studies, attach geometry and meshes, plan mesh/case/run tasks, resume queued
+  work, run bounded parameter sweeps, and compare results. Refinement metadata,
+  resource checks and solver convergence evidence feed versioned JSON/HTML run
+  reviews; quantity evaluations retain the exact result revision they came from.
+- feat: integrate **CAD Preview 3.10.1** and **Kratos MDPA Preview 4.18.0**,
+  sharing meshio++ 16.27.0. The app now routes the expanded CAE reader set,
+  exposes CAD B-rep health, passage preflight and CAD-to-mesh deviation checks,
+  and handles cancelled mesh sweeps as partial results. Mesh mode gains durable
+  recording drafts, expanded timeline and resampling support, flow/curvature
+  analysis, and export-fidelity reports with configurable provenance.
+- feat: surface the updated mesh material presets, export reports and recording
+  storage through KKSS settings and host shims. New CAD and mesh MCP tools have
+  explicit read/write approval classifications; packaged associations and file
+  format guides now cover 60 readable and 46 writable meshio++ formats.
+- docs: expand the workflow and mesh guides with study/refinement behavior,
+  timeline discovery, recording recovery, provenance, material libraries and
+  supported CAE formats.
+
 ## [2.7.0] - 2026-09-29
 
 - fix: patch the four open Dependabot advisories, all in transitive
