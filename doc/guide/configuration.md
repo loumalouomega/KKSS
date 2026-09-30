@@ -35,13 +35,14 @@ It needs a host with **WebAssembly JSPI** (`WebAssembly.Suspending`) and WebGL2,
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
-| `kratos.pythonPath` | Python interpreter for `python MainKratos.py` | `python3` (`python` on Windows) |
+| `kratos.pythonPath` | Python interpreter for queued and direct case runs | `python3` (`python` on Windows) |
+| `kratos.threads` | Verified OpenMP threads per Kratos solve; `0` selects Auto (`available CPUs − 1`, minimum 1) | `0` (Auto) |
 | `kratos.installPath` | Compiled Kratos install, or a source checkout built in-tree. Prepended to `PYTHONPATH` and the shared-library path | pip-installed Kratos |
 | `kratos.extraEnv` | Extra variables; they override computed ones | — |
 | `kratos.problemtypes.extraPaths` | Folders under the project folder scanned for user problemtypes | `.kratos/problemtypes` |
 | `kratos.run.stopOnWindowClose` | Kill running solvers when KKSS quits | on |
 
-The install path and extra environment also reach the assistant's Kratos MCP server the next time it starts. **Restart with current environment** applies them immediately. The interpreter does not: that server runs in `uvx`'s own isolated environment.
+Queue previews freeze their effective thread allocation; changing the setting requires a new preview. The environment probe only offers this control when both Kratos thread set and read APIs are available. Auto uses the available CPU count minus one, with a minimum of one. CAD meshing and MDPA case preparation have verified one-thread reservations; other case-preparation costs are unknown and run exclusively. The app permits one solve and one preparation task to overlap only when their recorded allocations fit the CPU budget; uncertain or legacy allocations block overlap. The install path and extra environment also reach the assistant's Kratos MCP server the next time it starts. **Restart with current environment** applies them immediately. The interpreter does not: that server runs in `uvx`'s own isolated environment.
 
 ## Interface scale
 

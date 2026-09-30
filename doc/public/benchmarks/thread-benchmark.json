@@ -1,0 +1,3083 @@
+{
+  "version": 1,
+  "date": "2026-09-30T05:33:27.729Z",
+  "cpu": "AMD Ryzen 7 255 w/ Radeon 780M Graphics",
+  "availableCpus": 16,
+  "responsiveness": "Node coordinator event-loop delay during external solves; not a GUI frame-rate measurement.",
+  "samples": [
+    {
+      "case": "structural",
+      "threads": 1,
+      "repetition": 1,
+      "elapsedMs": 530.5915200000001,
+      "coordinatorDelayP99Ms": 20.545535,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 1,
+      "repetition": 2,
+      "elapsedMs": 531.059201,
+      "coordinatorDelayP99Ms": 20.840447,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 1,
+      "repetition": 3,
+      "elapsedMs": 539.643562,
+      "coordinatorDelayP99Ms": 20.414463,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 2,
+      "repetition": 1,
+      "elapsedMs": 472.7855310000002,
+      "coordinatorDelayP99Ms": 20.234239,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 2,
+      "repetition": 2,
+      "elapsedMs": 470.8379450000002,
+      "coordinatorDelayP99Ms": 20.692991,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 2,
+      "repetition": 3,
+      "elapsedMs": 473.55432599999995,
+      "coordinatorDelayP99Ms": 20.955135,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 4,
+      "repetition": 1,
+      "elapsedMs": 439.6389710000003,
+      "coordinatorDelayP99Ms": 20.299775,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 4,
+      "repetition": 2,
+      "elapsedMs": 441.49801600000046,
+      "coordinatorDelayP99Ms": 20.381695,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 4,
+      "repetition": 3,
+      "elapsedMs": 438.85214199999973,
+      "coordinatorDelayP99Ms": 21.020671,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 16,
+      "repetition": 1,
+      "elapsedMs": 565.9465990000008,
+      "coordinatorDelayP99Ms": 21.200895,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 16,
+      "repetition": 2,
+      "elapsedMs": 589.2126550000003,
+      "coordinatorDelayP99Ms": 21.299199,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "structural",
+      "threads": 16,
+      "repetition": 3,
+      "elapsedMs": 614.2799590000004,
+      "coordinatorDelayP99Ms": 20.889599,
+      "verification": {
+        "case": "structural",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 1048,
+        "elements": 3896,
+        "fields": [
+          "DISPLACEMENT",
+          "REACTION",
+          "VON_MISES_STRESS"
+        ],
+        "result": "vtk_output/Structure_0_8.vtk",
+        "frames": 8,
+        "end_time": 1,
+        "checks": {
+          "beam_displacement_relative_error": {
+            "measured": 0.017862294714982505,
+            "maximum": 0.25
+          },
+          "max_abs_z_displacement_mm": 0.00058914793,
+          "beam_reference_mm": 0.0005998628571428572,
+          "max_von_mises_Pa": 3166153.5
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.structural-convergence",
+        "steps": 8,
+        "convergedSteps": 8,
+        "unknownSteps": 0,
+        "residualSteps": 8
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 1,
+      "repetition": 1,
+      "elapsedMs": 908.6742049999993,
+      "coordinatorDelayP99Ms": 20.627455,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 1,
+      "repetition": 2,
+      "elapsedMs": 893.4946720000007,
+      "coordinatorDelayP99Ms": 20.348927,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 1,
+      "repetition": 3,
+      "elapsedMs": 887.5723020000005,
+      "coordinatorDelayP99Ms": 20.807679,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 2,
+      "repetition": 1,
+      "elapsedMs": 851.7577160000001,
+      "coordinatorDelayP99Ms": 20.267007,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 2,
+      "repetition": 2,
+      "elapsedMs": 882.3560179999986,
+      "coordinatorDelayP99Ms": 20.185087,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 2,
+      "repetition": 3,
+      "elapsedMs": 834.5607580000014,
+      "coordinatorDelayP99Ms": 20.267007,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 4,
+      "repetition": 1,
+      "elapsedMs": 890.4243200000001,
+      "coordinatorDelayP99Ms": 20.676607,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 4,
+      "repetition": 2,
+      "elapsedMs": 876.8611639999999,
+      "coordinatorDelayP99Ms": 20.463615,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 4,
+      "repetition": 3,
+      "elapsedMs": 886.5197840000001,
+      "coordinatorDelayP99Ms": 20.283391,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 16,
+      "repetition": 1,
+      "elapsedMs": 1134.6133029999983,
+      "coordinatorDelayP99Ms": 21.020671,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 16,
+      "repetition": 2,
+      "elapsedMs": 1141.9865649999992,
+      "coordinatorDelayP99Ms": 21.069823,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "fluid",
+      "threads": 16,
+      "repetition": 3,
+      "elapsedMs": 1057.913826,
+      "coordinatorDelayP99Ms": 21.053439,
+      "verification": {
+        "case": "fluid",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 945,
+        "elements": 1766,
+        "fields": [
+          "VELOCITY",
+          "PRESSURE"
+        ],
+        "result": "vtk_output/FluidModelPart_0_51.vtk",
+        "frames": 51,
+        "end_time": 5,
+        "checks": {
+          "inlet_velocity_error_m_per_s": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "outlet_pressure_error_Pa": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "flux_imbalance_m2_per_s": {
+            "measured": 2.3997394349439816e-10,
+            "maximum": 0.001
+          },
+          "inlet_flux_m2_per_s": 0.060000002,
+          "outlet_flux_m2_per_s": 0.06000000176002605,
+          "obstacle_no_slip_speed_m_per_s": {
+            "measured": 0,
+            "maximum": 0.00002
+          },
+          "near_wake_velocity_deficit_m_per_s": {
+            "measured": 0.1047504595,
+            "minimum": 0.025
+          },
+          "pressure_range_Pa": {
+            "measured": 16.5144072,
+            "minimum": 0.05
+          },
+          "reynolds_number": 20,
+          "obstacle_boundary_nodes": 32,
+          "wake_sample_nodes": 20,
+          "minimum_near_wake_axial_velocity_m_per_s": -0.0047504595,
+          "pressure_minimum_Pa": -7.234211,
+          "pressure_maximum_Pa": 9.2801962
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.fluid-convergence",
+        "steps": 51,
+        "convergedSteps": 51,
+        "unknownSteps": 0,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 1,
+      "repetition": 1,
+      "elapsedMs": 76.1710230000026,
+      "coordinatorDelayP99Ms": 20.152319,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 1,
+      "repetition": 2,
+      "elapsedMs": 77.00700100000176,
+      "coordinatorDelayP99Ms": 20.758527,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 1,
+      "repetition": 3,
+      "elapsedMs": 76.93346300000121,
+      "coordinatorDelayP99Ms": 20.185087,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 2,
+      "repetition": 1,
+      "elapsedMs": 78.02638200000001,
+      "coordinatorDelayP99Ms": 20.447231,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 2,
+      "repetition": 2,
+      "elapsedMs": 77.76896699999998,
+      "coordinatorDelayP99Ms": 20.725759,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 2,
+      "repetition": 3,
+      "elapsedMs": 76.75221200000306,
+      "coordinatorDelayP99Ms": 20.168703,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 4,
+      "repetition": 1,
+      "elapsedMs": 79.07509399999981,
+      "coordinatorDelayP99Ms": 20.692991,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 4,
+      "repetition": 2,
+      "elapsedMs": 77.18586499999947,
+      "coordinatorDelayP99Ms": 20.512767,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 4,
+      "repetition": 3,
+      "elapsedMs": 78.60554100000081,
+      "coordinatorDelayP99Ms": 20.791295,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 16,
+      "repetition": 1,
+      "elapsedMs": 137.55613599999924,
+      "coordinatorDelayP99Ms": 20.185087,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 16,
+      "repetition": 2,
+      "elapsedMs": 165.54471100000228,
+      "coordinatorDelayP99Ms": 20.365311,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "thermal",
+      "threads": 16,
+      "repetition": 3,
+      "elapsedMs": 142.9199260000023,
+      "coordinatorDelayP99Ms": 20.905983,
+      "verification": {
+        "case": "thermal",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 263,
+        "elements": 814,
+        "fields": [
+          "TEMPERATURE"
+        ],
+        "result": "vtk_output/ThermalModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "linear_temperature_error_K": {
+            "measured": 0.00001900000000887303,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.thermal-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 1,
+      "repetition": 1,
+      "elapsedMs": 96.38645100000213,
+      "coordinatorDelayP99Ms": 20.152319,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 1,
+      "repetition": 2,
+      "elapsedMs": 84.16405999999915,
+      "coordinatorDelayP99Ms": 20.168703,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 1,
+      "repetition": 3,
+      "elapsedMs": 83.39092600000004,
+      "coordinatorDelayP99Ms": 20.185087,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 2,
+      "repetition": 1,
+      "elapsedMs": 86.44343499999741,
+      "coordinatorDelayP99Ms": 20.283391,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 2,
+      "repetition": 2,
+      "elapsedMs": 87.67841700000281,
+      "coordinatorDelayP99Ms": 20.152319,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 2,
+      "repetition": 3,
+      "elapsedMs": 86.65407200000118,
+      "coordinatorDelayP99Ms": 20.168703,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 4,
+      "repetition": 1,
+      "elapsedMs": 89.59331700000257,
+      "coordinatorDelayP99Ms": 20.168703,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 4,
+      "repetition": 2,
+      "elapsedMs": 86.10422699999981,
+      "coordinatorDelayP99Ms": 20.791295,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 4,
+      "repetition": 3,
+      "elapsedMs": 87.13745200000267,
+      "coordinatorDelayP99Ms": 20.299775,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 16,
+      "repetition": 1,
+      "elapsedMs": 98.74246100000164,
+      "coordinatorDelayP99Ms": 21.544959,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 16,
+      "repetition": 2,
+      "elapsedMs": 123.09615099999792,
+      "coordinatorDelayP99Ms": 20.922367,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "potential-flow",
+      "threads": 16,
+      "repetition": 3,
+      "elapsedMs": 106.08170799999789,
+      "coordinatorDelayP99Ms": 20.168703,
+      "verification": {
+        "case": "potential-flow",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "VELOCITY_POTENTIAL",
+          "AUXILIARY_VELOCITY_POTENTIAL"
+        ],
+        "result": "vtk_output/FluidModelPart_0_1.vtk",
+        "frames": 1,
+        "end_time": 1,
+        "checks": {
+          "potential_gradient_error_m_per_s": {
+            "measured": 0.000032760142692151516,
+            "maximum": 0.001
+          }
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.potential-flow-convergence",
+        "steps": 1,
+        "convergedSteps": 0,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 1,
+      "repetition": 1,
+      "elapsedMs": 96.3746429999992,
+      "coordinatorDelayP99Ms": 20.185087,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 1,
+      "repetition": 2,
+      "elapsedMs": 86.22743099999934,
+      "coordinatorDelayP99Ms": 20.168703,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 1,
+      "repetition": 3,
+      "elapsedMs": 85.89230999999927,
+      "coordinatorDelayP99Ms": 20.185087,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 1,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 1,
+        "effectiveThreads": 1
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 2,
+      "repetition": 1,
+      "elapsedMs": 87.35604899999817,
+      "coordinatorDelayP99Ms": 20.545535,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 2,
+      "repetition": 2,
+      "elapsedMs": 86.7896010000004,
+      "coordinatorDelayP99Ms": 20.709375,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 2,
+      "repetition": 3,
+      "elapsedMs": 90.70341899999767,
+      "coordinatorDelayP99Ms": 20.168703,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 2,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 2,
+        "effectiveThreads": 2
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 4,
+      "repetition": 1,
+      "elapsedMs": 90.33689799999775,
+      "coordinatorDelayP99Ms": 20.316159,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 4,
+      "repetition": 2,
+      "elapsedMs": 101.7497919999987,
+      "coordinatorDelayP99Ms": 20.676607,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 4,
+      "repetition": 3,
+      "elapsedMs": 88.33442600000126,
+      "coordinatorDelayP99Ms": 20.250623,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 4,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 4,
+        "effectiveThreads": 4
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 16,
+      "repetition": 1,
+      "elapsedMs": 113.34317300000112,
+      "coordinatorDelayP99Ms": 20.578303,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 16,
+      "repetition": 2,
+      "elapsedMs": 151.23391499999707,
+      "coordinatorDelayP99Ms": 20.856831,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    },
+    {
+      "case": "shallow-water",
+      "threads": 16,
+      "repetition": 3,
+      "elapsedMs": 161.54622799999925,
+      "coordinatorDelayP99Ms": 20.955135,
+      "verification": {
+        "case": "shallow-water",
+        "python": "3.12.14",
+        "kratos": "10.4.3",
+        "threads": 16,
+        "nodes": 150,
+        "elements": 248,
+        "fields": [
+          "HEIGHT",
+          "MOMENTUM",
+          "VELOCITY"
+        ],
+        "result": "vtk_output/main_model_part_0_8.vtk",
+        "frames": 8,
+        "end_time": 0.125,
+        "checks": {
+          "depth_error_m": {
+            "measured": 0,
+            "maximum": 0.000001
+          },
+          "momentum_m2_per_s": {
+            "measured": 2.9253637591731377e-15,
+            "maximum": 0.000001
+          },
+          "water_volume_error_m3": {
+            "measured": 8.881784197001252e-16,
+            "maximum": 0.000001
+          },
+          "water_volume_m3": 3.999999999999999
+        }
+      },
+      "resources": {
+        "version": 1,
+        "requestedThreads": 16,
+        "effectiveThreads": 16
+      },
+      "monitor": {
+        "adapter": "kkss.shallow-water-convergence",
+        "steps": 8,
+        "convergedSteps": 7,
+        "unknownSteps": 1,
+        "residualSteps": 0
+      }
+    }
+  ],
+  "summary": [
+    {
+      "case": "fluid",
+      "threads": 1,
+      "repetitions": 3,
+      "medianElapsedMs": 893.4946720000007,
+      "minElapsedMs": 887.5723020000005,
+      "maxElapsedMs": 908.6742049999993,
+      "medianCoordinatorDelayP99Ms": 20.627455
+    },
+    {
+      "case": "fluid",
+      "threads": 16,
+      "repetitions": 3,
+      "medianElapsedMs": 1134.6133029999983,
+      "minElapsedMs": 1057.913826,
+      "maxElapsedMs": 1141.9865649999992,
+      "medianCoordinatorDelayP99Ms": 21.053439
+    },
+    {
+      "case": "fluid",
+      "threads": 2,
+      "repetitions": 3,
+      "medianElapsedMs": 851.7577160000001,
+      "minElapsedMs": 834.5607580000014,
+      "maxElapsedMs": 882.3560179999986,
+      "medianCoordinatorDelayP99Ms": 20.267007
+    },
+    {
+      "case": "fluid",
+      "threads": 4,
+      "repetitions": 3,
+      "medianElapsedMs": 886.5197840000001,
+      "minElapsedMs": 876.8611639999999,
+      "maxElapsedMs": 890.4243200000001,
+      "medianCoordinatorDelayP99Ms": 20.463615
+    },
+    {
+      "case": "potential-flow",
+      "threads": 1,
+      "repetitions": 3,
+      "medianElapsedMs": 84.16405999999915,
+      "minElapsedMs": 83.39092600000004,
+      "maxElapsedMs": 96.38645100000213,
+      "medianCoordinatorDelayP99Ms": 20.168703
+    },
+    {
+      "case": "potential-flow",
+      "threads": 16,
+      "repetitions": 3,
+      "medianElapsedMs": 106.08170799999789,
+      "minElapsedMs": 98.74246100000164,
+      "maxElapsedMs": 123.09615099999792,
+      "medianCoordinatorDelayP99Ms": 20.922367
+    },
+    {
+      "case": "potential-flow",
+      "threads": 2,
+      "repetitions": 3,
+      "medianElapsedMs": 86.65407200000118,
+      "minElapsedMs": 86.44343499999741,
+      "maxElapsedMs": 87.67841700000281,
+      "medianCoordinatorDelayP99Ms": 20.168703
+    },
+    {
+      "case": "potential-flow",
+      "threads": 4,
+      "repetitions": 3,
+      "medianElapsedMs": 87.13745200000267,
+      "minElapsedMs": 86.10422699999981,
+      "maxElapsedMs": 89.59331700000257,
+      "medianCoordinatorDelayP99Ms": 20.299775
+    },
+    {
+      "case": "shallow-water",
+      "threads": 1,
+      "repetitions": 3,
+      "medianElapsedMs": 86.22743099999934,
+      "minElapsedMs": 85.89230999999927,
+      "maxElapsedMs": 96.3746429999992,
+      "medianCoordinatorDelayP99Ms": 20.185087
+    },
+    {
+      "case": "shallow-water",
+      "threads": 16,
+      "repetitions": 3,
+      "medianElapsedMs": 151.23391499999707,
+      "minElapsedMs": 113.34317300000112,
+      "maxElapsedMs": 161.54622799999925,
+      "medianCoordinatorDelayP99Ms": 20.856831
+    },
+    {
+      "case": "shallow-water",
+      "threads": 2,
+      "repetitions": 3,
+      "medianElapsedMs": 87.35604899999817,
+      "minElapsedMs": 86.7896010000004,
+      "maxElapsedMs": 90.70341899999767,
+      "medianCoordinatorDelayP99Ms": 20.545535
+    },
+    {
+      "case": "shallow-water",
+      "threads": 4,
+      "repetitions": 3,
+      "medianElapsedMs": 90.33689799999775,
+      "minElapsedMs": 88.33442600000126,
+      "maxElapsedMs": 101.7497919999987,
+      "medianCoordinatorDelayP99Ms": 20.316159
+    },
+    {
+      "case": "structural",
+      "threads": 1,
+      "repetitions": 3,
+      "medianElapsedMs": 531.059201,
+      "minElapsedMs": 530.5915200000001,
+      "maxElapsedMs": 539.643562,
+      "medianCoordinatorDelayP99Ms": 20.545535
+    },
+    {
+      "case": "structural",
+      "threads": 16,
+      "repetitions": 3,
+      "medianElapsedMs": 589.2126550000003,
+      "minElapsedMs": 565.9465990000008,
+      "maxElapsedMs": 614.2799590000004,
+      "medianCoordinatorDelayP99Ms": 21.200895
+    },
+    {
+      "case": "structural",
+      "threads": 2,
+      "repetitions": 3,
+      "medianElapsedMs": 472.7855310000002,
+      "minElapsedMs": 470.8379450000002,
+      "maxElapsedMs": 473.55432599999995,
+      "medianCoordinatorDelayP99Ms": 20.692991
+    },
+    {
+      "case": "structural",
+      "threads": 4,
+      "repetitions": 3,
+      "medianElapsedMs": 439.6389710000003,
+      "minElapsedMs": 438.85214199999973,
+      "maxElapsedMs": 441.49801600000046,
+      "medianCoordinatorDelayP99Ms": 20.381695
+    },
+    {
+      "case": "thermal",
+      "threads": 1,
+      "repetitions": 3,
+      "medianElapsedMs": 76.93346300000121,
+      "minElapsedMs": 76.1710230000026,
+      "maxElapsedMs": 77.00700100000176,
+      "medianCoordinatorDelayP99Ms": 20.185087
+    },
+    {
+      "case": "thermal",
+      "threads": 16,
+      "repetitions": 3,
+      "medianElapsedMs": 142.9199260000023,
+      "minElapsedMs": 137.55613599999924,
+      "maxElapsedMs": 165.54471100000228,
+      "medianCoordinatorDelayP99Ms": 20.365311
+    },
+    {
+      "case": "thermal",
+      "threads": 2,
+      "repetitions": 3,
+      "medianElapsedMs": 77.76896699999998,
+      "minElapsedMs": 76.75221200000306,
+      "maxElapsedMs": 78.02638200000001,
+      "medianCoordinatorDelayP99Ms": 20.447231
+    },
+    {
+      "case": "thermal",
+      "threads": 4,
+      "repetitions": 3,
+      "medianElapsedMs": 78.60554100000081,
+      "minElapsedMs": 77.18586499999947,
+      "maxElapsedMs": 79.07509399999981,
+      "medianCoordinatorDelayP99Ms": 20.692991
+    }
+  ]
+}

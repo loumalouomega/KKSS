@@ -379,6 +379,11 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
 
     // ---- Kratos -------------------------------------------------------------
     {
+      id: "kratos.threads", label: t("Solver Threads"), category: "Kratos", type: "number",
+      storeKey: "kratos.threads", default: 0, min: 0, integer: true, applies: "nextRun",
+      description: t("0 selects Auto (available CPUs minus one, minimum one). Queued previews freeze the allocation; changing it requires a new preview."),
+    },
+    {
       id: "kratos.pythonPath",
       label: t("Python Interpreter"),
       category: "Kratos",

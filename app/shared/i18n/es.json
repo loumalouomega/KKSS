@@ -648,5 +648,16 @@
   "Unit": "Unidad",
   "Time step (optional)": "Paso temporal (opcional)",
   "Result path (optional)": "Ruta del resultado (opcional)",
-  "The project changed. Cancel and reopen this form.": "El proyecto ha cambiado. Cancele y vuelva a abrir este formulario."
+  "The project changed. Cancel and reopen this form.": "El proyecto ha cambiado. Cancele y vuelva a abrir este formulario.",
+  "Solver Threads": "Hilos del solver",
+  "0 selects Auto (available CPUs minus one, minimum one). Queued previews freeze the allocation; changing it requires a new preview.": "0 selecciona Auto (CPU disponibles menos una, mínimo una). La vista previa fija la asignación; cambiarla requiere una nueva vista previa.",
+  "Refinement metadata": "Metadatos de refinamiento",
+  "Refinement method": "Método de refinamiento",
+  "Characteristic size (required for adaptive meshes)": "Tamaño característico (obligatorio para mallas adaptativas)",
+  "Domain measure (uniform count-derived size only)": "Medida del dominio (solo tamaño uniforme por recuento)",
+  "Spatial dimension": "Dimensión espacial",
+  "Sizing definition (same across levels)": "Definición del tamaño (igual en todos los niveles)",
+  "Why this size represents refinement for the quantity": "Por qué este tamaño representa el refinamiento de la magnitud",
+  "Comparable geometry and discretization family confirmed": "Geometría y familia de discretización comparables confirmadas",
+  "Asymptotic range assumed (not proven)": "Rango asintótico supuesto (no demostrado)"
 }

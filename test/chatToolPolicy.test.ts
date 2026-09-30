@@ -170,7 +170,7 @@ describe("the table itself", () => {
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(118);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(119);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
@@ -178,7 +178,7 @@ describe("the table itself", () => {
     expect(cad).toHaveLength(58);
     expect(mesh).toHaveLength(26);
     expect(meta).toHaveLength(4);
-    expect(app).toHaveLength(30);
+    expect(app).toHaveLength(31);
     // No kratos__ row: its external server is deliberately unclassified.
     expect(cad.length + mesh.length + meta.length + app.length).toBe(Object.keys(TOOL_ACCESS).length);
   });
@@ -196,6 +196,7 @@ describe("the table itself", () => {
       "app__queue_resume",
       "app__queue_resume_row",
       "app__run_quantity_evaluate",
+      "app__run_refinement_set",
       "app__run_review_export",
       "app__study_attach_mesh",
       "app__study_copy_source_into_project",

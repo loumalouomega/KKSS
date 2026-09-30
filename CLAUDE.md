@@ -117,7 +117,7 @@ alternate-criterion, interrupted and truncated cases remain unavailable rather
 than inferred. Quantity
 evaluation explicitly selects a result field/component, region, time, reduction
 and unit, then saves it with its exact artifact reference and source revision.
-Variant comparison labels mesh-sensitivity, solver-parameter and mixed studies
+Queue previews freeze verified `kratos.threads`; Auto leaves one available CPU, and one solve may overlap one verified single-thread preparation task within the CPU budget. The five built-in solver adapters and configured VTK/XDMF/HDF5/GiD result discovery preserve solver-published evidence and companion revisions. Richardson/GCI estimates require revision-bound mesh sizes and explicit assumptions; changing or missing companion artifacts invalidates saved quantities. Variant comparison labels mesh-sensitivity, solver-parameter and mixed studies
 from recorded mesh revisions and settings; it accepts only matching quantity
 definitions with compatible units and preserves missing values as null. The
 read-only mesh evaluator is

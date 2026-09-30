@@ -310,6 +310,13 @@ async function sessionHomeWorkflow() {
     await page.locator("#workflow-form-title").click();
     await page.mouse.move(0, 0);
     await shoot(page, "home-workflow-form.png");
+    await page.locator("#workflow-form .btn-secondary").click();
+    await page.locator("#workflow").evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await page.waitForTimeout(250);
+    await page.locator("#study-refinement:enabled").click();
+    await page.locator("#workflow-form-title").click();
+    await page.mouse.move(0, 0);
+    await shoot(page, "home-refinement-form.png");
   } finally { await closeApp(app); }
 }
 

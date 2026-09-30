@@ -213,6 +213,23 @@ for (const [id, tool] of [["study-review-run", "run_review"], ["study-export-rev
     if (selectedStudy && selectedRunId) workflowCall(tool, { studyId: selectedStudy.id, runId: selectedRunId });
   });
 }
+document.getElementById("study-refinement")!.addEventListener("click", () => {
+  const study = selectedStudy, runId = selectedRunId; if (!study || !runId) return;
+  form.open(t("Refinement metadata"), [
+    { name: "method", label: t("Refinement method"), choices: ['uniform', 'adaptive'], value: 'adaptive' },
+    { name: "characteristicSize", label: t("Characteristic size (required for adaptive meshes)"), optional: true },
+    { name: "domainMeasure", label: t("Domain measure (uniform count-derived size only)"), optional: true },
+    { name: "lengthUnit", label: t("Unit"), choices: ['m', 'cm', 'mm'], value: 'm' },
+    { name: "dimension", label: t("Spatial dimension"), choices: ['1', '2', '3'], value: '3' },
+    { name: "sizingDefinition", label: t("Sizing definition (same across levels)") },
+    { name: "justification", label: t("Why this size represents refinement for the quantity"), multiline: true },
+    { name: "comparable", label: t("Comparable geometry and discretization family confirmed"), choices: ['false', 'true'], value: 'false' },
+    { name: "asymptotic", label: t("Asymptotic range assumed (not proven)"), choices: ['false', 'true'], value: 'false' },
+  ], ({characteristicSize, domainMeasure, dimension, comparable, asymptotic, ...values}) => {
+    workflowCall('run_refinement_set', { studyId: study.id, runId, ...values, dimension: Number(dimension), comparable: comparable === 'true', asymptotic: asymptotic === 'true',
+      ...(characteristicSize ? { characteristicSize: Number(characteristicSize) } : {}), ...(domainMeasure ? { domainMeasure: Number(domainMeasure) } : {}) });
+  });
+});
 document.getElementById("study-evaluate-quantity")!.addEventListener("click", () => {
   const study = selectedStudy; const runId = selectedRunId; if (!study || !runId) return;
   form.open(t("Evaluate quantity"), [
@@ -276,6 +293,7 @@ function renderWorkflow(raw: unknown): void {
     (document.getElementById("study-import-run") as HTMLButtonElement).disabled = !states.mesh || states.mesh !== "ready";
     (document.getElementById("study-review-run") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-evaluate-quantity") as HTMLButtonElement).disabled = !selectedRunId;
+    (document.getElementById("study-refinement") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-export-review") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-compare-variants") as HTMLButtonElement).disabled = false;
     (document.getElementById("study-export-comparison") as HTMLButtonElement).disabled = false;
@@ -324,7 +342,7 @@ function renderWorkflow(raw: unknown): void {
   } else {
     selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
     for (const id of ["study-open-geometry", "study-open-mesh", "study-open-case", "study-open-results"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
-    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-evaluate-quantity", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
+    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-evaluate-quantity", "study-refinement", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
   }
   const queue = value.project?.queue;
   const tasks = queue?.tasks ?? [];

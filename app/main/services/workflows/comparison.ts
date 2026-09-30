@@ -1,12 +1,16 @@
+import { table, jsonTwin } from './reportHtml';
+import { meshSensitivity, type MeshSensitivity } from './refinement';
 import type { Evidence, Json, Run, Study } from './contracts';
 import { fingerprint } from './project';
 
 export interface VariantRow {
   studyId: string; name: string; settings: Json; state: string; runId?: string;
   variation: 'mesh-sensitivity' | 'solver-parameter' | 'mixed' | 'unchanged' | 'incomplete';
+  resources?: Run['resources'];
   convergence: Evidence['convergence']['state'] | 'unavailable'; elapsedMs?: number;
 }
 export interface QuantityComparison {
+  meshSensitivity?: MeshSensitivity;
   definition: { field: string; kind: string; component: string; region: string; time: number; reduction: string };
   compatible: boolean; unit?: string; values: { studyId: string; runId?: string; value: number | null; unit?: string }[];
 }
@@ -46,19 +50,21 @@ export function compareVariants(parent: Study, candidates: { study: Study; run?:
     }
     const baselineSettings = baseline?.study.caseSettings ?? parent.caseSettings;
     const solverChanged = fingerprint(study.caseSettings) !== fingerprint(baselineSettings);
+    const runSettingsChanged = fingerprint(run?.settings) !== fingerprint(baseline?.run?.settings);
     const meshingChanged = fingerprint(study.meshing) !== fingerprint(baseline?.study.meshing ?? parent.meshing);
     const baselineMeshRevision = baseline?.run?.meshRevision;
     const meshRevisionKnown = !!baselineMeshRevision && baselineMeshRevision !== 'missing' && !!run?.meshRevision && run.meshRevision !== 'missing';
     const meshChanged = meshingChanged || meshRevisionKnown && run!.meshRevision !== baselineMeshRevision;
     const variation: VariantRow['variation'] = study.id === parent.id ? 'unchanged' : meshChanged && solverChanged ? 'mixed'
       : meshChanged ? 'mesh-sensitivity'
-      : solverChanged && meshRevisionKnown ? 'solver-parameter'
-      : solverChanged ? 'incomplete'
+      : (solverChanged || runSettingsChanged) && meshRevisionKnown ? 'solver-parameter'
+      : solverChanged || runSettingsChanged ? 'incomplete'
       : meshRevisionKnown ? 'unchanged' : 'incomplete';
     return {
       studyId: study.id, name: study.name, settings: structuredClone(study.caseSettings),
       variation,
       state: run?.state ?? 'missing', ...(run ? { runId: run.id } : {}),
+      ...((run?.resources ?? run?.receipt?.resources) ? { resources: run?.resources ?? run?.receipt?.resources } : {}),
       convergence: evidence?.convergence.state ?? 'unavailable',
       ...(run?.startedAt !== undefined && run.finishedAt !== undefined ? { elapsedMs: Math.max(0, run.finishedAt - run.startedAt) } : {}),
     } satisfies VariantRow;
@@ -85,15 +91,22 @@ export function compareVariants(parent: Study, candidates: { study: Study; run?:
       const baseline = valueAt(parent.caseSettings, path), value = valueAt(study.caseSettings, path);
       return { path, baseline: baseline.value ?? null, value: value.value ?? null, baselinePresent: baseline.present, valuePresent: value.present };
     }) })),
-    quantities, findings,
+    quantities: quantities.map(quantity => ({ ...quantity, ...(classification === 'mesh-sensitivity' ? { meshSensitivity: meshSensitivity(candidates.map(({study, run, evidence}) => ({ studyId: study.id, run, evidence, value: quantity.values.find(v => v.studyId === study.id)?.value ?? null })), quantity.compatible) } : {}) })), findings,
   };
 }
 function escape(value: unknown): string {
-  return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
+  return String(value ?? 'unavailable').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 }
 export function comparisonHtml(comparison: VariantComparison): string {
   const rowHtml = comparison.rows.map(row => `<tr><td>${escape(row.name)}</td><td>${escape(row.state)}</td><td>${escape(row.variation)}</td><td>${escape(row.convergence)}</td><td>${row.elapsedMs === undefined ? 'missing' : escape(`${row.elapsedMs} ms`)}</td><td>${escape(comparison.differences.find(diff => diff.studyId === row.studyId)?.changes.map(change => change.path).join(', ') || 'baseline')}</td></tr>`).join('');
   const changesHtml = comparison.differences.flatMap(diff => diff.changes.map(change => `<li>${escape(comparison.rows.find(row => row.studyId === diff.studyId)?.name ?? diff.studyId)} — ${escape(change.path)}: ${change.baselinePresent ? escape(JSON.stringify(change.baseline)) : 'missing'} → ${change.valuePresent ? escape(JSON.stringify(change.value)) : 'missing'}</li>`)).join('');
   const quantityHtml = comparison.quantities.map(quantity => `<tr><td>${escape(`${quantity.definition.kind} ${quantity.definition.field}/${quantity.definition.component} · ${quantity.definition.region} · t=${quantity.definition.time} · ${quantity.definition.reduction}`)}</td><td>${escape(quantity.compatible ? quantity.unit : 'incompatible units')}</td><td>${quantity.values.map(value => `<div>${escape(comparison.rows.find(row => row.studyId === value.studyId)?.name ?? value.studyId)}: ${escape(value.value ?? 'missing')}${value.unit ? ` ${escape(value.unit)}` : ''}</div>`).join('')}</td></tr>`).join('');
-  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Variant comparison — ${escape(comparison.parentName)}</title><style>body{font:15px system-ui;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#222}table{border-collapse:collapse;width:100%;margin:1rem 0}td,th{border:1px solid #bbb;padding:.45rem;text-align:left;overflow-wrap:anywhere}li{margin:.3rem 0}</style><h1>Variant comparison: ${escape(comparison.parentName)}</h1><p>Study type: ${escape(comparison.classification)}</p><h2>Runs</h2><table><thead><tr><th>Study</th><th>Process</th><th>Variation</th><th>Convergence</th><th>Elapsed</th><th>Input differences</th></tr></thead><tbody>${rowHtml}</tbody></table><h2>Setting changes</h2><ul>${changesHtml || '<li>No setting changes</li>'}</ul><h2>Compatible scalar quantities</h2><table><thead><tr><th>Definition</th><th>Unit</th><th>Values by row</th></tr></thead><tbody>${quantityHtml || '<tr><td colspan="3">No selected quantities</td></tr>'}</tbody></table><ul>${comparison.findings.map(finding => `<li>${escape(finding)}</li>`).join('')}</ul></html>`;
+  const resources = table('Solver resources', ['Study', 'Threads requested', 'Threads effective'], comparison.rows.map(row => [row.name, row.resources?.requestedThreads, row.resources?.effectiveThreads]));
+  const sensitivity = comparison.quantities.map(q => {
+    const m = q.meshSensitivity; if (!m) return '';
+    return table(`Mesh sensitivity: ${q.definition.field}/${q.definition.component}`, ['Runs (fine to coarse)', 'Refinement ratios', 'Observed order', 'Extrapolated value', 'GCI (%)'], m.triples.map(t => [t.runIds, t.ratios, t.observedOrder, t.extrapolatedValue, t.gciPercent]))
+      + table('Assumptions and diagnostics', ['Type', 'Description'], [...m.assumptions.map(a => ['Assumption', a]), ...m.unavailableReasons.map(r => ['Unavailable', r]), ['Safety factor', m.safetyFactor]])
+      + table('Refinement inputs', ['Run', 'Mesh revision', 'h (m)', 'Quantity', 'Metadata'], m.inputs.map(i => [i.runId, i.meshRevision, i.h, i.value, i.refinement]));
+  }).join('');
+  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Variant comparison — ${escape(comparison.parentName)}</title><style>body{font:15px system-ui;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#222}table{border-collapse:collapse;width:100%;margin:1rem 0}td,th{border:1px solid #bbb;padding:.45rem;text-align:left;overflow-wrap:anywhere}li{margin:.3rem 0}</style><h1>Variant comparison: ${escape(comparison.parentName)}</h1><p>Study type: ${escape(comparison.classification)}</p><h2>Runs</h2><table><thead><tr><th>Study</th><th>Process</th><th>Variation</th><th>Convergence</th><th>Elapsed</th><th>Input differences</th></tr></thead><tbody>${rowHtml}</tbody></table><h2>Setting changes</h2><ul>${changesHtml || '<li>No setting changes</li>'}</ul><h2>Compatible scalar quantities</h2><table><thead><tr><th>Definition</th><th>Unit</th><th>Values by row</th></tr></thead><tbody>${quantityHtml || '<tr><td colspan="3">No selected quantities</td></tr>'}</tbody></table><ul>${comparison.findings.map(finding => `<li>${escape(finding)}</li>`).join('')}</ul>${resources}${sensitivity}${jsonTwin(comparison)}</html>`;
 }

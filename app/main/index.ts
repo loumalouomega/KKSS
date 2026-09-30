@@ -33,7 +33,7 @@ import { ChatService } from "./services/chat/chatService";
 import { JobsService } from "./services/jobs";
 import { McpHub } from "./services/chat/mcpHub";
 import { WorkflowService } from "./services/workflows/service";
-import { manualLaunchAvailability } from "./services/workflows/environment";
+import { manualLaunchAvailability, resolveThreads } from "./services/workflows/environment";
 import { registerAppTools, callAppTool } from "./services/chat/appTools";
 import { KratosRuntime } from "./services/chat/kratosRuntime";
 import { kratosEnvDelta } from "./services/settings/kratosEnv";
@@ -505,7 +505,12 @@ function createTab(mode: Mode) {
       runs.setStartGuard(async (meshPath, problemtypeId, force) => {
         if (!workflows) return { allowed: false, reason: "Simulation environment checks are not ready yet." };
         const report = await workflows.environmentForMesh(meshPath, problemtypeId, force);
-        return manualLaunchAvailability(report);
+        const availability = manualLaunchAvailability(report);
+        if (!availability.allowed) return availability;
+        const configured = stateStore.get<number>("kratos.threads", 0);
+        if (!report.manual.capabilities.threads) return configured ? { allowed: false, reason: "Verified thread control is unavailable." } : availability;
+        try { return { ...availability, threads: resolveThreads(configured, report.cpuCount) }; }
+        catch (error) { return { allowed: false, reason: String(error) }; }
       });
       runs.restore();
     }
@@ -1135,6 +1140,7 @@ app.whenReady().then(() => {
     runtime: new KratosRuntime(app.getPath("userData")),
     environment: () => ({
       python: stateStore.get<string>("kratos.pythonPath", "") || defaultPythonPath(process.platform),
+      threads: stateStore.get<number>("kratos.threads", 0),
       env: { ...process.env, ...kratosEnvDelta() },
       bundledPython: process.env.KKSS_KRATOS_PYTHON,
       installPath: stateStore.get<string>("kratos.installPath", "") || undefined,
@@ -1293,7 +1299,7 @@ app.whenReady().then(() => {
   const settingKeys = new Set(registry().map((e) => e.storeKey).filter((k): k is string => !!k));
   stateStore.onDidChange((key) => {
     if (settingKeys.has(key)) installMenu(menuDeps);
-    if (["kratos.pythonPath", "kratos.installPath", "kratos.extraEnv"].includes(key)) runs?.requestCapabilityRefresh();
+    if (["kratos.pythonPath", "kratos.installPath", "kratos.extraEnv", "kratos.threads"].includes(key)) runs?.requestCapabilityRefresh();
     // The renderer is read when a preview's PAGE loads, so a change cannot
     // reach a scene already on screen (upstream says the same and shows the
     // same note). Announced here rather than from the menu's click, so the
