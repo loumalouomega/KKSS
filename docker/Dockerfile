@@ -91,17 +91,16 @@ LABEL org.opencontainers.image.title="KKSS" \
 # supplies xdpyinfo, which entrypoint.sh polls to know the display is up (and
 # the healthcheck uses) — nothing else pulls it in, so it must be explicit.
 #
-# `apt-get upgrade` runs before the explicit installs, not just alongside
-# them: this whole RUN is one BuildKit layer, cached by instruction text plus
-# upstream state (docker.yml's `cache-from: type=gha`) — `debian:bookworm-slim`
-# is a rolling tag, so an unchanged Dockerfile can keep hitting a stale cached
-# layer indefinitely even as Debian ships security point-releases for
-# already-resolved packages (libaom3, libssh2-1, …, pulled in transitively by
-# the libs above / curl). The scan step only gates a *tag* push
-# (docker.yml's `exit-code`), so that staleness is invisible on every ordinary
-# branch push and only surfaces as a release-time failure. Upgrading first
-# fixes already-installed packages too, and — just as importantly — changing
-# this RUN's own text is what busts its cache on the next build.
+# Upgrade packages already present in the base as well as installing the
+# runtime dependencies. Apt repository updates are NOT part of this RUN's
+# cache key: even with `apt-get update`, a cached layer can retain packages
+# with available security fixes (libexpat1, libpcre2-8-0, nodejs, …).
+# docker.yml's checked builds use `pull: true` and
+# `no-cache-filters: runtime-base` to refresh this stage on every CI run while
+# preserving the expensive builder-stage caches. Release exporters reuse the
+# checked layers; Trivy still gates every branch and release on fixable
+# HIGH/CRITICAL findings. Local builds need the same selective cache bypass
+# when refreshing packages — see doc/guide/web-deployment.md.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
  && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
