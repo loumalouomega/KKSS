@@ -188,7 +188,8 @@ touching a named boundary), smoothing, RCM/Morton/Hilbert renumbering, \
 space-filling-curve partitioning, refine (whole mesh, cells a per-cell field marks, or a SubModelPart — \
 selected cells split fully and their neighbours get the smallest partial split that keeps the mesh \
 conforming, so there are no hanging nodes; triangles and tetrahedra only), linear↔quadratic conversion, simplexification, box/plane \
-cropping, a field calculator and nodal↔elemental averaging, mesh merging (N files in one op), id renumbering, \
+cropping, a field calculator and nodal↔elemental averaging, mesh merging (N files in one op; native File > \
+Import Mesh uses this same undoable operation without welding, retaining incompatible imported fields under unique names), id renumbering, \
 the five SubModelPart-tree ops (create/move/merge/add/remove entities), field gradient, Hessian, \
 Zienkiewicz-Zhu error estimation, signed distance to an external surface, a SubModelPart of the same mesh \
 or the mesh's own exterior skin ("skin": true — volume meshes only), global scalar reductions of a field \
@@ -214,17 +215,31 @@ Shared property edits affect every referencing entity; clone and reassign for a 
 entities also cleans orphan nodes and narrows fields and SubModelParts. The viewer exposes Selection sets, \
 Advanced > Properties editor, and Inspect > Probe line; mesh_probe samples the same distance-versus-value profile. \
 mesh_field_integrate gives cell-measure-weighted totals and means per region, mesh_flow_balance computes \
-signed section flux and pressure drops, mesh_curvature reports surface curvature and its Gauss–Bonnet check, \
+signed section flux and pressure drops, including allSteps scans and optional pressureDensity/pressureReference \
+for explicit kinematic-pressure-to-Pa reporting (mass-flux density is never reused implicitly), \
+mesh_curvature reports surface curvature and its Gauss–Bonnet check, \
 mesh_compare reports structural and field differences, mesh_derive writes slices, isosurfaces, threshold regions, \
 sample grids or streamlines, and mesh_split / mesh_batch_transform write per-part or batch outputs. \
 mesh_resample interpolates a timeline without changing its source; mesh_periodic matches periodic boundary nodes. \
 mesh_export_table writes the whole entity table as CSV/XLSX, mesh_field_series samples one entity across every step of a time series, \
-and mesh_pack_series combines a run's per-step files into an XDMF time series (.xdmf plus its required sibling .h5; keep both) in one streamed pass (a lone \
-file or an already-stepped format is refused — nothing to combine). case_run starts a solve detached (logging to <stem>.kratosrun.log), case_status reports on it from \
+and mesh_pack_series packs constant-mesh filename series into XDMF (.xdmf plus required .h5; keep both), \
+or uses target:"pvd" for changing meshes and already-stepped sources (index plus step directory; keep both). \
+Packing and resampling return per-step export reports. case_run starts a solve detached (logging to \
+<stem>.kratosrun.log), case_status reports on it from \
 the <stem>.kratosrun.json sidecar the app's own run manager shares, and case_stop walks SIGINT → SIGTERM → \
-SIGKILL. case_estimate_timestep gives a convective time-step estimate, while case_material_assign and \
+SIGKILL. Known field dimensions support display-only unit switching per pane; convertFieldUnits writes a \
+new Pa field only from recorded kinematic-pressure dimensions, using exactly one explicit density or \
+same-kind scalar densityField, preserving gaps and never inferring gauge/absolute reference. Streamlines \
+support worker progress, partial-result cancellation, clip-plane seeds and view-only line/tube styling; \
+their export remains line cells. Export tools return measured retained/transformed/omitted/unverified \
+categories; provenance:"auto" embeds where supported, "sidecar" adds a full or collection .kratosexport.json, \
+and "none" adds no new record. Applicable tools accept verify:true to re-read claims; VTI and temporal XDMF \
+remain unverified unless checked. Problem archives carry a separate provenance record without changing \
+pristine mesh bytes. The preview's Advanced > Export report inspector displays these same reports. \
+case_estimate_timestep gives convective guidance with a declared geometry basis and limitations, never a \
+stability guarantee; Fluid fixed/adaptive values are validated before generation. case_material_assign and \
 material_preset_list / material_preset_import apply and manage provenance-bearing material snapshots. \
-SubModelParts survive an export to .mdpa, .vtu, .med (as MED families), .inp (as *NSET/*ELSET) \
+SubModelParts survive an export to .mdpa, .med (as MED families), .inp (as *NSET/*ELSET) \
 and — block names only — .exo; a .msh export carries no groups.
 If Kratos tools are unavailable, the user can use Install uv for KKSS or Retry in the chat server-status area. \
 Installation requires the user action; you cannot install the runtime through a tool. Newly ready tools join the next user turn. \

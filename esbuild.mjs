@@ -22,6 +22,7 @@ const required = [
   // Must be linked before style.css — see tools/webviewMarkup.ts.
   ["mesh/media/design-system.css", "npm run package --prefix mesh"],
   ["mesh/dist/mmgWorker.js", "npm run package --prefix mesh"],
+  ["mesh/dist/streamlineWorker.js", "npm run package --prefix mesh"],
   ["mesh/dist/mmg-core.wasm", "npm run package --prefix mesh"],
   ["cad/dist/opencascade.wasm.wasm", "npm run build --prefix cad"],
   ["cad/dist/gmsh-core.wasm", "npm run build --prefix cad"],
@@ -260,6 +261,9 @@ function copyArtifacts() {
     // MMG worker pair must sit next to out/main.js (mmgWorkerClient resolves
     // the worker via __dirname; the wasm is fed by configureMmg at startup).
     ["mesh/dist/mmgWorker.js", out("mmgWorker.js")],
+    // mesh 4.21.0 traces streamlines off the host thread. Its client resolves
+    // this entry beside the main bundle, exactly like the MMG worker.
+    ["mesh/dist/streamlineWorker.js", out("streamlineWorker.js")],
     ["mesh/dist/mmg-core.wasm", out("mmg-core.wasm")],
     // OCCT + Gmsh WASM in the dist/-shaped layout the cad services expect
     // (extensionPath = out/cad-runtime).

@@ -7,6 +7,10 @@ full auto-generated compare links.
 
 ## Unreleased
 
+- feat: integrate Mesh Preview 4.23.0: native multi-file Import Mesh in one undoable operation, grouped export submenus, worker-backed streamlines with progress/partial cancellation and tube styling, all-step flow balance, dimension-aware display units and density-field pressure conversion, and validated Fluid fixed/adaptive time stepping.
+- feat: expose graphical export reports in the preview and script-free standalone packed-series reports. Update provenance settings and assistant guidance for native embedding, collection sidecars, measured fidelity and PVD packing.
+- fix: stage the streamline worker beside the app bundle, allow packing numbered MDPA series as well as VTK, and correct upstream display-unit scaling for mm/km, mPa·s and dimensionally consistent mm²/s², with numerical and runtime regressions.
+
 ## [2.8.0] - 2026-09-30
 
 - feat: add Home-guided, revision-aware simulation workflows: create and manage

@@ -419,14 +419,15 @@ export class MeshHost {
   /**
    * File ▸ Pack Time Series Into One File… (mesh 3.21.0's
    * kratos.mesh.packSeries). Combines this tab's active multi-step series into
-   * one XDMF that re-opens as a scrubbable timeline. Reachable upstream only
-   * from the Command Palette and the Kratos Runs tree — neither runs in
+   * XDMF or a PVD collection that re-opens as a scrubbable timeline. Reachable
+   * upstream only from the Command Palette and the Kratos Runs tree — neither runs in
    * KKSS — so this is the sole entry point; mirrors the upstream call site
-   * (`vtkProvider.activeFsPath()` → `packSeries(fsPath)`), since a series is
-   * always a VTK-provider document. A no-op when this tab has nothing open.
+   * (`packSeries(fsPath)`). Since mesh 4.13, MDPA documents also form numbered
+   * series, so use this host's current file rather than the VTK-only accessor.
+   * A no-op when this tab has nothing open.
    */
   async packSeries(): Promise<void> {
-    const target = this.vtkProvider.activeFsPath();
+    const target = this.currentFile;
     if (!target) return;
     await packSeries(target);
   }

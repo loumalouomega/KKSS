@@ -133,6 +133,13 @@
   "Open Folder…": "Open Folder…",
   "Clear Project Root": "Clear Project Root",
   "Open Recent": "Open Recent",
+  "Import Mesh…": "Import Mesh…",
+  "Export Mesh As": "Export Mesh As",
+  "Structural CAE": "Structural CAE",
+  "Surface": "Surface",
+  "Solvers": "Solvers",
+  "Fields": "Fields",
+  "Figures": "Figures",
   "Open from Cloud…": "Open from Cloud…",
   "Open from Cloud… (no account connected)": "Open from Cloud… (no account connected)",
   "Open in Text Editor…": "Open in Text Editor…",
@@ -666,7 +673,7 @@
   "Automatic": "Automatic",
   "Write a full sidecar report": "Write a full sidecar report",
   "Do not record provenance": "Do not record provenance",
-  "Record source and operation provenance in supported mesh formats. Sidecar writes a full .kratosexport.json report beside every export; formats with an embedded provenance slot may carry both.": "Record source and operation provenance in supported mesh formats. Sidecar writes a full .kratosexport.json report beside every export; formats with an embedded provenance slot may carry both.",
+  "Embed provenance in supported native comments and meshio++ headers. Sidecar also writes a .kratosexport.json report (one per series); problem archives keep their record inside the ZIP. None adds no new provenance; reports remain available.": "Embed provenance in supported native comments and meshio++ headers. Sidecar also writes a .kratosexport.json report (one per series); problem archives keep their record inside the ZIP. None adds no new provenance; reports remain available.",
   "Material Library Folders": "Material Library Folders",
   "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.": "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot."
 }
