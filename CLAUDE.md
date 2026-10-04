@@ -1719,6 +1719,12 @@ Graceful-quit acceptance observes a natural zero exit; forced cleanup is only
 cleanup. Session tests cover tab ordering/focus, screens/panels, missing-file
 pruning and launch precedence. The lock test launches a real second process.
 
+Quick-pick selections close their own BrowserWindow before Playwright may
+acknowledge the click. Use `tools/e2e/picker.mjs`'s `clickPickerOption`, then
+assert the selection's effect in the surviving app or on disk. Only an actual
+picker close plus the target-closed acknowledgement error is accepted; other
+click errors, crashes and close timeouts must still fail.
+
 Chat's `entry` event records assistant text, but the renderer paints its
 `assistantDone` event only, replacing the streaming bubble; rendering both
 would duplicate every reply. Live chat acceptance checks a single reply,
