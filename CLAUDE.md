@@ -625,6 +625,12 @@ resubmitted automatically.
     `manifest` job merges them into one multi-arch tag on **GHCR**
     (`ghcr.io/loumalouomega/kkss`, built-in `GITHUB_TOKEN`) and **Docker Hub**
     (`vmataix/kkss`, `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets).
+    Base and Kratos verification builds pull current base images and bypass
+    only the `runtime-base` cache so Debian security updates are installed;
+    apt repository changes do not invalidate cached RUN instructions. Keep
+    builder-stage caches and reuse the checked layers when publishing rather
+    than refreshing packages again. Fixable HIGH/CRITICAL findings gate the
+    base-image scan on every branch and release.
     User docs live in `doc/guide/web-deployment.md`.
   - The browser gateway is `/opt/kkss-web`: local bcrypt users and OIDC are
     mutually validated, sessions are HttpOnly and CSRF-protected, and identity

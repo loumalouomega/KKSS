@@ -94,6 +94,12 @@ jobs:
           push: false
           load: true
           tags: kkss-web:ci
+          # Apt repository updates do not invalidate a cached RUN. Refresh
+          # runtime packages on every checked build, but keep the costly
+          # Electron/Go builder stages cached. Publishing below reuses these
+          # verified layers instead of resolving packages a second time.
+          pull: true
+          no-cache-filters: runtime-base
           # Per-arch scope: one shared scope would have the two runners
           # evicting each other's layers.
           cache-from: type=gha,scope=docker-${{ matrix.arch }}
@@ -342,6 +348,9 @@ jobs:
           push: false
           load: true
           tags: kkss-web:kratos-ci
+          # The Kratos variant inherits the same Debian runtime packages.
+          pull: true
+          no-cache-filters: runtime-base
           cache-from: type=gha,scope=docker-kratos-amd64
           cache-to: type=gha,mode=max,scope=docker-kratos-amd64
       - name: Verify the offline solver environment

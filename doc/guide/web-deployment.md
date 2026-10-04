@@ -64,6 +64,20 @@ source, and packages the app); later builds reuse cached layers.
 `npm run docker:build` / `docker:up` / `docker:down` / `docker:logs` are
 shorthands.
 
+Cached package-install layers do not automatically pick up Debian security
+updates. To refresh the runtime packages while reusing the app-build cache:
+
+```bash
+docker buildx build --pull --no-cache-filter runtime-base --load \
+  -f docker/Dockerfile -t kkss-web:local .
+docker compose up -d --no-build kkss
+```
+
+The Docker workflow applies this selective cache bypass to both the base and
+Kratos verification builds. Release publishing reuses the checked layers;
+fixable HIGH/CRITICAL vulnerabilities still fail the base-image scan on every
+branch and release.
+
 **Then, whichever path you took**: open <http://localhost:6080/>. Sign in with
 the generated startup credential printed by the container, or with the bcrypt
 user file supplied through `KKSS_AUTH_USERS_FILE`. The page reconnects the VNC
