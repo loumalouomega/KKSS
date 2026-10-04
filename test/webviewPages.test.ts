@@ -114,6 +114,13 @@ describe.skipIf(!built)("generated webview pages", () => {
     }
   });
 
+  it("carries mesh 4.23's import, grouped exports, report inspector and density-field controls", () => {
+    const html = read("mesh");
+    for (const anchor of ['data-menu="import"', 'data-export-group="0"', 'data-action="exportReport"', 'id="cvt-density-field"']) {
+      expect(html).toContain(anchor);
+    }
+  });
+
   it("links design-system.css before style.css, then the KKSS overrides", () => {
     // style.css resolves 37 --ds-* tokens defined only in design-system.css, and
     // mesh-overrides.css hides the File pill and theme picker — order decides all three.

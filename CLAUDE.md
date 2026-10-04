@@ -209,11 +209,21 @@ resubmitted automatically.
   ever constructed from the submodule's own `activate()`, which KKSS never
   calls: `runTreeView.ts`, `sidebarViews.ts` and `emptyPreview.ts` (the last two
   arrived with mesh 3.15.0's Kratos activity-bar panel). That is what keeps
-  `createTreeView`/`TreeItem`/`registerCommand`/`createWebviewPanel` out of both
+  `createTreeView`/`TreeItem`/`registerCommand` out of both
   the bundle and the shim; KKSS covers the same ground natively — runs via
   **File ▸ Stop Kratos Run**, recent files via **File ▸ Open Recent** (KKSS's
   own app-wide store, not the submodule's), and the
   empty-preview shell via the tab model itself.
+  `createWebviewPanel` supports only `kratos.exportReport` with explicitly
+  disabled scripts: `services/staticReport.ts` opens upstream escaped HTML
+  in a sandboxed, JavaScript-disabled window with no Node/preload and blocked
+  navigation/popups. Live previews retain their upstream `reportSink` and IPC.
+  Native Import Mesh dispatches `menuImport` (one undoable multi-file merge,
+  no implicit weld); Export Mesh As uses upstream `EXPORT_MENU_GROUPS`.
+  Packing uses the host's current file, not a VTK-only accessor: numbered
+  MDPA series have formed timelines since mesh 4.13. `tools/e2e/mesh-423.mjs`
+  checks that route, pressure-density-field conversion, display units and new
+  panels; it also supplies verified panel captures to `tools/screenshots.mjs`.
   mesh 3.18.0 made both preview providers full `CustomEditorProvider`s (were
   `CustomReadonlyEditorProvider`), so `app/main/mesh/meshHost.ts`'s
   `resolveProviderFor` mints the document itself via the provider's own
@@ -235,14 +245,17 @@ resubmitted automatically.
   the mesh submodule's own worker pair. Path contracts of the unmodified
   submodule code: `out/mmgWorker.js` + `out/mmg-core.wasm` must sit **beside
   `out/main.js`** (`__dirname` resolution in `mesh/src/mmgWorkerClient.ts`),
-  and the OCCT/Gmsh binaries live under `out/cad-runtime/dist/` (the services
+  as must `out/streamlineWorker.js` for mesh 4.21+'s off-thread traces,
+  per-seed progress and partial cancellation. Both workers are required build
+  artifacts; `test/meshMcpRuntime.test.ts` executes the staged files.
+  The OCCT/Gmsh binaries live under `out/cad-runtime/dist/` (the services
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
 - **meshio++ (extended mesh formats) is a verbatim WASM tree, loaded in-process.**
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**16.22.0**, the version BOTH submodules now
+  `@meshioplusplus/wasm` package (**16.27.0**, the version BOTH submodules now
   lock; since 10.20 the package has the field-only `.dex`/`.ip`/`.mff` formats —
   point fields, no geometry — the write-only SVG/TikZ figure formats exposed in
   the export menu's "Figures" group, and, since it statically links HDF5/netCDF,
@@ -274,7 +287,7 @@ resubmitted automatically.
   `out/cad-runtime/dist/kernel-worker.js` finds it at
   `out/cad-runtime/dist/../../meshio`. That is why KKSS's
   `cadMeshioLoader.ts` shim and its esbuild alias are gone, and why one version
-  must serve both consumers: mesh's lock is pinned to cad's 16.22.0 rather than
+  must serve both consumers: both submodules lock 16.27.0 rather than
   leaving the two a major apart. It loads the `.wasm` via meshio++'s
   `locateFile` hook (the `wasmBinary` buffer hook MMG uses is pruned from this
   build), so the tree must exist on disk — another reason for `asar: false`.

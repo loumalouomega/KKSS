@@ -5,8 +5,8 @@
  *
  *   mesh/src/meshExport.ts       — window.show{Open,Save}Dialog, showQuickPick,
  *                                  validated showInputBox, show*Message,
- *                                  extensions.getExtension and object-form
- *                                  workspace.openTextDocument for fidelity reports,
+ *                                  extensions.getExtension and script-free
+ *                                  window.createWebviewPanel for export reports,
  *                                  Uri.file, commands.executeCommand("vscode.openWith")
  *   mesh/src/opHistory.ts        — same dialog/message surface
  *   mesh/src/*EditorProvider     — workspace.createFileSystemWatcher(RelativePattern),
@@ -62,8 +62,9 @@
  *   mesh/src/runTreeView.ts   — createTreeView, TreeItem, ThemeIcon, MarkdownString
  *   mesh/src/sidebarViews.ts  — createTreeView, TreeItem, commands.registerCommand
  *                               (mesh 3.15.0's Kratos activity-bar panel)
- *   mesh/src/emptyPreview.ts  — window.createWebviewPanel
- * That is what keeps all of the above out of both the bundle and this shim.
+ *   mesh/src/emptyPreview.ts  — general window.createWebviewPanel
+ * Tree APIs and commands.registerCommand remain out of the bundle and shim;
+ * createWebviewPanel supports only the script-free kratos.exportReport route.
  * KKSS covers the same ground natively: runs via File ▸ Stop Kratos Run, recent
  * meshes via File ▸ Open Recent, and the empty-preview shell via its own tab
  * model (a mode screen always has at least one tab, so KKSS structurally cannot
@@ -83,6 +84,7 @@ import { toast, progressToast } from "./services/notifications";
 import { createFileSystemWatcher } from "./services/watcher";
 import { stateStore } from "./services/stateStore";
 import { entryForVscode, normalize, registry, toStored } from "./services/settings/registry";
+import { createStaticReportPanel } from "./services/staticReport";
 
 // ---- Hooks the app injects (avoids import cycles) ---------------------------
 
@@ -307,6 +309,14 @@ interface CancellationTokenLike {
 }
 
 export const window = {
+  /** Only mesh's script-free packing report is supported, not a general VS Code panel. */
+  createWebviewPanel: (viewType: string, title: string, _column: unknown, options?: { enableScripts?: boolean }) => {
+    if (viewType !== "kratos.exportReport" || options?.enableScripts !== false) {
+      throw new Error(`vscodeShim: unsupported webview panel "${viewType}" (only script-free export reports are supported)`);
+    }
+    return createStaticReportPanel(title);
+  },
+
   showOpenDialog: async (options: {
     canSelectMany?: boolean;
     canSelectFiles?: boolean;

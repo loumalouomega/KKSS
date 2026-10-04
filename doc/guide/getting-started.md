@@ -35,6 +35,8 @@ The toolbar at the top of the window holds the mode toggle:
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved. The two viewers share one layout — a document chip in the menubar, an icon-headed sidebar with a collapsed **Advanced** group, a floating toolbar and dock, and a status bar — described in [Pre-Processing](/guide/cad-mode#reading-the-window-at-a-glance) and [Post-Processing](/guide/mesh-mode#reading-the-window-at-a-glance). The app's own toolbar, home screen, chat and jobs panels use the same look, and the **Terminal**, **Chat** and **Jobs** buttons show as pressed while their panel is open.
 
+In Post-Processing, **File ▸ Import Mesh…** adds several files to the active model in one undoable operation without welding. **File ▸ Export Mesh As** groups the writable formats; **Export…** retains its `Ctrl+E` shortcut. Choose **Show report**, or **Advanced ▸ Export report…**, to inspect export fidelity and provenance. **Advanced ▸ Streamlines…** offers worker-backed tracing and tube styling, while **Flow balance… ▸ All steps** scans a timeline and exports CSV. See [Post-Processing](/guide/mesh-mode) for field units, pressure conversion and Fluid time-stepping validation.
+
 For a complete first simulation, follow the [geometry-to-results tutorials](/guide/tutorial-geometry-to-results): each of the five built-in physics cases starts with CAD geometry, runs through the Problemtype sidebar and checks actual solver results.
 
 ### The project folder
@@ -172,7 +174,7 @@ The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**) op
 
 For mesh-format CAD models, the assistant replays pending edits when it generates a mesh, exports an FE mesh or compares models. `save_model` can bake edits into STL, OBJ or PLY sources after approval, keeping a `.bak` copy; mesh health, inspection and promotion tools report the raw source. The CAD viewer’s **File ▸ Save** continues to save its edit history and settings to sidecars.
 
-The assistant can also pack a run's per-step results into an XDMF timeline with `mesh_pack_series`, matching **File ▸ Pack Time Series Into One File…**. Keep the resulting `.xdmf` and its sibling `.h5` together when copying or sharing the results.
+The assistant can also pack a run's per-step results with `mesh_pack_series`, matching **File ▸ Pack Time Series Into One File…**. XDMF needs a constant mesh; keep its `.xdmf` and sibling `.h5` together. Use `target: "pvd"` for changing meshes or an already-stepped source, and keep the index and step directory together. Packing/resampling return per-step export reports, and the preview's **Advanced ▸ Export report…** inspector reviews the same fidelity categories used by the write tools. Boundary flow scans support all steps and explicit pressure-density conversion; field conversion accepts a constant or same-kind density field without guessing units or pressure reference. See the [mesh guide](/guide/mesh-mode).
 
 Each message uses the tools available when you send it. If a server becomes ready while the assistant is responding, its tools become available on your next message. You can wait for its status dot to turn green before sending a task that needs it.
 

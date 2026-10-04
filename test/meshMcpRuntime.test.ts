@@ -7,6 +7,8 @@ import * as path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { parseMdpa } from '../mesh/src/parser/mdpaParser';
 import type { MmgWorkResponse } from '../mesh/src/mmgWorkerClient';
+import type { StreamlineWorkResponse } from '../mesh/src/streamlineWorker';
+import { TOOL_ACCESS } from '../app/main/services/chat/toolPolicy';
 
 const root = path.resolve(__dirname, '..');
 const server = path.join(root, 'out/mcpServer.js');
@@ -45,10 +47,15 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
   };
   try {
     await client.connect(transport);
+    const tools = (await client.listTools()).tools;
+    expect(tools.map(t => `mesh__${t.name}`).sort()).toEqual(Object.keys(TOOL_ACCESS).filter(n => n.startsWith('mesh__')).sort());
+    expect(tools.find(t => t.name === 'mesh_flow_balance')?.inputSchema.properties).toHaveProperty('pressureDensity');
+    expect(tools.find(t => t.name === 'mesh_pack_series')?.inputSchema.properties).toHaveProperty('provenance');
     const source = path.join(dir, 'square.mdpa');
     fs.writeFileSync(source, fixture);
     const capabilities = await call('mesh_capabilities');
     expect(JSON.stringify(capabilities)).toContain('vtk');
+    expect(capabilities.exportFidelity.version).toBe(2);
     const selection = await call('mesh_select', { path: source, seed: { kind: 'property', propertyId: 2 } });
     expect(selection.elementIds).toEqual([2]);
     expect(selection.conditionIds).toEqual([]);
@@ -62,11 +69,20 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
     await call('mesh_convert', { path: source, outputPath: converted });
     assertProbe(await call('mesh_probe', { path: converted, ...probeArgs }));
     const edited = path.join(dir, 'edited.mdpa');
-    await call('mesh_transform', { path: source, outputPath: edited, ops: [
+    const transformed = await call('mesh_transform', { path: source, outputPath: edited, provenance: 'sidecar', verify: true, ops: [
       { op: 'setProperty', propertyId: 1, name: 'DENSITY', value: 2700 },
       { op: 'createSubModelPartFromSelection', name: 'Kept', parentPath: '', elements: [1] },
       { op: 'deleteEntities', elements: [2] },
     ] });
+    expect(transformed.report.provenance.embedded).toBe(true);
+    expect(transformed.report.unexpected).toEqual([]);
+    // The sidecar captures the write; verify:true adds read-back evidence to
+    // the returned report after publication, without rewriting that record.
+    const sidecar = JSON.parse(fs.readFileSync(edited + '.kratosexport.json', 'utf8'));
+    expect(sidecar.provenance).toEqual(transformed.report.provenance);
+    expect(sidecar.operations).toEqual(transformed.report.operations);
+    expect(sidecar.categories).toEqual(transformed.report.categories.map(({ verified: _verified, ...category }: { verified?: boolean }) => category));
+    expect(transformed.report.categories.every((c: { verified?: boolean }) => c.verified === true)).toBe(true);
     const text = fs.readFileSync(edited, 'utf8');
     expect(text).toMatch(/DENSITY\s+2700/);
     expect(text).toMatch(/Begin SubModelPart Kept/);
@@ -78,6 +94,39 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
   } finally {
     await client.close();
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+}, 60_000);
+
+it.skipIf(!fs.existsSync(server))('bundled streamline worker traces, streams progress and retains partial cancellation', async () => {
+  const workerPath = path.join(root, 'out/streamlineWorker.js');
+  expect(fs.existsSync(workerPath)).toBe(true);
+  const model = parseMdpa(fixture + `Begin NodalData V\n1 0 (1,0,0)\n2 0 (1,0,0)\n3 0 (1,0,0)\n4 0 (1,0,0)\nEnd NodalData\n`);
+  for (const cancel of [false, true]) {
+    const worker = new Worker(workerPath);
+    const progress: number[] = [];
+    try {
+      const response = new Promise<StreamlineWorkResponse>((resolve, reject) => {
+        worker.on('error', reject);
+        worker.on('exit', code => reject(new Error(`Streamline worker exited before replying: ${code}`)));
+        worker.on('message', (message: StreamlineWorkResponse) => {
+          if (message.type === 'progress') {
+            progress.push(message.done);
+            if (cancel && message.done === 1) worker.postMessage({ type: 'cancel' });
+          } else resolve(message);
+        });
+      });
+      const count = cancel ? 2000 : 4;
+      worker.postMessage({ type: 'trace', model, params: { variable: 'V', seeds: { kind: 'line', from: [0.1, 0.1, 0], to: [0.1, 0.9, 0], count }, stepFraction: cancel ? 0.001 : 0.25, maxSeeds: 5000 } });
+      const message = await response;
+      expect(message.type, JSON.stringify(message)).toBe('done');
+      if (message.type !== 'done') throw new Error('Trace failed');
+      expect(message.result.cancelled).toBe(cancel);
+      expect(progress.length).toBeGreaterThan(0);
+      expect(message.result.lines.length).toBeGreaterThan(0);
+      expect(message.result.lines[0].points).toBeInstanceOf(Float64Array);
+      if (cancel) expect(message.result.lines.length).toBeLessThan(count);
+      else { expect(message.result.lines).toHaveLength(count); expect(progress[progress.length - 1]).toBe(count); }
+    } finally { await worker.terminate(); }
   }
 }, 60_000);
 

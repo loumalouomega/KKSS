@@ -374,7 +374,7 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       enumLabels: [t("Automatic"), t("Write a full sidecar report"), t("Do not record provenance")],
       applies: "live",
       vscode: { section: "kratos.export", key: "provenance" },
-      description: t("Record source and operation provenance in supported mesh formats. Sidecar writes a full .kratosexport.json report beside every export; formats with an embedded provenance slot may carry both."),
+      description: t("Embed provenance in supported native comments and meshio++ headers. Sidecar also writes a .kratosexport.json report (one per series); problem archives keep their record inside the ZIP. None adds no new provenance; reports remain available."),
     },
     {
       id: "kratos.flowgraph.splitOrientation",

@@ -35,11 +35,11 @@ It needs a host with **WebAssembly JSPI** (`WebAssembly.Suspending`) and WebGL2,
 
 | Value | Behavior |
 | --- | --- |
-| `Automatic` (default) | Embed provenance when the chosen format has a supported slot; otherwise do not add a sidecar. |
-| `Write a full sidecar report` | Write a complete `.kratosexport.json` report beside every export; formats with an embedded provenance slot can carry both. |
-| `Do not record provenance` | Omit provenance records. |
+| `Automatic` (default) | Embed provenance in supported native comments/headers and meshio++ slots. Problem archives keep a separate record inside the ZIP without rewriting pristine mesh bytes. |
+| `Write a full sidecar report` | Also write a complete `.kratosexport.json` report beside the output; packing/resampling share one collection sidecar instead of one per step. |
+| `Do not record provenance` | Add no new provenance or sidecar. Copying source bytes preserves any record already in those bytes; fidelity reports remain available. |
 
-Every export also offers a measured fidelity report, which can be opened in the text editor to review retained, transformed, omitted and unverified data.
+**Show report** opens the graphical inspector (also **Advanced ▸ Export report…**) with retained, transformed, omitted and unverified categories, companions, provenance, warnings and copyable JSON. Packed-series reports open in a separate script-free window. Native MDPA, OBJ, PLY and VTK XML can embed comments; legacy VTK uses a limited title. STL and temporal XDMF need sidecars for their complete record. MCP write tools with `verify: true` additionally re-read claims and report contradictions; this returned verification evidence is added after the write-time sidecar has been published. Unknown/unmeasured topology, structured VTI and temporal XDMF are not silently treated as verified.
 
 **Kratos ▸ Material Library Folders** lists project-relative folders to scan for user material presets (default `.kratos/materials`). Importing a preset into a case writes a snapshot, so generated cases do not depend on the library remaining unchanged.
 

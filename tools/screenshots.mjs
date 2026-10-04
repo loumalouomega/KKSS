@@ -26,6 +26,7 @@ import { jobsScenario } from "./jobs.e2e.mjs";
 import { kratosStartupScenario } from "./kratosStartup.e2e.mjs";
 import { manualTutorials } from "./tutorials/manual.mjs";
 import { scriptedCapture } from "./tutorials/assistant.mjs";
+import { mesh423Scenario } from "./e2e/mesh-423.mjs";
 
 const OUT = path.join(root, "doc", "public", "screenshots");
 const IMAGES = path.join(root, "images");
@@ -330,6 +331,8 @@ if (!meshOnly) await sessionCad();
 await sessionMdpa();
 await sessionVtk();
 await sessionProperties();
+// Verified new mesh panels, using deterministic files and their real hosts.
+await mesh423Scenario(OUT);
 // Last, so its recents list contains the documents the sessions above opened.
 if (!meshOnly) {
   await sessionHome();

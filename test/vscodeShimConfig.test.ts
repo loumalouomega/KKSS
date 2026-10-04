@@ -10,6 +10,9 @@ vi.mock("../app/main/services/dialogs", () => ({}));
 vi.mock("../app/main/services/quickPick", () => ({}));
 vi.mock("../app/main/services/notifications", () => ({}));
 vi.mock("../app/main/services/watcher", () => ({}));
+vi.mock("../app/main/services/staticReport", () => ({
+  createStaticReportPanel: vi.fn(() => ({ webview: { html: "" } })),
+}));
 
 const store: Record<string, unknown> = {};
 const listeners = new Set<(key: string, value: unknown) => void>();
@@ -28,7 +31,7 @@ vi.mock("../app/main/services/stateStore", () => ({
   },
 }));
 
-const { workspace } = await import("../app/main/vscodeShim");
+const { workspace, window } = await import("../app/main/vscodeShim");
 
 beforeEach(() => {
   for (const k of Object.keys(store)) delete store[k];
@@ -78,5 +81,14 @@ describe("workspace.getConfiguration", () => {
     expect(seen).toEqual([true]);
     await expect(workspace.getConfiguration("kratos").update("nope", 1)).rejects.toThrow();
     sub.dispose();
+  });
+});
+
+describe("script-free export report panel", () => {
+  it("supports only the upstream report's explicitly script-disabled panel", () => {
+    expect(window.createWebviewPanel("kratos.exportReport", "Export report", 2, { enableScripts: false })).toEqual({ webview: { html: "" } });
+    expect(() => window.createWebviewPanel("kratos.exportReport", "Export report", 2, { enableScripts: true })).toThrow("unsupported webview panel");
+    expect(() => window.createWebviewPanel("kratos.exportReport", "Export report", 2)).toThrow("unsupported webview panel");
+    expect(() => window.createWebviewPanel("kratos.emptyPreview", "Preview", 2, { enableScripts: false })).toThrow("unsupported webview panel");
   });
 });
