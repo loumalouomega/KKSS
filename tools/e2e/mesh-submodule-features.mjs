@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { scenario, assert, selectFile, until, menu, quitApp } from './context.mjs';
+import { clickPickerOption } from './picker.mjs';
 
 // Small, deterministic fixtures: two property regions and a linear nodal field.
 const nodes = '1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n5 1 1 1';
@@ -58,7 +59,7 @@ await scenario('mesh-submodule-features', async c => {
   await selectFile(app, exported, true);
   await selection.getByRole('button', { name: 'Export', exact: true }).click();
   const picker = await c.page(app, 'picker');
-  await picker.getByRole('option').filter({ hasText: '.mdpa' }).click();
+  await clickPickerOption(picker.getByRole('option').filter({ hasText: '.mdpa' }));
   await until(() => fs.existsSync(exported) && fs.readFileSync(exported, 'utf8').includes('End Elements'), 'selection export writes through the native dialog');
   const selectedText = fs.readFileSync(exported, 'utf8');
   assert.match(selectedText, /1\s+1\s+1\s+2\s+3\s+4/);

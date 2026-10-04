@@ -476,14 +476,27 @@ grep -c "<package>" out/main.js   # does it reach the bundle?
 When an upstream range still admits a vulnerable version, pin it in the root
 `package.json`'s `overrides` block (the `cad/` and `mesh/` submodules keep
 equivalent pins for their own trees) and drop the entry once upstream's own
-range excludes the bad versions. Current pins — `fast-uri` and
-`@hono/node-server`, both reaching the bundle through
-`@modelcontextprotocol/sdk` (via `ajv` and the SDK's `streamableHttp.js`
-transport respectively). Advisories that resolve only inside the
-**electron-builder** toolchain (`brace-expansion`, `minimatch`, `tar`) are
-build-time only — they never enter `out/`, and GitHub's Dependabot
-auto-dismisses them; do not force-resolve them, since the requested majors
-differ across that tree and a blanket override breaks packaging.
+range excludes the bad versions. `fast-uri` (at least 3.1.8) and
+`@hono/node-server` reach the bundle through `@modelcontextprotocol/sdk`
+(via `ajv` and the SDK's `streamableHttp.js` transport respectively).
+Build-time dependencies need updates too: the **electron-builder** tree uses
+`brace-expansion` 1.x, 2.x and 5.x, so version-scoped overrides require the
+patched 1.1.21, 2.1.7 and 5.0.12 releases without changing the majors requested
+by its different `minimatch` consumers. Never apply a blanket major override
+or `npm audit fix --force` to this tree; that can break packaging.
+
+The download toolchain also pins `http-cache-semantics` to at least 4.3.0,
+outside GHSA-ch52-4w7c-c8xp's published affected range (`<=4.2.0`). The advisory
+does not yet identify a patched release, and 4.3.0's upstream changes address
+a separate `Vary` issue; a clean audit is not confirmation that the reported
+`max-stale` behavior is fixed. This dependency is build-time only, not a
+shared HTTP cache in the shipped app. Recheck the upstream advisory before
+claiming that behavior is fixed.
+
+`test/dependencySecurity.test.ts` checks every matching root-lockfile entry,
+including nested copies, against these version floors. After refreshing the
+lockfile, run `npm audit`, the build/tests and Electron smoke verification;
+exercise packaging as well when its dependency tree changes.
 
 ## Regenerating documentation screenshots
 
@@ -534,6 +547,16 @@ The suite exercises generated CAD/mesh DOM, native menu/shim reload, CAD → mes
 Profiles and documents are temporary. Chat uses a loopback OpenAI-compatible SSE server and Kratos uses a local stdio MCP fixture through a temporary `uvx` wrapper. No provider credentials or solver installation are needed. CAD and mesh retain their real bundled runtimes. The cloud transport fixture activates only in unpackaged apps with `KKSS_E2E=1` and an absolute `KKSS_E2E_CLOUD_DIR`; it replaces only Dropbox's provider implementation, preserving the real cache, watcher, sync and quit paths. It has no renderer IPC controls. Upload barriers prove quit waits; failed and stalled transfers retain dirty state and can be retried after relaunch.
 
 `launchApp` accepts `env`, `restore` and `singleInstance` options. `restore: true` sets `KKSS_E2E_RESTORE=1`; explicit `KKSS_NO_RESTORE=1` and the user's Restore Last Session setting still take precedence. Defaults continue suppressing restoration and bypassing the instance lock for smoke and screenshots. Lifecycle tests use bounded graceful quit and observe the process exit; forced cleanup cannot count as acceptance.
+
+Quick-pick options close their own BrowserWindow immediately on selection.
+Use `tools/e2e/picker.mjs`'s `clickPickerOption` for these clicks: it arms the
+close waiter before input and accepts only the target-closed acknowledgement
+race after the picker actually closes. It retains actionability checks and
+bounded waits; other click errors or crashes still fail. Always assert the
+selection's effect in the surviving app or on disk afterward, so closing a
+picker without completing the requested operation cannot pass the scenario.
+`test/pickerInteraction.test.ts` covers both acknowledgement/closure orderings
+and failure propagation.
 
 Regression fixes found by this suite: assistant completion replaces the streaming bubble without also rendering the persisted entry; opening a staged path restarts upload tracking; repeated CAD exports refresh a matching clean mesh tab, while unrelated or dirty tabs remain intact.
 

@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { scenario, assert, selectFile, until, menu, root, softwareGL } from './context.mjs';
+import { clickPickerOption } from './picker.mjs';
 
 // A unit-area duct, constant +X velocity, outward-wound inlet/outlet faces.
 // Imports deliberately overlap it: Import is NOT an implicit weld.
@@ -258,7 +259,7 @@ internalField uniform ${value};
   await selectFile(app, packed, true);
   await menu(app, 'Pack Time Series Into One File…');
   const picker = await c.page(app, 'picker');
-  await picker.getByRole('option').filter({ hasText: 'ParaView collection' }).click();
+  await clickPickerOption(picker.getByRole('option').filter({ hasText: 'ParaView collection' }));
   let staticReport;
   await until(async () => {
     staticReport = app.windows().find(p => p.url().startsWith('data:text/html'));
