@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { cases } from './cases.mjs';
 import { root, python } from './mcp.mjs';
+import { publishTutorialPlots } from './plots.mjs';
 
 const sources = process.argv.slice(2).map(p => path.resolve(p));
 if (!sources.length) throw Error('Usage: node tools/tutorials/publish.mjs <generation-directory> [...]');
@@ -73,3 +74,4 @@ with zipfile.ZipFile(sys.argv[2], 'w', zipfile.ZIP_DEFLATED) as z:
    z.writestr(info,p.read_bytes())
 `, output, path.join(output, 'tutorial-cases.zip')]);
 console.log('Published combined tutorial-cases.zip');
+await publishTutorialPlots();

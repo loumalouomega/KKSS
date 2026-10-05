@@ -1054,7 +1054,17 @@ app.whenReady().then(() => {
   });
 
   __configureVscodeShim({
-    openWith: async (fsPath, viewType) => { await openFile(fsPath, modeForViewType(viewType)); },
+    openWith: async (fsPath, viewType, beside) => {
+      const mode = modeForViewType(viewType);
+      if (!mode) throw new Error(`Unsupported preview type: ${viewType}`);
+      if (beside && main) {
+        const hosts = mode === "cad" ? cadHosts : meshHosts;
+        const existing = [...hosts].find(([, host]) => host.currentFile && path.resolve(host.currentFile) === path.resolve(fsPath));
+        if (existing) { main.setActiveTab(mode, existing[0]); setScreen(mode); return; }
+        createTab(mode);
+      }
+      if (!await openFile(fsPath, mode, beside)) throw new Error("Could not open the owning result");
+    },
     openTextDocument: (fsPath) => void editor?.openPath(fsPath),
     openLatestResults,
     // Only the explicit root becomes a workspace folder — see the shim.

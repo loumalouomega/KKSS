@@ -1,0 +1,221 @@
+{
+  "version": 1,
+  "tool": "Kratos MDPA Preview",
+  "recipe": {
+    "version": 1,
+    "sources": [
+      {
+        "id": "reaction",
+        "type": "region",
+        "path": "../vtk_output/Structure_0_1.vtk",
+        "kind": "Nodal",
+        "variable": "REACTION",
+        "scope": "history",
+        "operation": "sum",
+        "times": [
+          0.125,
+          0.25,
+          0.375,
+          0.5,
+          0.625,
+          0.75,
+          0.875,
+          1
+        ],
+        "timeUnit": "s"
+      }
+    ],
+    "series": [
+      {
+        "id": "reaction",
+        "source": "reaction",
+        "name": "Sum of supplied REACTION Z",
+        "x": "time",
+        "y": "v2",
+        "transforms": [
+          {
+            "op": "convert",
+            "factor": 1,
+            "unit": "N"
+          }
+        ]
+      }
+    ],
+    "presentation": {
+      "family": "line",
+      "title": "Whole-mesh signed nodal reaction sum",
+      "lineMode": "lines+markers",
+      "xLabel": "Static analysis pseudo-time [s]",
+      "yLabel": "Reaction Z [N]"
+    }
+  },
+  "sources": [
+    {
+      "id": "reaction",
+      "revision": "07e2127f2199110bedd002b7090063a78b9991771b81a9ab8641a017afdf4650",
+      "rows": 8,
+      "columns": [
+        {
+          "id": "time",
+          "label": "Physical time",
+          "type": "number",
+          "domain": "physicalTime",
+          "unit": "s",
+          "dimensions": [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "id": "frame",
+          "label": "Frame index",
+          "type": "number",
+          "domain": "frameIndex"
+        },
+        {
+          "id": "v0",
+          "label": "REACTION sum X",
+          "type": "number"
+        },
+        {
+          "id": "v1",
+          "label": "REACTION sum Y",
+          "type": "number"
+        },
+        {
+          "id": "v2",
+          "label": "REACTION sum Z",
+          "type": "number"
+        },
+        {
+          "id": "covered",
+          "label": "Covered measure/entities",
+          "type": "number"
+        },
+        {
+          "id": "measure",
+          "label": "Total measure/entities",
+          "type": "number"
+        }
+      ],
+      "partial": false
+    }
+  ],
+  "partial": false,
+  "diagnostics": [],
+  "fullCount": 8,
+  "displayCount": 8,
+  "series": [
+    {
+      "id": "reaction",
+      "name": "Sum of supplied REACTION Z",
+      "x": {
+        "id": "time",
+        "label": "Physical time",
+        "type": "number",
+        "domain": "physicalTime",
+        "unit": "s",
+        "dimensions": [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "y": {
+        "id": "v2",
+        "label": "REACTION sum Z",
+        "type": "number",
+        "unit": "N",
+        "dimensions": [
+          1,
+          1,
+          -2,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "originalX": {
+        "id": "time",
+        "label": "Physical time",
+        "type": "number",
+        "domain": "physicalTime",
+        "unit": "s",
+        "dimensions": [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "originalY": {
+        "id": "v2",
+        "label": "REACTION sum Z",
+        "type": "number"
+      },
+      "statistics": {
+        "count": 8,
+        "missing": 0,
+        "min": -7.200032388982558,
+        "max": -7.200032311218609,
+        "mean": -7.200032321375148,
+        "std": 2.555390826311832e-8,
+        "q1": -7.200032311800008,
+        "median": -7.200032311800005,
+        "q3": -7.200032311799993
+      },
+      "diagnostics": [
+        "History reads disk values without replaying mesh edits.",
+        "1: Regional quantity uses source coordinates, not viewport deformation or display sampling.",
+        "1: Region extraction parameters: {\"id\":\"reaction\",\"type\":\"region\",\"path\":\"../vtk_output/Structure_0_1.vtk\",\"kind\":\"Nodal\",\"variable\":\"REACTION\",\"scope\":\"history\",\"operation\":\"sum\",\"times\":[0.125,0.25,0.375,0.5,0.625,0.75,0.875,1],\"timeUnit\":\"s\"}",
+        "1: 1048/1048 unique Nodal entities covered; subtree memberships are deduplicated. Mean is an unweighted entity mean; sums retain supplied signs.",
+        "Y units are unknown."
+      ]
+    }
+  ],
+  "tutorial": {
+    "case": "structural",
+    "inputs": {
+      "ProjectParameters.json": "f987386f83660cb70c07e074ab0c84f1e902f4eccaf67968688a15d11e84984a",
+      "recipe.json": "8ba04382abbc558aa56e47737b23a918cbb94cee8161d7dd1c4ab5423ba5db29",
+      "vtk_output/Structure_0_1.vtk": "343ec5f4b81819390e344660621e585c19343fd956f037d2996e12b98b877205",
+      "vtk_output/Structure_0_2.vtk": "a447f653dcdcdcf7ef7a268fc6365a395d4c50ef7b12f072db1925ef868ec4c8",
+      "vtk_output/Structure_0_3.vtk": "6f69f76c80ef8728f8ef798ec3292bca813331b7c82cb44cb88bcdb3d59c0ec7",
+      "vtk_output/Structure_0_4.vtk": "841ae21312d7a6e6da66692214aa04068af66d56cdd6701388b1f041707151b5",
+      "vtk_output/Structure_0_5.vtk": "d525a2f7acd356ed7749b159f5dd9b94448b84b94ae323022a1b1c6114959b75",
+      "vtk_output/Structure_0_6.vtk": "a4d75c5bd0596f36092d5789a275c1dfea567f5b9e0e699f5bdd6ab169f94c0b",
+      "vtk_output/Structure_0_7.vtk": "21a629b0a9b04b71eece882eb9a51740860b76f66663791efeacbeda4862622c",
+      "vtk_output/Structure_0_8.vtk": "8fde53817e99e66f29fed88e8cf421093202bf474d64ec51b8648d9adcf0ea58"
+    },
+    "timeMapping": {
+      "basis": "start_time + STEP * fixed time_step; VTK suffix is STEP, not a timestamp",
+      "start": 0,
+      "dt": 0.125,
+      "times": [
+        0.125,
+        0.25,
+        0.375,
+        0.5,
+        0.625,
+        0.75,
+        0.875,
+        1
+      ],
+      "configuredEndTime": 1
+    },
+    "units": "Explicitly supplied from the tutorial SI setup using recipe convert transforms; original VTK field units remain unknown"
+  }
+}

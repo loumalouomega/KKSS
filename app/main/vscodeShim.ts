@@ -64,7 +64,8 @@
  *                               (mesh 3.15.0's Kratos activity-bar panel)
  *   mesh/src/emptyPreview.ts  — general window.createWebviewPanel
  * Tree APIs and commands.registerCommand remain out of the bundle and shim;
- * createWebviewPanel supports only the script-free kratos.exportReport route.
+ * createWebviewPanel supports script-free kratos.exportReport and the narrow,
+ * trusted generated kratos.plotBuilder page. It is not a general panel host.
  * KKSS covers the same ground natively: runs via File ▸ Stop Kratos Run, recent
  * meshes via File ▸ Open Recent, and the empty-preview shell via its own tab
  * model (a mode screen always has at least one tab, so KKSS structurally cannot
@@ -85,12 +86,13 @@ import { createFileSystemWatcher } from "./services/watcher";
 import { stateStore } from "./services/stateStore";
 import { entryForVscode, normalize, registry, toStored } from "./services/settings/registry";
 import { createStaticReportPanel } from "./services/staticReport";
+import { createPlotPanel } from "./services/plotPanel";
 
 // ---- Hooks the app injects (avoids import cycles) ---------------------------
 
 export interface VscodeShimHooks {
   /** Implements the "vscode.openWith" command (routes into cad/mesh views). */
-  openWith(fsPath: string, viewType: string): void | Promise<void>;
+  openWith(fsPath: string, viewType: string, beside?: boolean): void | Promise<void>;
   /** Implements the openTextDocument/showTextDocument "reveal a file" flow. */
   openTextDocument(fsPath: string): void;
   /**
@@ -254,10 +256,8 @@ export enum ProgressLocation {
 }
 
 /**
- * KKSS has one panel per mode (see CLAUDE.md's "one document per mode"
- * invariant), so there is no split-editor equivalent — values exist only so
- * `vscode.ViewColumn.Beside` (ptController.ts's openResults) doesn't throw;
- * commands.executeCommand("vscode.openWith") ignores the column argument.
+ * KKSS uses document tabs rather than editor columns. Explicit Beside opens
+ * reveal an existing owning tab or create another, preserving unrelated work.
  */
 export enum ViewColumn {
   Active = -1,
@@ -309,10 +309,11 @@ interface CancellationTokenLike {
 }
 
 export const window = {
-  /** Only mesh's script-free packing report is supported, not a general VS Code panel. */
+  /** Two narrow trusted routes, not a general VS Code panel host. */
   createWebviewPanel: (viewType: string, title: string, _column: unknown, options?: { enableScripts?: boolean }) => {
+    if (viewType === "kratos.plotBuilder" && options?.enableScripts === true) return createPlotPanel(title);
     if (viewType !== "kratos.exportReport" || options?.enableScripts !== false) {
-      throw new Error(`vscodeShim: unsupported webview panel "${viewType}" (only script-free export reports are supported)`);
+      throw new Error(`vscodeShim: unsupported webview panel "${viewType}" (only script-free export reports and the scientific plot builder are supported)`);
     }
     return createStaticReportPanel(title);
   },
@@ -616,7 +617,7 @@ export const commands = {
     switch (command) {
       case "vscode.openWith": {
         const uri = args[0] as Uri;
-        await hooks.openWith(uri.fsPath, String(args[1] ?? ""));
+        await hooks.openWith(uri.fsPath, String(args[1] ?? ""), args[2] === ViewColumn.Beside);
         return;
       }
       // RunManager.changed() fires this on every registry mutation to gate the

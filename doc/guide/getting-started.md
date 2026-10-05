@@ -39,6 +39,10 @@ In Post-Processing, **File ▸ Import Mesh…** adds several files to the active
 
 For a complete first simulation, follow the [geometry-to-results tutorials](/guide/tutorial-geometry-to-results): each of the five built-in physics cases starts with CAD geometry, runs through the Problemtype sidebar and checks actual solver results.
 
+### Scientific plotting
+
+Click **Plots** in a mesh tab to compare point histories, analyze regional quantities and follow spatial profiles as you scrub results. Dock beside/below, resize or collapse without losing curves. **File → Scientific Plot Builder…** opens a separate workspace for CSV/TSV or saved recipes, even without a mesh. Both offer twelve chart families, numerical analysis, recipes and CSV/PNG/SVG exports with provenance. Try [CFD pressure evolution](tutorial-fluid#plot-pressure-evolution-and-the-wake) or the [plotting guide](scientific-plots). Missing units/time remain explicit; filenames are not timestamps.
+
 ### The project folder
 
 **File ▸ Open Folder…** sets a project folder — the one place KKSS treats as "where you are working". It is remembered across launches, shown in the toolbar (hover for the full path, click to change) and on the home screen, and it seeds:
@@ -175,6 +179,8 @@ The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**) op
 For mesh-format CAD models, the assistant replays pending edits when it generates a mesh, exports an FE mesh or compares models. `save_model` can bake edits into STL, OBJ or PLY sources after approval, keeping a `.bak` copy; mesh health, inspection and promotion tools report the raw source. The CAD viewer’s **File ▸ Save** continues to save its edit history and settings to sidecars.
 
 The assistant can also pack a run's per-step results with `mesh_pack_series`, matching **File ▸ Pack Time Series Into One File…**. XDMF needs a constant mesh; keep its `.xdmf` and sibling `.h5` together. Use `target: "pvd"` for changing meshes or an already-stepped source, and keep the index and step directory together. Packing/resampling return per-step export reports, and the preview's **Advanced ▸ Export report…** inspector reviews the same fidelity categories used by the write tools. Boundary flow scans support all steps and explicit pressure-density conversion; field conversion accepts a constant or same-kind density field without guessing units or pressure reference. See the [mesh guide](/guide/mesh-mode).
+
+Scientific plotting shares its numerical core with the assistant: `mesh__plot_dataset` evaluates recipes and can export all samples with provenance (normal write approval applies); table inspection, saved-run discovery/binding and exact time/target resolution are read-only. Ask it to compare the tutorial's upstream/downstream pressure histories with explicit times and units. It must not invent result ownership, boundary coverage or correspondence between remeshed IDs.
 
 Each message uses the tools available when you send it. If a server becomes ready while the assistant is responding, its tools become available on your next message. You can wait for its status dot to turn green before sending a task that needs it.
 

@@ -1,5 +1,7 @@
 # Geometry to results
 
+The downloadable cases also contain [scientific plotting recipes](scientific-plots#worked-examples), full-resolution CSV and provenance: cylinder pressure evolution/wake profiles, cantilever displacement/reactions, temperature/potential profiles and basin depth histories. Extract a complete archive before loading its `plots/*.json` in **Plots** or **File → Scientific Plot Builder…**.
+
 These five tutorials join the CAD and mesh guides into one complete Kratos workflow: make or import geometry, preserve named regions in an MDPA mesh, configure a built-in Problemtype, run a solver and inspect its VTK fields. Each worked case was run with Kratos 10.4.3 and is downloadable with its solver-produced results and provenance.
 
 | Physics | Worked case | Check |

@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "depth",
+      "type": "history",
+      "path": "../vtk_output/main_model_part_0_1.vtk",
+      "kind": "Nodal",
+      "entityId": 128,
+      "variable": "HEIGHT",
+      "times": [
+        0.015625,
+        0.03125,
+        0.046875,
+        0.0625,
+        0.078125,
+        0.09375,
+        0.109375,
+        0.125
+      ],
+      "timeUnit": "s"
+    }
+  ],
+  "series": [
+    {
+      "id": "depth",
+      "source": "depth",
+      "name": "Depth at node 128",
+      "x": "time",
+      "y": "v0",
+      "transforms": [
+        {
+          "op": "convert",
+          "factor": 1,
+          "unit": "m"
+        }
+      ]
+    }
+  ],
+  "presentation": {
+    "family": "line",
+    "title": "Still-water basin depth",
+    "lineMode": "lines+markers",
+    "xLabel": "Reconstructed solver time [s]",
+    "yLabel": "Water depth [m]"
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "tool": "Kratos MDPA Preview",
+  "recipe": {
+    "version": 1,
+    "sources": [
+      {
+        "id": "profile",
+        "type": "probe",
+        "path": "../vtk_output/ThermalModelPart_0_1.vtk",
+        "points": [
+          [
+            -0.0014999700130382554,
+            0,
+            0
+          ],
+          [
+            0.0014999700130382554,
+            0,
+            0
+          ]
+        ],
+        "variable": "TEMPERATURE",
+        "samples": 60,
+        "timeStep": 0
+      }
+    ],
+    "series": [
+      {
+        "id": "profile",
+        "source": "profile",
+        "name": "TEMPERATURE",
+        "x": "distance",
+        "y": "v0",
+        "transforms": [
+          {
+            "op": "convert",
+            "factor": 1,
+            "unit": "K"
+          }
+        ]
+      }
+    ],
+    "presentation": {
+      "family": "line",
+      "title": "Stationary conduction: temperature profile",
+      "lineMode": "lines+markers",
+      "xLabel": "Distance along probe [m; supplied by SI case]",
+      "yLabel": "Temperature [K]"
+    }
+  },
+  "sources": [
+    {
+      "id": "profile",
+      "revision": "423f2e3faf91d4149dae93d68e1b4803399f9097b30f381c38926648009c06a7",
+      "rows": 60,
+      "columns": [
+        {
+          "id": "distance",
+          "label": "Distance",
+          "type": "number"
+        },
+        {
+          "id": "v0",
+          "label": "TEMPERATURE",
+          "type": "number"
+        }
+      ],
+      "partial": false
+    }
+  ],
+  "partial": false,
+  "diagnostics": [],
+  "fullCount": 60,
+  "displayCount": 60,
+  "series": [
+    {
+      "id": "profile",
+      "name": "TEMPERATURE",
+      "x": {
+        "id": "distance",
+        "label": "Distance",
+        "type": "number"
+      },
+      "y": {
+        "id": "v0",
+        "label": "TEMPERATURE",
+        "type": "number",
+        "unit": "K",
+        "dimensions": [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      "originalX": {
+        "id": "distance",
+        "label": "Distance",
+        "type": "number"
+      },
+      "originalY": {
+        "id": "v0",
+        "label": "TEMPERATURE",
+        "type": "number"
+      },
+      "statistics": {
+        "count": 60,
+        "missing": 0,
+        "min": 300.0009999997509,
+        "max": 399.99899999941414,
+        "mean": 349.99999643622,
+        "std": 29.352126713356842,
+        "q1": 325.00049899082205,
+        "median": 349.9999979899713,
+        "q3": 374.9994911712722
+      },
+      "diagnostics": [
+        "0 of 60 probe samples are uncovered; gaps retained.",
+        "Nodal field sampled at fixed spatial coordinates; no implicit cell averaging.",
+        "Probe extraction parameters: {\"id\":\"profile\",\"type\":\"probe\",\"path\":\"../vtk_output/ThermalModelPart_0_1.vtk\",\"points\":[[-0.0014999700130382554,0,0],[0.0014999700130382554,0,0]],\"variable\":\"TEMPERATURE\",\"samples\":60,\"timeStep\":0}",
+        "Y units are unknown.",
+        "X units are unknown (not assumed seconds)."
+      ]
+    }
+  ],
+  "tutorial": {
+    "case": "thermal",
+    "inputs": {
+      "ProjectParameters.json": "99944489af12c93f625f8000f4983df6892be6301629ba62ba745ffea93d082c",
+      "recipe.json": "ee23635b737d5187993a125dd213449ade28059ee4afc40808fc4dc9af95ed1d",
+      "vtk_output/ThermalModelPart_0_1.vtk": "4d7e377e1b5ea1c3d41cb97bb01a65bf312e92079a2cdd49ac6787ed3a3c6dec"
+    },
+    "timeMapping": {
+      "basis": "start_time + STEP * fixed time_step; VTK suffix is STEP, not a timestamp",
+      "start": 0,
+      "dt": 1,
+      "times": [
+        1
+      ],
+      "configuredEndTime": 1
+    },
+    "units": "Explicitly supplied from the tutorial SI setup using recipe convert transforms; original VTK field units remain unknown"
+  }
+}

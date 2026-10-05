@@ -37,6 +37,8 @@ import { describeWithin, rootLabel } from "./services/projectRootCore";
 import type { RecentFile } from "./services/recentFilesCore";
 import { RESTORE_SESSION_KEY } from "./services/session";
 import { DOCS_URL } from "./urls";
+import { openPlotBuilder } from "../../mesh/src/plotController";
+import { createMeshExtensionContext } from "./mesh/meshHost";
 
 export interface MenuDeps {
   main: MainWindow;
@@ -491,6 +493,10 @@ export function installMenu(deps: MenuDeps): void {
           label: t("Export Data Table…"),
           enabled: !inCad(),
           click: () => void activeMeshHost()?.dispatchMenu({ type: "menuExportTable" }),
+        },
+        {
+          label: t("Scientific Plot Builder…"),
+          click: () => openPlotBuilder(createMeshExtensionContext(__dirname)),
         },
         {
           // mesh 3.8.0's kratos.case.stop — the run manager's stop ladder

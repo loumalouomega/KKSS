@@ -203,6 +203,12 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__mesh_periodic: "write",
   mesh__mesh_info: "read",
   mesh__mesh_capabilities: "read",
+  mesh__plot_table_read: "read",
+  mesh__plot_dataset: "write", // Optional CSV/provenance export.
+  mesh__plot_runs: "read",
+  mesh__plot_run_bind: "read",
+  mesh__plot_time_cursor: "read",
+  mesh__plot_run_target: "read",
   mesh__mesh_quality: "read",
   mesh__mesh_field_integrate: "read",
   mesh__mesh_flow_balance: "write",

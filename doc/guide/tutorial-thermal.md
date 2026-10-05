@@ -24,6 +24,14 @@ Click **Generate case files**. This writes `ProjectParameters.json`, the materia
 
 When the run finishes, click **Open results**. In the VTK tab, click **Field**, select the listed field, and use the timeline to choose a step. The values below came from the verified final frame.
 
+## Plot the temperature profile
+
+Extract [thermal.zip](/examples/tutorials/thermal.zip), open the sole VTK result, and choose **Plots → Load recipe → plots/temperature-profile.json**. The recipe samples **60 positions** along the block's X centerline, just inside both ends, supplying K from the case setup. The nearly straight curve runs from approximately **300 K to 400 K** across **0.003 m**. Distance units are supplied by the SI geometry convention; legacy VTK itself does not record them.
+
+Use **Advanced → Add analysis → Regression** to inspect the slope, or export **CSV + metadata** and **PNG / SVG**. The archive includes CSV, provenance and extraction verification. This case has **one stationary solution**: it does not supply a thermal transient or heat-flux vector, so do not invent a time history or infer heat-flux integration from `TEMPERATURE` alone. See [scientific plots](scientific-plots).
+
+![Stationary temperature profile in KKSS](/screenshots/tutorial-thermal-profile.png)
+
 ## Verified result
 
 The generated stationary Laplacian solve gives 300 K on the cold end and 400 K on the hot end. The maximum difference from the linear temperature profile is 0.000019 K.
