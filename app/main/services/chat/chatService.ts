@@ -806,7 +806,13 @@ export class ChatService {
     const next = nextCount(convo.entries, convo.compactedResults ?? 0);
     if (next === null) return false;
     convo.compactedResults = next;
-    this.store.saveSoon(convo);
+    // Undebounced: the boundary must be durable before a conversation switch
+    // can reload it. saveSoon()'s 1s debounce leaves a window where close()
+    // flushes a stale snapshot under CI disk contention, silently restoring
+    // the full-size request compaction had just shrunk (see
+    // transcriptStoreCore.ts). Compaction is rare (overflow only), so the
+    // extra write is cheap.
+    this.store.save(convo);
     this.sendTo(convo, { type: "compaction", count: next });
     return true;
   }

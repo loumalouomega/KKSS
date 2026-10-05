@@ -1299,10 +1299,16 @@ describe("transcript compaction", () => {
     const id = lastState(messages).conversationId;
 
     post({ type: "newChat" });
-    await settle();
+    await settleAfterSwitch(() => expect(lastState(messages).conversationId).not.toBe(id));
     post({ type: "selectConversation", id });
-    await settleAfterSwitch(() => expect(lastState(messages).conversationId).toBe(id));
-    expect(lastState(messages).compactedResults).toBe(1);
+    // Poll for both: switchTo() awaits a real flush (fsync + rename) of the
+    // outgoing conversation, which under CI disk contention can outrun a fixed
+    // tick budget — and the reloaded state must carry the persisted boundary,
+    // not just the right id.
+    await settleAfterSwitch(() => {
+      expect(lastState(messages).conversationId).toBe(id);
+      expect(lastState(messages).compactedResults).toBe(1);
+    });
   });
 });
 
