@@ -151,6 +151,7 @@
   "Close Tab": "Cerrar pestaña",
   "Reload from Disk": "Recargar desde el disco",
   "Export Data Table…": "Exportar tabla de datos…",
+  "Scientific Plot Builder…": "Constructor de gráficos científicos…",
   "Stop Kratos Run": "Detener ejecución de Kratos",
   "Pack Time Series Into One File…": "Agrupar serie temporal en un archivo…",
   "Undo Mesh Operation": "Deshacer operación de malla",

@@ -110,7 +110,14 @@
     "vtk_output/FluidModelPart_0_6.vtk": "580395aae18866466e94a36ec63883cd84a75e93e2612352bf4cc478e3bfa5bc",
     "vtk_output/FluidModelPart_0_7.vtk": "7cfb5979741c573d78a880a36460c094aae3206d791427db4b3ed085f752dd28",
     "vtk_output/FluidModelPart_0_8.vtk": "fc1c6eae49b237c754c79f02bce9865d5bc510c446753f3a4f7266648a24d2d7",
-    "vtk_output/FluidModelPart_0_9.vtk": "517a598faae731e309d14dda5fbd67cb2d50b25c857aa0aac0f3944d72bae265"
+    "vtk_output/FluidModelPart_0_9.vtk": "517a598faae731e309d14dda5fbd67cb2d50b25c857aa0aac0f3944d72bae265",
+    "plots/pressure-history.csv": "c0dbf61f2fb03d43192e9f2c4657cff626bbe7f910584a9ba40cbf23f5e93e5e",
+    "plots/pressure-history.csv.kratosplot.json": "7ba8df430e9590585ec5335c0cecb8b607c5f8a4dfd48cb5f78d3c14c56b1480",
+    "plots/pressure-history.json": "198966283cd477bf94c8e04eb4d0a4ee060ce2c5a4853606725d639e7290bf17",
+    "plots/verification.json": "5233c4788dac9aa826faf3f761032bb8c1c767e61908180ff907c1772c26133c",
+    "plots/wake-profile.csv": "9068418567b6559bb8a8489af57d21b9e46cb379611b2109f60ccbc86d3352de",
+    "plots/wake-profile.csv.kratosplot.json": "d4cfb4e28ea44873369c7aed4d3d69bf2f4b310dfa70673901429c9a03629e24",
+    "plots/wake-profile.json": "8e45502ee76c4e524813d23e4f8353414d1b8e1b2d295df0d021854af7368082"
   },
   "source": "cad/examples/BREP/blank.brep",
   "revisions": {

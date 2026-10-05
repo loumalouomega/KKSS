@@ -37,6 +37,8 @@ rerunning.
 
 ## Structural cantilever
 
+For a multi-frame displacement/reaction plotting walkthrough, use the [CAD-to-results cantilever](tutorial-structural#plot-displacement-and-reactions). The single final frame below supports spatial/distribution plots, not an invented time history.
+
 This two-dimensional plane-strain model has 10 nodes and four quadrilateral
 elements. Its `left` SubModelPart is fixed, and its `right` SubModelPart carries
 a downward line load of 1 MN/m. The final VTK result reports a maximum vertical
@@ -50,6 +52,8 @@ displacement of `-0.25312169 mm` at the free edge. The model uses SI units.
 
 ## Lid-driven cavity
 
+Use **Inspect → Plot** for an entity's history only when the full result sequence is present. This archive supplies just the final frame; the [cylinder/obstacle tutorial](tutorial-fluid#plot-pressure-evolution-and-the-wake) includes 51 frames and ready-made pressure-history recipes. For a single cavity frame, **Plots** can compare pressure/velocity distributions or spatial profiles with explicit case units.
+
 This two-dimensional monolithic fluid case has 121 nodes and 200 elements. Its
 included final output is at time 30 and contains `VELOCITY` and `PRESSURE`
 fields; the measured maximum speed in that result is `1.0` in the case's
@@ -62,6 +66,8 @@ velocity units.
 - [Final VTK result](/examples/kratos/lid_driven_cavity/vtk_output/FluidModelPart_0_30.vtk)
 
 ## Two-stage structural load
+
+To compare stages graphically, add their explicitly selected result files as separate sources in the [Scientific Plot Builder](scientific-plots). These are different stage directories; do not infer shared physical time or entity correspondence from their identical filename suffixes. Use supplied coordinates/regions and a justified matching quantity, and keep the doubled-load comparison distinct from a transient response.
 
 This structural case has two stages on the same 55-node, 40-element mesh. The
 second stage doubles the line load. The solver-produced results show maximum

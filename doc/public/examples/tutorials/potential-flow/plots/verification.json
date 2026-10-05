@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "case": "potential-flow",
+  "source": "Published Kratos solver output; no solver rerun or synthetic values",
+  "coordinates": {},
+  "inputs": {
+    "ProjectParameters.json": "3964d61e4e3ba25e1c2884f8487ec7bebc286d331ee5875dfbdfcfa53efb6d98",
+    "recipe.json": "1a2c7a0651e2f8be128857abc8bdb0b495c5bbf46a51110c282941e66a997275",
+    "vtk_output/FluidModelPart_0_1.vtk": "0ea90a6d55936e64bac34f49fc7c7f0167212b78dbddb37e46f5098a09bbbd76"
+  },
+  "timeMapping": {
+    "basis": "Single stationary solution; no time history"
+  },
+  "units": "Explicitly supplied from the tutorial SI setup using recipe convert transforms; original VTK field units remain unknown",
+  "ownership": "No isolated-run receipt is invented; these are relocatable disk-source recipes, not verified saved-run bindings",
+  "recipes": {
+    "potential-profile": [
+      {
+        "id": "profile",
+        "count": 60,
+        "first": {
+          "x": 0,
+          "y": 1.0004079999807496,
+          "origin": {
+            "source": "profile",
+            "rowIndex": 0,
+            "frameIndex": 0
+          }
+        },
+        "last": {
+          "x": 3.9999200000000004,
+          "y": 41.79959100013751,
+          "origin": {
+            "source": "profile",
+            "rowIndex": 59,
+            "frameIndex": 0
+          }
+        },
+        "statistics": {
+          "count": 60,
+          "missing": 0,
+          "min": 1.0004079999807496,
+          "max": 41.79959100013751,
+          "mean": 21.39999978049683,
+          "std": 11.975668340864972,
+          "q1": 11.200203956177642,
+          "median": 21.399999779329917,
+          "q3": 31.599795499933343
+        }
+      }
+    ]
+  }
+}

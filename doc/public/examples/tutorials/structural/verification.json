@@ -42,7 +42,14 @@
     "vtk_output/Structure_0_5.vtk": "d525a2f7acd356ed7749b159f5dd9b94448b84b94ae323022a1b1c6114959b75",
     "vtk_output/Structure_0_6.vtk": "a4d75c5bd0596f36092d5789a275c1dfea567f5b9e0e699f5bdd6ab169f94c0b",
     "vtk_output/Structure_0_7.vtk": "21a629b0a9b04b71eece882eb9a51740860b76f66663791efeacbeda4862622c",
-    "vtk_output/Structure_0_8.vtk": "8fde53817e99e66f29fed88e8cf421093202bf474d64ec51b8648d9adcf0ea58"
+    "vtk_output/Structure_0_8.vtk": "8fde53817e99e66f29fed88e8cf421093202bf474d64ec51b8648d9adcf0ea58",
+    "plots/displacement-history.csv": "af2732a43b25c431ef4527bb5e501892369d0bb70d780aa5299c57fd2c93243c",
+    "plots/displacement-history.csv.kratosplot.json": "a458cdc780d24d2c6208f00c72d27a3b59a36553664912962682efd9b3ed606b",
+    "plots/displacement-history.json": "6724559a258568b5260c59a15d7ea66290b698708358fe24079175ae147621a4",
+    "plots/reaction-history.csv": "ce31483353994e2f081c1cf43a7fda09d96d26c2addfdefbc7008b467163d983",
+    "plots/reaction-history.csv.kratosplot.json": "74edd596c7e7dc232aab97d0f33f43d578e8059bae125d4d63b683f8a913bd68",
+    "plots/reaction-history.json": "30f21736ae3b24deb6b77a84629c6050681881053ea66ff5855b827c86b326bb",
+    "plots/verification.json": "08b26d60175f654e13a043e6e43c3357a175de8f6ad5061f6202e2db71121089"
   },
   "source": "cad/examples/STP/block.stp",
   "revisions": {

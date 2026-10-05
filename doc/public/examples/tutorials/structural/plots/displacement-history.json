@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "tip",
+      "type": "history",
+      "path": "../vtk_output/Structure_0_1.vtk",
+      "kind": "Nodal",
+      "entityId": 5,
+      "variable": "DISPLACEMENT",
+      "times": [
+        0.125,
+        0.25,
+        0.375,
+        0.5,
+        0.625,
+        0.75,
+        0.875,
+        1
+      ],
+      "timeUnit": "s"
+    }
+  ],
+  "series": [
+    {
+      "id": "tip",
+      "source": "tip",
+      "name": "Tip node 5: Z",
+      "x": "time",
+      "y": "v2",
+      "transforms": [
+        {
+          "op": "convert",
+          "factor": 1000,
+          "unit": "mm"
+        }
+      ]
+    }
+  ],
+  "presentation": {
+    "family": "line",
+    "title": "Static cantilever: displacement over load steps",
+    "lineMode": "lines+markers",
+    "xLabel": "Static analysis pseudo-time [s]",
+    "yLabel": "Displacement Z [mm]"
+  }
+}

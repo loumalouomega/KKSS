@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "case": "shallow-water",
+  "source": "Published Kratos solver output; no solver rerun or synthetic values",
+  "coordinates": {
+    "depth": {
+      "id": 128,
+      "xyz": [
+        2.0978379249572754,
+        0.5066285729408264,
+        0
+      ]
+    }
+  },
+  "inputs": {
+    "ProjectParameters.json": "332eebf4da292fdceb6d45f8a92536f717a72f14168df0216631fb066d6fd98d",
+    "recipe.json": "45ee8d47b9895064160b40b970d44e822701cf67c26876e29b383cb7eb5f597e",
+    "vtk_output/main_model_part_0_1.vtk": "f5ce86fbff39f575185b444421d701672d22b2183b3563d582cecef41873163d",
+    "vtk_output/main_model_part_0_2.vtk": "ba3b8c46dff8bafe75f34041f07bcae5dd657972d66e50ca7201b870fcd5be7d",
+    "vtk_output/main_model_part_0_3.vtk": "84d0a1f91fb20193a3a8bfe7e529a43078d16984c27a6311532c975664ff502e",
+    "vtk_output/main_model_part_0_4.vtk": "a7b1c3c4d9610a643862e3facd84e562352f80a3f637c162544b3c6219f036f3",
+    "vtk_output/main_model_part_0_5.vtk": "bc48e1d78c15f4adcbc0f9a7baec6790d062540dd501abd186d62225c098d8f8",
+    "vtk_output/main_model_part_0_6.vtk": "bb8b0ba971669793221f4411740e73c914fd24030d5ccaf9f5dfd66715327ad0",
+    "vtk_output/main_model_part_0_7.vtk": "02a46c3270589360c3d90a3d8aa3f72d1c09fea5998d6ad03f802cdafaa256a8",
+    "vtk_output/main_model_part_0_8.vtk": "30d3903804897aa3efec50d09345e0c71642ba3e4a9da1bcdbbe7d165f927ae1"
+  },
+  "timeMapping": {
+    "basis": "start_time + STEP * fixed time_step; VTK suffix is STEP, not a timestamp",
+    "start": 0,
+    "dt": 0.015625,
+    "times": [
+      0.015625,
+      0.03125,
+      0.046875,
+      0.0625,
+      0.078125,
+      0.09375,
+      0.109375,
+      0.125
+    ],
+    "configuredEndTime": 0.125
+  },
+  "units": "Explicitly supplied from the tutorial SI setup using recipe convert transforms; original VTK field units remain unknown",
+  "ownership": "No isolated-run receipt is invented; these are relocatable disk-source recipes, not verified saved-run bindings",
+  "recipes": {
+    "depth-history": [
+      {
+        "id": "depth",
+        "count": 8,
+        "first": {
+          "x": 0.015625,
+          "y": 1,
+          "origin": {
+            "source": "depth",
+            "frameIndex": 0,
+            "time": 0.015625,
+            "entityKind": "Nodes",
+            "entityId": 128
+          }
+        },
+        "last": {
+          "x": 0.125,
+          "y": 1,
+          "origin": {
+            "source": "depth",
+            "frameIndex": 7,
+            "time": 0.125,
+            "entityKind": "Nodes",
+            "entityId": 128
+          }
+        },
+        "statistics": {
+          "count": 8,
+          "missing": 0,
+          "min": 1,
+          "max": 1,
+          "mean": 1,
+          "std": 0,
+          "q1": 1,
+          "median": 1,
+          "q3": 1
+        }
+      }
+    ]
+  }
+}

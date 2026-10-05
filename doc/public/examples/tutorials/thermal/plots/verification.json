@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "case": "thermal",
+  "source": "Published Kratos solver output; no solver rerun or synthetic values",
+  "coordinates": {},
+  "inputs": {
+    "ProjectParameters.json": "99944489af12c93f625f8000f4983df6892be6301629ba62ba745ffea93d082c",
+    "recipe.json": "ee23635b737d5187993a125dd213449ade28059ee4afc40808fc4dc9af95ed1d",
+    "vtk_output/ThermalModelPart_0_1.vtk": "4d7e377e1b5ea1c3d41cb97bb01a65bf312e92079a2cdd49ac6787ed3a3c6dec"
+  },
+  "timeMapping": {
+    "basis": "start_time + STEP * fixed time_step; VTK suffix is STEP, not a timestamp",
+    "start": 0,
+    "dt": 1,
+    "times": [
+      1
+    ],
+    "configuredEndTime": 1
+  },
+  "units": "Explicitly supplied from the tutorial SI setup using recipe convert transforms; original VTK field units remain unknown",
+  "ownership": "No isolated-run receipt is invented; these are relocatable disk-source recipes, not verified saved-run bindings",
+  "recipes": {
+    "temperature-profile": [
+      {
+        "id": "profile",
+        "count": 60,
+        "first": {
+          "x": 0,
+          "y": 300.0009999997509,
+          "origin": {
+            "source": "profile",
+            "rowIndex": 0,
+            "frameIndex": 0
+          }
+        },
+        "last": {
+          "x": 0.0029999400260765107,
+          "y": 399.99899999941414,
+          "origin": {
+            "source": "profile",
+            "rowIndex": 59,
+            "frameIndex": 0
+          }
+        },
+        "statistics": {
+          "count": 60,
+          "missing": 0,
+          "min": 300.0009999997509,
+          "max": 399.99899999941414,
+          "mean": 349.99999643622,
+          "std": 29.352126713356842,
+          "q1": 325.00049899082205,
+          "median": 349.9999979899713,
+          "q3": 374.9994911712722
+        }
+      }
+    ]
+  }
+}

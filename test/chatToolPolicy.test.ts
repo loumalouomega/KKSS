@@ -48,6 +48,10 @@ describe("classifyTool", () => {
     // arguments, so the conservative class wins.
     expect(classifyTool("mesh__mesh_export_table")).toBe("write");
     expect(classifyTool("mesh__mesh_field_series")).toBe("write");
+    expect(classifyTool("mesh__plot_dataset")).toBe("write");
+    for (const name of ["plot_table_read", "plot_runs", "plot_run_bind", "plot_time_cursor", "plot_run_target"]) {
+      expect(classifyTool(`mesh__${name}`)).toBe("read");
+    }
     expect(classifyTool("mesh__mesh_select")).toBe("write");
     expect(classifyTool("mesh__mesh_probe")).toBe("write");
     expect(gate("mesh__mesh_probe", "askOnWrite")).toBe("ask");
@@ -182,17 +186,17 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 68 cad + 38 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools.
+    // 68 cad + 44 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools.
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(141);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(147);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
     expect(cad).toHaveLength(68);
-    expect(mesh).toHaveLength(38);
+    expect(mesh).toHaveLength(44);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
     // No kratos__ row: its external server is deliberately unclassified.
@@ -299,6 +303,7 @@ describe("the table itself", () => {
       "mesh__mesh_select",
       "mesh__mesh_split",
       "mesh__mesh_transform",
+      "mesh__plot_dataset",
       "mesh__problem_pack",
       "mesh__problem_unpack",
       "mesh__problemtype_describe",

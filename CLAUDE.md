@@ -214,7 +214,19 @@ resubmitted automatically.
   **File ▸ Stop Kratos Run**, recent files via **File ▸ Open Recent** (KKSS's
   own app-wide store, not the submodule's), and the
   empty-preview shell via the tab model itself.
-  `createWebviewPanel` supports only `kratos.exportReport` with explicitly
+  Mesh 5.1 adds explicitly script-enabled `kratos.plotBuilder` through
+  `services/plotPanel.ts`: trusted generated `plots.html`, the existing sandboxed
+  view preload, sender-scoped `plots:*` IPC and lifecycle cleanup. Never extend
+  this to arbitrary HTML/panels or relax script CSP for Plotly. Emit upstream
+  `PLOT_PANE_HTML` and `#preview-main`'s lazy local library URL; stage `plots.js`,
+  `plots.css`, Plotly + license and `out/plotWorker.js` (beside main/MCP, sharing
+  `out/meshio/`). `vscode.openWith` preserves Beside by revealing an owning tab
+  or opening a new one, never replacing unrelated work. `tools/e2e/mesh-plots.mjs`
+  verifies real plots/exports and generates captures (`docs:screenshots -- --plots-only`).
+  `tutorials:plots` derives recipes/CSV/provenance from unchanged solver bytes,
+  supplies SI units/fixed-step time reconstruction and refreshes archives; do
+  not fabricate initial frames, adaptive times or isolated-run ownership.
+  The `kratos.exportReport` route still requires explicitly
   disabled scripts: `services/staticReport.ts` opens upstream escaped HTML
   in a sandboxed, JavaScript-disabled window with no Node/preload and blocked
   navigation/popups. Live previews retain their upstream `reportSink` and IPC.

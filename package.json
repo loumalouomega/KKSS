@@ -26,6 +26,7 @@
     "smoke": "node tools/smoke.e2e.mjs",
     "build:icons": "cd icons && make",
     "docs:screenshots": "npm run build:app && node tools/screenshots.mjs",
+    "tutorials:plots": "node tools/tutorials/plots.mjs",
     "workflows:benchmark": "node tools/workflows/benchmark.mjs",
     "workflows:outputs": "node tools/workflows/outputs.mjs",
     "start": "npm run build && electron .",

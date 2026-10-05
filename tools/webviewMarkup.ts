@@ -28,6 +28,7 @@ import {
   VIEW_MENU_HTML,
 } from "../mesh/src/webviewChrome";
 import { TOOLBAR_ICONS } from "../mesh/src/toolbarIcons";
+import { PLOT_PANE_HTML, plotHtml } from "../mesh/src/parser/plot/html";
 
 /**
  * The same helper `webviewChrome.ts` calls `ic()`. The toolbar and both popups
@@ -65,7 +66,7 @@ ${links}
 <body>
 ${opts.body}
   <script src="./shim.js"></script>
-  <script src="./${opts.bundle}"></script>
+  <script${opts.bundle === "webview.js" ? ' id="preview-main" data-plot-library="./plotly/plotly.min.js"' : ""} src="./${opts.bundle}"></script>
 </body>
 </html>`;
 }
@@ -168,6 +169,7 @@ function meshBody(): string {
       <div id="render-root"></div>
       </div>
       ${FLOWGRAPH_PANE_HTML}
+      ${PLOT_PANE_HTML}
     </div>
     </div>
     ${STATUSBAR_HTML}
@@ -194,9 +196,15 @@ fs.writeFileSync(
     title: "KKSS — Mesh Preview",
     csp: MESH_CSP,
     bundle: "webview.js",
-    css: ["design-system.css", "style.css", "mesh-overrides.css"],
+    css: ["design-system.css", "style.css", "plots.css", "mesh-overrides.css"],
     body: meshBody(),
   })
 );
 
-console.log("gen-webview-html: wrote out/renderer/cad/index.html and out/renderer/mesh/index.html");
+// Standalone plotting shares the upstream skeleton and the same isolated bridge.
+fs.writeFileSync(path.join(outDir, "mesh", "plots.html"),
+  plotHtml("./plots.js", "./plotly/plotly.min.js", "./design-system.css", "./plots.css", "kkss-plots", "kkss:")
+    .replace("</head>", '<link rel="stylesheet" href="../theme/vscode-vars.css"></head>')
+    .replace('<script nonce="kkss-plots"', '<script nonce="kkss-plots" src="./shim.js"></script><script nonce="kkss-plots"'));
+
+console.log("gen-webview-html: wrote CAD, mesh and standalone plotting pages");

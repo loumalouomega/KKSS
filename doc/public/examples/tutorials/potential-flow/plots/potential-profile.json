@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "profile",
+      "type": "probe",
+      "path": "../vtk_output/FluidModelPart_0_1.vtk",
+      "points": [
+        [
+          0.00004,
+          0.5,
+          0
+        ],
+        [
+          3.99996,
+          0.5,
+          0
+        ]
+      ],
+      "variable": "VELOCITY_POTENTIAL",
+      "samples": 60,
+      "timeStep": 0
+    }
+  ],
+  "series": [
+    {
+      "id": "profile",
+      "source": "profile",
+      "name": "VELOCITY_POTENTIAL",
+      "x": "distance",
+      "y": "v0",
+      "transforms": [
+        {
+          "op": "convert",
+          "factor": 1,
+          "unit": "m²/s"
+        }
+      ]
+    }
+  ],
+  "presentation": {
+    "family": "line",
+    "title": "Uniform flow: potential profile",
+    "lineMode": "lines+markers",
+    "xLabel": "Distance along probe [m; supplied by SI case]",
+    "yLabel": "Velocity potential [m²/s]"
+  }
+}

@@ -17,6 +17,8 @@ Post-Processing uses the same layout as [Pre-Processing](/guide/cad-mode#reading
 
 ## What you can do
 
+- **Build scientific plots**: the mesh-native **Plots** pane overlays point histories, regional quantities and timeline-following line profiles, with twelve chart families, numerical analysis, recipes and full-resolution CSV/provenance plus PNG/SVG export. **File → Scientific Plot Builder…** opens the same analysis in a separate window for tables or disk sources. Start with [scientific plots and FEM examples](scientific-plots).
+
 - **Inspect MDPA models**: a vtk.js 3D view with a navigable ModelPart/SubModelPart outline, toggleable layers, node IDs, a background grid, an orientation cube, and a clip plane.
 - **Visualize results**: nodal/elemental/conditional field data with colormaps. The Field panel offers **combinable display modes** — solid contour, isosurfaces, vector quivers, and a **deformed-shape** warp driven by a displacement field, with a display-only multiplier up to **1000×** for very small solver displacements — that can be layered together; time-series play back on a timeline, which can also be resampled at chosen times and exported without changing the source. New step files written by a running simulation extend the timeline automatically.
 - **Check mesh quality**: aspect/edge ratio, min/max angles, and size gradation histograms with bad-element highlighting.
@@ -53,7 +55,7 @@ Post-Processing uses the same layout as [Pre-Processing](/guide/cad-mode#reading
 | --- | --- |
 | ![Sidebar](/screenshots/mesh-outline.png) | ![View menu](/screenshots/mesh-view-menu.png) |
 
-> The viewer's toolbar is **Reset · Pan · Quality · Field · Find · Inspect · Selection · View ▾ · Advanced ▾**: display toggles (Node IDs, Grid, Edges) and Screenshot/Record live in **View ▾**; analysis, export and camera tools live in **Advanced ▾** and their side panels. Clip moved into the nav card. KKSS hides the extension's own File strip and exposes its file actions in the native **File** menu, including Import Mesh, grouped exports, Save/Load Problem, Export Data Table, Pack Time Series and Undo/Redo Mesh Operation (`Ctrl+Alt+Z` / `Ctrl+Alt+Shift+Z` — not the plain `Ctrl+Z`/`Ctrl+Shift+Z` upstream binds, which would steal the text editor's undo).
+> The viewer's toolbar is **Reset · Pan · Quality · Field · Find · Inspect · Plots · Selection · View ▾ · Advanced ▾**: display toggles and Screenshot/Record live in **View ▾**; analysis/export/camera tools live in **Advanced ▾**. Clip is in the nav card. KKSS hides the extension's File pill and exposes file actions in the native **File** menu, including Import Mesh, grouped exports, Scientific Plot Builder, Save/Load Problem, Export Data Table, Pack Time Series and Undo/Redo (`Ctrl+Alt+Z` / `Ctrl+Alt+Shift+Z`, not the text editor's plain undo shortcuts).
 
 ## Import meshes and work with field units
 

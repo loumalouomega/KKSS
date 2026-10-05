@@ -30,7 +30,11 @@
     "rectangle.brep.edits.json": "26b5066c988ca2b04500b04ef1eabd9eba0d650c0c001ee78b640a80d27c9b75",
     "rectangle.brep.mesh.json": "8ce45dfb39674c9d847063e561a6bddb7d0bd05c5aa55cbd590c55bb9faa9dce",
     "rectangle.brep.parts.json": "03f0bf2738fa47e104f95672fce9a3c3c841ef08cd4c8bd118c14dd483af5b99",
-    "vtk_output/FluidModelPart_0_1.vtk": "0ea90a6d55936e64bac34f49fc7c7f0167212b78dbddb37e46f5098a09bbbd76"
+    "vtk_output/FluidModelPart_0_1.vtk": "0ea90a6d55936e64bac34f49fc7c7f0167212b78dbddb37e46f5098a09bbbd76",
+    "plots/potential-profile.csv": "8b7d49392c9b200683683bee9ca2d6673d838abbceebd91a9ed74994395be51f",
+    "plots/potential-profile.csv.kratosplot.json": "48f470ac6d6f3ebd3bec59bcc8ad7a950ae6eebb00908dcef0c0198ca949517a",
+    "plots/potential-profile.json": "53819fabc4c3b4d89ce42fc518f59614b1e8d5ab4d3ffc8464777dd37e05bee9",
+    "plots/verification.json": "446727eb4710f92769e6b93eb137802774f531325eb563256b66f5a077ea5b2b"
   },
   "source": "cad/examples/BREP/blank.brep",
   "revisions": {
