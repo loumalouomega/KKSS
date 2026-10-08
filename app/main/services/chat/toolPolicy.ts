@@ -125,7 +125,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__queue_resume: "write",
   app__queue_resume_row: "write",
   app__queue_cancel: "write",
-  // ---- cad-preview (68) ---------------------------------------------------
+  // ---- cad-preview (71) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",
   cad__get_mass_properties: "read",
@@ -197,8 +197,14 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__apply_mesh_preset: "write",
   cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
+  // cad 3.11.0: MMG remesh always writes a new .med + Parts sidecar.
+  cad__remesh_mesh: "write",
+  // cad 3.12.0: OpenSCAD Customizer — listing parameters reads the file only,
+  // converting with -D overrides writes a new .csg.
+  cad__list_scad_parameters: "read",
+  cad__convert_scad: "write",
 
-  // ---- kratos-mdpa (38) ---------------------------------------------------
+  // ---- kratos-mdpa (44) ---------------------------------------------------
   mesh__mesh_resample: "write",
   mesh__mesh_periodic: "write",
   mesh__mesh_info: "read",
