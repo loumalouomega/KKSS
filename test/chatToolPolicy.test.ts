@@ -79,6 +79,12 @@ describe("classifyTool", () => {
     expect(classifyTool("cad__estimate_mesh_budget")).toBe("read");
     expect(classifyTool("cad__check_handoff_manifest")).toBe("read");
     expect(classifyTool("cad__measure_mesh_deviation")).toBe("write");
+    // cad 3.11.0 MMG remesh always writes a new .med + Parts sidecar.
+    expect(classifyTool("cad__remesh_mesh")).toBe("write");
+    // cad 3.12.0 OpenSCAD Customizer: listing parameters reads only,
+    // converting with overrides writes a new .csg.
+    expect(classifyTool("cad__list_scad_parameters")).toBe("read");
+    expect(classifyTool("cad__convert_scad")).toBe("write");
     expect(classifyTool("mesh__mesh_curvature")).toBe("read");
     expect(classifyTool("mesh__mesh_flow_balance")).toBe("write");
     expect(classifyTool("mesh__mesh_resample")).toBe("write");
@@ -186,16 +192,16 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 68 cad + 44 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools.
+    // 71 cad + 44 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools.
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(147);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(150);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
-    expect(cad).toHaveLength(68);
+    expect(cad).toHaveLength(71);
     expect(mesh).toHaveLength(44);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
@@ -251,6 +257,7 @@ describe("the table itself", () => {
       "cad__apply_mesh_preset",
       "cad__batch_export",
       "cad__compare_mesh_refinement",
+      "cad__convert_scad",
       "cad__decompose_to_primitives",
       "cad__download_standard_part",
       "cad__export_brep",
@@ -267,6 +274,7 @@ describe("the table itself", () => {
       "cad__measure_mesh_deviation",
       "cad__pin_annotation",
       "cad__promote_mesh_to_brep",
+      "cad__remesh_mesh",
       "cad__remove_edit_op",
       "cad__repair_mesh",
       "cad__run_parametric_script",

@@ -129,11 +129,12 @@ Use app__check_simulation_environment to check manual and assistant runtimes ind
 App preferences — UI theme, viewer defaults, and the Kratos Python interpreter, install path and extra environment for case runs (the install path and environment also reach your kratos__ tools when they next start) — live on the Settings page (Settings ▸ Open Settings…, Ctrl+,); you cannot change them, so point users there. You control the app's engines through tools from three MCP servers, namespaced by prefix:
 - cad__* (cad-preview): headless CAD editing — load STEP/IGES/BREP and STL/OBJ/PLY/glTF models, plus \
 OpenSCAD .csg (parsed and built kernel-side) and .scad (converted to .csg first by a user-installed \
-openscad binary — without one every .scad call answers supported:false rather than failing), plus \
+openscad binary — without one every .scad call answers supported:false rather than failing — with the Settings ▸ CAD Viewer backend and library folders, and Customizer parameters via list_scad_parameters / convert_scad), plus \
 VTK/VTU/MED/CGNS/Exodus/XDMF/MDPA imported through meshio++ as geometry-only boundary surfaces; apply \
 parametric edit operations via sidecar files (including run_parametric_script for declarative, re-runnable \
 part scripts), define FEM sub-model-parts, and generate and export meshes with Gmsh — with optional unit \
 conversion (mm/cm/m/in/ft) on export, and MED/CGNS/XDMF mesh targets Gmsh's own writers cannot produce. \
+MMG-remesh an FE mesh to a new .med with remesh_mesh (named regions kept, fields dropped with warnings). \
 It also answers questions about a model without changing it: get_mass_properties (volume, area, centre of \
 mass, moments of inertia), inspect and measure (bounding-box facts), measure_exact (true OCCT distance, \
 edge length, radius), check_interference (clash detection between solids or Parts), compare_models (a \

@@ -31,6 +31,15 @@ const required = [
   ["mesh/dist/mmg-core.wasm", "npm run package --prefix mesh"],
   ["cad/dist/opencascade.wasm.wasm", "npm run build --prefix cad"],
   ["cad/dist/gmsh-core.wasm", "npm run build --prefix cad"],
+  // cad 3.11.0's MMG remeshing kernel (mmgService.ts getMmg joins
+  // extensionPath/dist/mmg-core.wasm) — built by cad's own esbuild copy.
+  ["cad/dist/mmg-core.wasm", "npm run build --prefix cad"],
+  // The MMG JS wrapper itself (mmgService.ts resolves it at runtime via
+  // runtimePackage.ts: installed package, then <bundle dir>/mmg, then two
+  // levels up — i.e. out/mmg/ for both the interactive worker and the MCP
+  // kernel worker). KKSS ships no node_modules, so the staged tree below is
+  // the only resolution left.
+  ["cad/node_modules/@loumalouomega/mmg-wasm/dist/mmg.cjs", "npm ci --prefix cad"],
   // cad 2.7.0's bundled starter meshing presets (cad/esbuild.mjs copyMeshPresets).
   ["cad/dist/mesh-presets/starter-presets.json", "npm run build --prefix cad"],
   // fTetWild, staged by cad 3.6.0's own build (scripts/runtimeAssets.mjs) and
@@ -44,9 +53,6 @@ const required = [
   ["mesh/dist/flowgraph", "npm run package --prefix mesh"],
   // meshio++ WASM tree backing the extended mesh formats (meshio.ts).
   ["mesh/dist/meshio/src/index.mjs", "npm run package --prefix mesh"],
-  // fTetWild, cad 1.5.0's fourth WASM kernel (ftetwildService.ts). Not staged
-  // into cad/dist by its own build — copied straight from cad's node_modules.
-  ["cad/node_modules/float-tetwild-wasm/index.js", "npm ci --prefix cad"],
   // cad 1.3.0 moved OCCT/Gmsh/meshio++/fTetWild into a forked child process;
   // dist/mcp-server.js reaches them only through it (kernelClient.ts forks
   // `<extensionPath>/dist/kernel-worker.js`, and extensionPath for the chat
@@ -279,6 +285,10 @@ function copyArtifacts() {
     // (extensionPath = out/cad-runtime).
     ["cad/dist/opencascade.wasm.wasm", out("cad-runtime/dist/opencascade.wasm.wasm")],
     ["cad/dist/gmsh-core.wasm", out("cad-runtime/dist/gmsh-core.wasm")],
+    // cad 3.11.0's MMG kernel — same <extensionPath>/dist/… convention
+    // (mmgService.ts getMmg). Needed by both the interactive worker
+    // (out/cadCompute.worker.js) and the MCP kernel worker.
+    ["cad/dist/mmg-core.wasm", out("cad-runtime/dist/mmg-core.wasm")],
     // cad 2.3.0's bundled starter macro library — same <extensionPath>/dist/…
     // convention as the WASM binaries above (bundledMacrosPath/getOcct both
     // join extensionPath the same way).
@@ -356,6 +366,14 @@ function copyArtifacts() {
   // rather than reaching into cad/node_modules. Resolved at runtime by cad's
   // `runtimePackage.ts` from the same staged-layout lookup as meshio++.
   fs.cpSync(path.join(__dirname, "cad/dist/ftetwild"), out("ftetwild"), { recursive: true });
+  // @loumalouomega/mmg-wasm wrapper for cad 3.11.0's remeshing (see the
+  // preflight entry above): the whole dist/ tree, so the wrapper's own
+  // relative requires (./mmg-core.cjs, ./runtime.cjs, ./mmg-descriptor.cjs)
+  // keep working. The remesh WASM binary itself stays at
+  // out/cad-runtime/dist/mmg-core.wasm (getMmg reads it via extensionPath).
+  fs.cpSync(path.join(__dirname, "cad/node_modules/@loumalouomega/mmg-wasm/dist"), out("mmg/dist"), {
+    recursive: true,
+  });
   // mesh 4.8.0's experimental VTK-wasm renderer runtime (roadmap item 18):
   // the hash-verified, eval-free patched glue, its .wasm and both licence
   // notices, staged by mesh's production build. Served from beside the mesh

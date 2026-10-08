@@ -278,6 +278,8 @@ export const cadCompute = {
   decimateStlBoundary: rpc<typeof meshio.decimateStlBoundary>("decimateStlBoundary"),
   runMeshioOps: rpc<typeof meshio.runMeshioOps>("runMeshioOps"),
   exportViaMeshio: rpc<typeof meshio.exportViaMeshio>("exportViaMeshio"),
+  // cad 3.11.0 MMG remeshing (meshioService.remeshMesh → mmgService).
+  remeshMesh: rpc<typeof meshio.remeshMesh>("remeshMesh"),
   buildPartsFromMeshioRegions:
     rpc<typeof meshioParts.buildPartsFromMeshioRegions>("buildPartsFromMeshioRegions"),
 };
