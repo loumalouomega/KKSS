@@ -7,6 +7,65 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.9.0] - 2026-10-05
+
+- feat: integrate Mesh Preview 5.1.0 scientific plotting: mesh-native dockable Plots pane, standalone builder, staged strict-CSP Plotly assets and cancellable worker, recipes and CSV/PNG/SVG provenance exports. Preserve exact owning-result open-beside navigation and classify six plotting MCP tools.
+- docs: extend all five FEM tutorials with solver-derived plotting recipes, full-resolution CSV/provenance and refreshed archives; document cylinder pressure startup evolution, explicit fixed-step time reconstruction and boundary/association limits, with real Electron screenshots and acceptance tests.
+
+- feat: integrate Mesh Preview 4.23.0: native multi-file Import Mesh in one undoable operation, grouped export submenus, worker-backed streamlines with progress/partial cancellation and tube styling, all-step flow balance, dimension-aware display units and density-field pressure conversion, and validated Fluid fixed/adaptive time stepping.
+- feat: expose graphical export reports in the preview and script-free standalone packed-series reports. Update provenance settings and assistant guidance for native embedding, collection sidecars, measured fidelity and PVD packing.
+- fix: stage the streamline worker beside the app bundle, allow packing numbered MDPA series as well as VTK, and correct upstream display-unit scaling for mm/km, mPa·s and dimensionally consistent mm²/s², with numerical and runtime regressions.
+- fix: persist the transcript-compaction boundary immediately instead of on the 1s debounce, and harden the switch-away-and-back regression test to poll for both the reloaded conversation and its boundary, fixing the `chatService.test.ts` failure in CI run 37346361599 where `compactedResults` came back `undefined` under disk contention.
+
+## [2.8.0] - 2026-09-30
+
+- feat: add Home-guided, revision-aware simulation workflows: create and manage
+  studies, attach geometry and meshes, plan mesh/case/run tasks, resume queued
+  work, run bounded parameter sweeps, and compare results. Refinement metadata,
+  resource checks and solver convergence evidence feed versioned JSON/HTML run
+  reviews; quantity evaluations retain the exact result revision they came from.
+- feat: integrate **CAD Preview 3.10.1** and **Kratos MDPA Preview 4.18.0**,
+  sharing meshio++ 16.27.0. The app now routes the expanded CAE reader set,
+  exposes CAD B-rep health, passage preflight and CAD-to-mesh deviation checks,
+  and handles cancelled mesh sweeps as partial results. Mesh mode gains durable
+  recording drafts, expanded timeline and resampling support, flow/curvature
+  analysis, and export-fidelity reports with configurable provenance.
+- feat: surface the updated mesh material presets, export reports and recording
+  storage through KKSS settings and host shims. New CAD and mesh MCP tools have
+  explicit read/write approval classifications; packaged associations and file
+  format guides now cover 60 readable and 46 writable meshio++ formats.
+- docs: expand the workflow and mesh guides with study/refinement behavior,
+  timeline discovery, recording recovery, provenance, material libraries and
+  supported CAE formats.
+
+## [2.7.0] - 2026-09-29
+
+- fix: patch the four open Dependabot advisories, all in transitive
+  dependencies the app never imports directly — `ip-address` 10.4.0 → 10.7.2
+  (SSRF and trust-boundary bypass: `Address6.isLinkLocal()` recognised
+  `fe80::/64` rather than `fe80::/10`, and nothing classified the NAT64
+  local-use range `64:ff9b:1::/48`), `undici` 7.29.0 → 7.30.0 and 6.28.0 →
+  6.29.0 (DoS via an unhandled error in WebSocket permessage-deflate
+  decompression), and `nanoid` 3.3.16 → 3.3.19 in the docs site (custom
+  generators could loop indefinitely when `size` is zero). Each is pinned via
+  `overrides` at its first patched version, matching the existing
+  `fast-uri`/`js-yaml`/`qs`/`hono` entries; the second `undici` copy sits
+  under `node-gyp`, so it stays on the 6.x line instead of being dragged
+  across a major by the flat one. `npm audit` is now clean at the root and
+  in `doc/`.
+- test: quit the first app before the mesh scenario relaunches on a shared
+  profile. Electron 44.4.4 began persisting Skia's GPU shader cache, so a
+  second instance launched against a live app's `--user-data-dir` took the
+  GPU process down at startup (exit code 133); the new renderer's first
+  `getContext('webgl2')` then returned null and the mesh view stayed dead
+  for good. KKSS is single-instance in production, so this only ever affected
+  the test, but the relaunch assertion still needs a fresh process to read the
+  saved property.
+- chore: update Electron to 44.4.5, `@anthropic-ai/sdk` to 0.128.0,
+  `@anthropic-ai/claude-agent-sdk` to 0.3.283, `@modelcontextprotocol/sdk` to
+  1.30.1, `vitest` to 5.0.2 and `@types/node` to 26.6.3.
+- chore: update `actions/upload-artifact` from 4 to 7.
+
 ## [2.6.0] - 2026-09-27
 
 - feat: add **Settings ▸ Mesh Viewer ▸ 3D Renderer** (`kratos.preview.renderer`),

@@ -1,3 +1,5 @@
+import { table, jsonTwin } from './reportHtml';
+import { CONVERGENCE_ADAPTERS } from '../../../../mesh/src/problemtype/mainKratosTemplate';
 import type { Evidence, Finding, Json, Quantity, Run, Study } from './contracts';
 import { convergencePlots } from '../../../shared/convergencePlots';
 /** Conservative MDPA summary: count records, never infer mesh quality. */
@@ -15,7 +17,7 @@ export function mdpaCounts(text: string): { nodes: number; elements: number; con
 }
 const CONVERGENCE_ADAPTER = 'kkss.structural-convergence';
 interface StructuralMonitor { samples: Evidence['convergence']['samples']; invalid: number; version?: number; completed: boolean }
-export function parseStructuralConvergence(text: string): StructuralMonitor {
+export function parseStructuralConvergence(text: string, adapter = CONVERGENCE_ADAPTER): StructuralMonitor {
   const samples: Evidence['convergence']['samples'] = [];
   let invalid = 0;
   let version: number | undefined, completed = false;
@@ -25,7 +27,7 @@ export function parseStructuralConvergence(text: string): StructuralMonitor {
       const row: unknown = JSON.parse(line);
       if (!row || typeof row !== 'object' || Array.isArray(row)) { invalid++; continue; }
       const value = row as Record<string, unknown>;
-      if (completed || value.adapter !== CONVERGENCE_ADAPTER || ![1, 2].includes(value.version as number) ||
+      if (completed || value.adapter !== adapter || ![1, 2].includes(value.version as number) ||
           (version !== undefined && version !== value.version)) { invalid++; continue; }
       version = value.version as number;
       if (version === 2 && value.event === 'end') {
@@ -58,13 +60,15 @@ export function parseStructuralConvergence(text: string): StructuralMonitor {
   return { samples, invalid, version, completed: version === 1 || completed };
 }
 export interface ReviewEvidenceExtras {
+  meshCounts?: { nodes: number; elements: number; conditions: number };
+  meshStatisticsUnavailableReason?: string;
   meshQuality?: Json;
   meshQualityUnavailableReason?: string;
   preparation?: Evidence['preparation'];
 }
 export function buildEvidence(run: Run, meshText?: string, convergenceText?: string, savedQuantities: Quantity[] = [], staleQuantityCount = 0, extras: ReviewEvidenceExtras = {}): Evidence {
   const findings: Finding[] = [];
-  if (!meshText) findings.push({ severity: 'unavailable', message: 'Mesh statistics are unavailable for this format or artifact.' });
+  if (!meshText && !extras.meshCounts) findings.push({ severity: 'unavailable', message: extras.meshStatisticsUnavailableReason ?? 'Mesh statistics are unavailable for this format or artifact.' });
   if (extras.meshQuality === undefined) findings.push({ severity: 'unavailable', message: `Mesh-quality metrics are unavailable: ${extras.meshQualityUnavailableReason ?? 'no verified report was collected.'}` });
   if (extras.meshQuality && typeof extras.meshQuality === 'object' && !Array.isArray(extras.meshQuality) && extras.meshQuality.overallOk === false) {
     findings.push({ severity: 'warning', message: 'The mesh-quality report contains failing metrics; inspect the embedded metric bands and bad-entity counts.' });
@@ -75,22 +79,25 @@ export function buildEvidence(run: Run, meshText?: string, convergenceText?: str
   }
   if (extras.preparation?.reportUnavailableReason) findings.push({ severity: 'unavailable', message: extras.preparation.reportUnavailableReason });
   if (!run.artifacts.some(artifact => artifact.role === 'result' && artifact.ownerId === run.id)) findings.push({ severity: 'unavailable', message: 'No result file with a bounded content revision is attached to this run.' });
+  for (const message of run.outputFindings ?? run.receipt?.outputFindings ?? []) findings.push({ severity: 'unavailable', message });
   if (run.receipt?.message) findings.push({ severity: 'unavailable', message: run.receipt.message });
-  const monitor = convergenceText === undefined ? undefined : parseStructuralConvergence(convergenceText);
+  const problemtype = run.settings && typeof run.settings === 'object' && !Array.isArray(run.settings) ? String(run.settings.problemtypeId ?? 'structural') : 'structural';
+  const adapter = CONVERGENCE_ADAPTERS[problemtype];
+  const monitor = convergenceText === undefined || !adapter ? undefined : parseStructuralConvergence(convergenceText, adapter);
   let convergence: Evidence['convergence'] = { adapter: 'none', state: 'unavailable', samples: [] };
-  if (run.settings && typeof run.settings === 'object' && !Array.isArray(run.settings) && (run.settings as Record<string, unknown>).problemtypeId !== 'structural') {
-    findings.push({ severity: 'unavailable', message: `Convergence diagnostics are unsupported for problemtype "${String((run.settings as Record<string, unknown>).problemtypeId ?? 'unknown')}".` });
+  if (!adapter) {
+    findings.push({ severity: 'unavailable', message: `Convergence diagnostics are unsupported for problemtype "${problemtype}".` });
   } else if (!monitor) {
-    findings.push({ severity: 'unavailable', message: 'No versioned structural solver monitor is attached; process completion does not establish convergence.' });
+    findings.push({ severity: 'unavailable', message: 'No versioned solver monitor is attached; process completion does not establish convergence.' });
   } else if (monitor.invalid || monitor.samples.length === 0) {
-    findings.push({ severity: 'unavailable', message: `Structural convergence monitor is truncated, unsupported or empty (${monitor.invalid} invalid record(s)).` });
-    convergence = { adapter: `${CONVERGENCE_ADAPTER}/v${monitor.version ?? 'unknown'}`, state: 'unavailable', samples: monitor.samples };
+    findings.push({ severity: 'unavailable', message: `Solver convergence monitor is truncated, unsupported or empty (${monitor.invalid} invalid record(s)).` });
+    convergence = { adapter: `${adapter}/v${monitor.version ?? 'unknown'}`, state: 'unavailable', samples: monitor.samples };
   } else {
     const anyDiverged = monitor.samples.some(sample => sample.converged === false);
     const state = anyDiverged ? 'diverged' : run.state === 'succeeded' && monitor.completed && monitor.samples.every(sample => sample.converged === true) ? 'converged' : 'unavailable';
-    convergence = { adapter: `${CONVERGENCE_ADAPTER}/v${monitor.version}`, state, samples: monitor.samples };
-    if (state === 'unavailable') findings.push({ severity: 'unavailable', message: 'The solve ended before successful completion; recorded converged steps do not establish convergence of the full run.' });
-    if (anyDiverged) findings.push({ severity: 'warning', message: 'The structural monitor recorded a solve step that did not converge.' });
+    convergence = { adapter: `${adapter}/v${monitor.version}`, state, samples: monitor.samples };
+    if (state === 'unavailable') findings.push({ severity: 'unavailable', message: 'The monitor does not establish numerical convergence of every step; linear solves, unpublished criteria and incomplete runs remain unavailable.' });
+    if (anyDiverged) findings.push({ severity: 'warning', message: 'The solver monitor recorded a solve step that did not converge.' });
   }
   if (monitor?.samples.some(sample => sample.residual === undefined)) findings.push({ severity: 'unavailable', message: 'Residual magnitudes are unavailable for some recorded steps; solve-step outcomes are separate evidence.' });
   const quantities = savedQuantities.filter(quantity => quantity.runId === run.id && run.artifacts.some(artifact => artifact.role === 'result' && artifact.ownerId === run.id && artifact.reference.kind === quantity.source.kind && artifact.reference.path === quantity.source.path && artifact.reference.revision === quantity.source.revision));
@@ -98,12 +105,14 @@ export function buildEvidence(run: Run, meshText?: string, convergenceText?: str
   if (staleQuantityCount) findings.push({ severity: 'unavailable', message: `${staleQuantityCount} saved quantity evaluation(s) refer to an older result revision and are omitted.` });
   return {
     version: 1, runId: run.id, findings,
-    mesh: { ...(meshText ? mdpaCounts(meshText) : {}), ...(extras.meshQuality !== undefined ? { quality: extras.meshQuality } : {}) },
+    mesh: { ...(meshText ? mdpaCounts(meshText) : extras.meshCounts ?? {}), ...(extras.meshQuality !== undefined ? { quality: extras.meshQuality } : {}) },
     ...(extras.preparation ? { preparation: extras.preparation } : {}),
     convergence, quantities,
   };
 }
 export interface Review {
+  resources?: Run['resources'];
+  refinement?: Run['refinement'];
   version: 1; projectRevision: number; studyId: string; studyName: string;
   sourceRevision: string; meshRevision: string; settings: Run['settings'];
   run: { id: string; state: Run['state']; startedAt?: number; finishedAt?: number };
@@ -117,14 +126,19 @@ export function makeReview(projectRevision: number, study: Study, run: Run, mesh
     settings: structuredClone(run.settings),
     run: { id: run.id, state: run.state, ...(run.startedAt !== undefined ? { startedAt: run.startedAt } : {}), ...(run.finishedAt !== undefined ? { finishedAt: run.finishedAt } : {}) },
     evidence, artifacts: structuredClone(run.artifacts),
+    ...((run.resources ?? run.receipt?.resources) ? { resources: run.resources ?? run.receipt?.resources } : {}), ...(run.refinement ? { refinement: run.refinement } : {}),
   };
 }
 export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 }
 export function reviewHtml(review: Review): string {
-  const json = JSON.stringify(review, null, 2).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   const samples = review.evidence.convergence.samples;
   const plot = convergencePlots(samples);
-  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Run review — ${escapeHtml(review.studyName)}</title><style>body{font:15px system-ui;max-width:960px;margin:2rem auto;padding:0 1rem;color:#222}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f3f3;padding:1rem;border-radius:8px}svg{width:100%;height:auto;background:#f7f7f7}</style><h1>Run review: ${escapeHtml(review.studyName)}</h1><p>Run state: ${escapeHtml(review.run.state)}. Convergence: ${escapeHtml(review.evidence.convergence.state)}.</p><p>Process completion and numerical convergence are reported separately.</p>${plot}<pre>${escapeHtml(json)}</pre></html>`;
+  const sections = table('Findings', ['Severity', 'Finding'], review.evidence.findings.map(f => [f.severity, f.message]))
+    + table('Provenance', ['Property', 'Recorded value'], [['Run', review.run.id], ['Source revision', review.sourceRevision], ['Mesh revision', review.meshRevision], ['Settings', review.settings], ['Threads requested', review.resources?.requestedThreads], ['Threads effective', review.resources?.effectiveThreads], ['Refinement', review.refinement]])
+    + table('Mesh statistics and quality', ['Property', 'Value'], [['Nodes', review.evidence.mesh.nodes], ['Elements', review.evidence.mesh.elements], ['Conditions', review.evidence.mesh.conditions], ['Quality', review.evidence.mesh.quality]])
+    + table('Preparation', ['Role', 'Path', 'Revision', 'State'], review.evidence.preparation?.files.map(f => [f.role, f.reference.path, f.reference.revision, f.state]) ?? [])
+    + table('Quantities', ['Field/component', 'Region', 'Time', 'Reduction', 'Unit', 'Value', 'Source revision'], review.evidence.quantities.map(q => [`${q.field}/${q.component}`, q.region, q.time, q.reduction, q.unit, q.value, q.source.revision]));
+  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Run review — ${escapeHtml(review.studyName)}</title><style>body{font:15px system-ui;max-width:960px;margin:2rem auto;padding:0 1rem;color:#222}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f3f3;padding:1rem;border-radius:8px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:.45rem;text-align:left;overflow-wrap:anywhere}svg{width:100%;height:auto;background:#f7f7f7}</style><h1>Run review: ${escapeHtml(review.studyName)}</h1><p>Run state: ${escapeHtml(review.run.state)}. Convergence: ${escapeHtml(review.evidence.convergence.state)}.</p><p>Process completion and numerical convergence are reported separately.</p>${sections}${plot}${jsonTwin(review)}</html>`;
 }

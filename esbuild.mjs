@@ -22,6 +22,12 @@ const required = [
   // Must be linked before style.css — see tools/webviewMarkup.ts.
   ["mesh/media/design-system.css", "npm run package --prefix mesh"],
   ["mesh/dist/mmgWorker.js", "npm run package --prefix mesh"],
+  ["mesh/dist/streamlineWorker.js", "npm run package --prefix mesh"],
+  ["mesh/dist/plotWorker.js", "npm run package --prefix mesh"],
+  ["mesh/media/plots.js", "npm run package --prefix mesh"],
+  ["mesh/media/plots.css", "npm run package --prefix mesh"],
+  ["mesh/media/plotly/plotly.min.js", "npm run package --prefix mesh"],
+  ["mesh/media/plotly/LICENSE", "npm run package --prefix mesh"],
   ["mesh/dist/mmg-core.wasm", "npm run package --prefix mesh"],
   ["cad/dist/opencascade.wasm.wasm", "npm run build --prefix cad"],
   ["cad/dist/gmsh-core.wasm", "npm run build --prefix cad"],
@@ -249,6 +255,11 @@ function copyArtifacts() {
     ["cad/media/viewer.js", out("cad-runtime/media/viewer.js")],
     ["cad/media/viewer.css", out("cad-runtime/media/viewer.css")],
     ["mesh/media/webview.js", out("renderer/mesh/webview.js")],
+    ["mesh/media/plots.js", out("renderer/mesh/plots.js")],
+    ["mesh/media/plots.css", out("renderer/mesh/plots.css")],
+    ["mesh/media/plotly/plotly.min.js", out("renderer/mesh/plotly/plotly.min.js")],
+    ["mesh/media/plotly/LICENSE", out("renderer/mesh/plotly/LICENSE")],
+    ["mesh/dist/plotWorker.js", out("plotWorker.js")],
     // design-system.css defines the --ds-* tokens style.css resolves; the
     // generated page links it first (tools/webviewMarkup.ts).
     ["mesh/media/design-system.css", out("renderer/mesh/design-system.css")],
@@ -260,6 +271,9 @@ function copyArtifacts() {
     // MMG worker pair must sit next to out/main.js (mmgWorkerClient resolves
     // the worker via __dirname; the wasm is fed by configureMmg at startup).
     ["mesh/dist/mmgWorker.js", out("mmgWorker.js")],
+    // mesh 4.21.0 traces streamlines off the host thread. Its client resolves
+    // this entry beside the main bundle, exactly like the MMG worker.
+    ["mesh/dist/streamlineWorker.js", out("streamlineWorker.js")],
     ["mesh/dist/mmg-core.wasm", out("mmg-core.wasm")],
     // OCCT + Gmsh WASM in the dist/-shaped layout the cad services expect
     // (extensionPath = out/cad-runtime).

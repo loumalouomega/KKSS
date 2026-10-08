@@ -29,19 +29,34 @@ VTK-wasm is opt-in and not a replacement: vtk.js stays the default, and switchin
 
 It needs a host with **WebAssembly JSPI** (`WebAssembly.Suspending`) and WebGL2, and a build that ships the runtime. When any of those is missing, the runtime fails to load, or the install simply does not include it, the preview opens on vtk.js anyway and says so on the status line — nothing about the rest of the viewer changes. In a build without the runtime, the menu marks VTK-wasm *unavailable in this build* and refuses it, so the fallback is explained before you pick it rather than only afterwards. Only VTK-wasm widens the page's Content Security Policy, and only by `'wasm-unsafe-eval'`, which permits WebAssembly to compile and nothing else; the runtime's JavaScript glue is rewritten at build time so it evaluates no dynamic code.
 
+## Mesh exports and material libraries
+
+**Mesh Viewer ▸ Mesh Export Provenance** controls what accompanies mesh exports:
+
+| Value | Behavior |
+| --- | --- |
+| `Automatic` (default) | Embed provenance in supported native comments/headers and meshio++ slots. Problem archives keep a separate record inside the ZIP without rewriting pristine mesh bytes. |
+| `Write a full sidecar report` | Also write a complete `.kratosexport.json` report beside the output; packing/resampling share one collection sidecar instead of one per step. |
+| `Do not record provenance` | Add no new provenance or sidecar. Copying source bytes preserves any record already in those bytes; fidelity reports remain available. |
+
+**Show report** opens the graphical inspector (also **Advanced ▸ Export report…**) with retained, transformed, omitted and unverified categories, companions, provenance, warnings and copyable JSON. Packed-series reports open in a separate script-free window. Native MDPA, OBJ, PLY and VTK XML can embed comments; legacy VTK uses a limited title. STL and temporal XDMF need sidecars for their complete record. MCP write tools with `verify: true` additionally re-read claims and report contradictions; this returned verification evidence is added after the write-time sidecar has been published. Unknown/unmeasured topology, structured VTI and temporal XDMF are not silently treated as verified.
+
+**Kratos ▸ Material Library Folders** lists project-relative folders to scan for user material presets (default `.kratos/materials`). Importing a preset into a case writes a snapshot, so generated cases do not depend on the library remaining unchanged.
+
 ## Kratos environment
 
 **Kratos** holds what a problemtype **Run** uses:
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
-| `kratos.pythonPath` | Python interpreter for `python MainKratos.py` | `python3` (`python` on Windows) |
+| `kratos.pythonPath` | Python interpreter for queued and direct case runs | `python3` (`python` on Windows) |
+| `kratos.threads` | Verified OpenMP threads per Kratos solve; `0` selects Auto (`available CPUs − 1`, minimum 1) | `0` (Auto) |
 | `kratos.installPath` | Compiled Kratos install, or a source checkout built in-tree. Prepended to `PYTHONPATH` and the shared-library path | pip-installed Kratos |
 | `kratos.extraEnv` | Extra variables; they override computed ones | — |
 | `kratos.problemtypes.extraPaths` | Folders under the project folder scanned for user problemtypes | `.kratos/problemtypes` |
 | `kratos.run.stopOnWindowClose` | Kill running solvers when KKSS quits | on |
 
-The install path and extra environment also reach the assistant's Kratos MCP server the next time it starts. **Restart with current environment** applies them immediately. The interpreter does not: that server runs in `uvx`'s own isolated environment.
+Queue previews freeze their effective thread allocation; changing the setting requires a new preview. The environment probe only offers this control when both Kratos thread set and read APIs are available. Auto uses the available CPU count minus one, with a minimum of one. CAD meshing and MDPA case preparation have verified one-thread reservations; other case-preparation costs are unknown and run exclusively. The app permits one solve and one preparation task to overlap only when their recorded allocations fit the CPU budget; uncertain or legacy allocations block overlap. The install path and extra environment also reach the assistant's Kratos MCP server the next time it starts. **Restart with current environment** applies them immediately. The interpreter does not: that server runs in `uvx`'s own isolated environment.
 
 ## Interface scale
 

@@ -8,7 +8,7 @@ const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v ===
 export function fingerprint(value: unknown): string {
   const canonical = (v: unknown): unknown => Array.isArray(v) ? v.map(canonical) : record(v)
     ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canonical(v[k])])) : v;
-  return createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
+  return createHash('sha256').update(JSON.stringify(canonical(value)) ?? 'undefined').digest('hex');
 }
 export async function fileRevision(file: string): Promise<string> {
   const handle = await fs.open(file, 'r');
@@ -52,6 +52,7 @@ export function validateOrder(tasks: Task[]): void {
   const seen = new Set<string>();
   for (const task of tasks) {
     if (!task || typeof task.id !== 'string' || seen.has(task.id) || !Array.isArray(task.dependencies) || task.dependencies.some(id => !seen.has(id))) throw new Error('Queue order must keep every dependency before its task.');
+    if (task.resources !== undefined && (!record(task.resources) || typeof task.resources.verified !== 'boolean' || !Number.isSafeInteger(task.resources.threads) || task.resources.threads < 1)) throw new Error('Invalid task resource reservation.');
     seen.add(task.id);
   }
 }

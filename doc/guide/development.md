@@ -21,8 +21,8 @@ KKSS reuses the two VS Code extensions **without modifying them**. Both are alre
 │    OCCT + Gmsh WASM → shared worker thread (cadCompute.worker) │
 │  one MeshHost per open mesh tab — runs the REAL                │
 │    Mdpa/VtkEditorProvider classes behind a `vscode` shim       │
-│    module + a fake WebviewPanel; MMG → the submodule's own     │
-│    worker pair; Flowgraph's child process is shared, ref-      │
+│    module + a fake WebviewPanel; MMG and streamlines → the     │
+│    submodule's workers; Flowgraph's child is shared, ref-      │
 │    counted across every mesh tab, unchanged                    │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -43,7 +43,7 @@ The mesh submodule's **Flowgraph** problemtype (`view: "flowgraph"`) splits the 
 
 ### Extended mesh formats (meshio++)
 
-The mesh submodule reads and writes extended mesh formats (Gmsh, Abaqus, Nastran, I-deas UNV, Medit, Netgen, SU2, XDMF, COMSOL, tetgen, EnSight Gold, Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through [`@meshioplusplus/wasm`](https://www.npmjs.com/package/@meshioplusplus/wasm) (16.22.0, the version CAD locks too) — meshio++'s C++ core compiled to WebAssembly. meshio++ adds the field-only `.dex`/`.ip`/`.mff` formats: they carry point fields with no cell geometry, so writing one keeps the points plus a field and drops connectivity, and reading one yields a point cloud (or an empty mesh); plus write-only SVG/TikZ figure formats (a 2D/3D-projected drawing of the mesh) surfaced in the export menu's "Figures" group. Since 8.5.0 the WASM statically links HDF5 and netCDF, which is what makes Exodus/CGNS/H5M/HMF/MED reachable — and since 8.6.0 a multi-step file exposes its steps through `ReadOptions.timeStep` / `MeshMetadata.timeValues`, which is the in-file timeline (9.9.0 added `timeStep` for MED too; since 11.3.0/12.0.0 MED, CGNS and Tecplot also report header-only metadata, so all of them can size their in-file timeline before a read). 9.9.0 also made MED a writable format and let SubModelParts survive an export to MED/Abaqus, by fixing the shapeless-data boundary that silently reshaped an `(n, 3)` vector field into `(3n, 1)` on the way into the WASM. It is ESM-only (its Emscripten glue reads `import.meta.url`), so the submodule keeps it `external` and ships it verbatim as the `mesh/dist/meshio/` tree, and `mesh/src/parser/meshio.ts` loads it through a runtime dynamic `import()` rather than a bundled require.
+The mesh submodule reads and writes extended mesh formats (Gmsh, Abaqus, Nastran, I-deas UNV, Medit, Netgen, SU2, XDMF, COMSOL, tetgen, EnSight Gold, Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through [`@meshioplusplus/wasm`](https://www.npmjs.com/package/@meshioplusplus/wasm) (16.27.0, the version CAD locks too) — meshio++'s C++ core compiled to WebAssembly. meshio++ adds the field-only `.dex`/`.ip`/`.mff` formats: they carry point fields with no cell geometry, so writing one keeps the points plus a field and drops connectivity, and reading one yields a point cloud (or an empty mesh); plus write-only SVG/TikZ figure formats (a 2D/3D-projected drawing of the mesh) surfaced in the export menu's "Figures" group. Since 8.5.0 the WASM statically links HDF5 and netCDF, which is what makes Exodus/CGNS/H5M/HMF/MED reachable — and since 8.6.0 a multi-step file exposes its steps through `ReadOptions.timeStep` / `MeshMetadata.timeValues`, which is the in-file timeline (9.9.0 added `timeStep` for MED too; since 11.3.0/12.0.0 MED, CGNS and Tecplot also report header-only metadata, so all of them can size their in-file timeline before a read). 9.9.0 also made MED a writable format and let SubModelParts survive an export to MED/Abaqus, by fixing the shapeless-data boundary that silently reshaped an `(n, 3)` vector field into `(3n, 1)` on the way into the WASM. It is ESM-only (its Emscripten glue reads `import.meta.url`), so the submodule keeps it `external` and ships it verbatim as the `mesh/dist/meshio/` tree, and `mesh/src/parser/meshio.ts` loads it through a runtime dynamic `import()` rather than a bundled require.
 
 **Path contract**: `meshio.ts`'s `packageDir()` falls back to `path.join(__dirname, "meshio")`, and `meshio.ts` is bundled into **both** `out/main.js` (mesh host → `meshFileParser`/`meshWriter`) and `out/mcpServer.js` — both with `__dirname === out/`. So `copyArtifacts()` mirrors `mesh/dist/meshio/` to a single `out/meshio/` tree beside `out/main.js`, serving the app host and the MCP server at once. The `.wasm` is loaded via meshio++'s `locateFile` hook (the `wasmBinary` buffer hook MMG uses is unavailable in this build), which is why `out/` stays unpacked (`asar: false`). `@meshioplusplus/wasm` is also added to the parent `mainConfig.external` in `esbuild.mjs`, because the bundled `meshio.ts` contains a `require.resolve("@meshioplusplus/wasm/package.json")` literal esbuild would otherwise try to resolve at build time.
 
@@ -114,6 +114,26 @@ values whose source result is stale; variant comparisons require matching defini
 and classify mesh-sensitivity separately from solver-setting changes using recorded mesh revisions.
 The Home row list can resume one waiting run row at a time while holding other waiting work, or
 preview a failed row's retry as a new study/run identity in the existing comparison group.
+
+Queued solve tasks freeze `kratos.threads` into their arguments, revision and verified CPU reservation. `mesh/src/problemtype/threadControl.ts` applies and reads the Kratos OpenMP count before `runpy` starts the generated analysis stage; the atomic `kkss-resources.json` receipt records the effective allocation. The queue retains active/uncertain reservations across restart and admits at most one solve and one mesh/case preparation task when their checked allocations fit `availableParallelism()`. CAD Gmsh and serial fTetWild preparation are each bounded to one thread; task types with no verified cost run alone.
+
+`mesh/src/problemtype/mainKratosTemplate.ts` shares versioned monitor framing across the structural, fluid, convection-diffusion, potential-flow and shallow-water built-ins. `outputDiscovery.ts` reads generated output process settings and finds supported VTK, XDMF/HDF5 and GiD entrypoints and companions inside the isolated run workspace. Review checks every owned companion revision before accepting a saved quantity. Unknown processes, unsafe destinations and missing companions remain explicit findings. Mesh counts use the MDPA text scanner or `mesh__mesh_info` for other routed formats.
+
+`refinement.ts` converts user-declared revision-bound sizes into metres and computes unequal-ratio observed order, Richardson extrapolation and safety-factor 1.25 GCI. Comparisons require identical solver settings/resource allocations, geometry revision, compatible definitions/units, distinct meshes, current statistics and explicit sizing, comparability and asymptotic assumptions. Four-level asymptotic consistency uses a visible 10% heuristic; a failed check clears all estimates. HTML review/comparison reports render escaped tables and include an offline JSON twin.
+
+`tools/workflows/benchmark.mjs` repeats the five published tutorial solvers at 1, 2, 4 and all available CPUs, verifies solver physics/thread receipts/monitor closure, and records coordinator event-loop delay as a responsiveness proxy. `tools/workflows/outputs.mjs` runs live VTK, GiD and XDMF/HDF5 output and quantity acceptance against the pinned tutorial interpreter. Set `KKSS_TUTORIAL_PYTHON` (and `LD_LIBRARY_PATH` for HDF5 installations that need it), then run `npm run workflows:benchmark -- doc/public/benchmarks/thread-benchmark.json` and `npm run workflows:outputs`. Timing samples are machine-specific; the benchmark reports them without treating higher thread counts as inherently faster.
+
+On the recorded AMD Ryzen 7 255 system (16 available CPUs), three-run median solve times in milliseconds were:
+
+| Tutorial | 1 thread | 2 threads | 4 threads | 16 threads |
+| --- | ---: | ---: | ---: | ---: |
+| Structural | 531 | 473 | 440 | 589 |
+| Fluid | 893 | 852 | 887 | 1,135 |
+| Thermal | 77 | 78 | 79 | 143 |
+| Potential flow | 84 | 87 | 87 | 106 |
+| Shallow water | 86 | 87 | 90 | 151 |
+
+The median coordinator p99 delay was 20.5 ms at a 20 ms sampling resolution; it is not a GUI frame-rate measurement. The full per-run verification and timing samples are in the linked JSON.
 Reviews include revision-checked generated inputs and the mesh runner's existing quality report.
 The versioned structural monitor records solver-published residual norms, criterion parameters,
 and solve-step coordinates for nonlinear residual-criterion runs. Linear solves, other criteria,
@@ -192,8 +212,8 @@ Tools come from three stdio MCP servers managed by `app/main/services/chat/mcpMa
 
 | Server | Bundle / command | Placement contract |
 | --- | --- | --- |
-| `cad-preview` (56 tools) | `out/cad-runtime/dist/mcp-server.js` | beside the OCCT/Gmsh WASM, so its `extensionPath` (= `dirname/..`) resolves to `out/cad-runtime` |
-| `kratos-mdpa` (23 tools) | `out/mcpServer.js` | beside `out/mmg-core.wasm` (the bundle reads `__dirname/mmg-core.wasm`) and the `out/meshio/` tree (meshio++'s `__dirname/meshio` fallback, for the extended-format tools) |
+| `cad-preview` (68 tools) | `out/cad-runtime/dist/mcp-server.js` | beside the OCCT/Gmsh WASM, so its `extensionPath` (= `dirname/..`) resolves to `out/cad-runtime` |
+| `kratos-mdpa` (44 tools) | `out/mcpServer.js` | beside `out/mmg-core.wasm`, `out/plotWorker.js` and `out/meshio/` (the shared format/interpolation kernel) |
 | `kratos-mcp-server` (52 tools) | `uvx --with "mcp<2" kratos-mcp-server@<version>` (or `uv tool run`) | pinned to `KRATOS_MCP_VERSION`; app-local uv setup and independent retry available in chat |
 
 The kratos server is **pinned** to `KRATOS_MCP_VERSION` (`kratosMcpVersion.ts`) — bump that constant to upgrade; the tool/resource/prompt surface is discovered at runtime (`listTools`), so no other code changes when it grows. Its 0.3.0 knowledge layer also ships MCP **resources** (worked examples) and **prompts** (guided setups); `McpManager` aggregates both (`listResources`/`readResource`/`listPrompts`/ `getPrompt`, resource URIs owner-mapped, prompt names namespaced). The provider loop only understands tools, so these are surfaced to the chat as four synthetic `mcp__*` tools (`chatTools()` = real tools + `mcp__list_resources` / `mcp__read_resource` / `mcp__list_prompts` / `mcp__get_prompt`).
@@ -212,7 +232,7 @@ API keys are entered via **Settings ▸ LLM Assistant** (`showInputBox` modals) 
 
 `app/main/services/chat/toolPolicy.ts` decides whether a tool the model asked for runs straight away or has to be approved. It is a **pure** module (no `electron`, no `node:*`, the approval mode passed in rather than read from the stateStore) so `test/` drives it directly — `test/chatToolPolicy.test.ts`.
 
-Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering 118 bundled/in-process tools: 58 CAD, 26 mesh, four in-process `mcp__*` tools, and 30 app-owned `app__*` workflow tools. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (tools resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
+Classification is a **KKSS-side table keyed by the full namespaced name** (`cad__apply_edit_ops`, `mesh__mesh_transform`), covering 147 bundled/in-process tools: 68 CAD, 44 mesh, four in-process `mcp__*` tools, and 31 app-owned `app__*` workflow tools. It is deliberately *not* derived from MCP's `Tool.annotations`: the SDK's own type declarations say a client must never make tool-use decisions from a server's annotations, and no cad/mesh tool declares any in the first place. Name-prefix and description heuristics are rejected for the same reason — `mesh__problemtype_list` looks like a listing and actually *executes* workspace problemtypes. Anything unlisted is `unknown`, which always asks; that is what makes the external `kratos-mcp-server` (tools resolved by uvx at runtime) safe without pretending to know what it does. `gateFor`'s precedence is `never` → an always-allow grant → `askAlways` → read-is-auto → ask.
 
 The gate sits in `chatService.ts`'s tool loop, between appending the `toolCall` entry (so the user can read the arguments they are approving) and `mcp.callTool`. Three rules are load-bearing and easy to break:
 
@@ -397,7 +417,21 @@ Key pieces (all under `app/`):
 - **`app/preload/viewPreload.ts` + `app/renderer/view/shim.ts`** — the entire VS Code compatibility layer: `acquireVsCodeApi().postMessage` → IPC, and inbound IPC → a normal window `message` event.
 - **`app/main/vscodeShim.ts`** — a minimal `vscode` module. Its `workspace.workspaceFolders` is a **getter** backed by the *explicit* project folder (via the `__configureVscodeShim` hooks object): that is what makes `ptController.discoverExternal()` scan `<root>/.kratos/problemtypes`, so a project-local problemtype appears in the Problemtype list — impossible while this was permanently `undefined`. Explicit-only is a safety decision, not a style one: `discoverExternal` *executes* what it finds (sandboxed in a `node:vm` with no `require`/`process`/`fs`, no codegen and a 2 s timeout), so merely opening a mesh that happens to sit beside a `.kratos/problemtypes/` must never run it. Python problemtypes stay unavailable in KKSS (pyodide is not copied into `out/`) and surface as a per-file error row rather than a crash. The rest of the shim (dialogs, messages, file watcher, progress, `openWith`, `getConfiguration` — served from the settings registry (see *Settings* above), the Settings page being KKSS's settings.json — `openTextDocument`/`showTextDocument` routed to the app's own text-editor screen, and `env.asExternalUri` as an identity passthrough since there is no Remote-SSH/Codespaces tunnel) that esbuild aliases in place of the real API, letting `mesh/src/{mdpaEditorProvider,vtkEditorProvider,meshExport, opHistory,flowgraphController,ptController,runManager,recentMeshes,previewHtml,meshDocument}.ts` run verbatim.
 
-mesh 3.18.0 made both preview providers full `vscode.CustomEditorProvider`s (were `CustomReadonlyEditorProvider`): applying an operation now marks the document dirty, and only `vscode.workspace.save(uri)` clears it. `app/main/mesh/meshHost.ts`'s `resolveProviderFor` mints the document from the provider's own `openCustomDocument(uri, {backupId: undefined, ...}, token)` rather than a bare stand-in (`resolveCustomEditor` unconditionally reads `document.takeRestoredOps()`), keeps it (and the provider that minted it) alongside its panel, and the shim's fifth hook, `saveMesh(fsPath)`, is what `workspace.save` calls into — it finds the `MeshHost` whose document owns the uri and calls its `saveDocument()`, which calls `saveCustomDocument` on that exact document. `MeshHost.isDirty()`/the `onDidChangeCustomDocument` subscription back the tab strip's dirty dot and `index.ts`'s close/quit prompts (`confirmDiscardMeshTab`, mirroring `EditorService.confirmClose`'s dialog shape). Three modules are deliberately left *unreachable* rather than shimmed — `runTreeView.ts`, `sidebarViews.ts` and `emptyPreview.ts`, each constructed only from the submodule's own `activate()`, which KKSS never calls — which is what keeps `createTreeView`/`TreeItem`/`registerCommand`/`createWebviewPanel` out of both the bundle and the shim.
+mesh 3.18.0 made both preview providers full `vscode.CustomEditorProvider`s: applying an operation marks the document dirty, and only `vscode.workspace.save(uri)` clears it. `MeshHost.resolveProviderFor` mints the document through `openCustomDocument(uri, {backupId: undefined, ...}, token)`, keeps its provider/document pair, and the shim's `saveMesh(fsPath)` hook calls that host's `saveDocument()`/`saveCustomDocument`. `MeshHost.isDirty()` backs tab dots and close/quit prompts. Three modules remain deliberately unreachable rather than shimmed—`runTreeView.ts`, `sidebarViews.ts` and `emptyPreview.ts`, constructed only by upstream `activate()`, which KKSS never calls—so TreeView/registerCommand APIs remain unsupported. The script-free `kratos.exportReport` panel (`enableScripts: false`) uses `services/staticReport.ts`: sandboxed escaped HTML, JavaScript disabled, no Node/preload, blocked navigation/popups and inline trusted theme variables. Live reports retain their `reportSink` and IPC. Mesh 5.1 adds a separate narrowly trusted plotting route, described below; it never relaxes the report window's script prohibition.
+
+Mesh 4.23 integration also stages `mesh/dist/streamlineWorker.js` as `out/streamlineWorker.js`, beside `main.js`, because the upstream client resolves it via `__dirname`. The build requires this artifact just like `mmgWorker.js`. Native **Import Mesh** dispatches `menuImport` to the active provider; grouped exports are sourced from upstream `EXPORT_MENU_GROUPS`, not a duplicate format list. Packing uses the active host's current file rather than a VTK-only accessor, so numbered MDPA series also work. `test/meshMcpRuntime.test.ts` checks the staged worker and live tool schemas against the approval policy; `tools/e2e/mesh-423.mjs` drives imports, traces/cancellation, reports, Fluid validation, quantitative flow-series CSV, PVD packing/reopening, display units and density-field conversion in the real Electron app with an isolated profile.
+
+### Mesh 5.1 scientific plotting integration
+
+`tools/webviewMarkup.ts` mirrors upstream `PLOT_PANE_HTML` after Flowgraph, links `plots.css`, and gives `#preview-main` its lazy local Plotly URL. `esbuild.mjs` requires/stages `plotWorker.js` beside `main.js`/`mcpServer.js`, and copies `plots.js`, `plots.css` and the strict Plotly bundle/license into `out/renderer/mesh/`. Plotly requires neither a CDN nor an `unsafe-eval` CSP exception.
+
+The second narrowly supported `createWebviewPanel` route is script-enabled **`kratos.plotBuilder`**. `services/plotPanel.ts` loads trusted generated `plots.html`, uses the existing sandboxed/context-isolated view preload with sender-scoped `plots:*` IPC, and blocks navigation/popups. Closing unregisters IPC and disposes the upstream controller/worker. It cannot load arbitrary HTML/general panels; export reports stay JavaScript-disabled. File's native builder supplies the same ExtensionContext/run index as the providers.
+
+`vscode.openWith` preserves explicit `ViewColumn.Beside`: `index.ts` reveals an existing owning result tab or creates a separate one before opening, without replacing unrelated/dirty documents. Upstream verifies revisions before/after frame adoption; MCP target resolution alone never navigates a GUI.
+
+Six plotting tools have explicit policies: `mesh__plot_dataset` is write-classified because CSV/provenance export is optional; table inspection, run discovery/binding, time cursors and run targets are read-only. The system prompt describes physical/ownership limits. The table now covers **147 tools: 68 CAD, 44 mesh, four aggregation and 31 app workflow tools**.
+
+`npm run tutorials:plots` generates relocatable recipes, full-resolution CSV/provenance and refreshed archives from unchanged published solver results. It reuses upstream extraction/interpolation, supplies units/time explicitly, records hashes and creates no fictional receipts. `publish.mjs` invokes it after case publication; `writeDocs.mjs` preserves curated plotting walkthroughs. `tools/e2e/mesh-plots.mjs` drives real embedded/standalone collection, exports, recipe roundtrip, docking and following, and feeds `npm run docs:screenshots -- --plots-only`. Linux acceptance does not imply Windows/macOS GUI verification.
 - **`app/main/cadHost.ts`** — a 1:1 port of `cad/src/provider.ts`'s editor session (the cad provider imports OCCT directly, which must live in a worker here, so the cad side is ported rather than shimmed). Its `readOcctSource` is the single choke point every OCCT path reads through, so a `.scad` is converted to `.csg` by the user-installed `openscad` binary once and nothing downstream ever sees format `"scad"`. Deliberately *not* ported: SpaceMouse (it needs `node-hid`, a second native module — see the node-pty section) and the Models activity-bar view (a VS Code TreeView with no KKSS analogue); nor the provider's `getHtml`/`getNonce` (KKSS generates its page with `tools/gen-webview-html.mjs`, whose CSP allow-lists the `kkss:` scheme instead of a nonce) and its `registerCommands` (KKSS's command surface is `app/main/menu.ts`, and its What's New lives in `app/main/services/whatsNew.ts`). Its `CadHostHooks.onMeshExported` fires after a meshing-panel export writes a file; `app/main/index.ts` wires it to refresh a matching clean mesh tab or create a new one (gated by `modeForFile`) so a mesh exported in pre mode that post mode can display (`.mdpa`, `.vtk`, …) opens straight into the mesh view — a one-way pre → post sync. Mesh-source meshing fallback lives in `app/main/cadMeshInput.ts`: when the viewer has not sent its already edited STL, KKSS resolves the original source and companions, then replays only the unbaked tail through CAD’s `bakeMeshEdits` in `cadCompute.worker.ts`. Keep that method in the worker and typed client; a displayed STL is already edited and must never be replayed twice.
 
 Three things to keep in step with the provider on a bump: **plane references are resolved before the first tessellation** (`ready` loads edits and planes together and runs `resolvePlaneRefs`, and `loadModel` resolves the replay tail again — a plane-authored profile carries no placement of its own since cad 2.5.0, and the kernel skips one that was never resolved); the **meshing-preset library** (`cad-preview-mesh-presets.json`, per *folder* like the macro library, atomic-written, never cloud-synced, with the bundled starters read from `out/cad-runtime/dist/mesh-presets/`); and the **Standard-Parts thumbnail cache**, which is module-level because the provider's is shared by every document while a `CadHost` is per tab.
@@ -454,14 +488,27 @@ grep -c "<package>" out/main.js   # does it reach the bundle?
 When an upstream range still admits a vulnerable version, pin it in the root
 `package.json`'s `overrides` block (the `cad/` and `mesh/` submodules keep
 equivalent pins for their own trees) and drop the entry once upstream's own
-range excludes the bad versions. Current pins — `fast-uri` and
-`@hono/node-server`, both reaching the bundle through
-`@modelcontextprotocol/sdk` (via `ajv` and the SDK's `streamableHttp.js`
-transport respectively). Advisories that resolve only inside the
-**electron-builder** toolchain (`brace-expansion`, `minimatch`, `tar`) are
-build-time only — they never enter `out/`, and GitHub's Dependabot
-auto-dismisses them; do not force-resolve them, since the requested majors
-differ across that tree and a blanket override breaks packaging.
+range excludes the bad versions. `fast-uri` (at least 3.1.8) and
+`@hono/node-server` reach the bundle through `@modelcontextprotocol/sdk`
+(via `ajv` and the SDK's `streamableHttp.js` transport respectively).
+Build-time dependencies need updates too: the **electron-builder** tree uses
+`brace-expansion` 1.x, 2.x and 5.x, so version-scoped overrides require the
+patched 1.1.21, 2.1.7 and 5.0.12 releases without changing the majors requested
+by its different `minimatch` consumers. Never apply a blanket major override
+or `npm audit fix --force` to this tree; that can break packaging.
+
+The download toolchain also pins `http-cache-semantics` to at least 4.3.0,
+outside GHSA-ch52-4w7c-c8xp's published affected range (`<=4.2.0`). The advisory
+does not yet identify a patched release, and 4.3.0's upstream changes address
+a separate `Vary` issue; a clean audit is not confirmation that the reported
+`max-stale` behavior is fixed. This dependency is build-time only, not a
+shared HTTP cache in the shipped app. Recheck the upstream advisory before
+claiming that behavior is fixed.
+
+`test/dependencySecurity.test.ts` checks every matching root-lockfile entry,
+including nested copies, against these version floors. After refreshing the
+lockfile, run `npm audit`, the build/tests and Electron smoke verification;
+exercise packaging as well when its dependency tree changes.
 
 ## Regenerating documentation screenshots
 
@@ -512,6 +559,16 @@ The suite exercises generated CAD/mesh DOM, native menu/shim reload, CAD → mes
 Profiles and documents are temporary. Chat uses a loopback OpenAI-compatible SSE server and Kratos uses a local stdio MCP fixture through a temporary `uvx` wrapper. No provider credentials or solver installation are needed. CAD and mesh retain their real bundled runtimes. The cloud transport fixture activates only in unpackaged apps with `KKSS_E2E=1` and an absolute `KKSS_E2E_CLOUD_DIR`; it replaces only Dropbox's provider implementation, preserving the real cache, watcher, sync and quit paths. It has no renderer IPC controls. Upload barriers prove quit waits; failed and stalled transfers retain dirty state and can be retried after relaunch.
 
 `launchApp` accepts `env`, `restore` and `singleInstance` options. `restore: true` sets `KKSS_E2E_RESTORE=1`; explicit `KKSS_NO_RESTORE=1` and the user's Restore Last Session setting still take precedence. Defaults continue suppressing restoration and bypassing the instance lock for smoke and screenshots. Lifecycle tests use bounded graceful quit and observe the process exit; forced cleanup cannot count as acceptance.
+
+Quick-pick options close their own BrowserWindow immediately on selection.
+Use `tools/e2e/picker.mjs`'s `clickPickerOption` for these clicks: it arms the
+close waiter before input and accepts only the target-closed acknowledgement
+race after the picker actually closes. It retains actionability checks and
+bounded waits; other click errors or crashes still fail. Always assert the
+selection's effect in the surviving app or on disk afterward, so closing a
+picker without completing the requested operation cannot pass the scenario.
+`test/pickerInteraction.test.ts` covers both acknowledgement/closure orderings
+and failure propagation.
 
 Regression fixes found by this suite: assistant completion replaces the streaming bubble without also rendering the persisted entry; opening a staged path restarts upload tracking; repeated CAD exports refresh a matching clean mesh tab, while unrelated or dirty tabs remain intact.
 

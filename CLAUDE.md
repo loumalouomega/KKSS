@@ -117,8 +117,61 @@ alternate-criterion, interrupted and truncated cases remain unavailable rather
 than inferred. Quantity
 evaluation explicitly selects a result field/component, region, time, reduction
 and unit, then saves it with its exact artifact reference and source revision.
-Variant comparison labels mesh-sensitivity, solver-parameter and mixed studies
-from recorded mesh revisions and settings; it accepts only matching quantity
+Thread previews freeze a concrete `kratos.threads` allocation (`0` means Auto,
+`max(1, availableParallelism() - 1)`) into the plan fingerprint. Revalidate the
+manual runner's `SetNumThreads`/`GetNumThreads` APIs before dispatch, apply the
+requested count before constructing the simulation, and fail if the effective
+count cannot be verified. Receipts and run provenance retain requested and
+effective counts. `tools/workflows/benchmark.mjs` runs the five tutorial cases
+at 1, 2, 4 and all available CPUs, three repetitions each; raw timings and
+coordinator-delay samples live in `doc/public/benchmarks/thread-benchmark.json`.
+Treat them as machine-specific observations, not evidence that more threads
+improve solve time.
+
+The resource coordinator is shared across registered project stores and writes
+reservations before dispatch. It admits at most one solve and one preparation
+task when verified allocations fit the CPU budget. CAD meshing and MDPA case
+preparation reserve one verified CPU; other preparation costs are unknown and
+run exclusively. Legacy allocations and interrupted/uncertain launches retain
+their reservations until reconciled. Preserve dependency order, selected-row
+resume, pause, cancellation and restart reconciliation.
+
+The versioned convergence monitor has explicit adapters for structural, fluid,
+convection-diffusion, potential-flow and shallow-water solvers. Instrument
+solver hooks and solver-published criteria; keep solve-step outcomes separate
+from numerical convergence. Linear solves, unsupported criteria, missing
+residuals and incomplete/interrupted monitors need explicit unavailable reasons.
+Continue reading structural monitor v1/v2. For mesh counts, keep MDPA's text
+fast path; other formats use read-only `mesh__mesh_info` with before/after
+revision checks.
+
+Shared result discovery reads generated `ProjectParameters.json` output-process
+settings and adapts VTK, XDMF/HDF5 and GiD. Discover result entrypoints and
+timelines together with required companion revisions; queue review, imported
+runs, result opening and quantity evaluation use the same discovery. Missing,
+unreadable, unsafe or unknown configured outputs are findings, not solver
+success. Keep the documented VTK fallback only for legacy cases with no output
+settings. Live VTK and GiD acceptance passed; Kratos 10.4.3's XDMF/HDF5 writer
+fails before producing its XDMF index, so live XDMF acceptance remains open in
+`doc/roadmap.md`.
+
+Mesh-sensitivity metadata is revision-bound and records characteristic size,
+unit, dimension, sizing method and justification. Count-derived effective sizes
+are valid only for explicitly confirmed uniform refinement of the same domain;
+adaptive meshes require an explicit consistent sizing definition. Require three
+distinct revisions, compatible physical/solver settings and quantity units,
+finite values and decreasing sizes. Compute unequal-ratio observed order,
+Richardson extrapolation and GCI with safety factor 1.25; withhold invalid,
+oscillatory, unsolved or incompatible estimates and relative GCI for a zero
+reference value. Three levels need an explicit asymptotic-range assumption;
+four or more also report whether consecutive orders agree within the 10%
+heuristic (not proof).
+
+Review and comparison exports are escaped, self-contained HTML for offline use
+with embedded JSON twins. Include findings, provenance, resources, preparation
+status, mesh statistics/quality, quantities and refinement assumptions. Variant
+comparison labels mesh-sensitivity, solver-parameter and mixed studies from
+recorded mesh revisions and settings; it accepts only matching quantity
 definitions with compatible units and preserves missing values as null. The
 read-only mesh evaluator is
 `mesh__case_evaluate_quantity`; its app-owned persistence wrapper is
@@ -156,11 +209,33 @@ resubmitted automatically.
   ever constructed from the submodule's own `activate()`, which KKSS never
   calls: `runTreeView.ts`, `sidebarViews.ts` and `emptyPreview.ts` (the last two
   arrived with mesh 3.15.0's Kratos activity-bar panel). That is what keeps
-  `createTreeView`/`TreeItem`/`registerCommand`/`createWebviewPanel` out of both
+  `createTreeView`/`TreeItem`/`registerCommand` out of both
   the bundle and the shim; KKSS covers the same ground natively — runs via
   **File ▸ Stop Kratos Run**, recent files via **File ▸ Open Recent** (KKSS's
   own app-wide store, not the submodule's), and the
   empty-preview shell via the tab model itself.
+  Mesh 5.1 adds explicitly script-enabled `kratos.plotBuilder` through
+  `services/plotPanel.ts`: trusted generated `plots.html`, the existing sandboxed
+  view preload, sender-scoped `plots:*` IPC and lifecycle cleanup. Never extend
+  this to arbitrary HTML/panels or relax script CSP for Plotly. Emit upstream
+  `PLOT_PANE_HTML` and `#preview-main`'s lazy local library URL; stage `plots.js`,
+  `plots.css`, Plotly + license and `out/plotWorker.js` (beside main/MCP, sharing
+  `out/meshio/`). `vscode.openWith` preserves Beside by revealing an owning tab
+  or opening a new one, never replacing unrelated work. `tools/e2e/mesh-plots.mjs`
+  verifies real plots/exports and generates captures (`docs:screenshots -- --plots-only`).
+  `tutorials:plots` derives recipes/CSV/provenance from unchanged solver bytes,
+  supplies SI units/fixed-step time reconstruction and refreshes archives; do
+  not fabricate initial frames, adaptive times or isolated-run ownership.
+  The `kratos.exportReport` route still requires explicitly
+  disabled scripts: `services/staticReport.ts` opens upstream escaped HTML
+  in a sandboxed, JavaScript-disabled window with no Node/preload and blocked
+  navigation/popups. Live previews retain their upstream `reportSink` and IPC.
+  Native Import Mesh dispatches `menuImport` (one undoable multi-file merge,
+  no implicit weld); Export Mesh As uses upstream `EXPORT_MENU_GROUPS`.
+  Packing uses the host's current file, not a VTK-only accessor: numbered
+  MDPA series have formed timelines since mesh 4.13. `tools/e2e/mesh-423.mjs`
+  checks that route, pressure-density-field conversion, display units and new
+  panels; it also supplies verified panel captures to `tools/screenshots.mjs`.
   mesh 3.18.0 made both preview providers full `CustomEditorProvider`s (were
   `CustomReadonlyEditorProvider`), so `app/main/mesh/meshHost.ts`'s
   `resolveProviderFor` mints the document itself via the provider's own
@@ -182,14 +257,17 @@ resubmitted automatically.
   the mesh submodule's own worker pair. Path contracts of the unmodified
   submodule code: `out/mmgWorker.js` + `out/mmg-core.wasm` must sit **beside
   `out/main.js`** (`__dirname` resolution in `mesh/src/mmgWorkerClient.ts`),
-  and the OCCT/Gmsh binaries live under `out/cad-runtime/dist/` (the services
+  as must `out/streamlineWorker.js` for mesh 4.21+'s off-thread traces,
+  per-seed progress and partial cancellation. Both workers are required build
+  artifacts; `test/meshMcpRuntime.test.ts` executes the staged files.
+  The OCCT/Gmsh binaries live under `out/cad-runtime/dist/` (the services
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
 - **meshio++ (extended mesh formats) is a verbatim WASM tree, loaded in-process.**
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**16.22.0**, the version BOTH submodules now
+  `@meshioplusplus/wasm` package (**16.27.0**, the version BOTH submodules now
   lock; since 10.20 the package has the field-only `.dex`/`.ip`/`.mff` formats —
   point fields, no geometry — the write-only SVG/TikZ figure formats exposed in
   the export menu's "Figures" group, and, since it statically links HDF5/netCDF,
@@ -221,7 +299,7 @@ resubmitted automatically.
   `out/cad-runtime/dist/kernel-worker.js` finds it at
   `out/cad-runtime/dist/../../meshio`. That is why KKSS's
   `cadMeshioLoader.ts` shim and its esbuild alias are gone, and why one version
-  must serve both consumers: mesh's lock is pinned to cad's 16.22.0 rather than
+  must serve both consumers: both submodules lock 16.27.0 rather than
   leaving the two a major apart. It loads the `.wasm` via meshio++'s
   `locateFile` hook (the `wasmBinary` buffer hook MMG uses is pruned from this
   build), so the tree must exist on disk — another reason for `asar: false`.
@@ -559,6 +637,12 @@ resubmitted automatically.
     `manifest` job merges them into one multi-arch tag on **GHCR**
     (`ghcr.io/loumalouomega/kkss`, built-in `GITHUB_TOKEN`) and **Docker Hub**
     (`vmataix/kkss`, `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets).
+    Base and Kratos verification builds pull current base images and bypass
+    only the `runtime-base` cache so Debian security updates are installed;
+    apt repository changes do not invalidate cached RUN instructions. Keep
+    builder-stage caches and reuse the checked layers when publishing rather
+    than refreshing packages again. Fixable HIGH/CRITICAL findings gate the
+    base-image scan on every branch and release.
     User docs live in `doc/guide/web-deployment.md`.
   - The browser gateway is `/opt/kkss-web`: local bcrypt users and OIDC are
     mutually validated, sessions are HttpOnly and CSRF-protected, and identity
@@ -1646,6 +1730,12 @@ Restore opt-in never overrides the user's restore setting or `KKSS_NO_RESTORE`.
 Graceful-quit acceptance observes a natural zero exit; forced cleanup is only
 cleanup. Session tests cover tab ordering/focus, screens/panels, missing-file
 pruning and launch precedence. The lock test launches a real second process.
+
+Quick-pick selections close their own BrowserWindow before Playwright may
+acknowledge the click. Use `tools/e2e/picker.mjs`'s `clickPickerOption`, then
+assert the selection's effect in the surviving app or on disk. Only an actual
+picker close plus the target-closed acknowledgement error is accepted; other
+click errors, crashes and close timeouts must still fail.
 
 Chat's `entry` event records assistant text, but the renderer paints its
 `assistantDone` event only, replacing the streaming bubble; rendering both

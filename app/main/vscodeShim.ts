@@ -3,14 +3,16 @@
  * (esbuild alias, main bundle only). It implements exactly the API surface the
  * mesh submodule's host-side code touches at runtime when driven by KKSS:
  *
- *   mesh/src/meshExport.ts       — window.show{Open,Save}Dialog, window.showQuickPick
- *                                  (exportSkin, reached from Advanced ▸ Export skin…
- *                                  with no pre-chosen format), show*Message,
+ *   mesh/src/meshExport.ts       — window.show{Open,Save}Dialog, showQuickPick,
+ *                                  validated showInputBox, show*Message,
+ *                                  extensions.getExtension and script-free
+ *                                  window.createWebviewPanel for export reports,
  *                                  Uri.file, commands.executeCommand("vscode.openWith")
  *   mesh/src/opHistory.ts        — same dialog/message surface
  *   mesh/src/*EditorProvider     — workspace.createFileSystemWatcher(RelativePattern),
  *                                  window.withProgress, Uri.joinPath, globalState
  *                                  (via the fake ExtensionContext in meshHost.ts),
+ *                                  globalStorageUri for durable recording drafts,
  *                                  workspace.getConfiguration("kratos.flowgraph")
  *   mesh/src/flowgraphController — workspace.getConfiguration, Uri.parse (non-file
  *                                  URIs), env.asExternalUri (identity — no
@@ -60,8 +62,10 @@
  *   mesh/src/runTreeView.ts   — createTreeView, TreeItem, ThemeIcon, MarkdownString
  *   mesh/src/sidebarViews.ts  — createTreeView, TreeItem, commands.registerCommand
  *                               (mesh 3.15.0's Kratos activity-bar panel)
- *   mesh/src/emptyPreview.ts  — window.createWebviewPanel
- * That is what keeps all of the above out of both the bundle and this shim.
+ *   mesh/src/emptyPreview.ts  — general window.createWebviewPanel
+ * Tree APIs and commands.registerCommand remain out of the bundle and shim;
+ * createWebviewPanel supports script-free kratos.exportReport and the narrow,
+ * trusted generated kratos.plotBuilder page. It is not a general panel host.
  * KKSS covers the same ground natively: runs via File ▸ Stop Kratos Run, recent
  * meshes via File ▸ Open Recent, and the empty-preview shell via its own tab
  * model (a mode screen always has at least one tab, so KKSS structurally cannot
@@ -71,20 +75,24 @@
  * API fails visibly instead of silently misbehaving.
  */
 import { app, dialog, shell } from "electron";
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
+import meshPackage from "../../mesh/package.json";
 import { showOpenDialog as electronOpen, showSaveDialog as electronSave, FileFilter } from "./services/dialogs";
-import { showQuickPick as electronQuickPick, QuickPickItem } from "./services/quickPick";
+import { showInputBox as electronInputBox, showQuickPick as electronQuickPick, QuickPickItem } from "./services/quickPick";
 import { toast, progressToast } from "./services/notifications";
 import { createFileSystemWatcher } from "./services/watcher";
 import { stateStore } from "./services/stateStore";
 import { entryForVscode, normalize, registry, toStored } from "./services/settings/registry";
+import { createStaticReportPanel } from "./services/staticReport";
+import { createPlotPanel } from "./services/plotPanel";
 
 // ---- Hooks the app injects (avoids import cycles) ---------------------------
 
 export interface VscodeShimHooks {
   /** Implements the "vscode.openWith" command (routes into cad/mesh views). */
-  openWith(fsPath: string, viewType: string): void | Promise<void>;
+  openWith(fsPath: string, viewType: string, beside?: boolean): void | Promise<void>;
   /** Implements the openTextDocument/showTextDocument "reveal a file" flow. */
   openTextDocument(fsPath: string): void;
   /**
@@ -183,6 +191,14 @@ export class TextDocument {
   constructor(public readonly uri: Uri) {}
 }
 
+/** The metadata lookup used by meshExport.ts when naming report summaries. */
+export const extensions = {
+  getExtension: (id: string): { packageJSON: { version: string } } | undefined =>
+    id === "kratos-multiphysics.vscode-mdpa"
+      ? { packageJSON: { version: meshPackage.version } }
+      : undefined,
+};
+
 // ---- EventEmitter / Disposable ------------------------------------------------
 
 export interface Disposable {
@@ -240,10 +256,8 @@ export enum ProgressLocation {
 }
 
 /**
- * KKSS has one panel per mode (see CLAUDE.md's "one document per mode"
- * invariant), so there is no split-editor equivalent — values exist only so
- * `vscode.ViewColumn.Beside` (ptController.ts's openResults) doesn't throw;
- * commands.executeCommand("vscode.openWith") ignores the column argument.
+ * KKSS uses document tabs rather than editor columns. Explicit Beside opens
+ * reveal an existing owning tab or create another, preserving unrelated work.
  */
 export enum ViewColumn {
   Active = -1,
@@ -295,6 +309,15 @@ interface CancellationTokenLike {
 }
 
 export const window = {
+  /** Two narrow trusted routes, not a general VS Code panel host. */
+  createWebviewPanel: (viewType: string, title: string, _column: unknown, options?: { enableScripts?: boolean }) => {
+    if (viewType === "kratos.plotBuilder" && options?.enableScripts === true) return createPlotPanel(title);
+    if (viewType !== "kratos.exportReport" || options?.enableScripts !== false) {
+      throw new Error(`vscodeShim: unsupported webview panel "${viewType}" (only script-free export reports and the scientific plot builder are supported)`);
+    }
+    return createStaticReportPanel(title);
+  },
+
   showOpenDialog: async (options: {
     canSelectMany?: boolean;
     canSelectFiles?: boolean;
@@ -341,6 +364,22 @@ export const window = {
     options?: { title?: string; placeHolder?: string }
   ): Promise<T | undefined> =>
     electronQuickPick(items, { title: options?.title, placeHolder: options?.placeHolder }),
+
+  /** Native, validated number prompts used by mesh grid/export operations. */
+  showInputBox: async (options: {
+    title?: string;
+    prompt?: string;
+    value?: string;
+    placeHolder?: string;
+    validateInput?: (value: string) => string | undefined | Promise<string | undefined>;
+  }): Promise<string | undefined> =>
+    electronInputBox({
+      title: options.title,
+      prompt: options.prompt,
+      value: options.value,
+      placeHolder: options.placeHolder,
+      validateInput: options.validateInput,
+    }),
 
   showInformationMessage: (message: string, ...rest: unknown[]) => showMessage("info", message, rest),
   showWarningMessage: (message: string, ...rest: unknown[]) => showMessage("warning", message, rest),
@@ -527,7 +566,20 @@ export const workspace = {
       });
     }),
 
-  openTextDocument: async (pathOrUri: string | Uri): Promise<TextDocument> => {
+  openTextDocument: async (
+    pathOrUri: string | Uri | { language?: string; content: string }
+  ): Promise<TextDocument> => {
+    if (typeof pathOrUri === "object" && !(pathOrUri instanceof Uri)) {
+      // meshExport's fidelity report uses VS Code's in-memory document form.
+      // KKSS's editor opens paths, so stage the generated content in the OS
+      // temp area and route it through the same editor as every other report.
+      const extension = pathOrUri.language === "json" ? ".json" : pathOrUri.language === "python" ? ".py" : ".txt";
+      const directory = nodePath.join(app.getPath("temp"), "kkss-generated-documents");
+      await fs.promises.mkdir(directory, { recursive: true });
+      const file = nodePath.join(directory, `document-${randomUUID()}${extension}`);
+      await fs.promises.writeFile(file, pathOrUri.content, "utf8");
+      return new TextDocument(Uri.file(file));
+    }
     return new TextDocument(typeof pathOrUri === "string" ? Uri.file(pathOrUri) : pathOrUri);
   },
 
@@ -565,7 +617,7 @@ export const commands = {
     switch (command) {
       case "vscode.openWith": {
         const uri = args[0] as Uri;
-        await hooks.openWith(uri.fsPath, String(args[1] ?? ""));
+        await hooks.openWith(uri.fsPath, String(args[1] ?? ""), args[2] === ViewColumn.Beside);
         return;
       }
       // RunManager.changed() fires this on every registry mutation to gate the

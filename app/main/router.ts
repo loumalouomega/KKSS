@@ -15,7 +15,10 @@ export function modeForFile(fsPath: string, activeMode: Mode): Mode | undefined 
   const ext = meshExtname(fsPath).toLowerCase();
   const route = routeFile(fsPath);
   const cadOk = route !== undefined;
-  const meshOk = ext === ".mdpa" || SUPPORTED_MESH_EXTENSIONS.includes(ext);
+  // MFEM rank pieces use names like `rank.mesh.000003`. They are a supported
+  // multi-file reader but intentionally excluded from the submodule's ordinary
+  // extension list (its file dialog registers `*.mesh.??????` separately).
+  const meshOk = ext === ".mdpa" || ext === ".mfem-rank" || SUPPORTED_MESH_EXTENSIONS.includes(ext);
   if (cadOk && meshOk) {
     // CAD-Preview also imports the mesh formats through meshio++, as a
     // geometry-only boundary surface — since 1.5.1 that includes .msh/.inp/
@@ -24,7 +27,9 @@ export function modeForFile(fsPath: string, activeMode: Mode): Mode | undefined 
     // .mdpa is KKSS's flagship one — so they keep opening in mesh mode, which
     // reads them natively (fields, blocks, SubModelParts). CAD mode's importer
     // stays reachable from its own Open dialog. Only the genuinely shared
-    // surface formats (.stl/.obj/.ply) let the active mode win.
+    // surface formats (.stl/.obj/.ply) let the active mode win. New CAE result
+    // and solver formats (Code_Aster, FEBio, Elmer, Femap, libMesh, Patran,
+    // Radioss, Z88, MFEM, …) arrive through the same mesh registry below.
     return route.strategy === "meshio" ? "mesh" : activeMode;
   }
   if (cadOk) return "cad";
@@ -43,6 +48,7 @@ export function modeForViewType(viewType: string): Mode | undefined {
 export const SUPPORTED_FILE_EXTENSIONS: readonly string[] = [...new Set([
   ...ROUTED_EXTENSIONS.map(ext => ext.replace(/^\./, "")),
   ...SUPPORTED_MESH_EXTENSIONS.map(ext => ext.replace(/^\./, "")),
+  "mfem-rank",
   "mdpa",
 ])].sort();
 

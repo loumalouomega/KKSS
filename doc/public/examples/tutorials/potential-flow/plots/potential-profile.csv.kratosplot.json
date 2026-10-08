@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "tool": "Kratos MDPA Preview",
+  "recipe": {
+    "version": 1,
+    "sources": [
+      {
+        "id": "profile",
+        "type": "probe",
+        "path": "../vtk_output/FluidModelPart_0_1.vtk",
+        "points": [
+          [
+            0.00004,
+            0.5,
+            0
+          ],
+          [
+            3.99996,
+            0.5,
+            0
+          ]
+        ],
+        "variable": "VELOCITY_POTENTIAL",
+        "samples": 60,
+        "timeStep": 0
+      }
+    ],
+    "series": [
+      {
+        "id": "profile",
+        "source": "profile",
+        "name": "VELOCITY_POTENTIAL",
+        "x": "distance",
+        "y": "v0",
+        "transforms": [
+          {
+            "op": "convert",
+            "factor": 1,
+            "unit": "m²/s"
+          }
+        ]
+      }
+    ],
+    "presentation": {
+      "family": "line",
+      "title": "Uniform flow: potential profile",
+      "lineMode": "lines+markers",
+      "xLabel": "Distance along probe [m; supplied by SI case]",
+      "yLabel": "Velocity potential [m²/s]"
+    }
+  },
+  "sources": [
+    {
+      "id": "profile",
+      "revision": "038a082c96f7c25a8331e6560aeb8d22a63869b4c395bf175570b29af69938cb",
+      "rows": 60,
+      "columns": [
+        {
+          "id": "distance",
+          "label": "Distance",
+          "type": "number"
+        },
+        {
+          "id": "v0",
+          "label": "VELOCITY_POTENTIAL",
+          "type": "number"
+        }
+      ],
+      "partial": false
+    }
+  ],
+  "partial": false,
+  "diagnostics": [],
+  "fullCount": 60,
+  "displayCount": 60,
+  "series": [
+    {
+      "id": "profile",
+      "name": "VELOCITY_POTENTIAL",
+      "x": {
+        "id": "distance",
+        "label": "Distance",
+        "type": "number"
+      },
+      "y": {
+        "id": "v0",
+        "label": "VELOCITY_POTENTIAL",
+        "type": "number",
+        "unit": "m²/s",
+        "dimensions": [
+          0,
+          2,
+          -1,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "originalX": {
+        "id": "distance",
+        "label": "Distance",
+        "type": "number"
+      },
+      "originalY": {
+        "id": "v0",
+        "label": "VELOCITY_POTENTIAL",
+        "type": "number"
+      },
+      "statistics": {
+        "count": 60,
+        "missing": 0,
+        "min": 1.0004079999807496,
+        "max": 41.79959100013751,
+        "mean": 21.39999978049683,
+        "std": 11.975668340864972,
+        "q1": 11.200203956177642,
+        "median": 21.399999779329917,
+        "q3": 31.599795499933343
+      },
+      "diagnostics": [
+        "0 of 60 probe samples are uncovered; gaps retained.",
+        "Nodal field sampled at fixed spatial coordinates; no implicit cell averaging.",
+        "Probe extraction parameters: {\"id\":\"profile\",\"type\":\"probe\",\"path\":\"../vtk_output/FluidModelPart_0_1.vtk\",\"points\":[[0.00004,0.5,0],[3.99996,0.5,0]],\"variable\":\"VELOCITY_POTENTIAL\",\"samples\":60,\"timeStep\":0}",
+        "Y units are unknown.",
+        "X units are unknown (not assumed seconds)."
+      ]
+    }
+  ],
+  "tutorial": {
+    "case": "potential-flow",
+    "inputs": {
+      "ProjectParameters.json": "3964d61e4e3ba25e1c2884f8487ec7bebc286d331ee5875dfbdfcfa53efb6d98",
+      "recipe.json": "1a2c7a0651e2f8be128857abc8bdb0b495c5bbf46a51110c282941e66a997275",
+      "vtk_output/FluidModelPart_0_1.vtk": "0ea90a6d55936e64bac34f49fc7c7f0167212b78dbddb37e46f5098a09bbbd76"
+    },
+    "timeMapping": {
+      "basis": "Single stationary solution; no time history"
+    },
+    "units": "Explicitly supplied from the tutorial SI setup using recipe convert transforms; original VTK field units remain unknown"
+  }
+}

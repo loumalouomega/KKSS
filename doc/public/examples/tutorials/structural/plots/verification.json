@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "case": "structural",
+  "source": "Published Kratos solver output; no solver rerun or synthetic values",
+  "coordinates": {
+    "tip": {
+      "id": 5,
+      "xyz": [
+        0.008999999612569809,
+        0.0020000000949949026,
+        -0.0024999999441206455
+      ]
+    }
+  },
+  "inputs": {
+    "ProjectParameters.json": "f987386f83660cb70c07e074ab0c84f1e902f4eccaf67968688a15d11e84984a",
+    "recipe.json": "8ba04382abbc558aa56e47737b23a918cbb94cee8161d7dd1c4ab5423ba5db29",
+    "vtk_output/Structure_0_1.vtk": "343ec5f4b81819390e344660621e585c19343fd956f037d2996e12b98b877205",
+    "vtk_output/Structure_0_2.vtk": "a447f653dcdcdcf7ef7a268fc6365a395d4c50ef7b12f072db1925ef868ec4c8",
+    "vtk_output/Structure_0_3.vtk": "6f69f76c80ef8728f8ef798ec3292bca813331b7c82cb44cb88bcdb3d59c0ec7",
+    "vtk_output/Structure_0_4.vtk": "841ae21312d7a6e6da66692214aa04068af66d56cdd6701388b1f041707151b5",
+    "vtk_output/Structure_0_5.vtk": "d525a2f7acd356ed7749b159f5dd9b94448b84b94ae323022a1b1c6114959b75",
+    "vtk_output/Structure_0_6.vtk": "a4d75c5bd0596f36092d5789a275c1dfea567f5b9e0e699f5bdd6ab169f94c0b",
+    "vtk_output/Structure_0_7.vtk": "21a629b0a9b04b71eece882eb9a51740860b76f66663791efeacbeda4862622c",
+    "vtk_output/Structure_0_8.vtk": "8fde53817e99e66f29fed88e8cf421093202bf474d64ec51b8648d9adcf0ea58"
+  },
+  "timeMapping": {
+    "basis": "start_time + STEP * fixed time_step; VTK suffix is STEP, not a timestamp",
+    "start": 0,
+    "dt": 0.125,
+    "times": [
+      0.125,
+      0.25,
+      0.375,
+      0.5,
+      0.625,
+      0.75,
+      0.875,
+      1
+    ],
+    "configuredEndTime": 1
+  },
+  "units": "Explicitly supplied from the tutorial SI setup using recipe convert transforms; original VTK field units remain unknown",
+  "ownership": "No isolated-run receipt is invented; these are relocatable disk-source recipes, not verified saved-run bindings",
+  "recipes": {
+    "displacement-history": [
+      {
+        "id": "tip",
+        "count": 8,
+        "first": {
+          "x": 0.125,
+          "y": 0.00058915452,
+          "origin": {
+            "source": "tip",
+            "frameIndex": 0,
+            "time": 0.125,
+            "entityKind": "Nodes",
+            "entityId": 5
+          }
+        },
+        "last": {
+          "x": 1,
+          "y": 0.00058914793,
+          "origin": {
+            "source": "tip",
+            "frameIndex": 7,
+            "time": 1,
+            "entityKind": "Nodes",
+            "entityId": 5
+          }
+        },
+        "statistics": {
+          "count": 8,
+          "missing": 0,
+          "min": 0.00058914793,
+          "max": 0.00058915452,
+          "mean": 0.00058914875375,
+          "std": 2.1794376424972205e-9,
+          "q1": 0.00058914793,
+          "median": 0.00058914793,
+          "q3": 0.00058914793
+        }
+      }
+    ],
+    "reaction-history": [
+      {
+        "id": "reaction",
+        "count": 8,
+        "first": {
+          "x": 0.125,
+          "y": -7.200032388982558,
+          "origin": {
+            "source": "reaction",
+            "frameIndex": 0,
+            "time": 0.125
+          }
+        },
+        "last": {
+          "x": 1,
+          "y": -7.2000323117999905,
+          "origin": {
+            "source": "reaction",
+            "frameIndex": 7,
+            "time": 1
+          }
+        },
+        "statistics": {
+          "count": 8,
+          "missing": 0,
+          "min": -7.200032388982558,
+          "max": -7.200032311218609,
+          "mean": -7.200032321375148,
+          "std": 2.555390826311832e-8,
+          "q1": -7.200032311800008,
+          "median": -7.200032311800005,
+          "q3": -7.200032311799993
+        }
+      }
+    ]
+  }
+}

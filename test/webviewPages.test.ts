@@ -114,6 +114,29 @@ describe.skipIf(!built)("generated webview pages", () => {
     }
   });
 
+  it("carries mesh 4.23's import, grouped exports, report inspector and density-field controls", () => {
+    const html = read("mesh");
+    for (const anchor of ['data-menu="import"', 'data-export-group="0"', 'data-action="exportReport"', 'id="cvt-density-field"']) {
+      expect(html).toContain(anchor);
+    }
+  });
+
+  it("stages scientific plots without widening script CSP", () => {
+    const html = read("mesh");
+    for (const id of ["plot-pane", "plot-resizer", "plot-restore", "plot-app", "plot-chart"]) expect(html).toContain(`id="${id}"`);
+    expect(html.indexOf('id="plot-pane"')).toBeGreaterThan(html.indexOf('id="flowgraph-pane"'));
+    expect(html).toContain('id="preview-main"');
+    expect(html).toContain('data-plot-library="./plotly/plotly.min.js"');
+    expect(html.indexOf('href="./plots.css"')).toBeGreaterThan(html.indexOf('href="./style.css"'));
+    expect(html).not.toContain("'unsafe-eval'");
+    const standalone = fs.readFileSync(path.join(outDir, "mesh/plots.html"), "utf8");
+    expect(standalone.indexOf('src="./shim.js"')).toBeLessThan(standalone.indexOf('src="./plots.js"'));
+    expect(standalone).toContain("script-src 'nonce-kkss-plots'");
+    expect(standalone).not.toContain("'unsafe-eval'");
+    for (const file of ["plots.js", "plots.css", "plotly/plotly.min.js", "plotly/LICENSE"]) expect(fs.existsSync(path.join(outDir, "mesh", file))).toBe(true);
+    expect(fs.existsSync(path.join(outDir, "../plotWorker.js"))).toBe(true);
+  });
+
   it("links design-system.css before style.css, then the KKSS overrides", () => {
     // style.css resolves 37 --ds-* tokens defined only in design-system.css, and
     // mesh-overrides.css hides the File pill and theme picker — order decides all three.

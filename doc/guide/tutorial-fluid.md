@@ -29,11 +29,26 @@ Open `mesh.mdpa` in Post-Processing and select **Fluid dynamics** in the Problem
 
 Click **Generate case files**. Check that there are no missing-part warnings and that `ProjectParameters.json` names the `Domain`, `Inlet`, `Outlet`, `Walls`, and `Obstacle` SubModelParts. If **Run case** is disabled, use the Home screen's **Check environment** action and configure `kratos.pythonPath`; a missing `FluidDynamicsApplication` diagnostic means that Python installation lacks the required application. Click **Run case** and watch the embedded terminal for time-step progress or solver errors.
 
-After the solve completes, click **Open results**. In the VTK tab, click **Field** and select `VELOCITY` to see the wake; select `PRESSURE` to inspect pressure around the obstacle. Use the timeline to navigate to the last frame at **t = 5 s**. The field range and timeline correspond to actual solver output.
+After the solve completes, click **Open results**. In the VTK tab, click **Field** and select `VELOCITY` to see the wake; select `PRESSURE` to inspect pressure around the obstacle. Navigate to the last saved frame. The timeline labels filename **steps**, not seconds; the archive has 51 steps for a configured end time of 5 s (see below).
+
+## Plot pressure evolution and the wake
+
+1. Extract [fluid.zip](/examples/tutorials/fluid.zip), open `vtk_output/FluidModelPart_0_1.vtk`, and click **Plots → Load recipe**. Select `plots/pressure-history.json`. Keep the complete directory so relative paths resolve.
+2. The chart overlays upstream **node 21**, at approximately **(0.44, 0.30, 0) m**, and downstream **node 5**, at **(0.56, 0.30, 0) m**. These IDs belong to the published VTK mesh. For a regenerated mesh use Inspect and choose new points, not matching IDs.
+3. Each curve has **51 disk samples**. Upstream pressure starts at **2697.7852 Pa**, then **−1258.8506 Pa**, before approaching **9.2801962 Pa**; downstream ends at **−4.189086 Pa**. Zoom into later steps to inspect settling, retaining early overshoot in the full CSV. These numerical startup results are not a convergence certificate or validated transient benchmark. At **Re = 20**, this case does not demonstrate periodic vortex shedding.
+4. The recipe supplies Pa from the SI setup and reconstructs time as `STEP × 0.1 s`, giving **0.1…5.1 s**. The configured end time is **5 s**, but the archive includes step 51. No sample is silently removed and no initial frame invented. Adaptive runs need actual timestamps. `plots/verification.json` records the mapping and hashes.
+5. Open `FluidModelPart_0_51.vtk`, explicitly scrub to the last frame, and load `plots/wake-profile.json`. It samples `VELOCITY X` at **80 positions** from **(0.565, 0.30, 0)** to **(0.85, 0.30, 0) m**. The final interpolated minimum is approximately **−0.00469437 m/s**, different from the node-only minimum below. **Follow timeline** updates the fixed spatial line as the owning preview steps; **Fix frame** retains it for comparison.
+6. Export **CSV + metadata**, **PNG / SVG**, or **Save recipe**. The archive includes CSV and provenance companions; **File → Scientific Plot Builder…** can load the same recipes.
+
+![Pressure histories with the mesh in the real KKSS app](/screenshots/tutorial-fluid-pressure-history.png)
+
+![Axial wake profile alongside its owning result](/screenshots/tutorial-fluid-wake-profile.png)
+
+**Boundary loads:** these VTK files contain volume cells and nodal fields, not the MDPA's named boundary Conditions. Do not request an `Obstacle` pressure force from them or interpret an unweighted nodal mean as boundary pressure. Results that genuinely retain Conditions and coverage support boundary means and pressure forces/moments with explicit normal/offset/thickness conventions. See [scientific plots](scientific-plots#regions-and-boundary-quantities).
 
 ## Verified result
 
-The baseline run used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 945 nodes, 1766 elements and 51 result frames through t = 5 s. The wake sample behind the obstacle reached **−0.00475046 m/s** in the axial direction despite the +0.1 m/s inlet, showing a small reverse-flow region. Velocity on all 32 sampled obstacle boundary nodes was zero. Pressure ranged from **−7.23421 to 9.28020 Pa**, with the outlet fixed to 0 Pa. Inlet and outlet fluxes were **0.0600000020** and **0.0600000018 m²/s per metre of depth**, a difference of **2.40 × 10⁻¹⁰ m²/s**.
+The baseline run used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 945 nodes, 1766 elements and 51 result frames with a configured end time of 5 s. The wake sample behind the obstacle reached **−0.00475046 m/s** in the axial direction despite the +0.1 m/s inlet, showing a small reverse-flow region. Velocity on all 32 sampled obstacle boundary nodes was zero. Pressure ranged from **−7.23421 to 9.28020 Pa**, with the outlet fixed to 0 Pa. Inlet and outlet fluxes were **0.0600000020** and **0.0600000018 m²/s per metre of depth**, a difference of **2.40 × 10⁻¹⁰ m²/s**.
 
 The measured values are the published baseline; acceptance tolerances are separate:
 

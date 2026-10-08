@@ -26,6 +26,8 @@ import { jobsScenario } from "./jobs.e2e.mjs";
 import { kratosStartupScenario } from "./kratosStartup.e2e.mjs";
 import { manualTutorials } from "./tutorials/manual.mjs";
 import { scriptedCapture } from "./tutorials/assistant.mjs";
+import { mesh423Scenario } from "./e2e/mesh-423.mjs";
+import { meshPlotsScenario } from "./e2e/mesh-plots.mjs";
 
 const OUT = path.join(root, "doc", "public", "screenshots");
 const IMAGES = path.join(root, "images");
@@ -310,6 +312,13 @@ async function sessionHomeWorkflow() {
     await page.locator("#workflow-form-title").click();
     await page.mouse.move(0, 0);
     await shoot(page, "home-workflow-form.png");
+    await page.locator("#workflow-form .btn-secondary").click();
+    await page.locator("#workflow").evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await page.waitForTimeout(250);
+    await page.locator("#study-refinement:enabled").click();
+    await page.locator("#workflow-form-title").click();
+    await page.mouse.move(0, 0);
+    await shoot(page, "home-refinement-form.png");
   } finally { await closeApp(app); }
 }
 
@@ -319,10 +328,18 @@ if (process.argv.includes("--home-workflow-only")) {
   process.exit(0);
 }
 const meshOnly = process.argv.includes("--mesh-only");
+if (process.argv.includes("--plots-only")) {
+  try { await meshPlotsScenario(OUT); }
+  finally { fs.rmSync(profileDir, { recursive: true, force: true }); }
+  process.exit(0);
+}
 if (!meshOnly) await sessionCad();
 await sessionMdpa();
 await sessionVtk();
 await sessionProperties();
+// Verified new mesh panels, using deterministic files and their real hosts.
+await mesh423Scenario(OUT);
+await meshPlotsScenario(OUT);
 // Last, so its recents list contains the documents the sessions above opened.
 if (!meshOnly) {
   await sessionHome();

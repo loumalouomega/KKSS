@@ -2,8 +2,9 @@ import { finishOpen } from "../services/performance";
 /**
  * Mesh mode host — reuses the submodule's MdpaEditorProvider and
  * VtkEditorProvider classes UNMODIFIED. Their `vscode` import is satisfied by
- * app/main/vscodeShim.ts (esbuild alias); this file supplies the remaining two
- * fakes they touch: an ExtensionContext (globalState → stateStore) and a
+ * app/main/vscodeShim.ts (esbuild alias); this file supplies the remaining
+ * fakes they touch: an ExtensionContext (state mementos → stateStore,
+ * globalStorageUri → persistent app data) and a
  * WebviewPanel wrapping our WebContentsView + IPC channel.
  *
  * MMG wiring mirrors mesh/src/extension.ts activate(): worker runner +
@@ -60,7 +61,7 @@ import { finishOpen } from "../services/performance";
  * `(context, flowgraph, runs, recents)` shape as `MdpaEditorProvider` — and
  * `dispatchCase` below fans out to both providers accordingly.
  */
-import { ipcMain, WebContentsView } from "electron";
+import { app, ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type * as vscodeTypes from "vscode";
@@ -85,9 +86,15 @@ import { stateStore } from "../services/stateStore";
  * it more than once is inert.
  */
 export function createMeshExtensionContext(outDir: string): vscodeTypes.ExtensionContext {
+  // mesh 4.18.0's recording workflow stores durable capture drafts below
+  // ExtensionContext.globalStorageUri. Keep it app-wide and outside the
+  // install directory so recordings survive app upgrades and packaged builds.
+  const globalStoragePath = path.join(app.getPath("userData"), "mesh-extension-storage");
+  fs.mkdirSync(globalStoragePath, { recursive: true, mode: 0o700 });
   return {
     extensionUri: Uri.file(outDir),
     extensionPath: outDir,
+    globalStorageUri: Uri.file(globalStoragePath),
     globalState: {
       get: <T>(key: string, defaultValue?: T) => stateStore.get(key, defaultValue),
       update: (key: string, value: unknown) => stateStore.update(key, value),
@@ -412,14 +419,15 @@ export class MeshHost {
   /**
    * File ▸ Pack Time Series Into One File… (mesh 3.21.0's
    * kratos.mesh.packSeries). Combines this tab's active multi-step series into
-   * one XDMF that re-opens as a scrubbable timeline. Reachable upstream only
-   * from the Command Palette and the Kratos Runs tree — neither runs in
+   * XDMF or a PVD collection that re-opens as a scrubbable timeline. Reachable
+   * upstream only from the Command Palette and the Kratos Runs tree — neither runs in
    * KKSS — so this is the sole entry point; mirrors the upstream call site
-   * (`vtkProvider.activeFsPath()` → `packSeries(fsPath)`), since a series is
-   * always a VTK-provider document. A no-op when this tab has nothing open.
+   * (`packSeries(fsPath)`). Since mesh 4.13, MDPA documents also form numbered
+   * series, so use this host's current file rather than the VTK-only accessor.
+   * A no-op when this tab has nothing open.
    */
   async packSeries(): Promise<void> {
-    const target = this.vtkProvider.activeFsPath();
+    const target = this.currentFile;
     if (!target) return;
     await packSeries(target);
   }

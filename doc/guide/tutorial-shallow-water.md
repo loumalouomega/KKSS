@@ -24,6 +24,14 @@ Click **Generate case files**. This writes `ProjectParameters.json`, the materia
 
 When the run finishes, click **Open results**. In the VTK tab, click **Field**, select the listed field, and use the timeline to choose a step. The values below came from the verified final frame.
 
+## Plot water depth over time
+
+Extract [shallow-water.zip](/examples/tutorials/shallow-water.zip), open a VTK result, and choose **Plots → Load recipe → plots/depth-history.json**. It selects the published node nearest **(2, 0.5, 0) m** and plots all **eight `HEIGHT` samples**, remaining at **1 m**. The exact result ID/coordinates are recorded in `plots/verification.json`; remeshing requires a new point selection.
+
+The recipe explicitly reconstructs **0.015625…0.125 s** from the fixed-step setup and supplies metres from the case convention. Add more points with **Add points from mesh** to compare basin locations, and export **CSV + metadata** or **PNG / SVG**. These nearly flat curves demonstrate the still-water case, not a propagating wave. A nodal sum/mean of height is not water volume: the **4 m³** check below uses element areas. The archive includes CSV and provenance; see [scientific plots](scientific-plots).
+
+![Eight-frame still-water depth history in KKSS](/screenshots/tutorial-shallow-water-depth-plot.png)
+
 ## Verified result
 
 At t = 0.125 s, the basin retains 1 m depth. Momentum is below 3 × 10⁻¹⁵ m²/s, and the computed water volume is 4.000000 m³ (error below 10⁻¹⁵ m³).

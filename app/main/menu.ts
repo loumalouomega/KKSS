@@ -1,4 +1,4 @@
-import { t } from "../shared/i18n";
+import { t, translate } from "../shared/i18n";
 import { setUpdateChannel, updateChannel } from "./services/updates";
 /**
  * Native application menu. Mirrors the two extensions' contributed commands:
@@ -29,6 +29,7 @@ import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./services/chat/p
 import { DEFAULT_META_SERVER_PORT, META_SERVER_KEYS } from "./services/metaServer/metaServer";
 import type { EditorService } from "./services/editor";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
+import { EXPORT_MENU_GROUPS, EXPORT_FORMAT_LABELS } from "../../mesh/src/parser/writers/exportFormats";
 // The mesh submodule's recents core is vscode-free, so its label/folder
 // formatting is reused verbatim for KKSS's own app-wide list.
 import { recentLabel } from "../../mesh/src/recentMeshesCore";
@@ -36,6 +37,8 @@ import { describeWithin, rootLabel } from "./services/projectRootCore";
 import type { RecentFile } from "./services/recentFilesCore";
 import { RESTORE_SESSION_KEY } from "./services/session";
 import { DOCS_URL } from "./urls";
+import { openPlotBuilder } from "../../mesh/src/plotController";
+import { createMeshExtensionContext } from "./mesh/meshHost";
 
 export interface MenuDeps {
   main: MainWindow;
@@ -383,6 +386,11 @@ export function installMenu(deps: MenuDeps): void {
           submenu: recentFilesSubmenu(),
         },
         {
+          label: t("Import Mesh…"),
+          enabled: main.screen() === "mesh" && !!activeMeshHost()?.currentFile,
+          click: () => void activeMeshHost()?.dispatchMenu({ type: "menuImport" }),
+        },
+        {
           // Degrades honestly rather than opening an empty picker: the label
           // itself says why it is unavailable.
           label: deps.cloud.isConnected()
@@ -424,6 +432,19 @@ export function installMenu(deps: MenuDeps): void {
           label: t("Export…"),
           accelerator: "CmdOrCtrl+E",
           click: () => (inCad() ? activeCadHost()?.export() : void meshExportPick()),
+        },
+        {
+          // The webview's collapsible export categories are hidden with its
+          // File pill. Native submenus use the SAME upstream registry.
+          label: t("Export Mesh As"),
+          enabled: main.screen() === "mesh" && !!activeMeshHost()?.currentFile,
+          submenu: EXPORT_MENU_GROUPS.map((group) => ({
+            label: translate(group.label),
+            submenu: group.extensions.map((ext) => ({
+              label: `${EXPORT_FORMAT_LABELS[ext]} (${ext})`,
+              click: () => void activeMeshHost()?.dispatchMenu({ type: "menuExport", format: ext }),
+            })),
+          })),
         },
         { type: "separator" },
         {
@@ -474,6 +495,10 @@ export function installMenu(deps: MenuDeps): void {
           click: () => void activeMeshHost()?.dispatchMenu({ type: "menuExportTable" }),
         },
         {
+          label: t("Scientific Plot Builder…"),
+          click: () => openPlotBuilder(createMeshExtensionContext(__dirname)),
+        },
+        {
           // mesh 3.8.0's kratos.case.stop — the run manager's stop ladder
           // (SIGINT → SIGTERM → SIGKILL). Runs outlive the tab that started
           // them, so this is reachable whatever the focused tab shows.
@@ -483,7 +508,7 @@ export function installMenu(deps: MenuDeps): void {
         },
         {
           // mesh 3.21.0's kratos.mesh.packSeries — combines a solve's per-step
-          // files into one XDMF time series. Upstream this is reachable only
+          // files into XDMF or a PVD collection. Upstream this is reachable only
           // from the Command Palette and the Kratos Runs tree, neither of
           // which KKSS runs, so this menu item is the sole entry point.
           label: t("Pack Time Series Into One File…"),

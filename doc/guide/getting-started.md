@@ -31,11 +31,17 @@ The toolbar at the top of the window holds the mode toggle:
 ![The shell toolbar: mode toggle, Open button, and the current file](/screenshots/shell-toolbar.png)
 
 - **🔷 Pre-Processing** — CAD geometry and model preparation ([details](/guide/cad-mode)). Opens STEP, IGES, BREP, STL, OBJ, PLY, glTF, and OpenSCAD `.csg`/`.scad` (a `.scad` needs a local `openscad` binary). **File ▸ New Blank Model…** starts an empty one instead.
-- **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 49 extended readable formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, Exodus, CGNS, MED, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and an **Advanced** toolbar menu holds the Mesh Size panel (nodal/element size statistics), sphere glyphs for particle meshes, face normals for spotting inverted elements, and boundary-skin export.
+- **🔶 Post-Processing** — mesh inspection, modification, and result visualization ([details](/guide/mesh-mode)). Opens MDPA, VTK (legacy + XML), STL, OBJ, PLY, and 60 extended readable formats via meshio++ (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, Exodus, CGNS, MED, EnSight Gold, Triangle, …). Result fields render as combinable contour/isosurface/quiver/deformed-shape modes, and an **Advanced** toolbar menu holds mesh-size and curvature/flow analysis, sphere glyphs for particle meshes, face normals for spotting inverted elements, and boundary-skin export.
 
 Both mode views stay alive when you switch: the loaded file, the camera, and your undo history are all preserved. The two viewers share one layout — a document chip in the menubar, an icon-headed sidebar with a collapsed **Advanced** group, a floating toolbar and dock, and a status bar — described in [Pre-Processing](/guide/cad-mode#reading-the-window-at-a-glance) and [Post-Processing](/guide/mesh-mode#reading-the-window-at-a-glance). The app's own toolbar, home screen, chat and jobs panels use the same look, and the **Terminal**, **Chat** and **Jobs** buttons show as pressed while their panel is open.
 
+In Post-Processing, **File ▸ Import Mesh…** adds several files to the active model in one undoable operation without welding. **File ▸ Export Mesh As** groups the writable formats; **Export…** retains its `Ctrl+E` shortcut. Choose **Show report**, or **Advanced ▸ Export report…**, to inspect export fidelity and provenance. **Advanced ▸ Streamlines…** offers worker-backed tracing and tube styling, while **Flow balance… ▸ All steps** scans a timeline and exports CSV. See [Post-Processing](/guide/mesh-mode) for field units, pressure conversion and Fluid time-stepping validation.
+
 For a complete first simulation, follow the [geometry-to-results tutorials](/guide/tutorial-geometry-to-results): each of the five built-in physics cases starts with CAD geometry, runs through the Problemtype sidebar and checks actual solver results.
+
+### Scientific plotting
+
+Click **Plots** in a mesh tab to compare point histories, analyze regional quantities and follow spatial profiles as you scrub results. Dock beside/below, resize or collapse without losing curves. **File → Scientific Plot Builder…** opens a separate workspace for CSV/TSV or saved recipes, even without a mesh. Both offer twelve chart families, numerical analysis, recipes and CSV/PNG/SVG exports with provenance. Try [CFD pressure evolution](tutorial-fluid#plot-pressure-evolution-and-the-wake) or the [plotting guide](scientific-plots). Missing units/time remain explicit; filenames are not timestamps.
 
 ### The project folder
 
@@ -83,25 +89,28 @@ explicit choice, and quantity fields use selectors for location, component and r
 
 ![Inline quantity evaluation form](/screenshots/home-workflow-form.png)
 
+![Revision-bound mesh refinement assumptions](/screenshots/home-refinement-form.png)
+
 **Plan run** previews isolated mesh, case-generation and solve tasks under `.kkss/runs/<id>/`.
 **Plan sweep** expands one case-setting path and up to 50 values into fresh variant studies and run
 destinations. Choose **Persist paused plan** after reviewing the preview, then **Start plan** to launch it. Cancelling the start step leaves the persisted queue paused. Resume is bound to the concrete plan revision, and the queue
 reconciles recorded CAD mesh-export and solver request identities after restart. Home can resume one waiting variant row
 while holding other rows, or preview a failed row retry with fresh study and run identities. Comparisons
-label mesh-sensitivity and solver-parameter studies separately using recorded mesh revisions and settings. A terminal run can be imported as an
+label mesh-sensitivity and solver-parameter studies separately using recorded mesh revisions and settings. Set **Refinement metadata** on each run to record revision-bound characteristic size, unit, dimension, sizing method and sizing-definition justification. Adaptive meshes require an explicit characteristic size. Richardson extrapolation and GCI are shown only for at least three compatible finite quantities in a confirmed asymptotic range; the report includes refinement ratios, assumptions, diagnostics and missing values. Four or more levels also compare consecutive observed orders against a visible 10% heuristic. A terminal run can be imported as an
 immutable input snapshot; large results remain revision-checked links. **Review run** and **Export
 review** report generated-input revisions, MDPA counts, the existing mesh-quality diagnostics and
-versioned structural solve-step outcomes in offline JSON/HTML.
+versioned structural, fluid, thermal, potential-flow and shallow-water solve-step outcomes, thread provenance, configured VTK/XDMF/HDF5/GiD outputs, mesh counts and result companions in offline JSON/HTML.
 **Evaluate quantity** lets you select a result field, location, component, region, time step,
 reduction and unit; the result record keeps the exact source artifact revision. Units must be
 declared explicitly. Leave the optional time step blank for an ordinary single-result file; use an index for an extended-format time series. Leave the result path blank to use the recorded artifact. If that result later changes, its saved value is shown as stale and omitted.
-Variant comparison pairs matching definitions only when their units agree; missing values stay
-missing. Unsupported-problemtype convergence remains explicitly unavailable. The versioned structural monitor records the solver's residual
-norm and convergence criterion parameters for nonlinear residual-criterion runs. Linear solves,
-other criteria, interrupted runs and truncated monitor files remain explicitly unavailable; process
-success alone never proves convergence. Run reviews include the upstream preparation report, generated
+Variant comparison pairs matching definitions only when their units agree; missing values stay missing. The five built-in solver monitors record solver-published step outcomes; criteria that do not publish numerical convergence, interrupted runs and truncated monitor files remain explicitly unavailable. Process success alone never proves convergence. Run reviews include the upstream preparation report, generated
 input hashes and runtime identity when available. The assistant has the same environment, study, queue, review, quantity and
 variant tools under the normal transcript approval policy; preview never launches work.
+
+Set **Settings → Kratos → Solver threads** to a positive OpenMP allocation, or leave **Auto** (`0`) to reserve
+one available CPU for the rest of the desktop. The preview shows and freezes the concrete allocation. KKSS
+can run one solve alongside one mesh or case-preparation task only when both verified reservations fit the
+available CPU budget; an interrupted or legacy task with unknown usage holds the budget until reconciled.
 
 ### Working from cloud storage
 
@@ -169,7 +178,9 @@ The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**) op
 
 For mesh-format CAD models, the assistant replays pending edits when it generates a mesh, exports an FE mesh or compares models. `save_model` can bake edits into STL, OBJ or PLY sources after approval, keeping a `.bak` copy; mesh health, inspection and promotion tools report the raw source. The CAD viewer’s **File ▸ Save** continues to save its edit history and settings to sidecars.
 
-The assistant can also pack a run's per-step results into an XDMF timeline with `mesh_pack_series`, matching **File ▸ Pack Time Series Into One File…**. Keep the resulting `.xdmf` and its sibling `.h5` together when copying or sharing the results.
+The assistant can also pack a run's per-step results with `mesh_pack_series`, matching **File ▸ Pack Time Series Into One File…**. XDMF needs a constant mesh; keep its `.xdmf` and sibling `.h5` together. Use `target: "pvd"` for changing meshes or an already-stepped source, and keep the index and step directory together. Packing/resampling return per-step export reports, and the preview's **Advanced ▸ Export report…** inspector reviews the same fidelity categories used by the write tools. Boundary flow scans support all steps and explicit pressure-density conversion; field conversion accepts a constant or same-kind density field without guessing units or pressure reference. See the [mesh guide](/guide/mesh-mode).
+
+Scientific plotting shares its numerical core with the assistant: `mesh__plot_dataset` evaluates recipes and can export all samples with provenance (normal write approval applies); table inspection, saved-run discovery/binding and exact time/target resolution are read-only. Ask it to compare the tutorial's upstream/downstream pressure histories with explicit times and units. It must not invent result ownership, boundary coverage or correspondence between remeshed IDs.
 
 Each message uses the tools available when you send it. If a server becomes ready while the assistant is responding, its tools become available on your next message. You can wait for its status dot to turn green before sending a task that needs it.
 

@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "profile",
+      "type": "probe",
+      "path": "../vtk_output/ThermalModelPart_0_1.vtk",
+      "points": [
+        [
+          -0.0014999700130382554,
+          0,
+          0
+        ],
+        [
+          0.0014999700130382554,
+          0,
+          0
+        ]
+      ],
+      "variable": "TEMPERATURE",
+      "samples": 60,
+      "timeStep": 0
+    }
+  ],
+  "series": [
+    {
+      "id": "profile",
+      "source": "profile",
+      "name": "TEMPERATURE",
+      "x": "distance",
+      "y": "v0",
+      "transforms": [
+        {
+          "op": "convert",
+          "factor": 1,
+          "unit": "K"
+        }
+      ]
+    }
+  ],
+  "presentation": {
+    "family": "line",
+    "title": "Stationary conduction: temperature profile",
+    "lineMode": "lines+markers",
+    "xLabel": "Distance along probe [m; supplied by SI case]",
+    "yLabel": "Temperature [K]"
+  }
+}

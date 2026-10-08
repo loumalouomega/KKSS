@@ -24,6 +24,14 @@ Click **Generate case files**. This writes `ProjectParameters.json`, the materia
 
 When the run finishes, click **Open results**. In the VTK tab, click **Field**, select the listed field, and use the timeline to choose a step. The values below came from the verified final frame.
 
+## Plot potential versus distance
+
+Extract [potential-flow.zip](/examples/tutorials/potential-flow.zip), open the VTK result, and choose **Plots → Load recipe → plots/potential-profile.json**. It samples **60 positions** along the domain's X centerline, just inside the boundary, with explicitly supplied **m²/s** potential units. The graph is potential versus spatial distance, not time.
+
+In **Advanced**, add a **Regression** analysis to inspect the approximately **10.2 m/s** slope. This line-based fit is distinct from the elementwise gradient verification below. Units come from the SI setup; legacy VTK coordinates/fields do not declare them. The archive includes full-resolution CSV, provenance and the exact sampling recipe. There is only one stationary frame, so no transient evolution is claimed. See [scientific plots](scientific-plots).
+
+![Uniform-flow potential versus distance in KKSS](/screenshots/tutorial-potential-flow-profile.png)
+
 ## Verified result
 
 The imposed free-stream speed is 10.2 m/s. The maximum elementwise error in the gradient of `VELOCITY_POTENTIAL` compared with [10.2, 0] m/s is 0.000033 m/s.

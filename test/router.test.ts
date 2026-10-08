@@ -43,6 +43,21 @@ describe("modeForFile", () => {
     }
   });
 
+  it("routes the expanded CAE reader suffixes to mesh mode", () => {
+    // mesh 4.18.0 / meshio++ 16.27 adds Code_Aster, FEBio, Femap, libMesh,
+    // COMSOL binary, Patran, Radioss, Z88, Elmer, MFEM partition and result
+    // readers. Compound compressed libMesh suffixes must use longest-match
+    // routing rather than being mistaken for plain .gz/.bz2 files.
+    for (const f of [
+      "a.mail", "a.feb", "a.neu", "a.xda", "a.xdr", "a.xda.gz", "a.xda.bz2",
+      "a.xdr.gz", "a.xdr.bz2", "a.mphbin", "a.pat", "a.out", "a.rad",
+      "a.z88", "a.elmer", "a.mfem-rank", "a.fil",
+    ]) {
+      expect(modeForFile(f, "cad")).toBe("mesh");
+      expect(modeForFile(f, "mesh")).toBe("mesh");
+    }
+  });
+
   it("keeps mesh mode for the extensions cad 1.5.1 newly claimed", () => {
     // These used to be mesh-only (cad's router did not resolve them at all),
     // so they took the `meshOk`-only branch. cad 1.5.1 added them as meshio++

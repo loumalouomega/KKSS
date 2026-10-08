@@ -26,6 +26,9 @@ import type * as primitiveWrite from "../../cad/src/primitiveWrite";
 import type * as svgSilhouetteHost from "../../cad/src/svgSilhouetteHost";
 import type * as modelDiffHost from "../../cad/src/modelDiffHost";
 import type * as stepPartsService from "../../cad/src/stepPartsService";
+import type * as brepHealth from "../../cad/src/brepHealth";
+import type * as passageAnalysis from "../../cad/src/passageAnalysisHost";
+import type * as meshDeviation from "../../cad/src/meshDeviationHost";
 import type * as brepCache from "./cadBRepCache";
 import { createKernelTracker } from "./cadKernelStatus";
 
@@ -257,6 +260,10 @@ export const cadCompute = {
   compareModels: rpc<typeof modelDiffHost.compareModels>("compareModels"),
   searchStandardParts: rpc<typeof stepPartsService.searchStandardParts>("searchStandardParts"),
   downloadStandardPart: rpc<typeof stepPartsService.downloadStandardPart>("downloadStandardPart"),
+  // cad 3.10.0's B-rep diagnostics and CAD-to-mesh deviation panel.
+  checkBrepHealth: rpc<typeof brepHealth.checkBrepHealth>("checkBrepHealth"),
+  analyzePassages: rpc<typeof passageAnalysis.analyzePassages>("analyzePassages"),
+  measureMeshDeviation: rpc<typeof meshDeviation.measureMeshDeviation>("measureMeshDeviation"),
 
   // ---- meshio++ route (VTK/VTU/MED/CGNS/Exodus/XDMF/MDPA, OpenFOAM) -----
   convertToStlBoundary: rpc<typeof meshio.convertToStlBoundary>("convertToStlBoundary"),

@@ -1,10 +1,13 @@
+import { validateRefinement, type Refinement } from './refinement';
+import { discoverOutputs, resultCompanions } from '../../../../mesh/src/problemtype/outputDiscovery';
+import { availableParallelism } from 'node:os';
 import * as fs from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { writeFileAtomic } from '../atomicWrite';
 import type { AppTool } from '../chat/appTools';
-import { checkEnvironment, type EnvironmentReport } from './environment';
+import { checkEnvironment, resolveThreads, type EnvironmentReport } from './environment';
 import { ProjectStore, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
 import type { Evidence, Handoff, Json, Project, Quantity, Run, Study } from './contracts';
 import type { KratosRuntime } from '../chat/kratosRuntime';
@@ -25,7 +28,7 @@ export interface WorkflowDeps {
   root(): string | undefined;
   activeMesh(): string | undefined;
   runtime: Pick<KratosRuntime, 'discover'>;
-  environment(): { python: string; env: NodeJS.ProcessEnv; bundledPython?: string; installPath?: string; extraEnv?: Record<string, string> };
+  environment(): { threads?: number; python: string; env: NodeJS.ProcessEnv; bundledPython?: string; installPath?: string; extraEnv?: Record<string, string> };
   open(file: string): Promise<void>;
   changed(): void;
   callMcpTool?(name: string, args: Record<string, unknown>): Promise<{ isError?: boolean; structuredContent?: unknown; content?: { type?: string; text?: string }[] }>;
@@ -273,7 +276,7 @@ export class WorkflowService {
     await fs.copyFile(meshPath, savedMesh);
     const copied = [savedMesh];
     const stem = meshStem(meshPath);
-    const names = new Set([path.basename(caseFilePath(meshPath)), 'ProjectParameters.json', 'MainKratos.py', 'kkss-convergence-v1.jsonl', 'kkss-convergence-v2.jsonl', PREPARATION_FILE, `${stem}_case.mdpa`]);
+    const names = new Set([path.basename(caseFilePath(meshPath)), 'ProjectParameters.json', 'MainKratos.py', 'kkss-convergence-v1.jsonl', 'kkss-convergence-v2.jsonl', 'kkss-resources.json', PREPARATION_FILE, `${stem}_case.mdpa`]);
     const materials = BUILTIN_PROBLEMTYPES.find(pt => pt.decl.id === parsedCase.state!.problemtypeId)?.decl.materialsFileName;
     if (materials) names.add(materials);
     try { for (const name of await fs.readdir(path.dirname(meshPath))) if (/materials.*\.json$/i.test(name)) names.add(name); } catch { /* Snapshot omissions stay explicit. */ }
@@ -286,15 +289,19 @@ export class WorkflowService {
     }
     const runState = resolved.status === 'finished' ? 'succeeded' : resolved.status === 'failed' ? 'failed' : 'cancelled';
     const artifacts = await Promise.all(copied.map(async file => ({ role: path.resolve(file) === path.resolve(savedMesh) ? 'mesh' : /^kkss-convergence-v[12]\.jsonl$/.test(path.basename(file)) ? 'convergence' : 'input', ownerId: id, reference: reference(store.root, file, await fileRevision(file)) })));
+    const outputs = discoverOutputs(path.dirname(meshPath));
     const run: Run = { id, studyId: study.id, sourceRevision: study.source.revision, meshRevision: study.mesh.revision,
       settings: JSON.parse(JSON.stringify(parsedCase.state)) as Json, directory, state: runState, artifacts,
+      outputFindings: outputs.findings,
       startedAt: parsedRun.sidecar.startedAt,
       ...(parsedRun.sidecar.endedAt !== undefined ? { finishedAt: parsedRun.sidecar.endedAt } : {}) };
     try {
-      const outputDir = path.join(path.dirname(meshPath), 'vtk_output');
-      const latest = latestResultFile(await fs.readdir(outputDir));
-      if (latest) { const result = path.join(outputDir, latest.fileName); run.artifacts.push({ role: 'result', ownerId: id, reference: reference(store.root, result, await fileRevision(result)) }); }
-    } catch { /* Review records a missing result. */ }
+      const value = JSON.parse(await fs.readFile(path.join(path.dirname(savedMesh), 'kkss-resources.json'), 'utf8'));
+      if (value.version === 1 && Number.isSafeInteger(value.requestedThreads) && value.requestedThreads > 0 && value.effectiveThreads === value.requestedThreads) run.resources = { requestedThreads: value.requestedThreads, effectiveThreads: value.effectiveThreads };
+    } catch { /* Legacy imported runs have no resource evidence. */ }
+    for (const [role, files] of [['result', outputs.results], ['result-companion', outputs.companions]] as const) {
+      for (const file of files) run.artifacts.push({ role, ownerId: id, reference: reference(store.root, file, await fileRevision(file)) });
+    }
     await store.update(p => { this.study(p, study.id).runs.push(run); p.activeStudyId = study.id; p.activeRunId = id; });
     await this.snapshot(); this.deps.changed(); return run;
   }
@@ -306,6 +313,7 @@ export class WorkflowService {
     const convergenceArtifact = run.artifacts.find(a => a.role === 'convergence' && a.ownerId === run.id && a.reference.path.endsWith('v2.jsonl')) ?? run.artifacts.find(a => a.role === 'convergence' && a.ownerId === run.id);
     const resultArtifacts = run.artifacts.filter(a => a.role === 'result' && a.ownerId === run.id);
     let meshText: string | undefined, meshFile: string | undefined;
+    let meshCounts: { nodes: number; elements: number; conditions: number } | undefined, meshStatisticsUnavailableReason: string | undefined;
     let meshQuality: Json | undefined, meshQualityUnavailableReason: string | undefined;
     let convergenceText: string | undefined;
     const currentResultReferences = new Set<string>();
@@ -322,12 +330,22 @@ export class WorkflowService {
     } else {
       meshQualityUnavailableReason = 'no owned mesh artifact is attached to this run.';
     }
+    if (meshFile && !meshText) {
+      try {
+        const report = await this.invokeMcp('mesh__mesh_info', { path: meshFile });
+        const counts = [report.nodeCount, report.elementCount, report.conditionCount];
+        if (counts.some(v => !Number.isSafeInteger(v) || Number(v) < 0)) throw new Error('Mesh statistics returned incomplete counts.');
+        if (await fileRevision(meshFile) !== mesh!.reference.revision) throw new Error('Mesh changed during statistics inspection.');
+        meshCounts = { nodes: Number(counts[0]), elements: Number(counts[1]), conditions: Number(counts[2]) };
+      } catch (error) { meshStatisticsUnavailableReason = String(error); }
+    }
     if (meshFile) {
       try {
         const report = await this.invokeMcp('mesh__mesh_quality', { path: meshFile });
         if (report.overallOk === undefined || typeof report.elementCount !== 'number' || !Array.isArray(report.metrics)) {
           throw new Error('Mesh runner returned no structured quality report.');
         }
+        if (await fileRevision(meshFile) !== mesh!.reference.revision) { meshCounts = undefined; meshText = undefined; throw new Error('Mesh changed during quality inspection.'); }
         meshQuality = JSON.parse(JSON.stringify(report)) as Json;
       } catch (error) {
         meshQualityUnavailableReason = error instanceof Error ? error.message : String(error);
@@ -342,9 +360,20 @@ export class WorkflowService {
     for (const artifact of resultArtifacts) {
       try {
         const file = resolveReference(store.root, artifact.reference);
-        if (await fileRevision(file) === artifact.reference.revision) currentResultReferences.add(fingerprint(artifact.reference));
+        if (await fileRevision(file) === artifact.reference.revision) {
+          for (const companion of resultCompanions(file)) {
+            const owned = run.artifacts.find(a => a.role === 'result-companion' && a.ownerId === run.id && resolveReference(store.root, a.reference) === companion);
+            if (!owned || await fileRevision(companion) !== owned.reference.revision) throw new Error('Unverified result companion.');
+          }
+          currentResultReferences.add(fingerprint(artifact.reference));
+        }
         else staleResults++;
       } catch { staleResults++; }
+    }
+    const companions = run.artifacts.filter(a => a.role === 'result-companion' && a.ownerId === run.id);
+    for (const artifact of companions) {
+      try { if (await fileRevision(resolveReference(store.root, artifact.reference)) !== artifact.reference.revision) throw new Error('changed'); }
+      catch { staleResults++; currentResultReferences.clear(); }
     }
     const savedQuantities = run.evidence?.quantities ?? [];
     const currentQuantities = savedQuantities.filter(quantity => quantity.runId === run.id && currentResultReferences.has(fingerprint(quantity.source)));
@@ -376,6 +405,7 @@ export class WorkflowService {
       } catch (error) { preparation.reportUnavailableReason = String(error); }
     }
     const review = makeReview(project.revision, study, run, meshText, convergenceText, currentQuantities, staleQuantities, {
+      meshCounts, meshStatisticsUnavailableReason,
       meshQuality, meshQualityUnavailableReason, preparation,
     });
     if (!resultArtifacts.length) review.evidence.findings.push({ severity: 'unavailable', message: 'No result artifact is attached to this run.' });
@@ -388,6 +418,12 @@ export class WorkflowService {
     const study = this.study(project, text(args, 'studyId'));
     const run = study.runs.find(row => row.id === text(args, 'runId'));
     if (!run || run.studyId !== study.id) throw new Error('Run does not belong to this study.');
+    const verifyCompanions = async () => {
+      for (const artifact of run.artifacts.filter(a => a.role === 'result-companion' && a.ownerId === run.id)) {
+        if (await fileRevision(resolveReference(store.root, artifact.reference)) !== artifact.reference.revision) throw new Error('Result companion changed; review the run before evaluating quantities.');
+      }
+    };
+    await verifyCompanions();
     const field = text(args, 'field'), kind = text(args, 'kind'), component = text(args, 'component');
     const reduction = text(args, 'reduction'), unit = text(args, 'unit'), region = typeof args.region === 'string' && args.region.trim() ? args.region.trim() : 'global';
     if (!['Nodal', 'Elemental', 'Conditional'].includes(kind)) throw new Error('Choose Nodal, Elemental or Conditional field data.');
@@ -417,6 +453,14 @@ export class WorkflowService {
       if (resultRevision !== existing.reference.revision) throw new Error('The attached result is stale. Import or attach the correct run result before evaluating.');
       resultReference = existing.reference;
     }
+    const companionReferences = await Promise.all(resultCompanions(resultPath).map(async file => {
+      const owned = run.artifacts.find(a => a.role === 'result-companion' && a.ownerId === run.id && resolveReference(store.root, a.reference) === file);
+      const revision = await fileRevision(file);
+      if (owned ? revision !== owned.reference.revision : run.artifacts.some(a => a.role === 'result' && resolveReference(store.root, a.reference) === resultPath)) throw new Error('Result companion is stale or has no owned revision; import the run again.');
+      const relative = path.relative(path.resolve(store.root, run.directory), file);
+      if (!owned && (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))) throw new Error('A new result companion must be inside the run directory.');
+      return owned?.reference ?? reference(store.root, file, revision);
+    }));
     const timeStep = typeof args.timeStep === 'number' && Number.isInteger(args.timeStep) ? args.timeStep : undefined;
     if (args.time !== undefined && (typeof args.time !== 'number' || !Number.isFinite(args.time))) throw new Error('Choose a finite physical time coordinate.');
     if (args.time !== undefined && timeStep !== undefined) throw new Error('Choose either a physical time coordinate or a time-series step index.');
@@ -427,6 +471,8 @@ export class WorkflowService {
     if (raw.version !== 1 || raw.runId !== run.id || !object(raw.source) || path.resolve(String(raw.source.path ?? '')) !== resultPath || String(raw.source.revision ?? '').replace(/^sha256:/, '') !== resultRevision || !object(raw.evaluation) || !object(raw.quantity)) {
       throw new Error('Mesh returned a quantity record that does not match the selected run and result revision.');
     }
+    await verifyCompanions();
+    for (const ref of companionReferences) if (await fileRevision(resolveReference(store.root, ref)) !== ref.revision) throw new Error('Result companion changed during evaluation.');
     const measured = raw.quantity;
     const evaluated = raw.evaluation;
     if (measured.runId !== run.id || measured.field !== field || measured.kind !== kind || measured.component !== component || measured.region !== region || measured.reduction !== reduction || measured.unit !== unit.trim() || !Number.isFinite(evaluated.time)) {
@@ -443,6 +489,7 @@ export class WorkflowService {
       const currentResult = currentRun.artifacts.find(artifact => artifact.role === 'result' && artifact.ownerId === currentRun.id && resolveReference(store.root, artifact.reference) === resultPath);
       if (currentResult && currentResult.reference.revision !== resultRevision) throw new Error('Result revision changed during evaluation.');
       if (!currentResult) currentRun.artifacts.push({ role: 'result', ownerId: currentRun.id, reference: resultReference });
+      for (const ref of companionReferences) if (!currentRun.artifacts.some(a => a.role === 'result-companion' && fingerprint(a.reference) === fingerprint(ref))) currentRun.artifacts.push({ role: 'result-companion', ownerId: currentRun.id, reference: ref });
       const evidence = currentRun.evidence ?? makeReview(p.revision, currentStudy, currentRun).evidence;
       const duplicate = evidence.quantities.findIndex(value => value.field === quantity.field && value.kind === quantity.kind && value.component === quantity.component && value.region === quantity.region && value.time === quantity.time && value.reduction === quantity.reduction && value.unit === quantity.unit && fingerprint(value.source) === fingerprint(quantity.source));
       if (duplicate >= 0) evidence.quantities[duplicate] = quantity; else evidence.quantities.push(quantity);
@@ -496,23 +543,24 @@ export class WorkflowService {
     const sourceRevision = await fileRevision(resolveReference(store.root, study.source));
     if (sourceRevision !== study.source.revision) throw new Error('Study geometry changed. Refresh or relink it before planning.');
     const environment = this.deps.environment();
-    const runtimeRevision = fingerprint({ python: environment.python, installPath: environment.installPath ?? '', extraEnv: environment.extraEnv ?? {} });
+    const runtimeRevision = fingerprint({ python: environment.python, installPath: environment.installPath ?? '', extraEnv: environment.extraEnv ?? {}, threads: environment.threads ?? 0 });
+    const threads = resolveThreads(environment.threads, availableParallelism());
     const meshOptions = object(study.meshing) ? JSON.parse(JSON.stringify(study.meshing)) as Json : {};
     const tasks: Task[] = [];
-    if (meshTaskId) tasks.push({ id: meshTaskId, studyId: study.id, runId, kind: 'mesh', dependencies: [],
+    if (meshTaskId) tasks.push({ id: meshTaskId, studyId: study.id, runId, kind: 'mesh', resources: { threads: 1, verified: true }, dependencies: [],
       args: { source: study.source as unknown as Json, output: `${runRoot}/input/${caseStem}.mdpa`, handoff: `${runRoot}/handoff.json`, options: meshOptions, sourceRevision },
       inputRevision: fingerprint({ sourceRevision, meshing: meshOptions }), requiredArtifacts: [`${runRoot}/input/${caseStem}.mdpa`, `${runRoot}/handoff.json`], state: 'waiting' });
     const generationRevision = fingerprint({ mesh: reuseMesh ? study.mesh!.revision : meshTaskId, caseState });
-    tasks.push({ id: generateTaskId, studyId: study.id, runId, kind: 'generate', dependencies: meshTaskId ? [meshTaskId] : [],
+    tasks.push({ id: generateTaskId, studyId: study.id, runId, kind: 'generate', resources: { threads: 1, verified: meshPath.toLowerCase().endsWith('.mdpa') }, dependencies: meshTaskId ? [meshTaskId] : [],
       args: { mesh: meshPath, casePath, caseState, problemtype: problemtypeId,
         caseSettingsRevision: fingerprint(study.caseSettings), sourceRevision: study.source.revision,
         ...(reuseMesh ? { meshSource: study.mesh as unknown as Json, meshRevision: study.mesh!.revision } : {}) },
       inputRevision: generationRevision, requiredArtifacts: [casePath, `${runRoot}/input/ProjectParameters.json`, `${runRoot}/input/MainKratos.py`], state: 'waiting' });
-    tasks.push({ id: solveTaskId, studyId: study.id, runId, kind: 'solve', dependencies: [generateTaskId],
-      args: { mesh: meshPath, casePath, caseState, problemtype: problemtypeId, runDirectory: `${runRoot}/solve`, runtimeRevision,
+    tasks.push({ id: solveTaskId, studyId: study.id, runId, kind: 'solve', resources: { threads, verified: true }, dependencies: [generateTaskId],
+      args: { mesh: meshPath, casePath, caseState, problemtype: problemtypeId, runDirectory: `${runRoot}/solve`, runtimeRevision, threads,
         caseSettingsRevision: fingerprint(study.caseSettings), sourceRevision: study.source.revision,
         ...(reuseMesh ? { meshSource: study.mesh as unknown as Json, meshRevision: study.mesh!.revision } : {}) },
-      inputRevision: fingerprint({ generationRevision, runtimeRevision }), requiredArtifacts: [`${runRoot}/solve/vtk_output`], state: 'waiting' });
+      inputRevision: fingerprint({ generationRevision, runtimeRevision }), requiredArtifacts: [], state: 'waiting' });
     return { runId, tasks, problemtypeId, runtime: environment.python };
   }
   private async previewQueuePlan(studyId: string, reuseMesh: boolean): Promise<Record<string, unknown>> {
@@ -526,7 +574,7 @@ export class WorkflowService {
     const built = await this.buildQueueTasks(store, study, reuseMesh, caseState);
     const previewId = randomUUID();
     const studyRevision = fingerprint({ source: study.source, mesh: study.mesh, meshing: study.meshing, caseSettings: study.caseSettings });
-    const summary = [`${built.tasks.length} tasks: ${built.tasks.map(t => t.kind).join(' → ')}`, `Run directory: .kkss/runs/${built.runId}`, `Problemtype: ${built.problemtypeId}`, `Python: ${built.runtime}`];
+    const summary = [`${built.tasks.length} tasks: ${built.tasks.map(t => t.kind).join(' → ')}`, `Run directory: .kkss/runs/${built.runId}`, `Problemtype: ${built.problemtypeId}`, `Python: ${built.runtime}`, `Solver threads: ${built.tasks.find(t => t.kind === 'solve')?.args.threads}`, 'One solve and one preparation task may overlap within the CPU budget.'];
     this.previews.set(previewId, { projectRevision: project.revision, studyRevision, studyId, tasks: built.tasks, summary });
     while (this.previews.size > 25) this.previews.delete(this.previews.keys().next().value!);
     return { previewId, studyId, runId: built.runId, tasks: built.tasks, summary, runCount: 1, reuseMesh };
@@ -642,9 +690,14 @@ export class WorkflowService {
     }
     if (task.kind === 'solve') {
       const report = await this.environmentFor(problemtype, store.root);
+      if (task.resources?.verified && task.resources.threads !== task.args.threads) errors.push('Solver resource reservation does not match its approved thread count.');
+      const outputReport = discoverOutputs(path.dirname(mesh));
+      if (outputReport.unsafe.length) errors.push('Configured output paths must stay inside the run workspace.');
       if (!report.requirementsComplete) errors.push('Problemtype prerequisites are incomplete or not declared.');
+      if (!report.manual.capabilities.threads && task.args.threads !== undefined) errors.push('Verified thread control is unavailable.');
+      if (typeof task.args.threads === 'number' && task.args.threads > report.cpuCount) errors.push('CPU budget changed; approve a new plan.');
       if (!report.manual.available) errors.push(report.manual.reason ?? 'Manual solver runtime is unavailable.');
-      if (fingerprint({ python: runtime.python, installPath: runtime.installPath ?? '', extraEnv: runtime.extraEnv ?? {} }) !== task.args.runtimeRevision) errors.push('Solver runtime settings changed after preview; approve a new plan.');
+      if (fingerprint({ python: runtime.python, installPath: runtime.installPath ?? '', extraEnv: runtime.extraEnv ?? {}, threads: runtime.threads ?? 0 }) !== task.args.runtimeRevision) errors.push('Solver runtime settings changed after preview; approve a new plan.');
     }
     return errors;
   }
@@ -708,6 +761,7 @@ export class WorkflowService {
       const runtime = this.deps.environment();
       const response = await this.queuedTool(task, 'mesh__case_run', { meshPath, casePath, problemtype, generate: true, waitSeconds: 0,
         python: runtime.python, installPath: runtime.installPath ?? '', extraEnv: runtime.extraEnv ?? {},
+        ...(typeof task.args.threads === 'number' ? { threads: task.args.threads } : {}),
         requestId: task.id, ownerId, runDirectory });
       if (!object(response.executionReceipt)) throw new WorkflowToolError('Runner returned no durable execution receipt; status is uncertain.', true);
       return this.receiptFromMesh(response.executionReceipt, root, task);
@@ -732,7 +786,9 @@ export class WorkflowService {
       artifacts.push({ role: entry.role, ownerId: task.runId, reference: reference(root, file, revision) });
     }
     return { version: 1, requestId: task.id, ownerId: task.studyId, ...(typeof raw.jobId === 'string' ? { jobId: raw.jobId } : {}),
-      state: appReceiptState(raw.state), artifacts, ...((typeof raw.message === 'string' || omitted.length) ? { message: [typeof raw.message === 'string' ? raw.message : undefined, ...(omitted.length ? [`${omitted.length} artifact(s) were not attached because they have no bounded revision: ${omitted.join('; ')}`] : [])].filter(Boolean).join('\n') } : {}),
+      state: appReceiptState(raw.state), artifacts,
+      ...(Array.isArray(raw.outputFindings) ? { outputFindings: raw.outputFindings.filter((v): v is string => typeof v === 'string') } : {}),
+      ...(object(raw.resources) && Number.isSafeInteger(raw.resources.requestedThreads) ? { resources: { requestedThreads: Number(raw.resources.requestedThreads), ...(Number.isSafeInteger(raw.resources.effectiveThreads) ? { effectiveThreads: Number(raw.resources.effectiveThreads) } : {}) } } : {}), ...((typeof raw.message === 'string' || omitted.length) ? { message: [typeof raw.message === 'string' ? raw.message : undefined, ...(omitted.length ? [`${omitted.length} artifact(s) were not attached because they have no bounded revision: ${omitted.join('; ')}`] : [])].filter(Boolean).join('\n') } : {}),
       ...(typeof raw.createdAt === 'number' ? { startedAt: raw.createdAt } : {}), ...(typeof raw.updatedAt === 'number' ? { finishedAt: raw.updatedAt } : {}) };
   }
   private receiptFromCad(raw: Record<string, unknown>, root: string, task: Task): Receipt {
@@ -747,7 +803,8 @@ export class WorkflowService {
     const timestamp = (value: unknown): number | undefined => typeof value === 'string' && Number.isFinite(Date.parse(value)) ? Date.parse(value) : undefined;
     const createdAt = timestamp(raw.createdAt), updatedAt = timestamp(raw.updatedAt);
     return { version: 1, requestId: task.id, ownerId: task.studyId, ...(typeof raw.jobId === 'string' ? { jobId: raw.jobId } : {}),
-      state: appReceiptState(raw.state), artifacts, ...(typeof raw.message === 'string' ? { message: raw.message } : {}),
+      state: appReceiptState(raw.state), artifacts,
+      ...(object(raw.resources) && Number.isSafeInteger(raw.resources.requestedThreads) ? { resources: { requestedThreads: Number(raw.resources.requestedThreads), ...(Number.isSafeInteger(raw.resources.effectiveThreads) ? { effectiveThreads: Number(raw.resources.effectiveThreads) } : {}) } } : {}), ...((typeof raw.message === 'string' || Array.isArray(raw.outputFindings)) ? { message: [typeof raw.message === 'string' ? raw.message : '', ...(Array.isArray(raw.outputFindings) ? raw.outputFindings.filter(v => typeof v === 'string') : [])].filter(Boolean).join(' ') } : {}),
       ...(createdAt !== undefined ? { startedAt: createdAt } : {}),
       ...(updatedAt !== undefined && ['succeeded', 'failed', 'cancelled'].includes(String(raw.state)) ? { finishedAt: updatedAt } : {}) };
   }
@@ -855,7 +912,7 @@ export class WorkflowService {
         const meshRevision = meshArtifact?.reference.revision ?? study.mesh?.revision ?? 'missing';
         study.runs.push({ id: task.runId, studyId: study.id, sourceRevision: typeof task.args.sourceRevision === 'string' ? task.args.sourceRevision : study.source.revision, meshRevision,
           settings: task.args.caseState ?? null, directory: `.kkss/runs/${task.runId}`, state: task.state, artifacts: receipt.artifacts,
-          receipt, ...(receipt.startedAt !== undefined ? { startedAt: receipt.startedAt } : {}), ...(receipt.finishedAt !== undefined ? { finishedAt: receipt.finishedAt } : {}) });
+          receipt, ...(receipt.outputFindings ? { outputFindings: receipt.outputFindings } : {}), ...(receipt.resources ? { resources: receipt.resources } : {}), ...(receipt.startedAt !== undefined ? { startedAt: receipt.startedAt } : {}), ...(receipt.finishedAt !== undefined ? { finishedAt: receipt.finishedAt } : {}) });
         p.activeStudyId = study.id; p.activeRunId = task.runId;
       }
     });
@@ -931,7 +988,25 @@ export class WorkflowService {
         const variants = rows.map(row => duplicateStudy(source, row.name, reuseMesh, row.settings));
         p.studies.push(...variants); return variants;
       })),
-      tool('run_review', 'Build a structured review for a terminal run with revision-checked generated inputs and mesh-quality diagnostics when the mesh runner is available. Preparation reports and their inputs are checked against owned revisions. Structural v1/v2 monitors distinguish process completion, solver convergence, final-iteration residual norms and unavailable diagnostics. Saved scalar quantities are included only while their source result revision is current.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => (await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'))).review),
+      tool('run_refinement_set', 'Save revision-bound mesh refinement metadata for a terminal run. Adaptive meshes require an explicit characteristic size and a justified sizing definition. Comparability and asymptotic range are user assumptions, not verified facts.', {
+        studyId: str, runId: str, characteristicSize: { type: 'number', exclusiveMinimum: 0 }, domainMeasure: { type: 'number', exclusiveMinimum: 0 },
+        lengthUnit: { enum: ['m', 'cm', 'mm'] }, dimension: { enum: [1, 2, 3] }, method: { enum: ['uniform', 'adaptive'] },
+        sizingDefinition: str, justification: str, comparable: { type: 'boolean' }, asymptotic: { type: 'boolean' },
+      }, ['studyId', 'runId', 'lengthUnit', 'dimension', 'method', 'sizingDefinition', 'justification', 'comparable', 'asymptotic'], async args => {
+        const store = this.store();
+        const project = await store.read(); if (!project) throw new Error('No project.');
+        const run = this.study(project, text(args, 'studyId')).runs.find(r => r.id === text(args, 'runId'));
+        if (!run || !['succeeded', 'failed', 'cancelled'].includes(run.state)) throw new Error('Select a terminal run.');
+        const metadata: Refinement = { meshRevision: run.meshRevision, lengthUnit: args.lengthUnit as Refinement['lengthUnit'], dimension: args.dimension as Refinement['dimension'],
+          method: args.method as Refinement['method'], sizingDefinition: text(args, 'sizingDefinition'), justification: text(args, 'justification'), comparable: args.comparable as boolean, asymptotic: args.asymptotic as boolean,
+          ...(args.characteristicSize !== undefined ? { characteristicSize: args.characteristicSize as number } : {}), ...(args.domainMeasure !== undefined ? { domainMeasure: args.domainMeasure as number } : {}) };
+        validateRefinement(metadata);
+        const mesh = run.artifacts.find(a => a.role === 'mesh' && a.ownerId === run.id);
+        if (!mesh || await fileRevision(resolveReference(store.root, mesh.reference)) !== run.meshRevision) throw new Error('The run mesh is missing or changed.');
+        await store.update(p => { const current = this.study(p, run.studyId).runs.find(r => r.id === run.id); if (!current || current.meshRevision !== metadata.meshRevision) throw new Error('Run changed.'); current.refinement = metadata; });
+        this.deps.changed(); return metadata;
+      }),
+      tool('run_review', 'Build a structured review for a terminal run with revision-checked generated inputs and mesh-quality diagnostics when the mesh runner is available. Preparation reports and their inputs are checked against owned revisions. Versioned structural, fluid, thermal, potential-flow and shallow-water monitors distinguish process completion, solver convergence, final-iteration residual norms and unavailable diagnostics. Saved scalar quantities are included only while their source result revision is current.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => (await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'))).review),
       tool('run_quantity_evaluate', 'Evaluate one explicitly selected result field and save its definition, unit, value and exact source artifact revision into the owning run evidence.', {
         studyId: str, runId: str, resultPath: str,
         field: str, kind: { enum: ['Nodal', 'Elemental', 'Conditional'] },
@@ -1013,7 +1088,7 @@ export class WorkflowService {
         if (!Array.isArray(args.rows) || args.rows.some(r => !object(r) || typeof r.name !== 'string' || !object(r.settings))) throw new Error('Invalid variant rows.');
         return previewVariants(this.study(p, text(args, 'studyId')), args.rows as {name: string; settings: Json}[]);
       }),
-      tool('variants_compare', 'Compare the parent study and its variants, retaining failed/unconverged/missing rows and comparing only saved scalar definitions with compatible units.', { studyId: str }, ['studyId'], async args => (await this.buildVariantComparison(text(args, 'studyId'))).comparison),
+      tool('variants_compare', 'Compare the parent study and its variants, retaining failed/unconverged/missing rows and comparing only saved scalar definitions with compatible units. Mesh-sensitivity estimates require revision-bound refinement metadata; assumptions and unavailable reasons accompany every result.', { studyId: str }, ['studyId'], async args => (await this.buildVariantComparison(text(args, 'studyId'))).comparison),
       tool('variants_compare_export', 'Write the current variant comparison as portable JSON and self-contained offline HTML.', { studyId: str }, ['studyId'], async args => {
         const { store, comparison } = await this.buildVariantComparison(text(args, 'studyId'));
         const directory = path.join(store.root, '.kkss', 'reviews');

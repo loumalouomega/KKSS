@@ -10,6 +10,12 @@ vi.mock("../app/main/services/dialogs", () => ({}));
 vi.mock("../app/main/services/quickPick", () => ({}));
 vi.mock("../app/main/services/notifications", () => ({}));
 vi.mock("../app/main/services/watcher", () => ({}));
+vi.mock("../app/main/services/staticReport", () => ({
+  createStaticReportPanel: vi.fn(() => ({ webview: { html: "" } })),
+}));
+vi.mock("../app/main/services/plotPanel", () => ({
+  createPlotPanel: vi.fn(() => ({ webview: { html: "plot workspace" } })),
+}));
 
 const store: Record<string, unknown> = {};
 const listeners = new Set<(key: string, value: unknown) => void>();
@@ -28,7 +34,7 @@ vi.mock("../app/main/services/stateStore", () => ({
   },
 }));
 
-const { workspace } = await import("../app/main/vscodeShim");
+const { workspace, window, commands, ViewColumn, Uri, __configureVscodeShim } = await import("../app/main/vscodeShim");
 
 beforeEach(() => {
   for (const k of Object.keys(store)) delete store[k];
@@ -78,5 +84,24 @@ describe("workspace.getConfiguration", () => {
     expect(seen).toEqual([true]);
     await expect(workspace.getConfiguration("kratos").update("nope", 1)).rejects.toThrow();
     sub.dispose();
+  });
+});
+
+describe("script-free export report panel", () => {
+  it("supports only the explicitly script-enabled scientific plot workspace", () => {
+    expect(window.createWebviewPanel("kratos.plotBuilder", "Plots", 2, { enableScripts: true })).toEqual({ webview: { html: "plot workspace" } });
+    expect(() => window.createWebviewPanel("kratos.plotBuilder", "Plots", 2, { enableScripts: false })).toThrow("unsupported webview panel");
+  });
+  it("preserves explicit open-beside navigation", async () => {
+    const openWith = vi.fn();
+    __configureVscodeShim({ openWith, openTextDocument() {}, openLatestResults() {}, projectRoot: () => undefined, saveMesh: async () => {} });
+    await commands.executeCommand("vscode.openWith", Uri.file("/run/result.vtk"), "kratos.vtkPreview", ViewColumn.Beside);
+    expect(openWith).toHaveBeenCalledWith("/run/result.vtk", "kratos.vtkPreview", true);
+  });
+  it("supports only the upstream report's explicitly script-disabled panel", () => {
+    expect(window.createWebviewPanel("kratos.exportReport", "Export report", 2, { enableScripts: false })).toEqual({ webview: { html: "" } });
+    expect(() => window.createWebviewPanel("kratos.exportReport", "Export report", 2, { enableScripts: true })).toThrow("unsupported webview panel");
+    expect(() => window.createWebviewPanel("kratos.exportReport", "Export report", 2)).toThrow("unsupported webview panel");
+    expect(() => window.createWebviewPanel("kratos.emptyPreview", "Preview", 2, { enableScripts: false })).toThrow("unsupported webview panel");
   });
 });

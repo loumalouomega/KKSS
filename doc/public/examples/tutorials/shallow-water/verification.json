@@ -47,7 +47,11 @@
     "vtk_output/main_model_part_0_5.vtk": "bc48e1d78c15f4adcbc0f9a7baec6790d062540dd501abd186d62225c098d8f8",
     "vtk_output/main_model_part_0_6.vtk": "bb8b0ba971669793221f4411740e73c914fd24030d5ccaf9f5dfd66715327ad0",
     "vtk_output/main_model_part_0_7.vtk": "02a46c3270589360c3d90a3d8aa3f72d1c09fea5998d6ad03f802cdafaa256a8",
-    "vtk_output/main_model_part_0_8.vtk": "30d3903804897aa3efec50d09345e0c71642ba3e4a9da1bcdbbe7d165f927ae1"
+    "vtk_output/main_model_part_0_8.vtk": "30d3903804897aa3efec50d09345e0c71642ba3e4a9da1bcdbbe7d165f927ae1",
+    "plots/depth-history.csv": "94b7d0897b66708c50622eb07f5aa716ce0df402a903c47fc6ca5a72cd8a0d9b",
+    "plots/depth-history.csv.kratosplot.json": "37288103a747ec58ae5b2c6c46b805e6af539470a3a58c3fe8d46db99d01cd79",
+    "plots/depth-history.json": "a610c4ba3b8d9c640aed790d4c536be51410eaa3d24ad4fb1c7a0eb36a911163",
+    "plots/verification.json": "08517d5e6189e70a72efa38ed80767c5926b4876952e97158fa3e3dc85960486"
   },
   "source": "cad/examples/BREP/blank.brep",
   "revisions": {

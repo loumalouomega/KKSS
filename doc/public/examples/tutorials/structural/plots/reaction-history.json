@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "reaction",
+      "type": "region",
+      "path": "../vtk_output/Structure_0_1.vtk",
+      "kind": "Nodal",
+      "variable": "REACTION",
+      "scope": "history",
+      "operation": "sum",
+      "times": [
+        0.125,
+        0.25,
+        0.375,
+        0.5,
+        0.625,
+        0.75,
+        0.875,
+        1
+      ],
+      "timeUnit": "s"
+    }
+  ],
+  "series": [
+    {
+      "id": "reaction",
+      "source": "reaction",
+      "name": "Sum of supplied REACTION Z",
+      "x": "time",
+      "y": "v2",
+      "transforms": [
+        {
+          "op": "convert",
+          "factor": 1,
+          "unit": "N"
+        }
+      ]
+    }
+  ],
+  "presentation": {
+    "family": "line",
+    "title": "Whole-mesh signed nodal reaction sum",
+    "lineMode": "lines+markers",
+    "xLabel": "Static analysis pseudo-time [s]",
+    "yLabel": "Reaction Z [N]"
+  }
+}
