@@ -678,10 +678,10 @@
   "Material Library Folders": "Material Library Folders",
   "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.": "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.",
   "OpenSCAD Backend": "OpenSCAD Backend",
-  "Auto (OpenSCAD default)": "Auto (OpenSCAD default)",
+  "Auto (no flag)": "Auto (no flag)",
   "CGAL": "CGAL",
-  "Manifold (needs recent OpenSCAD)": "Manifold (needs recent OpenSCAD)",
-  "Geometry engine OpenSCAD evaluates .scad sources with. Leave on auto unless your OpenSCAD supports --backend.": "Geometry engine OpenSCAD evaluates .scad sources with. Leave on auto unless your OpenSCAD supports --backend.",
+  "Manifold (2025+)": "Manifold (2025+)",
+  "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.": "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.",
   "OpenSCAD Library Folders": "OpenSCAD Library Folders",
-  "Extra OpenSCAD library folders (absolute paths) prepended to OPENSCADPATH for the conversion only.": "Extra OpenSCAD library folders (absolute paths) prepended to OPENSCADPATH for the conversion only."
+  "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.": "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths."
 }

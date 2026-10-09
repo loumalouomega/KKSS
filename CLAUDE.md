@@ -259,7 +259,11 @@ resubmitted automatically.
   `out/main.js`** (`__dirname` resolution in `mesh/src/mmgWorkerClient.ts`),
   as must `out/streamlineWorker.js` for mesh 4.21+'s off-thread traces,
   per-seed progress and partial cancellation. Both workers are required build
-  artifacts; `test/meshMcpRuntime.test.ts` executes the staged files.
+  artifacts; `test/meshMcpRuntime.test.ts` executes the staged files. CAD-side MMG remeshing (`remesh_mesh`, cad 3.11.0) resolves
+  `@loumalouomega/mmg-wasm` through cad's own `runtimePackage.ts`, so `out/mmg/dist/mmg.cjs`
+  (+ `package.json`) is staged as a tree and `out/cad-runtime/dist/mmg-core.wasm`
+  as the binary `mmgService.getMmg` reads explicitly — one `out/mmg/` tree serves the
+  compute worker and the MCP kernel worker alike.
   The OCCT/Gmsh binaries live under `out/cad-runtime/dist/` (the services
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
@@ -267,7 +271,7 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**16.27.0**, the version BOTH submodules now
+  `@meshioplusplus/wasm` package (**16.31.0**, the version BOTH submodules now
   lock; since 10.20 the package has the field-only `.dex`/`.ip`/`.mff` formats —
   point fields, no geometry — the write-only SVG/TikZ figure formats exposed in
   the export menu's "Figures" group, and, since it statically links HDF5/netCDF,
@@ -299,7 +303,7 @@ resubmitted automatically.
   `out/cad-runtime/dist/kernel-worker.js` finds it at
   `out/cad-runtime/dist/../../meshio`. That is why KKSS's
   `cadMeshioLoader.ts` shim and its esbuild alias are gone, and why one version
-  must serve both consumers: both submodules lock 16.27.0 rather than
+  must serve both consumers: both submodules lock 16.31.0 rather than
   leaving the two a major apart. It loads the `.wasm` via meshio++'s
   `locateFile` hook (the `wasmBinary` buffer hook MMG uses is pruned from this
   build), so the tree must exist on disk — another reason for `asar: false`.
@@ -485,6 +489,11 @@ resubmitted automatically.
   stateStore key (**Settings page ▸ CAD Viewer ▸ OpenSCAD Binary**), since
   cadHost is a port that reads the stateStore directly rather than the shim;
   `OPENSCAD_BINARY` remains the headless escape hatch for the MCP child.
+  Backend (`cadOpenscadBackend`: auto/cgal/manifold) and library folders
+  (`cadOpenscadLibraryPaths`, prepended to `OPENSCADPATH` for the conversion child only)
+  ride the same path with the same headless twins (`OPENSCAD_BACKEND` env, inherited
+  `OPENSCADPATH`); the Customizer tools (`list_scad_parameters` text-only,
+  `convert_scad` writing a new `.csg`) are MCP-only and need no host work.
 - **`renderService.ts` must stay OUT of the cad compute worker.** It imports
   playwright, which drags `playwright-core`'s unresolvable `chromium-bidi`
   requires into the bundle. `render_snapshot` is an MCP-only tool and the chat's
@@ -587,8 +596,20 @@ resubmitted automatically.
   **new** mesh tab, or refreshes and focuses an existing clean tab for the
   same resolved path (`CadHost.onMeshExported` in `app/main/index.ts`, gated
   by `modeForFile` so shared/CAD-only outputs never jump). Unrelated tabs and
-  tabs with unsaved mesh operations are preserved. Post → pre is deliberately not
-  synced. The text editor screen is **not** part of this tab model — it stays
+  tabs with unsaved mesh operations are preserved. Document *routing* stays one-way
+  (post → pre never opens tabs), but layer *structure* syncs both ways
+  (`app/main/services/layerSync.ts`): CAD `<model>.layers.json` (presentation/drawing
+  groups, `layer-N` ids, B-rep entity bags) and mesh `<stem>.kratosview.json`
+  (view-only groups over blocks/parts/explicit ids) exchange names, colours,
+  visibility and lock — never membership, which lives in incompatible id spaces
+  and would be invented data. The merge is union-only (add + presentation update,
+  never delete, no-op updates unreported) so repeats converge; direction is
+  last-writer-wins by sidecar mtime; a missing sidecar is never conjured from
+  nothing. Triggers are open/export/focus transitions (`onMeshExported` with the
+  source path, `maybeSyncSharedLayers` for `.stl`/`.obj`/`.ply` on open + tab
+  focus) — never a file watcher, which would rewrite a sidecar while its own
+  panel edits it. The CAD default layer (`layer-0`) never syncs: mesh has no
+  default concept. The text editor screen is **not** part of this tab model — it stays
   single-document with its own dirty-guard-on-close, unaffected.
 - **node-pty is the ONLY native module and the ONLY shipped node_modules
   entry** (embedded terminal, `app/main/services/terminal.ts`). It is N-API:
@@ -969,7 +990,7 @@ resubmitted automatically.
   bearer token only, since an external client has no user to prompt. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 150-name key set.
+  `test/chatToolPolicy.test.ts` pins the exact 153-name key set.
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1253,7 +1274,7 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 71 CAD + 44 mesh + 4 aggregation + 31 app-owned
+discovery (current sets: 74 CAD + 44 mesh + 4 aggregation + 31 app-owned
 workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
@@ -1587,11 +1608,13 @@ re-pin, late-binding empty preview, plots default to the displayed field.)
   (`OPENSCAD_BACKEND`/`OPENSCADPATH`, like the existing `OPENSCAD_BINARY`
   escape hatch) — stateStore settings never reach it. New `en.json`/`es.json`
   keys cover the labels/descriptions.
-- **Three policy rows: 68 → 71 CAD tools (150 total).** `cad__remesh_mesh`
+- **Six policy rows: 68 → 74 CAD tools (153 total).** `cad__remesh_mesh`
   (write — always writes a new `.med` + sidecar), `cad__convert_scad` (write —
-  writes a new `.csg`) and `cad__list_scad_parameters` (read — text only).
-  `test/chatToolPolicy.test.ts` pins the 150 total, the 71 CAD split and the
-  84-name writes list, plus the exact-name match against both submodules'
+  writes a new `.csg`), `cad__list_scad_parameters` (read — text only),
+  `cad__list_layers` (read) and `cad__set_layer` / `cad__assign_layer` (write —
+  the `<model>.layers.json` panel tools).
+  `test/chatToolPolicy.test.ts` pins the 153 total, the 74 CAD split and the
+  writes list, plus the exact-name match against both submodules'
   `registerTool` lists. `optimize`'s boolean→enum coercion, the `conformal`
   default and `Part.meshStructured` flow through the already-imported cad
   source modules with no host change; no new extension, `vscode.*` API,
@@ -1613,6 +1636,24 @@ material-preserving level sets, and packed timeline round trips. The generated
 mesh body matches `buildPreviewHtml` with `startEmpty` omitted; all four
 meshio runtime files ship. Format routing tables, not approximate prose
 counts, define the supported read/write formats.
+
+**The cad 3.12.0 → 3.13.0 + mesh 5.2.1 → 5.3.0 jump added layers on both
+sides, synced bidirectionally.** (cad f53c7ed = persistent layers +
+layer-filtered drawing exports; mesh 5.3.0 = user view layers, former roadmap
+item 4.) `cadHost.ts` ports the layers session (`currentLayers` +
+never-recycled `layer-N` counter, `layersChanged` autosave, `ready`
+hydration, rebind as the 8th `rebindPartsAcrossOps` arg, preprocess ZIP
+round-trip, `pickLayersFilter` for drawings); the mesh providers run verbatim,
+so post side needs no host code — only `MESH_VIEW_SIDECAR` staging in
+`cachePathCore.ts` (view layers otherwise vanish on cloud round-trips).
+`app/main/services/layerSync.ts` (pure, `test/layerSync.test.ts`) exchanges
+names/colours/visibility/lock — never membership — union-only,
+last-writer-wins, converging; triggers are `onMeshExported` (now carrying the
+source path) and shared-format open/focus, never a watcher. Policy grows three
+more rows (`list_layers` read, `set_layer`/`assign_layer` write: 74 CAD, 153
+total). mesh 5.3.0 also refuses non-positive material densities at generation,
+which forced the structural tutorial's `DENSITY: 0` to physical 7850 kg/m³
+(`tools/tutorials/cases.mjs`).
 
 ## Localization, focus and performance checks
 

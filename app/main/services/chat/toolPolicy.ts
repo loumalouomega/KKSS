@@ -125,7 +125,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__queue_resume: "write",
   app__queue_resume_row: "write",
   app__queue_cancel: "write",
-  // ---- cad-preview (71) ---------------------------------------------------
+  // ---- cad-preview (74) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",
   cad__get_mass_properties: "read",
@@ -153,6 +153,8 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__list_standard_hole_sizes: "read",
   cad__list_mesh_presets: "read",
   cad__list_sheet_templates: "read",
+  cad__list_layers: "read",
+  cad__list_scad_parameters: "read",
   cad__generate_mesh: "read",
   cad__measure_mesh_deviation: "write",
   cad__analyze_passages: "read",
@@ -185,8 +187,12 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__set_variables: "write",
   cad__set_part: "write",
   cad__set_plane: "write",
+  cad__set_layer: "write",
+  cad__assign_layer: "write",
   cad__set_mesh_options: "write",
   cad__export_mesh: "write",
+  cad__remesh_mesh: "write",
+  cad__convert_scad: "write",
   cad__job_cancel: "write",
   cad__export_brep: "write",
   cad__save_preprocess: "write",
@@ -197,12 +203,6 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__apply_mesh_preset: "write",
   cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
-  // cad 3.11.0: MMG remesh always writes a new .med + Parts sidecar.
-  cad__remesh_mesh: "write",
-  // cad 3.12.0: OpenSCAD Customizer — listing parameters reads the file only,
-  // converting with -D overrides writes a new .csg.
-  cad__list_scad_parameters: "read",
-  cad__convert_scad: "write",
 
   // ---- kratos-mdpa (44) ---------------------------------------------------
   mesh__mesh_resample: "write",

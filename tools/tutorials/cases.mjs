@@ -10,7 +10,7 @@ export const cases = [
     options: { dimension: 3, sizeMin: 0.8, sizeMax: 0.8 },
     problem: { analysisType: 'non_linear', endTime: 1, timeStep: 0.125 },
     assignments: [assignment('parts', 'Solid'), assignment('displacement', 'Support', { value: [0, 0, 0], constrained: true }), assignment('surfacePressure', 'Load', { value: 100000 })],
-    materials: [material('Solid', 'linear_elastic_3d', { DENSITY: 0, YOUNG_MODULUS: 210000000000, POISSON_RATIO: 0.3 })],
+    materials: [material('Solid', 'linear_elastic_3d', { DENSITY: 7850, YOUNG_MODULUS: 210000000000, POISSON_RATIO: 0.3 })],
     field: 'DISPLACEMENT',
   },
   {

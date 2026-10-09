@@ -328,10 +328,10 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       storeKey: "cadOpenscadBackend",
       default: "auto",
       enum: ["auto", "cgal", "manifold"],
-      enumLabels: [t("Auto (OpenSCAD default)"), t("CGAL"), t("Manifold (needs recent OpenSCAD)")],
+      enumLabels: [t("Auto (no flag)"), t("CGAL"), t("Manifold (2025+)")],
       applies: "nextOpen",
       vscode: { section: "cadPreview", key: "openscadBackend" },
-      description: t("Geometry engine OpenSCAD evaluates .scad sources with. Leave on auto unless your OpenSCAD supports --backend."),
+      description: t("Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD."),
     },
     {
       id: "cadPreview.openscadLibraryPaths",
@@ -342,7 +342,7 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       default: [],
       applies: "nextOpen",
       vscode: { section: "cadPreview", key: "openscadLibraryPaths" },
-      description: t("Extra OpenSCAD library folders (absolute paths) prepended to OPENSCADPATH for the conversion only."),
+      description: t("Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths."),
     },
     {
       id: "cadPreview.kernelTimeoutMinutes",

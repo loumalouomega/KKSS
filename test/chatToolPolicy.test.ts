@@ -192,16 +192,16 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 71 cad + 44 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools.
+    // 74 cad + 44 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools.
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(150);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(153);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
-    expect(cad).toHaveLength(71);
+    expect(cad).toHaveLength(74);
     expect(mesh).toHaveLength(44);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
@@ -255,6 +255,7 @@ describe("the table itself", () => {
       "app__variants_create",
       "cad__apply_edit_ops",
       "cad__apply_mesh_preset",
+      "cad__assign_layer",
       "cad__batch_export",
       "cad__compare_mesh_refinement",
       "cad__convert_scad",
@@ -284,6 +285,7 @@ describe("the table itself", () => {
       "cad__save_parametric_script",
       "cad__save_preprocess",
       "cad__save_sheet_template",
+      "cad__set_layer",
       "cad__set_mesh_options",
       "cad__set_part",
       "cad__set_plane",

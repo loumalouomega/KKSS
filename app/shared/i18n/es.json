@@ -678,10 +678,10 @@
   "Material Library Folders": "Carpetas de bibliotecas de materiales",
   "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.": "Carpetas (relativas a la carpeta del proyecto) donde se buscan preajustes de materiales. Los valores importados se copian en el caso como una instantánea.",
   "OpenSCAD Backend": "Motor de OpenSCAD",
-  "Auto (OpenSCAD default)": "Automático (predeterminado de OpenSCAD)",
+  "Auto (no flag)": "Automático (sin opción)",
   "CGAL": "CGAL",
-  "Manifold (needs recent OpenSCAD)": "Manifold (necesita un OpenSCAD reciente)",
-  "Geometry engine OpenSCAD evaluates .scad sources with. Leave on auto unless your OpenSCAD supports --backend.": "Motor geométrico con el que OpenSCAD evalúa los archivos .scad. Déjalo en automático salvo que tu OpenSCAD admita --backend.",
+  "Manifold (2025+)": "Manifold (2025+)",
+  "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.": "Motor geométrico con el que OpenSCAD evalúa las fuentes .scad. Automático no pasa ninguna opción. Manifold necesita un OpenSCAD reciente.",
   "OpenSCAD Library Folders": "Carpetas de bibliotecas de OpenSCAD",
-  "Extra OpenSCAD library folders (absolute paths) prepended to OPENSCADPATH for the conversion only.": "Carpetas adicionales de bibliotecas de OpenSCAD (rutas absolutas) antepuestas a OPENSCADPATH solo para la conversión."
+  "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.": "Carpetas adicionales de bibliotecas de OpenSCAD antepuestas a OPENSCADPATH solo para la conversión. Rutas absolutas."
 }
