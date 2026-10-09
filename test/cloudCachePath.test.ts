@@ -111,10 +111,11 @@ describe("isStagingArtifact", () => {
 });
 
 describe("isSidecarOf", () => {
-  it("accepts every cad sidecar and mesh's run sidecar", () => {
+  it("accepts every cad sidecar and mesh's run and view sidecars", () => {
     for (const name of [
       "bull.stp.parts.json",
       "bull.stp.edits.json",
+      "bull.stp.layers.json",
       "bull.stp.annotations.json",
       "bull.stp.view.json",
       "bull.stp.planes.json",
@@ -123,8 +124,9 @@ describe("isSidecarOf", () => {
     ]) {
       expect(isSidecarOf("bull.stp", name)).toBe(true);
     }
-    // mesh's RunManager sidecar is keyed by the STEM, not the full name.
+    // mesh's RunManager and view-layers sidecars are keyed by the STEM, not the full name.
     expect(isSidecarOf("case.post.msh", "case.kratosrun.json")).toBe(true);
+    expect(isSidecarOf("case.post.msh", "case.kratosview.json")).toBe(true);
   });
 
   it("rejects the document itself, a neighbour, and the macro library", () => {
@@ -142,8 +144,10 @@ describe("sidecarNamesFor", () => {
   it("lists what stage() must look for beside a remote model", () => {
     const names = sidecarNamesFor("bull.stp");
     expect(names).toContain("bull.stp.parts.json");
+    expect(names).toContain("bull.stp.layers.json");
     expect(names).toContain("bull.stp.geo");
     expect(names).toContain("bull.kratosrun.json");
+    expect(names).toContain("bull.kratosview.json");
     expect(names).not.toContain("cad-preview-macros.json");
     expect(names).not.toContain("cad-preview-mesh-presets.json");
     // Everything it names must be recognised on the way back in.

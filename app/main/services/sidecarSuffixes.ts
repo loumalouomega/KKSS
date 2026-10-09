@@ -17,6 +17,7 @@
 export const CAD_SIDECAR = {
   parts: ".parts.json",
   edits: ".edits.json",
+  layers: ".layers.json",
   annotations: ".annotations.json",
   view: ".view.json",
   planes: ".planes.json",
@@ -42,3 +43,11 @@ export const MESH_PRESET_LIBRARY_NAME = "cad-preview-mesh-presets.json";
 
 /** mesh 3.8.0's RunManager sidecar, written as `<stem>.kratosrun.json`. */
 export const MESH_RUN_SIDECAR = ".kratosrun.json";
+
+/**
+ * mesh 5.3.0's user view layers (former roadmap item 4): view-only groups in
+ * `<stem>.kratosview.json` (see mesh/src/problemtype/caseFile.ts viewFilePath).
+ * View-only — never solver data, never dirty — but staged/synced like the run
+ * sidecar so cloud round-trips don't silently drop them.
+ */
+export const MESH_VIEW_SIDECAR = ".kratosview.json";

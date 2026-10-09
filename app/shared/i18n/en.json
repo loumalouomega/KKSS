@@ -676,5 +676,12 @@
   "Do not record provenance": "Do not record provenance",
   "Embed provenance in supported native comments and meshio++ headers. Sidecar also writes a .kratosexport.json report (one per series); problem archives keep their record inside the ZIP. None adds no new provenance; reports remain available.": "Embed provenance in supported native comments and meshio++ headers. Sidecar also writes a .kratosexport.json report (one per series); problem archives keep their record inside the ZIP. None adds no new provenance; reports remain available.",
   "Material Library Folders": "Material Library Folders",
-  "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.": "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot."
+  "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.": "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.",
+  "OpenSCAD Backend": "OpenSCAD Backend",
+  "Auto (no flag)": "Auto (no flag)",
+  "CGAL": "CGAL",
+  "Manifold (2025+)": "Manifold (2025+)",
+  "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.": "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.",
+  "OpenSCAD Library Folders": "OpenSCAD Library Folders",
+  "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.": "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths."
 }

@@ -61,6 +61,7 @@ import { openMesh } from "../../mesh/src/meshExport";
 import { latestResultFile } from "../../mesh/src/problemtype/runCore";
 import { groupVtkFiles, findGroupForFile } from "../../mesh/src/parser/vtkFileGroup";
 import { TIMELINE_EXTENSIONS } from "../../mesh/src/parser/meshFormats";
+import { syncFilePair } from "./services/layerSync";
 import type { HomeToHost, HomeToWebview, Mode, Screen, ShellTabInfo, ShellToHost } from "./ipc";
 
 // Must happen before app is ready.
@@ -459,20 +460,33 @@ const cadHostHooks = {
   // (.mdpa, .vtk, …) refreshes a matching clean tab or opens a NEW mesh tab.
   // Unrelated documents and tabs with unsaved operations are preserved.
   // The router gates this so shared formats (.stl/.obj/.ply) and CAD-only outputs never jump.
-  onMeshExported: (fsPath: string) => {
+  // Layer structure (names/colours/visibility/lock — never membership, which
+  // lives in incompatible id spaces) is translated from the source CAD layers
+  // into the target's `.kratosview.json` after the tab opens.
+  onMeshExported: (fsPath: string, sourcePath: string) => {
     if (!main || modeForFile(fsPath, main.mode()) !== "mesh") return;
     const resolved = path.resolve(fsPath);
+    const syncLayers = (): void => {
+      try {
+        const summary = syncFilePair(path.resolve(sourcePath), resolved);
+        if (summary) toast("info", summary);
+      } catch (err) {
+        toast("warning", `Layer sync skipped: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
     for (const [id, host] of meshHosts) {
       if (!host.isDirty() && host.currentFile && path.resolve(host.currentFile) === resolved) {
         host.openPath(resolved);
         selectTab("mesh", id);
         setScreen("mesh");
+        syncLayers();
         return;
       }
     }
     const tab = createTab("mesh");
     meshHosts.get(tab.id)?.openPath(resolved);
     setScreen("mesh");
+    syncLayers();
   },
 };
 const meshHostHooks = (tabId: string) => ({
@@ -645,6 +659,27 @@ function selectTab(mode: Mode, tabId: string): void {
   if (!main) return;
   main.setActiveTab(mode, tabId);
   syncTabs(mode);
+  maybeSyncSharedLayers(mode === "cad" ? cadHosts.get(tabId)?.currentFile : meshHosts.get(tabId)?.currentFile);
+}
+
+/**
+ * Layer structure sync for files openable in both modes (`.stl`/`.obj`/`.ply`,
+ * the router's active-mode-wins overlap). Both sidecars sit beside the same
+ * file (`<file>.layers.json` + `<stem>.kratosview.json`); the newer one wins
+ * and only structure travels (membership lives in incompatible id spaces).
+ * Runs on open/focus transitions; `syncFilePair` is union-only and converges,
+ * so repeats are null (no toast) rather than loops.
+ */
+const SHARED_LAYER_FORMATS = new Set([".stl", ".obj", ".ply"]);
+function maybeSyncSharedLayers(fsPath: string | undefined): void {
+  if (!fsPath) return;
+  if (!SHARED_LAYER_FORMATS.has(path.extname(fsPath).toLowerCase())) return;
+  try {
+    const summary = syncFilePair(path.resolve(fsPath), path.resolve(fsPath));
+    if (summary) toast("info", summary);
+  } catch {
+    // syncFilePair never throws; belt-and-braces around the toast path.
+  }
 }
 
 /** File ▸ Open from Cloud… — pick a provider, drill down, stage, open. */
@@ -825,6 +860,7 @@ function openFile(fsPath: string, forcedMode?: Mode, external = false): Promise<
       recentFiles.record(resolved, mode);
       main?.setActiveTab(mode, tabId);
       setScreen(mode);
+      maybeSyncSharedLayers(resolved);
     },
   ).catch(error => {
     toast("error", error instanceof Error ? error.message : String(error));
@@ -843,6 +879,10 @@ function setScreen(screen: Screen): void {
   refreshMenu();
   sendShell({ type: "screen", screen });
   saveSessionSoon();
+  if (screen === "cad" || screen === "mesh") {
+    const id = main.activeTabId(screen);
+    maybeSyncSharedLayers(id ? (screen === "cad" ? cadHosts.get(id)?.currentFile : meshHosts.get(id)?.currentFile) : undefined);
+  }
 }
 
 /**

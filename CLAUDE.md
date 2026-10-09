@@ -259,7 +259,11 @@ resubmitted automatically.
   `out/main.js`** (`__dirname` resolution in `mesh/src/mmgWorkerClient.ts`),
   as must `out/streamlineWorker.js` for mesh 4.21+'s off-thread traces,
   per-seed progress and partial cancellation. Both workers are required build
-  artifacts; `test/meshMcpRuntime.test.ts` executes the staged files.
+  artifacts; `test/meshMcpRuntime.test.ts` executes the staged files. CAD-side MMG remeshing (`remesh_mesh`, cad 3.11.0) resolves
+  `@loumalouomega/mmg-wasm` through cad's own `runtimePackage.ts`, so `out/mmg/dist/mmg.cjs`
+  (+ `package.json`) is staged as a tree and `out/cad-runtime/dist/mmg-core.wasm`
+  as the binary `mmgService.getMmg` reads explicitly — one `out/mmg/` tree serves the
+  compute worker and the MCP kernel worker alike.
   The OCCT/Gmsh binaries live under `out/cad-runtime/dist/` (the services
   take `extensionPath` and append `dist/…`). This is also why
   `electron-builder.yml` sets **`asar: false`**.
@@ -267,7 +271,7 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**16.27.0**, the version BOTH submodules now
+  `@meshioplusplus/wasm` package (**16.31.0**, the version BOTH submodules now
   lock; since 10.20 the package has the field-only `.dex`/`.ip`/`.mff` formats —
   point fields, no geometry — the write-only SVG/TikZ figure formats exposed in
   the export menu's "Figures" group, and, since it statically links HDF5/netCDF,
@@ -485,6 +489,11 @@ resubmitted automatically.
   stateStore key (**Settings page ▸ CAD Viewer ▸ OpenSCAD Binary**), since
   cadHost is a port that reads the stateStore directly rather than the shim;
   `OPENSCAD_BINARY` remains the headless escape hatch for the MCP child.
+  Backend (`cadOpenscadBackend`: auto/cgal/manifold) and library folders
+  (`cadOpenscadLibraryPaths`, prepended to `OPENSCADPATH` for the conversion child only)
+  ride the same path with the same headless twins (`OPENSCAD_BACKEND` env, inherited
+  `OPENSCADPATH`); the Customizer tools (`list_scad_parameters` text-only,
+  `convert_scad` writing a new `.csg`) are MCP-only and need no host work.
 - **`renderService.ts` must stay OUT of the cad compute worker.** It imports
   playwright, which drags `playwright-core`'s unresolvable `chromium-bidi`
   requires into the bundle. `render_snapshot` is an MCP-only tool and the chat's
@@ -587,8 +596,20 @@ resubmitted automatically.
   **new** mesh tab, or refreshes and focuses an existing clean tab for the
   same resolved path (`CadHost.onMeshExported` in `app/main/index.ts`, gated
   by `modeForFile` so shared/CAD-only outputs never jump). Unrelated tabs and
-  tabs with unsaved mesh operations are preserved. Post → pre is deliberately not
-  synced. The text editor screen is **not** part of this tab model — it stays
+  tabs with unsaved mesh operations are preserved. Document *routing* stays one-way
+  (post → pre never opens tabs), but layer *structure* syncs both ways
+  (`app/main/services/layerSync.ts`): CAD `<model>.layers.json` (presentation/drawing
+  groups, `layer-N` ids, B-rep entity bags) and mesh `<stem>.kratosview.json`
+  (view-only groups over blocks/parts/explicit ids) exchange names, colours,
+  visibility and lock — never membership, which lives in incompatible id spaces
+  and would be invented data. The merge is union-only (add + presentation update,
+  never delete, no-op updates unreported) so repeats converge; direction is
+  last-writer-wins by sidecar mtime; a missing sidecar is never conjured from
+  nothing. Triggers are open/export/focus transitions (`onMeshExported` with the
+  source path, `maybeSyncSharedLayers` for `.stl`/`.obj`/`.ply` on open + tab
+  focus) — never a file watcher, which would rewrite a sidecar while its own
+  panel edits it. The CAD default layer (`layer-0`) never syncs: mesh has no
+  default concept. The text editor screen is **not** part of this tab model — it stays
   single-document with its own dirty-guard-on-close, unaffected.
 - **node-pty is the ONLY native module and the ONLY shipped node_modules
   entry** (embedded terminal, `app/main/services/terminal.ts`). It is N-API:

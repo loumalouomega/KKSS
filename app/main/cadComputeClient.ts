@@ -276,6 +276,7 @@ export const cadCompute = {
   readMeshioFieldValues: rpc<typeof meshio.readMeshioFieldValues>("readMeshioFieldValues"),
   readMeshioProvenance: rpc<typeof meshio.readMeshioProvenance>("readMeshioProvenance"),
   decimateStlBoundary: rpc<typeof meshio.decimateStlBoundary>("decimateStlBoundary"),
+  remeshMesh: rpc<typeof meshio.remeshMesh>("remeshMesh"),
   runMeshioOps: rpc<typeof meshio.runMeshioOps>("runMeshioOps"),
   exportViaMeshio: rpc<typeof meshio.exportViaMeshio>("exportViaMeshio"),
   buildPartsFromMeshioRegions:

@@ -7,9 +7,10 @@ import { finishOpen } from "./services/performance";
  * imported straight from the submodule):
  *   webview.postMessage            → WebContentsView.webContents.send
  *   onDidReceiveMessage            → ipcMain.on("cad:toHost")
- *   vscode.workspace.fs            → node:fs/promises (the three *Store.ts
+ *   vscode.workspace.fs            → node:fs/promises (the cad *Store.ts
  *                                    files re-implemented over the vscode-free
- *                                    *Sidecar parse/serialize modules)
+ *                                    *Sidecar parse/serialize modules,
+ *                                    including layersStore over layersSidecar)
  *   webview.asWebviewUri           → toKkssUrl (kkss-file:// scheme)
  *   OCCT/Gmsh service calls        → cadCompute worker RPC (same signatures,
  *                                    extensionPath = out/cad-runtime)
@@ -17,6 +18,9 @@ import { finishOpen } from "./services/performance";
  *   showQuickPick                  → services/quickPick modal window
  *   vscode.openWith                → hooks.onOpenRequest (router)
  *   cadPreview.openscadBinary      → the cadOpenscadBinary stateStore key
+ *   cadPreview.openscadBackend     → cadOpenscadBackend (auto/cgal/manifold)
+ *   cadPreview.openscadLibraryPaths → cadOpenscadLibraryPaths (OPENSCADPATH
+ *                                    prepend, conversion child only)
  *                                    (Settings ▸ CAD Viewer Defaults), since
  *                                    the shim's getConfiguration always
  *                                    resolves to the caller's default
@@ -65,6 +69,7 @@ import {
   encodeBuffer,
   type HostToWebview,
   type WebviewToHost,
+  type Layer,
   type Part,
   type SelectorSynthesizeResultEntry,
 } from "../../cad/src/protocol";
@@ -82,6 +87,13 @@ import {
   type MeshSaveRecoveryResult,
 } from "../../cad/src/meshSaveRecovery";
 import { parsePartsJson, serializePartsJson } from "../../cad/src/partsSidecar";
+import {
+  parseLayersFile,
+  serializeLayersJson,
+  layersWithDefault,
+  resolveLayerDrawFilter,
+  type LayerDrawSubset,
+} from "../../cad/src/layersSidecar";
 import {
   parseEditsJson,
   serializeEditsJson,
@@ -184,6 +196,8 @@ export const CAD_DEFAULT_KEYS = {
   upAxis: cadKey("upAxis"),
   tessellationQuality: cadKey("tessellationQuality"),
   openscadBinary: cadKey("openscadBinary"),
+  openscadBackend: cadKey("openscadBackend"),
+  openscadLibraryPaths: cadKey("openscadLibraryPaths"),
 } as const;
 
 /** Debounce window for autosaving the parts/edits/mesh-options sidecars (provider.ts). */
@@ -259,6 +273,21 @@ const writeParts = (modelPath: string, parts: Part[]): Promise<void> =>
   writeFileAtomic(
     `${modelPath}${CAD_SIDECAR.parts}`,
     serializePartsJson(path.basename(modelPath), parts)
+  );
+
+// Presentation/drawing layers (cad f53c7ed, roadmap "Layers, distinct from
+// Parts") — same node:fs re-implementation shape as readParts/writeParts.
+const readLayers = async (modelPath: string): Promise<{ layers: Layer[]; nextId: number }> => {
+  try {
+    return parseLayersFile(await fs.readFile(`${modelPath}${CAD_SIDECAR.layers}`, "utf8"));
+  } catch {
+    return { layers: [], nextId: 0 };
+  }
+};
+const writeLayers = (modelPath: string, layers: Layer[], nextId: number): Promise<void> =>
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.layers}`,
+    serializeLayersJson(path.basename(modelPath), layers, nextId)
   );
 
 const readEdits = async (modelPath: string): Promise<ParsedEdits> => {
@@ -400,14 +429,17 @@ export interface CadHostHooks {
   onOpenRequest(fsPath: string): void;
   /** Current file changed (shell title). */
   onTitle(fileName: string | null): void;
-  /** A mesh file was exported to disk (post mode may want to open it). */
-  onMeshExported(fsPath: string): void;
+  /** A mesh file was exported to disk (post mode may want to open it).
+   * `sourcePath` is the CAD document it was exported from, so the layer
+   * sync can translate `<source>.layers.json` into the target's view sidecar. */
+  onMeshExported(fsPath: string, sourcePath: string): void;
 }
 
 export class CadHost {
   private doc: { path: string; route: FileRoute | undefined } | undefined;
   private readonly pending = new Map<string, PendingExport>();
   private partsSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  private layersSaveTimer: ReturnType<typeof setTimeout> | undefined;
   private editsSaveTimer: ReturnType<typeof setTimeout> | undefined;
   private meshSaveTimer: ReturnType<typeof setTimeout> | undefined;
   private annotationsSaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -422,6 +454,9 @@ export class CadHost {
    *  here, since KKSS has no interactive bake action of its own yet. */
   private currentBakedThrough = 0;
   private currentParts: Part[] = [];
+  private currentLayers: Layer[] = [];
+  /** Never-recycled `layer-N` allocation counter, persisted in the sidecar. */
+  private currentLayersNextId = 0;
   private currentAnnotations: Annotation[] = [];
   private currentViewState: ViewState | undefined;
   private currentMeshOptions: MeshOptions | undefined;
@@ -630,6 +665,7 @@ export class CadHost {
   async flushSidecars(): Promise<void> {
     if (!this.doc) return;
     if (this.partsSaveTimer) clearTimeout(this.partsSaveTimer);
+    if (this.layersSaveTimer) clearTimeout(this.layersSaveTimer);
     if (this.editsSaveTimer) clearTimeout(this.editsSaveTimer);
     if (this.meshSaveTimer) clearTimeout(this.meshSaveTimer);
     if (this.annotationsSaveTimer) clearTimeout(this.annotationsSaveTimer);
@@ -638,6 +674,7 @@ export class CadHost {
     try {
       await Promise.all([
         writeParts(this.doc.path, this.currentParts),
+        writeLayers(this.doc.path, this.currentLayers, this.currentLayersNextId),
         writePlanes(this.doc.path, this.currentPlanes),
         writeEdits(this.doc.path, this.currentEdits, this.currentVariables, this.currentBakedThrough),
         writeAnnotations(this.doc.path, this.currentAnnotations),
@@ -691,12 +728,14 @@ export class CadHost {
   private disposeSession(): void {
     this.epoch++;
     if (this.partsSaveTimer) clearTimeout(this.partsSaveTimer);
+    if (this.layersSaveTimer) clearTimeout(this.layersSaveTimer);
     if (this.editsSaveTimer) clearTimeout(this.editsSaveTimer);
     if (this.meshSaveTimer) clearTimeout(this.meshSaveTimer);
     if (this.annotationsSaveTimer) clearTimeout(this.annotationsSaveTimer);
     if (this.viewSaveTimer) clearTimeout(this.viewSaveTimer);
     if (this.planesSaveTimer) clearTimeout(this.planesSaveTimer);
     this.partsSaveTimer = this.editsSaveTimer = this.meshSaveTimer = undefined;
+    this.layersSaveTimer = undefined;
     this.annotationsSaveTimer = this.viewSaveTimer = this.planesSaveTimer = undefined;
     for (const p of this.pending.values()) p.reject(new Error("Document closed"));
     this.pending.clear();
@@ -704,6 +743,8 @@ export class CadHost {
     this.currentVariables = [];
     this.currentBakedThrough = 0;
     this.currentParts = [];
+    this.currentLayers = [];
+    this.currentLayersNextId = 0;
     this.currentAnnotations = [];
     this.currentPlanes = [];
     this.currentViewState = undefined;
@@ -756,7 +797,7 @@ export class CadHost {
   private async rebindPartsOnChange(previousOps: EditOp[], newOps: EditOp[]): Promise<void> {
     const doc = this.doc;
     if (!doc?.route || doc.route.strategy !== "occt") return;
-    if (this.currentParts.length === 0 && this.currentAnnotations.length === 0) return;
+    if (this.currentParts.length === 0 && this.currentAnnotations.length === 0 && this.currentLayers.length === 0) return;
     if (JSON.stringify(previousOps) === JSON.stringify(newOps)) return;
     // Tier 0: both lists replay against the current (possibly baked) bytes,
     // so both are tailed identically before the diff — otherwise a change
@@ -798,7 +839,8 @@ export class CadHost {
         previousTail,
         newTail,
         this.currentParts,
-        this.currentAnnotations
+        this.currentAnnotations,
+        this.currentLayers
       );
       if (epoch !== this.epoch) return; // document changed while replaying
       // The provider detects "nothing to do" by reference identity on the
@@ -811,8 +853,10 @@ export class CadHost {
       const partsChanged = result.stats.rebound > 0 || result.stats.dropped > 0;
       const annotationsChanged =
         result.annotationStats.rebound > 0 || result.annotationStats.dropped > 0;
+      const layersChanged = result.layerStats.rebound > 0 || result.layerStats.dropped > 0;
       if (partsChanged) this.currentParts = result.parts;
       if (annotationsChanged) this.currentAnnotations = result.annotations;
+      if (layersChanged) this.currentLayers = result.layers;
       if (partsChanged || selectorsChangedIds) {
         await writeParts(doc.path, this.currentParts);
         this.post({ type: "parts", parts: this.currentParts });
@@ -820,6 +864,10 @@ export class CadHost {
       if (annotationsChanged) {
         await writeAnnotations(doc.path, this.currentAnnotations);
         this.post({ type: "annotations", annotations: this.currentAnnotations });
+      }
+      if (layersChanged) {
+        await writeLayers(doc.path, this.currentLayers, this.currentLayersNextId);
+        this.post({ type: "layers", layers: this.currentLayers, nextId: this.currentLayersNextId });
       }
     } catch (err) {
       if (epoch !== this.epoch) return;
@@ -858,14 +906,17 @@ export class CadHost {
       // first tessellation (provider.ready): since cad 2.5.0 a plane-authored
       // profile op may carry no cached vectors, and the kernel skips one that
       // was never resolved — it would silently vanish on reopen.
-      const [parsed, planesInitial] = await Promise.all([
+      const [parsed, planesInitial, layersInitial] = await Promise.all([
         readEdits(this.doc.path),
         readPlanes(this.doc.path),
+        readLayers(this.doc.path),
       ]);
       this.currentEdits = resolvePlaneRefs(parsed.ops, planesInitial).ops;
       this.currentVariables = parsed.variables;
       this.currentBakedThrough = parsed.bakedThrough;
       this.currentPlanes = planesInitial;
+      this.currentLayers = layersInitial.layers;
+      this.currentLayersNextId = layersInitial.nextId;
       this.loadModel();
       this.postEdits();
       // The meshio route's own handleMeshio (in loadModel) owns the parts
@@ -885,6 +936,7 @@ export class CadHost {
         this.currentAnnotations = annotations;
         this.post({ type: "annotations", annotations });
       });
+      this.post({ type: "layers", layers: this.currentLayers, nextId: this.currentLayersNextId });
       void this.sendMeshOptions();
       void readViewState(this.doc.path).then((view) => {
         this.currentViewState = view ?? undefined;
@@ -909,6 +961,19 @@ export class CadHost {
       this.partsSaveTimer = setTimeout(() => {
         void writeParts(doc.path, msg.parts).then(undefined, (err) =>
           this.post({ type: "error", message: `Could not save parts: ${(err as Error).message}` })
+        );
+      }, PARTS_SAVE_DEBOUNCE_MS);
+      return;
+    }
+
+    if ((msg as { type?: string }).type === "layersChanged") {
+      const layersMsg = msg as unknown as { type: "layersChanged"; layers: Layer[]; nextId: number };
+      this.currentLayers = layersMsg.layers;
+      this.currentLayersNextId = layersMsg.nextId;
+      if (this.layersSaveTimer) clearTimeout(this.layersSaveTimer);
+      this.layersSaveTimer = setTimeout(() => {
+        void writeLayers(doc.path, layersMsg.layers, layersMsg.nextId).then(undefined, (err) =>
+          this.post({ type: "error", message: `Could not save layers: ${(err as Error).message}` })
         );
       }, PARTS_SAVE_DEBOUNCE_MS);
       return;
@@ -1240,7 +1305,7 @@ export class CadHost {
         }
         // Pre → post sync: a written mesh may be openable in post mode. The
         // router (in index.ts) decides whether this format actually is.
-        if (savedPath) this.hooks.onMeshExported(savedPath);
+        if (savedPath) this.hooks.onMeshExported(savedPath, doc.path);
         });
       } catch (err) {
         this.post({ type: "error", message: `Export failed: ${(err as Error).message}` });
@@ -2310,6 +2375,8 @@ export class CadHost {
       readBytes: async () => fs.readFile(fsPath),
       warnings,
       binary: stateStore.get<string>(CAD_DEFAULT_KEYS.openscadBinary) || undefined,
+      backend: stateStore.get<string>(CAD_DEFAULT_KEYS.openscadBackend) || undefined,
+      libraryPaths: stateStore.get<string[]>(CAD_DEFAULT_KEYS.openscadLibraryPaths) ?? undefined,
     });
   }
 
@@ -2824,14 +2891,15 @@ export class CadHost {
           return undefined;
         }
       };
-      const [source, parts, annotations, edits, meshOptions] = await Promise.all([
+      const [source, parts, layers, annotations, edits, meshOptions] = await Promise.all([
         fs.readFile(modelPath),
         readOptional(CAD_SIDECAR.parts),
+        readOptional(CAD_SIDECAR.layers),
         readOptional(CAD_SIDECAR.annotations),
         readOptional(CAD_SIDECAR.edits),
         readOptional(CAD_SIDECAR.meshOptions),
       ]);
-      const zipBytes = buildPreprocessZip({ sourceName, source, parts, annotations, edits, meshOptions });
+      const zipBytes = buildPreprocessZip({ sourceName, source, parts, layers, annotations, edits, meshOptions });
       await fs.writeFile(savePath, zipBytes);
       this.post({ type: "status", text: `Saved preprocess archive to ${savePath}` });
     } catch (err) {
@@ -2882,6 +2950,10 @@ export class CadHost {
       await fs.writeFile(destPath, contents.source);
       allowRoot(path.dirname(destPath));
       if (contents.parts !== undefined) await writeParts(destPath, parsePartsJson(contents.parts));
+      if ((contents as { layers?: string }).layers !== undefined) {
+        const parsedLayers = parseLayersFile((contents as { layers: string }).layers);
+        await writeLayers(destPath, parsedLayers.layers, parsedLayers.nextId);
+      }
       if (contents.annotations !== undefined) {
         await writeAnnotations(destPath, parseAnnotationsJson(contents.annotations));
       }
@@ -2920,6 +2992,37 @@ export class CadHost {
    * Port of provider.promptSaveAndWrite. Returns the written path on success,
    * or undefined when the user cancels the dialog or the write fails.
    */
+  /**
+   * Layer-filter pick for drawing exports (provider.pickLayersFilter, cad
+   * f53c7ed). `undefined` = draw everything (no filter); `null` = refused —
+   * the caller returns without exporting. Mesh sources refuse an explicit
+   * filter choice; B-rep sources resolve names through `resolveLayerDrawFilter`.
+   */
+  private async pickLayersFilter(route: FileRoute): Promise<LayerDrawSubset[] | undefined | null> {
+    const full = layersWithDefault(this.currentLayers);
+    const hasMembers = full.some((l) => l.volumes.length + l.surfaces.length + l.lines.length + l.points.length > 0);
+    if (full.length <= 1 && !hasMembers) return undefined;
+    type Choice = { label: string; description?: string; pick: "all" | "visible" | string };
+    const choices: Choice[] = [
+      { label: "All layers", description: "draw every layer", pick: "all" },
+      { label: "Visible layers only", description: "draw each currently-visible layer", pick: "visible" },
+      ...full.map((l): Choice => ({ label: l.name, description: l.id, pick: l.id })),
+    ];
+    const picked = await showQuickPick(choices, { placeHolder: "Drawing layers…" });
+    if (!picked || picked.pick === "all") return undefined;
+    const names = picked.pick === "visible" ? full.filter((l) => l.visible).map((l) => l.id) : [picked.pick];
+    if (route.strategy !== "occt") {
+      this.post({ type: "error", message: "The layers filter in drawing exports is B-rep only in this version — mesh sources draw unfiltered." });
+      return null;
+    }
+    const { subsets, warnings } = resolveLayerDrawFilter(full, names);
+    for (const w of warnings) this.post({ type: "status", text: w });
+    if (subsets.length === 0) {
+      this.post({ type: "error", message: "None of the picked layers matched — the drawing would be empty." });
+      return null;
+    }
+    return subsets;
+  }
   /**
    * File ▾ ▸ Export Silhouette SVG/DXF… and Export Technical Drawing…
    * (provider.handleExportSvg). The drawing variant shares this whole
@@ -2963,6 +3066,8 @@ export class CadHost {
 
     const picked = await showQuickPick(choices, { placeHolder: "Silhouette view…" });
     if (!picked) return; // the primary choice — Escape cancels the export
+    const layerFilter = await this.pickLayersFilter(route);
+    if (layerFilter === null) return;
     const unit = await this.pickExportUnit();
 
     await this.promptSaveAndWrite(
@@ -2997,6 +3102,7 @@ export class CadHost {
           format,
           annotations: this.currentAnnotations,
           hiddenLines,
+          ...(layerFilter ? { layerFilter } : {}),
         });
         for (const warning of result.warnings) this.post({ type: "status", text: warning });
         return Buffer.from(format === "dxf" ? (result.dxf ?? result.svg) : result.svg, "utf8");
@@ -3041,6 +3147,11 @@ export class CadHost {
 
     const format = formatPick.format;
     const name = path.basename(modelPath);
+    // Drawing sheets resolve the layer filter from the sheet form's layer
+    // checkboxes upstream; KKSS's sheet flow has no such form, so offer the
+    // same All/Visible/Named pick as the silhouette path.
+    const sheetLayerFilter = await this.pickLayersFilter(route);
+    if (sheetLayerFilter === null) return;
     await this.promptSaveAndWrite(
       modelPath,
       format,
@@ -3071,6 +3182,7 @@ export class CadHost {
           paper: paperPick.paper,
           projection: "first",
           annotations: this.currentAnnotations,
+          ...(sheetLayerFilter ? { layerFilter: sheetLayerFilter } : {}),
           title: name,
           date: new Date().toISOString().slice(0, 10),
         });

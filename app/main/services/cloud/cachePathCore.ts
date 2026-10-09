@@ -23,6 +23,7 @@ import {
   MACRO_LIBRARY_NAME,
   MESH_PRESET_LIBRARY_NAME,
   MESH_RUN_SIDECAR,
+  MESH_VIEW_SIDECAR,
 } from "../sidecarSuffixes";
 import type { CloudRef, ProviderId } from "./cloudCore";
 
@@ -106,7 +107,8 @@ export function isSidecarOf(modelName: string, candidate: string): boolean {
   if (candidate === modelName) return false;
   if (candidate === MACRO_LIBRARY_NAME || candidate === MESH_PRESET_LIBRARY_NAME) return false;
   if (CAD_SIDECAR_SUFFIXES.some((suffix) => candidate === `${modelName}${suffix}`)) return true;
-  return candidate === `${meshStem(modelName)}${MESH_RUN_SIDECAR}`;
+  if (candidate === `${meshStem(modelName)}${MESH_RUN_SIDECAR}`) return true;
+  return candidate === `${meshStem(modelName)}${MESH_VIEW_SIDECAR}`;
 }
 
 /** Every sidecar name `stage()` should look for beside a remote model. */
@@ -114,5 +116,6 @@ export function sidecarNamesFor(modelName: string): string[] {
   return [
     ...CAD_SIDECAR_SUFFIXES.map((suffix) => `${modelName}${suffix}`),
     `${meshStem(modelName)}${MESH_RUN_SIDECAR}`,
+    `${meshStem(modelName)}${MESH_VIEW_SIDECAR}`,
   ];
 }
