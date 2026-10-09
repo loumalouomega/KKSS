@@ -7,6 +7,32 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.10.0] - 2026-10-09
+
+- feat: integrate **CAD Preview 3.13.0** and **Mesh Preview 5.3.0**, sharing
+  meshio++ 16.31.0. CAD mode gains persistent presentation layers
+  (`<model>.layers.json`: visibility, lock, colour, entity membership) with
+  layer-filtered SVG/DXF drawing and sheet exports, MMG remeshing of FE meshes
+  into new `.med` files, OpenSCAD backend/library-folder settings and
+  Customizer parameter tools; post mode gains view-only user layers
+  (`<stem>.kratosview.json`) promotable to real SubModelParts.
+- feat: sync layer structure (names, colours, visibility, lock — never
+  membership) bidirectionally between pre and post: on mesh export and when a
+  shared `.stl`/`.obj`/`.ply` file is opened or focused, last-writer-wins and
+  union-only so repeats converge.
+- feat: classify the six new CAD MCP tools for approval (`list_layers` and
+  `list_scad_parameters` read; `set_layer`, `assign_layer`, `remesh_mesh` and
+  `convert_scad` write) and describe the new capabilities to the assistant.
+- fix: resolve open Dependabot security alerts and refresh dev dependencies.
+- fix: give the structural tutorial a physical steel density (7850 kg/m³) now
+  that the mesh engine refuses non-positive material densities at generation.
+- docs: document layers, layer sync, OpenSCAD settings, MMG remeshing and the
+  new assistant tools across the CAD, mesh, development and getting-started
+  guides, with refreshed Electron screenshots (plot captures now show the
+  result field in the 3D view beside each chart).
+
+[2.10.0]: https://github.com/loumalouomega/KKSS/compare/v2.9.0...v2.10.0
+
 ## [2.9.0] - 2026-10-05
 
 - feat: integrate Mesh Preview 5.1.0 scientific plotting: mesh-native dockable Plots pane, standalone builder, staged strict-CSP Plotly assets and cancellable worker, recipes and CSV/PNG/SVG provenance exports. Preserve exact owning-result open-beside navigation and classify six plotting MCP tools.
