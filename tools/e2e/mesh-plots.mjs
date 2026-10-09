@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { scenario, assert, menu, selectFile, until, root } from './context.mjs';
+import { scenario, assert, menu, selectFile, until, sleep, root } from './context.mjs';
 
 export const meshPlotsScenario = screenshotDir => scenario('mesh-plots', async c => {
   const base = path.join(root, 'doc/public/examples/tutorials');
@@ -34,6 +34,19 @@ export const meshPlotsScenario = screenshotDir => scenario('mesh-plots', async c
       await p.locator('#plot-chart').evaluate((el, target) => el.layout?.title?.text === target.title && el.data?.reduce((sum, t) => sum+t.y.length, 0) === target.count, { title: spec.presentation.title, count: expected }), 'plot collection', 60_000);
     await p.locator('#plot-chart .main-svg').first().waitFor();
   };
+  // Shows a result field in the 3D viewport beside the Plots pane: the Field
+  // panel is the switch for the whole feature (closing it clears the overlays),
+  // so it stays open in the capture — chart on one side, colormap on the other.
+  const showField = async (p, field) => {
+    await p.locator('#toolbar button[data-action="field"]').click();
+    const selector = p.locator('#field-panel select').first();
+    await selector.waitFor();
+    const options = await selector.locator('option').evaluateAll(els => els.map(el => ({ text: el.textContent, value: el.value })));
+    const choice = options.find(o => o.text.startsWith(field + ' '));
+    assert.ok(choice, `Missing ${field} field for 3D display`);
+    await selector.selectOption(choice.value);
+    await sleep(1800); // let the colormap render settle before capturing
+  };
   const pressure = path.join(base, 'fluid/plots/pressure-history.json');
   await load(page, pressure);
   await page.locator('#toolbar [data-action="reset"]').click();
@@ -45,6 +58,7 @@ export const meshPlotsScenario = screenshotDir => scenario('mesh-plots', async c
   assert.equal(curves[0].y[0], 2697.7852);
   assert.equal(curves[0].y.at(-1), 9.2801962);
   assert.equal(curves[1].y.at(-1), -4.189086);
+  await showField(page, 'PRESSURE');
   if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, 'tutorial-fluid-pressure-history.png') });
   await page.locator('#plot-orient').click();
   assert.equal(await page.locator('#plot-resizer').getAttribute('aria-orientation'), 'horizontal');
@@ -124,6 +138,9 @@ export const meshPlotsScenario = screenshotDir => scenario('mesh-plots', async c
   await profile.locator('#toolbar [data-action="reset"]').click();
   const before = await profile.locator('#plot-chart').evaluate(el => [...el.data[0].y]);
   assert.equal(before.length, 80); assert.ok(Math.min(...before) < 0);
+  await showField(profile, 'VELOCITY');
+  await profile.locator('#plot-chart').scrollIntoViewIfNeeded();
+  await sleep(800);
   if (screenshotDir) await profile.screenshot({ path: path.join(screenshotDir, 'tutorial-fluid-wake-profile.png') });
   await profile.getByRole('button', { name: 'Follow timeline', exact: true }).click();
   const timeline = profile.locator('#tl-scrub');
