@@ -13,9 +13,15 @@ full auto-generated compare links.
   meshio++ 16.31.0. CAD mode gains persistent presentation layers
   (`<model>.layers.json`: visibility, lock, colour, entity membership) with
   layer-filtered SVG/DXF drawing and sheet exports, MMG remeshing of FE meshes
-  into new `.med` files, OpenSCAD backend/library-folder settings and
-  Customizer parameter tools; post mode gains view-only user layers
-  (`<stem>.kratosview.json`) promotable to real SubModelParts.
+  into new `.med` files headless and from the Remesh panel, OpenSCAD
+  backend/library-folder settings and Customizer parameter tools; post mode
+  gains view-only user layers (`<stem>.kratosview.json`) promotable to real
+  SubModelParts.
+- feat: take cad 3.12.0's meshing behavior (conformal multi-body meshing
+  default-on, `optimize` enum, per-Part structured meshing) and mesh 5.2.x's
+  plot default (new curves follow the displayed field) through the existing
+  imports, with the Remesh panel's Run button wired through the new
+  `remeshRequest` host port.
 - feat: sync layer structure (names, colours, visibility, lock — never
   membership) bidirectionally between pre and post: on mesh export and when a
   shared `.stl`/`.obj`/`.ply` file is opened or focused, last-writer-wins and
@@ -24,11 +30,14 @@ full auto-generated compare links.
   `list_scad_parameters` read; `set_layer`, `assign_layer`, `remesh_mesh` and
   `convert_scad` write) and describe the new capabilities to the assistant.
 - fix: resolve open Dependabot security alerts and refresh dev dependencies.
+- fix(e2e): the harness file picker clicks the option row, not its inner
+  label, fixing cloud and mesh-feature scenario selection.
 - fix: give the structural tutorial a physical steel density (7850 kg/m³) now
   that the mesh engine refuses non-positive material densities at generation.
 - docs: document layers, layer sync, OpenSCAD settings, MMG remeshing and the
   new assistant tools across the CAD, mesh, development and getting-started
-  guides, with refreshed Electron screenshots (plot captures now show the
+  guides, queue tutorial GIF captures and CoSimulation/FSI examples on the
+  roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
 [2.10.0]: https://github.com/loumalouomega/KKSS/compare/v2.9.0...v2.10.0
