@@ -29,11 +29,34 @@ for (const language of ['en', 'es']) await scenario(`accessibility-${language}`,
     return {focused: wc.getURL(), windows: webContents.getAllWebContents().map(w => w.getURL()), hit: webContents.getFocusedWebContents()?.getURL()};
   }, sequence);
   const focusedView = async () => app.evaluate(({webContents}) => webContents.getAllWebContents().find(w => w.isFocused())?.getURL());
+  // F6/Shift+F6 travels through the main-process before-input-event handler.
+  // A single sendInputEvent can land while focus is still settling (the
+  // previous transition's webContents.focus() + kkss:focus round-trip), in
+  // which case the key is consumed by the wrong view and the single 30s
+  // `until` below never recovers — CI run 37985153382 timed out exactly this
+  // way on accessibility-es chat → editor. Re-send until the expected view
+  // holds focus so one lost keystroke cannot fail the whole job.
+  const focusKey = async (sequence, pattern, label, timeout = 30_000) => {
+    const end = Date.now() + timeout;
+    let last = '';
+    while (Date.now() < end) {
+      last = (await focusedView()) ?? '';
+      if (pattern.test(last)) return;
+      await key(sequence);
+      const settle = Date.now() + 2000;
+      while (Date.now() < settle) {
+        last = (await focusedView()) ?? '';
+        if (pattern.test(last)) return;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+    const windows = await app.evaluate(({webContents}) => webContents.getAllWebContents().map(w => w.getURL()));
+    throw new Error(`Timed out: ${label} (last focus: ${last || '<none>'}; windows: ${windows.join(', ')})`);
+  };
   await home.getByRole('button', {name: new RegExp(text('Text Editor'))}).waitFor();
   // Start at the actual focused Home control; enter the editor using only keys.
   await app.evaluate(({BaseWindow}) => BaseWindow.getAllWindows()[0].focus());
-  await key('F6');
-  await until(async () => /\/home\//.test(await focusedView() ?? ''), 'Home focus');
+  await focusKey('F6', /\/home\//, 'Home focus');
   for (let i = 0; i < 12; i++) {
     if (await home.evaluate(() => document.activeElement?.matches('#menu button:nth-child(3)'))) break;
     await home.keyboard.press('Tab');
@@ -44,48 +67,40 @@ for (const language of ['en', 'es']) await scenario(`accessibility-${language}`,
   const editor = await c.page(app, 'editor');
   await until(async () => /\/editor\//.test(await focusedView() ?? ''), 'keyboard Home → editor');
   await editor.locator('#editor-path').filter({hasText: 'Save.json'}).waitFor();
-  await key('F6');
-  await until(async () => /\/shell\//.test(await focusedView() ?? ''), 'focus transition');
-  await key('Shift+F6');
-  await until(async () => /\/editor\//.test(await focusedView() ?? ''), 'focus transition');
+  await focusKey('F6', /\/shell\//, 'focus transition');
+  await focusKey('Shift+F6', /\/editor\//, 'focus transition');
   for (let i = 0; i < 16 && await shell.evaluate(() => document.activeElement?.id) !== 'terminal-btn'; i++) await shell.keyboard.press('Tab');
   assert.equal(await shell.evaluate(() => document.activeElement?.id), 'terminal-btn');
   await shell.locator('#terminal-btn').press('Enter');
   const terminal = await c.page(app, 'terminal');
   await until(async () => /\/terminal\//.test(await focusedView() ?? ''), 'terminal focus');
-  await key('Shift+F6');
-  await until(async () => /\/editor\//.test(await focusedView() ?? ''), 'terminal to editor');
-  await key('Shift+F6');
-  await until(async () => /\/shell\//.test(await focusedView() ?? ''), 'editor to shell');
+  await focusKey('Shift+F6', /\/editor\//, 'terminal to editor');
+  await focusKey('Shift+F6', /\/shell\//, 'editor to shell');
   for (let i = 0; i < 16 && await shell.evaluate(() => document.activeElement?.id) !== 'terminal-btn'; i++) await shell.keyboard.press('Tab');
   await shell.locator('#terminal-btn').press('Enter');
   await until(async () => /\/shell\//.test(await focusedView() ?? ''), 'terminal restores shell');
-  await key('F6');
-  await until(async () => /\/editor\//.test(await focusedView() ?? ''), 'shell to editor');
-  await key('F6');
-  await until(async () => /\/shell\//.test(await focusedView() ?? ''), 'editor to shell');
+  await focusKey('F6', /\/editor\//, 'shell to editor');
+  await focusKey('F6', /\/shell\//, 'editor to shell');
   for (let i = 0; i < 16 && await shell.evaluate(() => document.activeElement?.id) !== 'chat-btn'; i++) await shell.keyboard.press('Tab');
   assert.equal(await shell.evaluate(() => document.activeElement?.id), 'chat-btn');
   await shell.locator('#chat-btn').press('Enter');
   const chat = await c.page(app, 'chat');
   await until(async () => /\/chat\//.test(await focusedView() ?? ''), 'chat focus');
-  await key('Shift+F6'); await until(async () => /\/editor\//.test(await focusedView() ?? ''), 'focus transition');
-  await key('F6'); await until(async () => /\/chat\//.test(await focusedView() ?? ''), 'focus transition');
-  await key('Shift+F6');
-  await until(async () => /\/editor\//.test(await focusedView() ?? ''), 'chat to editor');
-  await key('Shift+F6');
-  await until(async () => /\/shell\//.test(await focusedView() ?? ''), 'editor to shell');
+  await focusKey('Shift+F6', /\/editor\//, 'focus transition');
+  await focusKey('F6', /\/chat\//, 'focus transition');
+  await focusKey('Shift+F6', /\/editor\//, 'chat to editor');
+  await focusKey('Shift+F6', /\/shell\//, 'editor to shell');
   await shell.locator('#chat-btn').press('Enter');
   await until(async () => /\/shell\//.test(await focusedView() ?? ''), 'chat restores shell');
   // Jobs has a toolbar route. Reach it with the shell's Tab order.
 
-  for (let i = 0; i < 16 && await shell.evaluate(() => document.activeElement?.id) !== 'jobs-btn'; i++) await key('Tab');
+  for (let i = 0; i < 16 && await shell.evaluate(() => document.activeElement?.id) !== 'jobs-btn'; i++) await shell.keyboard.press('Tab');
   assert.equal(await shell.evaluate(() => document.activeElement?.id), 'jobs-btn');
   await shell.locator('#jobs-btn').press('Enter');
   const jobs = await c.page(app, 'jobs');
   await until(async () => /\/jobs\//.test(await focusedView() ?? ''), 'jobs focus');
-  await scan(jobs, 'jobs'); await key('Escape');
-  await until(async () => /\/shell\//.test(await focusedView() ?? ''), 'jobs restores shell');
+  await scan(jobs, 'jobs');
+  await focusKey('Escape', /\/shell\//, 'jobs restores shell');
   // Native menu actions open auxiliary windows; their content remains keyboard accessible.
   await menu(app, text('Open Settings…'));
   const settings = await c.page(app, 'settings');
