@@ -25,6 +25,17 @@ it('supports managed subscription providers without API billing credentials', ()
   expect(() => parseManagedConfig({ KKSS_CODEX_EXECUTABLE: 'relative' })).toThrow();
 });
 
+it('maps the shared OpenCode key for Zen and Go and rejects a custom base URL', () => {
+  for (const provider of ['opencode-zen', 'opencode-go']) {
+    const c = parseManagedConfig({ KKSS_LLM_PROVIDER: provider, KKSS_LLM_MODEL: 'free-model', KKSS_LLM_API_KEY_FILE: '/secret' } as Record<string, string>, () => 'opencode-key\n');
+    expect(c.values.get('llmProvider')).toBe(provider);
+    expect(c.secrets.get('llmKeyOpencode')).toBe('opencode-key');
+    expect(c.values.get(provider === 'opencode-zen' ? 'llmModelZen' : 'llmModelGo')).toBe('free-model');
+  }
+  expect(() => parseManagedConfig({ KKSS_LLM_PROVIDER: 'opencode-zen', KKSS_LLM_BASE_URL: 'https://proxy.invalid' })).toThrow();
+  expect(() => parseManagedConfig({ KKSS_LLM_PROVIDER: 'opencode-go', KKSS_LLM_BASE_URL: 'https://proxy.invalid' })).toThrow();
+});
+
 it('locks the UI theme to one of the registry values', () => {
   expect(parseManagedConfig({ KKSS_UI_THEME: 'hcLight' }).values.get('uiTheme')).toBe('hcLight');
   expect(() => parseManagedConfig({ KKSS_UI_THEME: 'solarized' })).toThrow('Invalid operator setting KKSS_UI_THEME');

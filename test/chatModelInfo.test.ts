@@ -22,17 +22,27 @@ describe("the model table", () => {
       "claude-opus-5",
       "claude-sonnet-4-6",
       "claude-sonnet-5",
+      "glm-5.2",
+      "glm-5.3",
+      "glm-5.3-flash",
+      "kimi-k2.6",
+      "kimi-k2.7-code",
+      "longcat-2.5-preview-free",
+      "step-5-preview-free",
     ]);
   });
 
   it("gives every row a coherent window and price ladder", () => {
     for (const [name, info] of Object.entries(MODEL_INFO)) {
       expect(info.contextWindow, name).toBeGreaterThanOrEqual(200_000);
+      if (info.inputPer1M === 0 && info.outputPer1M === 0) continue; // free tier: nothing to ladder
       expect(info.outputPer1M, name).toBeGreaterThan(info.inputPer1M);
-      // A cache read must be cheaper than fresh input and a write dearer,
-      // or caching would be pointless / free respectively.
+      // A cache read must be cheaper than fresh input, or caching would be
+      // pointless. A write must be dearer — unless the provider path never
+      // bills it (0 on every OpenAI-compatible gateway, where TurnUsage
+      // carries no write count at all).
       expect(info.cacheReadPer1M, name).toBeLessThan(info.inputPer1M);
-      expect(info.cacheWritePer1M, name).toBeGreaterThan(info.inputPer1M);
+      expect(info.cacheWritePer1M === 0 || info.cacheWritePer1M > info.inputPer1M, name).toBe(true);
     }
   });
 
@@ -51,6 +61,19 @@ describe("the model table", () => {
     expect(modelInfo("gpt-4o")).toBeNull();
     expect(modelInfo("")).toBeNull();
     expect(modelInfo("claude-opus-4-8-not-a-date")).toBeNull();
+  });
+
+  it("prices the OpenCode defaults from reviewed gateway figures", () => {
+    // Zen/Go ids where both gateways publish identical rates (OpenCode docs,
+    // 2026-10-08) — one provider-blind row cannot misprice the other.
+    expect(modelInfo("kimi-k2.7-code")).toMatchObject({ inputPer1M: 0.95, outputPer1M: 4 });
+    expect(modelInfo("glm-5.3-flash")).toMatchObject({ inputPer1M: 0.15, outputPer1M: 0.5 });
+    // The free defaults cost nothing on either gateway.
+    for (const free of ["longcat-2.5-preview-free", "step-5-preview-free"]) {
+      const info = modelInfo(free)!;
+      expect(info).toMatchObject({ inputPer1M: 0, outputPer1M: 0 });
+      expect(estimateCost({ input: 1e6, output: 1e6, cacheRead: 1e6, cacheWrite: 0 }, info)).toBe(0);
+    }
   });
 });
 

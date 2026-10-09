@@ -47,6 +47,22 @@ export const MODEL_INFO: Readonly<Record<string, ModelInfo>> = {
   "claude-fable-5": { contextWindow: M, inputPer1M: 10, outputPer1M: 50, cacheReadPer1M: 1, cacheWritePer1M: 12.5 },
   // Reads at a flat $0.25/MTok — the exception the per-row storage exists for.
   "claude-fable-5-1": { contextWindow: M, inputPer1M: 10, outputPer1M: 50, cacheReadPer1M: 0.25, cacheWritePer1M: 12.5 },
+  // OpenCode Zen/Go `chat/completions` models, prices per the OpenCode docs
+  // (2026-10-08) — restricted to ids where Zen and Go publish identical rates,
+  // so one provider-blind row cannot misprice the other. Ids with divergent
+  // pricing (deepseek-*, muse-spark-*) or a different endpoint per gateway
+  // (qwen3.8-max, minimax-*) stay unlisted until the table learns providers.
+  // Windows are the makers' published figures (Kimi K2 series 256K, Zhipu GLM
+  // series 200K); the free-tier rows carry a conservative 200K floor because
+  // the gateway publishes no window — erring toward earlier compaction.
+  // cacheWrite is 0 throughout: no OpenAI-compatible API reports or bills it.
+  "kimi-k2.7-code": { contextWindow: 256 * K, inputPer1M: 0.95, outputPer1M: 4, cacheReadPer1M: 0.19, cacheWritePer1M: 0 },
+  "kimi-k2.6": { contextWindow: 256 * K, inputPer1M: 0.95, outputPer1M: 4, cacheReadPer1M: 0.16, cacheWritePer1M: 0 },
+  "glm-5.3-flash": { contextWindow: 200 * K, inputPer1M: 0.15, outputPer1M: 0.5, cacheReadPer1M: 0.03, cacheWritePer1M: 0 },
+  "glm-5.3": { contextWindow: 200 * K, inputPer1M: 1.4, outputPer1M: 4.4, cacheReadPer1M: 0.26, cacheWritePer1M: 0 },
+  "glm-5.2": { contextWindow: 200 * K, inputPer1M: 1.4, outputPer1M: 4.4, cacheReadPer1M: 0.26, cacheWritePer1M: 0 },
+  "longcat-2.5-preview-free": { contextWindow: 200 * K, inputPer1M: 0, outputPer1M: 0, cacheReadPer1M: 0, cacheWritePer1M: 0 },
+  "step-5-preview-free": { contextWindow: 200 * K, inputPer1M: 0, outputPer1M: 0, cacheReadPer1M: 0, cacheWritePer1M: 0 },
 };
 
 /** Trailing dated snapshot, e.g. "-20251101". Current ids carry none, but the

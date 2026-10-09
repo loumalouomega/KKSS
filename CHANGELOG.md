@@ -7,6 +7,15 @@ full auto-generated compare links.
 
 ## Unreleased
 
+- feat: add **OpenCode Zen** (pay-as-you-go) and **OpenCode Go** ($10/$40
+  subscription) as first-class **Settings ▸ LLM Assistant** providers, sharing
+  one OpenCode API key and reusing the OpenAI-compatible `chat/completions`
+  path with a `KKSS/<version>` User-Agent and a stable per-conversation
+  `x-opencode-session` id. Defaults are `glm-5.3-flash`;
+  reviewed `modelInfo.ts` prices cover the Zen/Go ids with identical rates on
+  both gateways, and per-model `/responses` and `/messages` endpoints remain a
+  roadmap follow-up.
+
 ## [2.10.0] - 2026-10-09
 
 - feat: integrate **CAD Preview 3.13.0** and **Mesh Preview 5.3.0**, sharing

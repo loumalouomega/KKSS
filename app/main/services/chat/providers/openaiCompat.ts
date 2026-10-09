@@ -12,6 +12,26 @@ export const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 export const DEFAULT_OPENAI_MODEL = "gpt-4o";
 
 /**
+ * OpenCode Zen: pay-as-you-go gateway over curated models.
+ * First cut speaks `chat/completions` only — Zen's per-model `/responses`
+ * and `/messages` endpoints need their own adapters (roadmap follow-up).
+ * Model list: https://opencode.ai/docs/zen/
+ */
+export const DEFAULT_ZEN_BASE_URL = "https://opencode.ai/zen/v1";
+/** Cheap, reliable coding model available on both gateways. */
+export const DEFAULT_ZEN_MODEL = "glm-5.3-flash";
+
+/**
+ * OpenCode Go: $10/$40 subscription over open coding models.
+ * Same `chat/completions` first cut, under the go/v1 prefix.
+ * Go requires a stable `x-opencode-session` per conversation plus a
+ * distinctive User-Agent (generic SDK names degrade routing/caching).
+ * Model list: https://opencode.ai/docs/go/
+ */
+export const DEFAULT_GO_BASE_URL = "https://opencode.ai/zen/go/v1";
+export const DEFAULT_GO_MODEL = "glm-5.3-flash";
+
+/**
  * Incremental SSE parser: feed raw chunks, get back complete `data:` payloads.
  * Handles events split across chunk boundaries and CRLF line endings.
  */
@@ -100,7 +120,17 @@ export function parseUsageChunk(payload: string): TurnUsage | null {
   };
 }
 
-export function createOpenAiCompatProvider(config: { baseUrl: string; apiKey?: string }): Provider {
+export function createOpenAiCompatProvider(config: {
+  baseUrl: string;
+  apiKey?: string;
+  /** Sent as `User-Agent`. OpenCode Go asks clients to identify themselves
+   *  with their own agent string rather than a generic SDK name. */
+  userAgent?: string;
+  /** When true, send `options.sessionId` as `x-opencode-session`. Only
+   *  enabled for the OpenCode providers — a conversation id must never leak
+   *  to an arbitrary third-party gateway. */
+  sendSessionHeader?: boolean;
+}): Provider {
   const url = `${config.baseUrl.replace(/\/+$/, "")}/chat/completions`;
 
   return {
@@ -129,6 +159,8 @@ export function createOpenAiCompatProvider(config: { baseUrl: string; apiKey?: s
         headers: {
           "content-type": "application/json",
           ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
+          ...(config.userAgent ? { "user-agent": config.userAgent } : {}),
+          ...(config.sendSessionHeader && options.sessionId ? { "x-opencode-session": options.sessionId } : {}),
         },
         body: JSON.stringify({
           model: options.model,
