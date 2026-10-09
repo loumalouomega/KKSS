@@ -36,7 +36,7 @@ vi.mock("../app/main/services/stateStore", () => ({
   },
 }));
 
-const { ChatService, evictImages } = await import("../app/main/services/chat/chatService");
+const { ChatService, evictImages, readLlmSettings, providerLabel, missingKeyMessage } = await import("../app/main/services/chat/chatService");
 const { CLEARED_PLACEHOLDER } = await import("../app/main/services/chat/compaction");
 const { ProviderError } = await import("../app/main/services/chat/providers/types");
 const { TranscriptStore } = await import("../app/main/services/chat/transcriptStore");
@@ -1169,6 +1169,33 @@ describe("token, cost and context accounting", () => {
     post({ type: "chatReady" });
     await settle();
     expect(lastState(messages).usage).toMatchObject({ input: 70, output: 7 });
+  });
+});
+
+describe("OpenCode providers", () => {
+  it("reads the shared key with preset endpoints and free defaults", async () => {
+    const { DEFAULT_ZEN_BASE_URL, DEFAULT_GO_BASE_URL } = await import("../app/main/services/chat/providers/openaiCompat");
+    stateValues.llmProvider = "opencode-zen";
+    stateValues.llmKeyOpencode = { plain: "opencode-key" };
+    expect(readLlmSettings()).toMatchObject({ provider: "opencode-zen", baseUrl: DEFAULT_ZEN_BASE_URL, apiKey: "opencode-key" });
+    expect(readLlmSettings().model).toBe("glm-5.3-flash");
+    stateValues.llmProvider = "opencode-go";
+    stateValues.llmModelGo = "glm-5.3-flash";
+    expect(readLlmSettings()).toMatchObject({ provider: "opencode-go", baseUrl: DEFAULT_GO_BASE_URL, model: "glm-5.3-flash" });
+  });
+
+  it("labels providers and guides a missing OpenCode key", () => {
+    expect(providerLabel({ provider: "opencode-zen", model: "m", baseUrl: "b" })).toBe("OpenCode Zen · m");
+    expect(providerLabel({ provider: "opencode-go", model: "m", baseUrl: "b" })).toBe("OpenCode Go · m");
+    expect(providerLabel({ provider: "openai", model: "m", baseUrl: "b" })).toBe("b · m");
+    expect(missingKeyMessage("opencode-zen")).toContain("https://opencode.ai/auth");
+    expect(missingKeyMessage("opencode-go")).toContain("both Zen and Go");
+    expect(missingKeyMessage("anthropic")).toContain("Anthropic API key");
+  });
+
+  it("degrades an unknown provider to Anthropic rather than failing", () => {
+    stateValues.llmProvider = "opencode-quantum";
+    expect(readLlmSettings().provider).toBe("anthropic");
   });
 });
 

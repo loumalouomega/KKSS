@@ -25,7 +25,7 @@ import { checkClaudeAuth, resolveExecutable, SUBSCRIPTION_SETUP } from "./servic
 import { LLM_KEYS } from "./services/chat/chatService";
 import { DEFAULT_APPROVAL_MODE, type ApprovalMode } from "./services/chat/toolPolicy";
 import { DEFAULT_ANTHROPIC_MODEL } from "./services/chat/providers/anthropic";
-import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./services/chat/providers/openaiCompat";
+import { DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL, DEFAULT_ZEN_MODEL, DEFAULT_GO_MODEL } from "./services/chat/providers/openaiCompat";
 import { DEFAULT_META_SERVER_PORT, META_SERVER_KEYS } from "./services/metaServer/metaServer";
 import type { EditorService } from "./services/editor";
 import { openMesh, exportFormats } from "../../mesh/src/meshExport";
@@ -700,6 +700,8 @@ export function installMenu(deps: MenuDeps): void {
               submenu: [
                 { value: "anthropic", label: t("Anthropic (Claude)") },
                 { value: "openai", label: t("OpenAI-compatible") },
+                { value: "opencode-zen", label: t("OpenCode Zen") },
+                { value: "opencode-go", label: t("OpenCode Go") },
                 { value: "codex", label: t("ChatGPT subscription (Codex)") },
                 { value: "claude-code", label: t("Claude subscription (Claude Code)") },
               ].map((p) => ({
@@ -772,6 +774,22 @@ export function installMenu(deps: MenuDeps): void {
               label: t("OpenAI-compatible Model…") + (stateStore.isManaged("llmModelOpenai") ? t(" (set by the environment)") : ""),
               enabled: !stateStore.isManaged("llmModelOpenai"),
               click: () => void promptValue(LLM_KEYS.openaiModel, t("OpenAI-compatible Model"), DEFAULT_OPENAI_MODEL),
+            },
+            { type: "separator" },
+            {
+              label: t("OpenCode API Key…") + (stateStore.isManaged("llmKeyOpencode") ? t(" (set by the environment)") : ""),
+              enabled: !stateStore.isManaged("llmKeyOpencode"),
+              click: () => void promptSecret(LLM_KEYS.opencodeKey, t("OpenCode API Key"), t("opencode-… (one key for Zen and Go)")),
+            },
+            {
+              label: t("OpenCode Zen Model…") + (stateStore.isManaged("llmModelZen") ? t(" (set by the environment)") : ""),
+              enabled: !stateStore.isManaged("llmModelZen"),
+              click: () => void promptValue(LLM_KEYS.zenModel, t("OpenCode Zen Model"), DEFAULT_ZEN_MODEL),
+            },
+            {
+              label: t("OpenCode Go Model…") + (stateStore.isManaged("llmModelGo") ? t(" (set by the environment)") : ""),
+              enabled: !stateStore.isManaged("llmModelGo"),
+              click: () => void promptValue(LLM_KEYS.goModel, t("OpenCode Go Model"), DEFAULT_GO_MODEL),
             },
           ],
         },

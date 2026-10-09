@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   accumulateToolCallDeltas,
+  createOpenAiCompatProvider,
   createSseParser,
   finishToolCalls,
   parseUsageChunk,
@@ -86,5 +87,47 @@ describe("parseUsageChunk", () => {
 
   it("treats missing or non-numeric fields as zero rather than NaN", () => {
     expect(parseUsageChunk('{"usage":{"prompt_tokens":"lots"}}')).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+  });
+});
+
+describe("request headers", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const doneStream = () =>
+    new ReadableStream({ start: (c) => { c.enqueue(new TextEncoder().encode("data: [DONE]\n\n")); c.close(); } });
+
+  async function postHeaders(config: Parameters<typeof createOpenAiCompatProvider>[0], sessionId?: string) {
+    let seen: { url: string; init: RequestInit } | undefined;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      seen = { url, init };
+      return new Response(doneStream(), { status: 200 });
+    }));
+    const provider = createOpenAiCompatProvider(config);
+    await provider.streamTurn({
+      system: "s", entries: [], tools: [], model: "m",
+      signal: new AbortController().signal,
+      onTextDelta: () => undefined,
+      toolName: () => "x",
+      ...(sessionId ? { sessionId } : {}),
+    });
+    return { url: seen!.url, headers: seen!.init.headers as Record<string, string> };
+  }
+
+  it("identifies OpenCode clients and pins the conversation for Go routing", async () => {
+    const { url, headers } = await postHeaders(
+      { baseUrl: "https://opencode.ai/zen/go/v1", apiKey: "k", userAgent: "KKSS/0.0.0-test", sendSessionHeader: true },
+      "convo-1",
+    );
+    expect(url).toBe("https://opencode.ai/zen/go/v1/chat/completions");
+    expect(headers.authorization).toBe("Bearer k");
+    expect(headers["user-agent"]).toBe("KKSS/0.0.0-test");
+    expect(headers["x-opencode-session"]).toBe("convo-1");
+  });
+
+  it("never leaks the conversation id to a generic gateway", async () => {
+    const { headers } = await postHeaders({ baseUrl: "http://localhost:11434/v1" }, "convo-1");
+    expect(headers.authorization).toBeUndefined();
+    expect(headers["user-agent"]).toBeUndefined();
+    expect(headers["x-opencode-session"]).toBeUndefined();
   });
 });

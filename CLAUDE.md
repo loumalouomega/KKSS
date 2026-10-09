@@ -1154,6 +1154,20 @@ resubmitted automatically.
   request itself is too big). The OpenAI-compatible classifier deliberately does
   **not** require a 400: llama.cpp and vLLM have both reported an overflow as a
   500, and the wording is the reliable signal.
+- **OpenCode Zen and Go are preset OpenAI-compatible providers, not a new
+  protocol.** `opencode-zen` (`https://opencode.ai/zen/v1`) and `opencode-go`
+  (`https://opencode.ai/zen/go/v1`) reuse `createOpenAiCompatProvider`'s
+  `chat/completions` + SSE path, so per-model `/responses` and `/messages`
+  endpoints (Muse Spark, GPT, Claude, Qwen Max) are out of scope until they get
+  their own adapters. One shared `llmKeyOpencode` unlocks both; there is no
+  keyless mode and no Base URL override (managed config rejects it). Go's
+  required routing headers ride `StreamTurnOptions.sessionId` (`convo.id`) as
+  `x-opencode-session` plus a `KKSS/<version>` User-Agent — gated behind
+  `sendSessionHeader` so a conversation id never leaks to a generic gateway.
+  `modelInfo.ts` rows are restricted to ids where Zen and Go publish identical
+  rates; divergent ids stay unlisted (tokens-only) rather than mispriced, and
+  free-tier rows cost exactly 0. `SYSTEM_PROMPT` needed no change: it already
+  says "API providers", so the prompt cache prefix survived.
 - **One shared McpManager, two front-ends.** `McpHub`
   (`services/chat/mcpHub.ts`) owns the single `McpManager`; both the chat loop
   and the optional **HTTP meta MCP server** (`services/metaServer/`) call

@@ -61,6 +61,10 @@ export interface StreamTurnOptions {
   onTextDelta(text: string): void;
   /** Maps a tool call's (server, tool) back to the provider-facing name. */
   toolName(server: string, tool: string): string;
+  /** Stable per-conversation id. Sent as `x-opencode-session` by providers
+   *  that ask for it (OpenCode Go uses it for routing and prompt caching);
+   *  never sent to generic gateways. */
+  sessionId?: string;
 }
 
 export interface Provider {

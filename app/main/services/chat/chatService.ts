@@ -61,9 +61,11 @@ import { Provider, ProviderError, type TurnResult, type TurnUsage } from "./prov
 import { estimateCost, modelInfo } from "./modelInfo";
 import { applyCompaction, nextCount } from "./compaction";
 import { createAnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from "./providers/anthropic";
-import { createOpenAiCompatProvider, DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL } from "./providers/openaiCompat";
+import { createOpenAiCompatProvider, DEFAULT_GO_BASE_URL, DEFAULT_GO_MODEL, DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL, DEFAULT_ZEN_BASE_URL, DEFAULT_ZEN_MODEL } from "./providers/openaiCompat";
 
-/** Settings ▸ LLM Assistant — stateStore keys. */
+/** Settings ▸ LLM Assistant — stateStore keys. Zen and Go share one OpenCode
+ *  API key (`opencodeKey`): a single key from https://opencode.ai/auth unlocks
+ *  both the pay-as-you-go gateway and the subscription. */
 export const LLM_KEYS = {
   provider: "llmProvider",
   codexModel: "llmModelCodex",
@@ -75,11 +77,16 @@ export const LLM_KEYS = {
   openaiModel: "llmModelOpenai",
   openaiKey: "llmKeyOpenai",
   openaiBaseUrl: "llmOpenaiBaseUrl",
+  opencodeKey: "llmKeyOpencode",
+  zenModel: "llmModelZen",
+  goModel: "llmModelGo",
   toolApproval: "llmToolApproval", // ApprovalMode; see toolPolicy.ts
 } as const;
 
+export type LlmProvider = "anthropic" | "openai" | "opencode-zen" | "opencode-go" | "codex" | "claude-code";
+
 export interface LlmSettings {
-  provider: "anthropic" | "openai" | "codex" | "claude-code";
+  provider: LlmProvider;
   executable?: string;
   model: string;
   baseUrl: string;
@@ -99,7 +106,10 @@ export function readApprovalMode(): ApprovalMode {
 
 export function readLlmSettings(): LlmSettings {
   const stored = stateStore.get<string>(LLM_KEYS.provider, "anthropic");
-  const provider = stored === "openai" || stored === "codex" || stored === "claude-code" ? stored : "anthropic";
+  const provider: LlmProvider =
+    stored === "openai" || stored === "opencode-zen" || stored === "opencode-go" || stored === "codex" || stored === "claude-code"
+      ? stored
+      : "anthropic";
   if (provider === "codex" || provider === "claude-code") {
     return { provider, baseUrl: "", model: stateStore.get<string>(provider === "codex" ? LLM_KEYS.codexModel : LLM_KEYS.claudeCodeModel, "") ?? "",
       executable: stateStore.get<string>(provider === "codex" ? LLM_KEYS.codexExecutable : LLM_KEYS.claudeCodeExecutable, "") || undefined };
@@ -112,6 +122,15 @@ export function readLlmSettings(): LlmSettings {
       apiKey: getSecret(LLM_KEYS.anthropicKey),
     };
   }
+  if (provider === "opencode-zen" || provider === "opencode-go") {
+    const zen = provider === "opencode-zen";
+    return {
+      provider,
+      model: stateStore.get<string>(zen ? LLM_KEYS.zenModel : LLM_KEYS.goModel) || (zen ? DEFAULT_ZEN_MODEL : DEFAULT_GO_MODEL),
+      baseUrl: zen ? DEFAULT_ZEN_BASE_URL : DEFAULT_GO_BASE_URL,
+      apiKey: getSecret(LLM_KEYS.opencodeKey),
+    };
+  }
   return {
     provider,
     model: stateStore.get<string>(LLM_KEYS.openaiModel) || DEFAULT_OPENAI_MODEL,
@@ -120,6 +139,38 @@ export function readLlmSettings(): LlmSettings {
   };
 }
 
+/** Distinctive client identity for providers that ask for one (OpenCode Go
+ *  routes and caches by it). Falls back to the bare name when the version
+ *  cannot be read — never to a generic SDK string. */
+export function kkssUserAgent(): string {
+  try {
+    const version = app.getVersion();
+    if (version) return `KKSS/${version}`;
+  } catch {
+    // Packaged app without version metadata — fall through to the bare name.
+  }
+  return "KKSS";
+}
+
+export function providerLabel(settings: Pick<LlmSettings, "provider" | "model" | "baseUrl">): string {
+  if (settings.provider === "anthropic") return `Anthropic · ${settings.model}`;
+  if (settings.provider === "codex") return `ChatGPT subscription · ${settings.model || "runtime default"}`;
+  if (settings.provider === "claude-code") return `Claude subscription · ${settings.model || "runtime default"}`;
+  if (settings.provider === "opencode-zen") return `OpenCode Zen · ${settings.model}`;
+  if (settings.provider === "opencode-go") return `OpenCode Go · ${settings.model}`;
+  return `${settings.baseUrl} · ${settings.model || "runtime default"}`;
+}
+
+/** Guidance shown when a turn cannot start for lack of credentials. */
+export function missingKeyMessage(provider: LlmProvider): string {
+  if (provider === "opencode-zen" || provider === "opencode-go") {
+    return "No OpenCode API key configured. Sign in at https://opencode.ai/auth, copy the key, and set it under Settings ▸ LLM Assistant ▸ OpenCode API Key. The same key unlocks both Zen and Go.";
+  }
+  if (provider === "openai") {
+    return "No model reachable at the OpenAI-compatible endpoint. Check Settings ▸ LLM Assistant ▸ Base URL and model.";
+  }
+  return "No Anthropic API key configured. Set it under Settings ▸ LLM Assistant.";
+}
 /** Byte-stable across turns (prompt-cache friendly) — volatile context goes
  *  into the latest user message instead. */
 const SYSTEM_PROMPT = `You are the KKSS assistant, embedded in KKSS (Keep Kratos Simple Stupid), \
@@ -638,7 +689,7 @@ export class ChatService {
       entries: convo.entries.map(toWire),
       busy: this.busy,
       servers: this.deps.hub.statuses(),
-      providerLabel: settings.provider === "anthropic" ? `Anthropic · ${settings.model}` : `${settings.provider === "codex" ? "ChatGPT subscription" : settings.provider === "claude-code" ? "Claude subscription" : settings.baseUrl} · ${settings.model || "runtime default"}`,
+      providerLabel: providerLabel(settings),
       conversationId: convo.id,
       conversationTitle: convo.title,
       conversations: this.conversationList(),
@@ -896,6 +947,17 @@ export class ChatService {
       if (!settings.apiKey) return null; // Anthropic always needs a key
       return createAnthropicProvider(settings.apiKey);
     }
+    if (settings.provider === "opencode-zen" || settings.provider === "opencode-go") {
+      // Both OpenCode providers require the shared OpenCode API key — unlike
+      // generic OpenAI-compatible backends, there is no keyless mode.
+      if (!settings.apiKey) return null;
+      return createOpenAiCompatProvider({
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+        userAgent: kkssUserAgent(),
+        sendSessionHeader: true,
+      });
+    }
     // OpenAI-compatible backends may legitimately run keyless (e.g. Ollama).
     return createOpenAiCompatProvider({ baseUrl: settings.baseUrl, apiKey: settings.apiKey });
   }
@@ -977,7 +1039,7 @@ export class ChatService {
     const subscription = settings.provider === "codex" || settings.provider === "claude-code";
     const provider = this.makeProvider(settings);
     if (!subscription && !provider) {
-      this.pushError(convo, "No Anthropic API key configured. Set it under Settings ▸ LLM Assistant.", "noKey");
+      this.pushError(convo, missingKeyMessage(settings.provider), "noKey");
       return;
     }
 
@@ -1053,6 +1115,9 @@ export class ChatService {
           tools,
           model: settings.model,
           signal,
+          // Stable per-conversation id for providers that route/cache on it
+          // (OpenCode Go). Other gateways never see it.
+          sessionId: convo.id,
           onTextDelta: (delta: string) => {
             this.partial += delta;
             this.sendTo(convo, { type: "assistantDelta", text: delta });

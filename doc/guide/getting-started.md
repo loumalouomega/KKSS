@@ -194,6 +194,8 @@ Before first use, pick a provider under **Settings ▸ LLM Assistant**. API-back
 
 - **Anthropic (Claude)** — the default; set *Anthropic API Key* (and optionally the model, default `claude-opus-4-8`).
 - **OpenAI-compatible** — any `chat/completions` backend: set the *Base URL* (e.g. `https://api.openai.com/v1` or `http://localhost:11434/v1` for Ollama), the model name, and a key if the backend needs one.
+- **OpenCode Zen** — pay-as-you-go curated models; set the shared *OpenCode API Key* (from `https://opencode.ai/auth`). Defaults to `glm-5.3-flash`.
+- **OpenCode Go** — $10/$40 subscription over open coding models; uses the same *OpenCode API Key*. Defaults to `glm-5.3-flash`.
 
 You can also use a subscription account through the official local agent tools:
 
