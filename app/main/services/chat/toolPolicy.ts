@@ -204,7 +204,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
 
-  // ---- kratos-mdpa (38) ---------------------------------------------------
+  // ---- kratos-mdpa (44) ---------------------------------------------------
   mesh__mesh_resample: "write",
   mesh__mesh_periodic: "write",
   mesh__mesh_info: "read",

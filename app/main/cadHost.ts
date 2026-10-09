@@ -128,6 +128,10 @@ import { validateEditOp, type EditOp } from "../../cad/src/editOps";
 import { resolvePlaneRefs } from "../../cad/src/planeRefs";
 import { emitPrimitiveOps } from "../../cad/src/primitiveEmit";
 import { validateMeshioOpSpec, type MeshioOpSpec } from "../../cad/src/meshioOps";
+import { validateMmgOptions } from "../../cad/src/mmgOptions";
+import { remeshedParts } from "../../cad/src/mmgParts";
+import { meshioCompanionCandidates } from "../../cad/src/meshioCompanions";
+import type { MeshioCompanion } from "../../cad/src/meshioService";
 import { PAPER_SIZES } from "../../cad/src/drawingSheet";
 import type { ParamVariable } from "../../cad/src/editVariables";
 import type {
@@ -186,7 +190,11 @@ import { CAD_SIDECAR, MACRO_LIBRARY_NAME, MESH_PRESET_LIBRARY_NAME } from "./ser
  * source to `.csg` on open. Unset means "resolve `openscad` on PATH", the
  * submodule's own default; the OPENSCAD_BINARY environment variable stays the
  * headless escape hatch and already reaches the MCP child through its
- * inherited env. `tessellationQuality` is read fresh on every B-rep load.
+ * inherited env. `openscadBackend` (cad 3.12.0, auto|cgal|manifold) and
+ * `openscadLibraryPaths` (extra OPENSCADPATH folders) ride the same
+ * `resolveEffectiveSource` call — see `readOcctSource`, which spreads all
+ * three so no entry point configures one and forgets the others.
+ * `tessellationQuality` is read fresh on every B-rep load.
  */
 const cadKey = (key: string): string => entryForVscode("cadPreview", key)!.storeKey!;
 export const CAD_DEFAULT_KEYS = {
@@ -1925,6 +1933,95 @@ export class CadHost {
       return;
     }
 
+    // cad 3.11.0 MMG remeshing (provider remeshRequest, message for message).
+    // The webview's Mesh ops · Remesh panel ships verbatim in viewer.js, so a
+    // missing branch dead-ends its Run button. File mode remeshes the original
+    // FE file; generated mode freshly meshes the current edited geometry first.
+    // Both always write a NEW .med + Parts sidecar — never the source.
+    if (msg.type === "remeshRequest") {
+      try {
+        const options = validateMmgOptions(msg.options);
+        if (msg.source !== "file" && msg.source !== "generated") {
+          throw new Error("MMG input must be file or generated");
+        }
+        const baseName = path.basename(doc.path).replace(/\.[^.]+$/, "");
+        const savePath = await showSaveDialog({
+          defaultPath: path.join(path.dirname(doc.path), `${baseName}-remeshed.med`),
+          filters: [{ name: "MED mesh (named regions)", extensions: ["med"] }],
+        });
+        if (!savePath) {
+          this.post({ type: "remeshResult", requestId: msg.requestId, cancelled: true, warnings: [] });
+          return;
+        }
+        if (path.resolve(savePath) === path.resolve(doc.path)) {
+          throw new Error("MMG always writes a new file; choose a path different from the source");
+        }
+        if (!savePath.toLowerCase().endsWith(".med")) {
+          throw new Error("MMG output must be .med to preserve named regions");
+        }
+        await this.assertRemeshTargetsAbsent(savePath);
+        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId }, async () => {
+          const assertJobActive = () => {
+            const state = jobStatus(doc.path, msg.requestId)?.state;
+            if (state === "cancelling" || state === "cancelled") {
+              throw new Error(`CAD job ${msg.requestId} was cancelled.`);
+            }
+          };
+          const warnings: string[] = [];
+          let bytes: Uint8Array;
+          let format: string;
+          let name: string | undefined;
+          let companions: MeshioCompanion[] | undefined;
+          if (msg.source === "generated") {
+            const input = await this.resolveMeshInput(msg.stl);
+            if (!input) throw new Error("No geometry to generate a mesh from");
+            const resolved = await this.resolveMeshPartsAndOptions(input, msg.meshOptions);
+            const generated = await cadCompute.generateMesh(this.runtimePath, input, resolved.options, resolved.parts);
+            bytes = Buffer.from(generated.mshText, "utf8");
+            format = "gmsh";
+            warnings.push(...(generated.warnings ?? []));
+          } else {
+            if (!doc.route || doc.route.strategy !== "meshio" || doc.route.format === "openfoam") {
+              throw new Error("File mode requires a meshio-readable triangle/tetra FE mesh");
+            }
+            bytes = await fs.readFile(doc.path);
+            name = path.basename(doc.path);
+            format = doc.route.format;
+            companions = await this.resolveMeshioCompanions(doc.path, format, bytes);
+            if (replayTail(this.currentEdits, this.currentBakedThrough).length) {
+              warnings.push(
+                "File mode remeshes the original FE mesh; display edits are not baked in. Use generated mode for edited geometry."
+              );
+            }
+          }
+          const result = await cadCompute.remeshMesh(this.runtimePath, bytes, format, options, name, companions);
+          const boundary = await cadCompute.convertToStlBoundaryWithRegions(result.bytes, "med");
+          const built = boundary.regions
+            ? await cadCompute.buildPartsFromMeshioRegions(boundary.stlBytes, boundary.regions)
+            : [];
+          const rebound = remeshedParts(built, this.currentParts, result.regionNames);
+          assertJobActive();
+          // Remeshing can take minutes. Recheck after it, so a file created
+          // while the worker ran is not mistaken for our unused save path.
+          await this.assertRemeshTargetsAbsent(savePath);
+          await fs.writeFile(savePath, result.bytes);
+          await writeParts(savePath, rebound.parts);
+          this.post({
+            type: "remeshResult",
+            requestId: msg.requestId,
+            report: result.report,
+            written: savePath,
+            warnings: [...warnings, ...result.warnings, ...rebound.warnings],
+          });
+        });
+      } catch (err) {
+        this.post({ type: "remeshError", requestId: msg.requestId, message: (err as Error).message });
+      } finally {
+        this.post({ type: "meshingJobSettled", requestId: msg.requestId });
+      }
+      return;
+    }
+
     if (msg.type === "standardPartsSearchRequest") {
       try {
         const result = await cadCompute.searchStandardParts({ q: msg.q, page: msg.page, pageSize: 20 });
@@ -2369,6 +2466,11 @@ export class CadHost {
     format: CadFormat,
     warnings: string[]
   ): Promise<{ bytes: Uint8Array; format: CadFormat }> {
+    // cad 3.12.0: backend + library paths ride alongside the binary (the
+    // provider spreads readScadSettings() here). Unset backend means "auto"
+    // (no flag, OpenSCAD default + OPENSCAD_BACKEND fallback); an empty
+    // library list means no OPENSCADPATH prepend.
+    const libraryPaths = stateStore.get<string[]>(CAD_DEFAULT_KEYS.openscadLibraryPaths);
     return resolveEffectiveSource({
       modelPath: fsPath,
       format,
@@ -2376,7 +2478,7 @@ export class CadHost {
       warnings,
       binary: stateStore.get<string>(CAD_DEFAULT_KEYS.openscadBinary) || undefined,
       backend: stateStore.get<string>(CAD_DEFAULT_KEYS.openscadBackend) || undefined,
-      libraryPaths: stateStore.get<string[]>(CAD_DEFAULT_KEYS.openscadLibraryPaths) ?? undefined,
+      libraryPaths: Array.isArray(libraryPaths) ? libraryPaths : undefined,
     });
   }
 
@@ -3421,6 +3523,52 @@ export class CadHost {
       return result.bytes;
     });
     return report;
+  }
+
+  /**
+   * MMG remesh's unused-path guard (provider remeshRequest): the output .med
+   * AND its Parts sidecar must both be absent — checked before the worker runs
+   * and again after, since remeshing can take minutes. A present file is never
+   * overwritten; the user picks another name.
+   */
+  private async assertRemeshTargetsAbsent(savePath: string): Promise<void> {
+    for (const target of [savePath, `${savePath}.parts.json`]) {
+      try {
+        await fs.stat(target);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw err;
+      }
+      throw new Error(`MMG always writes new files; choose an unused output path. Already exists: ${target}`);
+    }
+  }
+
+  /**
+   * Sibling files a meshio++ reader may need (XDMF's .h5, TetGen/Triangle/
+   * EnSight/GiD stem siblings) — the node:fs twin of provider
+   * resolveMeshioCompanionsFor. Missing siblings read as absent; any other
+   * read failure propagates.
+   */
+  private async resolveMeshioCompanions(
+    modelPath: string,
+    format: string,
+    bytes: Uint8Array
+  ): Promise<MeshioCompanion[]> {
+    const base = path.basename(modelPath);
+    const primaryText = format === "xdmf" ? Buffer.from(bytes).toString("utf8") : undefined;
+    const names = meshioCompanionCandidates(base, format, primaryText);
+    const dir = path.dirname(modelPath);
+    const resolved = await Promise.all(
+      names.map(async (name): Promise<MeshioCompanion | undefined> => {
+        try {
+          return { name, bytes: new Uint8Array(await fs.readFile(path.join(dir, name))) };
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+          throw err;
+        }
+      })
+    );
+    return resolved.filter((c): c is MeshioCompanion => c !== undefined);
   }
 
   private async promptSaveAndWrite(

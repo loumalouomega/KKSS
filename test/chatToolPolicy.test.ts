@@ -79,6 +79,12 @@ describe("classifyTool", () => {
     expect(classifyTool("cad__estimate_mesh_budget")).toBe("read");
     expect(classifyTool("cad__check_handoff_manifest")).toBe("read");
     expect(classifyTool("cad__measure_mesh_deviation")).toBe("write");
+    // cad 3.11.0 MMG remesh always writes a new .med + Parts sidecar.
+    expect(classifyTool("cad__remesh_mesh")).toBe("write");
+    // cad 3.12.0 OpenSCAD Customizer: listing parameters reads only,
+    // converting with overrides writes a new .csg.
+    expect(classifyTool("cad__list_scad_parameters")).toBe("read");
+    expect(classifyTool("cad__convert_scad")).toBe("write");
     expect(classifyTool("mesh__mesh_curvature")).toBe("read");
     expect(classifyTool("mesh__mesh_flow_balance")).toBe("write");
     expect(classifyTool("mesh__mesh_resample")).toBe("write");

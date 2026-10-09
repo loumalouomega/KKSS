@@ -303,7 +303,7 @@ resubmitted automatically.
   `out/cad-runtime/dist/kernel-worker.js` finds it at
   `out/cad-runtime/dist/../../meshio`. That is why KKSS's
   `cadMeshioLoader.ts` shim and its esbuild alias are gone, and why one version
-  must serve both consumers: both submodules lock 16.27.0 rather than
+  must serve both consumers: both submodules lock 16.31.0 rather than
   leaving the two a major apart. It loads the `.wasm` via meshio++'s
   `locateFile` hook (the `wasmBinary` buffer hook MMG uses is pruned from this
   build), so the tree must exist on disk — another reason for `asar: false`.
@@ -990,7 +990,7 @@ resubmitted automatically.
   bearer token only, since an external client has no user to prompt. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 83-name key set.
+  `test/chatToolPolicy.test.ts` pins the exact 153-name key set.
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1274,7 +1274,7 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 58 CAD + 26 mesh + 4 aggregation + 30 app-owned
+discovery (current sets: 74 CAD + 44 mesh + 4 aggregation + 31 app-owned
 workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
@@ -1566,6 +1566,67 @@ actions, including packing, reflect the active mode. Recent-file notifications
 fire before that switch and cannot keep enabled states current on their own.
 The smoke harness checks file-open and explicit CAD/mesh switches.
 
+**The cad 3.10.1 → 3.12.0 + mesh 5.1.0 → 5.2.1 jump needed one host port
+(remesh), two settings, one staging fix and three policy rows; mesh needed no
+code at all.** (cad 3.11.0 = MMG remeshing for FE meshes; cad 3.12.0 =
+conformal multi-body meshing default-on, optimize enum, per-Part structured
+meshing, OpenSCAD backend/library-paths/Customizer. mesh 5.2.0/5.2.1 = VTK-wasm
+re-pin, late-binding empty preview, plots default to the displayed field.)
+
+- **`remeshRequest`/`remeshResult`/`remeshError` are ported message-for-message
+  against `provider.ts`.** `app/main/cadHost.ts` validates via cad's own
+  `validateMmgOptions`, asks for an unused `.med` path (source path, non-`.med`
+  suffix and pre-existing output/sidecar all refused, rechecked after the worker
+  runs since a remesh takes minutes), then runs file mode (original FE bytes +
+  node:fs sibling companions, with the display-edits-not-baked warning when the
+  tail is non-empty) or generated mode (fresh `generateMesh` from the current
+  edited geometry, carrying its warnings) through `cadCompute.remeshMesh`,
+  rebinds regions via `convertToStlBoundaryWithRegions` +
+  `buildPartsFromMeshioRegions` + cad's own `remeshedParts`, and writes the new
+  `.med` + Parts sidecar. Cancellation rides the existing `runOwnedJob` +
+  `jobStatus` shape with a `meshingJobSettled` finally, like every other
+  meshing flow; the VS Code dirty-buffer guard has no KKSS counterpart (no
+  caller checks it) and is skipped. `cadComputeClient.ts` gains the one-line
+  `remeshMesh` binding (it keys `meshio`+`mmg` in `kernelActivity.ts`, so
+  `test/cadKernelStatus.test.ts` passes with no alias change).
+- **The MMG JS wrapper must be staged, not just its WASM.** `getMmg` resolves
+  the wrapper at runtime via `runtimePackage.ts` (installed package, then
+  `<bundle dir>/mmg`, then two levels up) and reads only the binary via
+  `extensionPath/dist/mmg-core.wasm`. KKSS ships no `node_modules`, so
+  `copyArtifacts()` mirrors `cad/node_modules/@loumalouomega/mmg-wasm/dist/`
+  to `out/mmg/dist/` (both workers converge there) alongside the existing
+  `out/cad-runtime/dist/mmg-core.wasm` copy; `esbuild.mjs` preflights both.
+  Without the wrapper every `remeshMesh` call died with `was not found` while
+  listing tools still succeeded — the same shape as the kernel-worker invariant
+  above.
+- **Two settings, both `nextOpen` CAD Viewer rows.** `cadPreview.openscadBackend`
+  (`auto|cgal|manifold`, default `auto`) and `cadPreview.openscadLibraryPaths`
+  (`stringList`, default `[]`) are registry entries with `vscode` mappings and
+  `CAD_DEFAULT_KEYS`, so `readOcctSource` spreads all three into
+  `resolveEffectiveSource` at every call site (the provider spreads
+  `readScadSettings()` the same way). The MCP child keeps its env-twin contract
+  (`OPENSCAD_BACKEND`/`OPENSCADPATH`, like the existing `OPENSCAD_BINARY`
+  escape hatch) — stateStore settings never reach it. New `en.json`/`es.json`
+  keys cover the labels/descriptions.
+- **Six policy rows: 68 → 74 CAD tools (153 total).** `cad__remesh_mesh`
+  (write — always writes a new `.med` + sidecar), `cad__convert_scad` (write —
+  writes a new `.csg`), `cad__list_scad_parameters` (read — text only),
+  `cad__list_layers` (read) and `cad__set_layer` / `cad__assign_layer` (write —
+  the `<model>.layers.json` panel tools).
+  `test/chatToolPolicy.test.ts` pins the 153 total, the 74 CAD split and the
+  writes list, plus the exact-name match against both submodules'
+  `registerTool` lists. `optimize`'s boolean→enum coercion, the `conformal`
+  default and `Part.meshStructured` flow through the already-imported cad
+  source modules with no host change; no new extension, `vscode.*` API,
+  `globalState` key or theme variable on either side.
+- **Verified live:** worker `remeshMesh` over `cad/examples/MED/two-material-tets.med`
+  (5→7 nodes, 2→8 cells, regions kept, field-drop warning) and MCP
+  `remesh_mesh` (new `.med` + `.parts.json` on disk), `list_scad_parameters`
+  over `cad/examples/OpenSCAD/parametric.scad`, copied-server tool lists (71 +
+  44, matching the policy table both directions), `typecheck`, full unit suite,
+  `check:packaging` and `docs:build`. Plots-default-to-displayed-field only
+  affects the Quick-plot new-curve default; explicit recipes are unchanged.
+
 The verification uses the existing block STEP fixture for wrap (shell volume
 120) and guided loft (4139.06 versus 4105.01 without a rail), and the VTK
 series for XDMF packing at times 2/4/6. Packing creates a required `.h5`
@@ -1575,6 +1636,24 @@ material-preserving level sets, and packed timeline round trips. The generated
 mesh body matches `buildPreviewHtml` with `startEmpty` omitted; all four
 meshio runtime files ship. Format routing tables, not approximate prose
 counts, define the supported read/write formats.
+
+**The cad 3.12.0 → 3.13.0 + mesh 5.2.1 → 5.3.0 jump added layers on both
+sides, synced bidirectionally.** (cad f53c7ed = persistent layers +
+layer-filtered drawing exports; mesh 5.3.0 = user view layers, former roadmap
+item 4.) `cadHost.ts` ports the layers session (`currentLayers` +
+never-recycled `layer-N` counter, `layersChanged` autosave, `ready`
+hydration, rebind as the 8th `rebindPartsAcrossOps` arg, preprocess ZIP
+round-trip, `pickLayersFilter` for drawings); the mesh providers run verbatim,
+so post side needs no host code — only `MESH_VIEW_SIDECAR` staging in
+`cachePathCore.ts` (view layers otherwise vanish on cloud round-trips).
+`app/main/services/layerSync.ts` (pure, `test/layerSync.test.ts`) exchanges
+names/colours/visibility/lock — never membership — union-only,
+last-writer-wins, converging; triggers are `onMeshExported` (now carrying the
+source path) and shared-format open/focus, never a watcher. Policy grows three
+more rows (`list_layers` read, `set_layer`/`assign_layer` write: 74 CAD, 153
+total). mesh 5.3.0 also refuses non-positive material densities at generation,
+which forced the structural tutorial's `DENSITY: 0` to physical 7850 kg/m³
+(`tools/tutorials/cases.mjs`).
 
 ## Localization, focus and performance checks
 
