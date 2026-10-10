@@ -128,6 +128,17 @@ Read the parent app at `0d4a0d9` (2.5.0): `app/main/` (hosts, window/tab orchest
     - **mesh submodule** (its `kkss.dev` branch): CoSimulation/FSI problemtype definitions (domains, coupling interfaces, mapping settings), case generation emitting the coupled input, and result discovery across the coupled outputs.
     *Chat parity:* the system prompt learns coupled-solve guidance; new MCP tools get `toolPolicy.ts` rows when the servers grow them (the pinned-Kratos discipline of item 9). *Docs:* the two new tutorial pages, `getting-started.md`'s assistant section, screenshots.
 
+### Tier 10 — Presentation
+
+*Admission: changes how an existing surface looks or moves. It may add a preference row, but no capability, IPC message, conversation data or model-visible context. Ranked last by design, so polish never competes with the tiers above.*
+
+22. **Kraty, an animated chat companion** (**M**; static faces alone are **S**). An original Clippy-style character inspired by Kratos Multiphysics (not its logo or upstream artwork), drawn in TypeScript as SVG in `app/renderer/chat/` with no new dependency. Its face mirrors state the sidebar already receives (`ChatToWebview` in `app/main/ipc.ts`), so each reaction is true: waiting on the model (`busy`, after `assistantStart`, before the first `assistantDelta`), writing (`assistantDelta`), working (a `toolCall` entry with no `toolResult` yet), needs you (`approvalRequest`, or `state.pendingApproval` on replay), finished (`busy` back to `false`) and error (an `entry` of kind `error`). Blinking, an idle bob and occasional look-around run on top of those states.
+    - **Expressions are data.** A pure state → expression module, where each expression is a table of eye, brow and mouth shapes, is unit-tested without a DOM, following the `transcriptStoreCore.ts` core/glue split. The DOM layer only applies it.
+    - **Quiet by default.** Kraty never opens, focuses, sounds or pops up by itself. It is off until the user enables a single row under **Settings ▸ LLM Assistant**. Unprompted tips ("it looks like you're…") are *not* part of this item; they would need their own item and rules.
+    - **Presentation only.** Any speech bubble shows fixed `t()` strings from `app/shared/i18n/en.json` and `es.json`. Model, tool and conversation text never reaches it, and the face reads only the state signals above.
+    - **Fits the chat page.** Animation is class-driven, because the page's CSP is `style-src kkss:` and allows no `style=` attributes. `prefers-reduced-motion` keeps the expression changes and drops the idle motion. The avatar is `aria-hidden` and not focusable, and its loop stops while the sidebar is hidden.
+    *Chat parity:* none. The face renders state the sidebar already has, and the model neither needs nor sees it, so the system prompt, `toolPolicy.ts` and the context suffix stay unchanged. *Docs:* `getting-started.md`'s AI assistant section, `development.md`'s AI chat sidebar section, `configuration.md`'s LLM assistant section, a `CLAUDE.md` line for the presentation-only rule, and `npm run docs:screenshots` so the sidebar shots show it. *Verification:* a `test/` unit case for the state mapping, and `tools/e2e/accessibility.mjs` must keep the chat page clean in all four themes.
+
 ## Non-goals / known constraints
 
 - **Keeping app-specific submodule patches uncommitted or on a release branch** — shared workflow contracts can require upstream changes; commit those on the designated integration branches and move the parent gitlinks only to their committed revisions.
