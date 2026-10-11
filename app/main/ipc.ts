@@ -76,7 +76,7 @@ export type ChatErrorKind = "auth" | "network" | "noKey" | "context" | "rateLimi
 
 /** Startup/health state of one MCP server backing the chat agent. */
 export interface ChatServerStatus {
-  key: "cad" | "mesh" | "kratos";
+  key: "cad" | "mesh" | "kratos" | "pdf";
   /** MCP server display name (e.g. "cad-preview"). */
   name: string;
   state: "starting" | "ready" | "unavailable";
@@ -142,6 +142,44 @@ export interface ChatImage {
   dataBase64: string;
 }
 
+export type ChatAttachmentKind = "image" | "pdf";
+
+/**
+ * A file the *user* attached to a message. Unlike `ChatImage` (a tool result the
+ * model never sees), these are the model's input, so they are stored with the
+ * conversation and sent in the request. The bytes never ride `ChatWireEntry`:
+ * the wire entry carries `ChatAttachmentRef`s and the images arrive on their own
+ * `userImages` message, for the same reason `toolImages` does.
+ */
+export interface ChatAttachment {
+  /** Stable for the life of the entry, so the sidebar can pair bytes to a bubble. */
+  id: string;
+  kind: ChatAttachmentKind;
+  mimeType: string;
+  /** Original file name, when the file had one (a pasted screenshot has none). */
+  name?: string;
+  dataBase64: string;
+}
+
+/** What the renderer sends: main assigns the id and derives the kind. */
+export interface ChatAttachmentInput {
+  mimeType: string;
+  name?: string;
+  dataBase64: string;
+}
+
+/** The bytes-free form of a `ChatAttachment`. */
+export interface ChatAttachmentRef {
+  id: string;
+  kind: ChatAttachmentKind;
+  mimeType: string;
+  name?: string;
+}
+
+/** Why an attachment kind is unavailable right now. A code, not a sentence: the
+ *  renderer maps it through `t()`, which main-process English literals would bypass. */
+export type ChatAttachmentRefusal = "subscription" | "gatewayOptIn" | "pdfNeedsMcp";
+
 /**
  * What a conversation has spent, and how much of the window its last request
  * filled. Measured locally and shown to the user; never transmitted anywhere.
@@ -171,7 +209,7 @@ export interface ChatUsage {
 }
 
 export type ChatWireEntry =
-  | { kind: "user"; text: string }
+  | { kind: "user"; text: string; attachments?: ChatAttachmentRef[]; attachmentsEvicted?: number }
   | { kind: "assistant"; text: string; stopped?: boolean }
   | {
       kind: "toolCall";
@@ -201,7 +239,7 @@ export type ChatToHost =
   | { type: "chatReady" }
   | { type: "installKratosRuntime" }
   | { type: "retryKratos" }
-  | { type: "send"; text: string }
+  | { type: "send"; text: string; attachments?: ChatAttachmentInput[] }
   | { type: "stop" }
   | { type: "approveTool"; callId: string; decision: "allow" | "allowAlways" | "allowScoped" | "deny" }
   /** Re-runs the blocked call in validate-only mode. Deliberately NOT an
@@ -240,6 +278,10 @@ export interface ChatComposerState {
   thinking: ChatThinking;
   /** False for the subscription runtimes, which expose no such control to KKSS. */
   thinkingSupported: boolean;
+  /** Per kind: `null` = the composer may attach it, otherwise why not. Resolved
+   *  in main (provider + model + the image-input setting) — the renderer carries
+   *  no policy. */
+  attach: { image: ChatAttachmentRefusal | null; pdf: ChatAttachmentRefusal | null };
 }
 
 /** Messages sent to the chat-sidebar renderer. */
@@ -278,6 +320,12 @@ export type ChatToWebview =
    *  a replay must stay collapsed or a long transcript decodes everything at
    *  once. Main knows which this is — the renderer must not infer it. */
   | { type: "toolImages"; callId: string; images: ChatImage[]; live: boolean }
+  /** Image bytes of user attachments, keyed by `ChatAttachmentRef.id`. Sent after
+   *  the entry and replayed after `state` — never inside `ChatWireEntry`. */
+  | { type: "userImages"; images: Array<{ id: string; mimeType: string; dataBase64: string }> }
+  /** A send main refused before appending anything. The renderer clears its
+   *  draft on submit, so this hands the text and the reason back. */
+  | { type: "sendRefused"; reason: ChatAttachmentRefusal | "invalid"; text: string; detail?: string }
   | { type: "dryRunResult"; callId: string; ok: boolean; text: string }
   /** Pushed after each model turn; `state` carries the same figures for replay. */
   | { type: "usage"; usage: ChatUsage }

@@ -14,7 +14,8 @@
  * truncation point — a persisted transcript that silently shortened its own
  * tool results would change what a resumed conversation means to the model.
  */
-import type { ChatErrorKind } from "../../ipc";
+import type { ChatAttachment, ChatErrorKind } from "../../ipc";
+import { parseStoredAttachment } from "./chatAttachments";
 import type { AgentSessionRef } from "./agents/types";
 import type { ChatEntry } from "./transcript";
 
@@ -154,7 +155,20 @@ function parseEntry(raw: unknown): ChatEntry | undefined {
   switch (raw.kind) {
     case "user": {
       const text = str(raw.text);
-      return text === undefined ? undefined : { kind: "user", text };
+      if (text === undefined) return undefined;
+      // Optional fields, so no CHAT_STORE_VERSION bump (the `approval` precedent).
+      // A damaged file costs that file and a damaged marker costs the marker,
+      // never the message.
+      const attachments = Array.isArray(raw.attachments)
+        ? (raw.attachments as unknown[]).map(parseStoredAttachment).filter((a): a is ChatAttachment => !!a)
+        : [];
+      const evicted = typeof raw.attachmentsEvicted === "number" && raw.attachmentsEvicted >= 1 ? Math.floor(raw.attachmentsEvicted) : 0;
+      return {
+        kind: "user",
+        text,
+        ...(attachments.length ? { attachments } : {}),
+        ...(evicted ? { attachmentsEvicted: evicted } : {}),
+      };
     }
     case "assistant": {
       const text = str(raw.text);
@@ -344,6 +358,13 @@ export function capEntries(entries: ChatEntry[], cap: number): ChatEntry[] {
   return entries.slice(cut);
 }
 
+/** A message that is only files still needs a name in the history list. */
+function attachmentTitle(attachments: ChatAttachment[] | undefined): string {
+  const first = attachments?.[0];
+  if (!first) return "";
+  return first.name ?? (first.kind === "pdf" ? "Attached PDF" : "Attached image");
+}
+
 /** The first user message names the conversation, the way a commit's subject
  *  names a commit. Later messages never rename it — a title that kept moving
  *  would make the history list unrecognizable. */
@@ -361,7 +382,7 @@ export function appendEntry(convo: LiveConversation, entry: ChatEntry, now: numb
   const firstUser = entry.kind === "user" && !convo.entries.some((e) => e.kind === "user");
   convo.entries.push(entry);
   if (convo.entries.length > CONVERSATION_ENTRY_CAP) convo.entries = capEntries(convo.entries, CONVERSATION_ENTRY_CAP);
-  if (firstUser) convo.title = deriveTitle(entry.text);
+  if (firstUser) convo.title = deriveTitle(entry.text || attachmentTitle(entry.attachments));
   convo.updatedAt = now;
 }
 

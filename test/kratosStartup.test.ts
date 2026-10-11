@@ -133,3 +133,45 @@ describe("simulation call timeout parity", () => {
     await manager.dispose();
   });
 });
+
+describe("PDF server shares the Kratos uv recovery", () => {
+  function pdfHarness() {
+    let installed = false;
+    const runtime = {
+      discover: vi.fn(async (_signal: AbortSignal) => {
+        if (!installed) throw new RuntimeFailure("missing-runtime", "uv missing");
+        return { command: "uv", args: ["tool", "run"] };
+      }),
+      install: vi.fn(async (_signal: AbortSignal) => { installed = true; }),
+    };
+    const specs = ["cad", "mesh", "kratos", "pdf"].map((key) => ({
+      key: key as "cad" | "mesh" | "kratos" | "pdf", name: key, command: key, args: ["server"], env: {},
+    }));
+    return { manager: new McpManager(specs, vi.fn(), runtime), runtime };
+  }
+
+  it("fails with Kratos when uv is missing, and one Install brings both back", async () => {
+    const { manager, runtime } = pdfHarness();
+    await manager.start();
+    expect(manager.statuses().map((s) => s.state)).toEqual(["ready", "ready", "unavailable", "unavailable"]);
+    await manager.retryKratos(true);
+    await vi.waitFor(() => expect(manager.statuses().map((s) => s.state)).toEqual(["ready", "ready", "ready", "ready"]));
+    // Only the Kratos server owns installing uv, and it happens once.
+    expect(runtime.install).toHaveBeenCalledTimes(1);
+    const uvTransports = fake.transports.filter((t) => t.options.command === "uv");
+    const pdf = uvTransports[uvTransports.length - 1];
+    expect(pdf.options.args).toEqual(["tool", "run", "server"]);
+    expect(manager.tools().map((t) => t.name)).toContain("pdf__inspect");
+    await manager.dispose();
+  });
+
+  it("a failing PDF server never blocks the other servers", async () => {
+    const { manager } = pdfHarness();
+    await manager.start();
+    expect(manager.statuses()[0].state).toBe("ready");
+    expect(manager.statuses()[1].state).toBe("ready");
+    expect(manager.statuses()[3]).toMatchObject({ state: "unavailable", failure: "missing-runtime" });
+    expect(manager.tools().map((t) => t.name)).toEqual(["cad__inspect", "mesh__inspect"]);
+    await manager.dispose();
+  });
+});

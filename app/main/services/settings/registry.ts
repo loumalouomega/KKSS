@@ -822,6 +822,16 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       applies: "live",
       description: t("Upper bound on one reply. Empty keeps the built-in 16000 (Anthropic) or the gateway's default. A model that rejects the value is retried without it."),
     },
+    {
+      id: "llm.imageInput",
+      label: t("Allow Image Attachments (OpenAI-compatible)"),
+      category: "LLM Assistant",
+      type: "boolean",
+      storeKey: "llmImageInput",
+      default: false,
+      applies: "live",
+      description: t("Lets the chat composer attach images for the OpenAI, OpenCode Zen and OpenCode Go providers. KKSS cannot tell whether a gateway's model reads images, so this is off until you say it does. Anthropic always accepts images and PDFs; the Codex and Claude Code subscription providers accept neither."),
+    },
     // User-supplied figures for models the reviewed table (chat/modelInfo.ts) does
     // not list — an OpenAI-compatible gateway, a local server. A listed model is
     // never overridden. Cost needs both the input and output price.

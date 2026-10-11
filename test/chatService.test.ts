@@ -1647,3 +1647,110 @@ it('does not apply API pricing to mixed subscription and API usage', async () =>
   expect(usage.usage.billingMode).toBe('mixed'); expect(usage.usage.costUsd).toBeUndefined();
   h.service.flushSync(); h.service.dispose();
 });
+
+describe("user attachments", () => {
+  const PNG = "iVBORw0KGgo=";
+  const PDF = Buffer.from("%PDF-1.4\n%%EOF").toString("base64");
+  const image = { mimeType: "image/png", dataBase64: PNG };
+  const doc = { mimeType: "application/pdf", dataBase64: PDF, name: "spec.pdf" };
+  const msgs = <T extends ChatToWebview["type"]>(messages: ChatToWebview[], type: T) =>
+    messages.filter((m): m is Extract<ChatToWebview, { type: T }> => m.type === type);
+
+  it("stores the files, keeps bytes off the wire entry, and sends them to the provider", async () => {
+    const { provider, messages, post, service } = makeService();
+    post({ type: "chatReady" });
+    post({ type: "send", text: "what is this?", attachments: [image, doc] });
+    await settle(8);
+    const entry = msgs(messages, "entry").find((m) => m.entry.kind === "user")!.entry as any;
+    expect(entry.attachments).toHaveLength(2);
+    expect(JSON.stringify(entry)).not.toContain(PNG);
+    const painted = msgs(messages, "userImages");
+    expect(painted).toHaveLength(1);
+    expect(painted[0].images).toEqual([{ id: entry.attachments[0].id, ...image }]);
+    expect(provider.lastEntries[0].attachments).toHaveLength(2);
+    provider.finish("a mesh");
+    await settle(4);
+    service.flushSync();
+    const saved = stored(lastState(messages).conversationId)!;
+    expect((saved.entries[0] as any).attachments).toHaveLength(2);
+    // A reload repaints the images from the stored entries, not from a session cache.
+    messages.length = 0;
+    post({ type: "chatReady" });
+    expect(msgs(messages, "userImages")[0].images).toHaveLength(1);
+  });
+
+  it("sends an attachment-only message", async () => {
+    const { provider, post } = makeService();
+    post({ type: "send", text: "", attachments: [image] });
+    await settle(8);
+    expect(provider.turns).toBe(1);
+  });
+
+  it("refuses images for a gateway until the setting is on, before appending anything", async () => {
+    stateValues.llmProvider = "openai";
+    const { provider, messages, post } = makeService();
+    post({ type: "send", text: "look", attachments: [image] });
+    await settle(8);
+    expect(msgs(messages, "sendRefused")).toEqual([{ type: "sendRefused", reason: "gatewayOptIn", text: "look" }]);
+    expect(msgs(messages, "entry")).toHaveLength(0);
+    expect(provider.turns).toBe(0);
+
+    stateValues.llmImageInput = true;
+    post({ type: "send", text: "look", attachments: [image] });
+    await settle(8);
+    expect(provider.turns).toBe(1);
+  });
+
+  it("refuses a PDF on a gateway (it points at the PDF tools) and anything on a subscription runtime", async () => {
+    stateValues.llmProvider = "openai";
+    stateValues.llmImageInput = true;
+    const first = makeService();
+    first.post({ type: "send", text: "read", attachments: [doc] });
+    await settle(8);
+    expect(msgs(first.messages, "sendRefused")[0]).toMatchObject({ reason: "pdfNeedsMcp" });
+
+    stateValues.llmProvider = "codex";
+    const second = makeService();
+    second.post({ type: "send", text: "read", attachments: [image] });
+    await settle(8);
+    expect(msgs(second.messages, "sendRefused")[0]).toMatchObject({ reason: "subscription" });
+  });
+
+  it("refuses malformed attachments from a hostile renderer", async () => {
+    const { provider, messages, post } = makeService();
+    post({ type: "send", text: "x", attachments: [{ mimeType: "image/svg+xml", dataBase64: PNG }] });
+    post({ type: "send", text: 42, attachments: "nope" });
+    await settle(8);
+    expect(msgs(messages, "sendRefused").map((m) => m.reason)).toEqual(["invalid"]);
+    expect(provider.turns).toBe(0);
+  });
+
+  it("strips files from the request when the provider can no longer take them", async () => {
+    const { provider, post } = makeService();
+    post({ type: "send", text: "look", attachments: [image] });
+    await settle(8);
+    provider.finish("ok");
+    await settle(6);
+    stateValues.llmProvider = "openai"; // gateway, image input off
+    post({ type: "send", text: "and now?" });
+    await settle(8);
+    const sent = provider.lastEntries.filter((e: any) => e.kind === "user");
+    expect(sent[0].attachments).toBeUndefined();
+    expect(sent[0].text).toContain("1 image attached here was left out");
+  });
+
+  it("reports what the composer may attach", async () => {
+    const { messages, post } = makeService();
+    post({ type: "chatReady" });
+    const composer = () => msgs(messages, "composer").pop()!.composer;
+    expect(composer().attach).toEqual({ image: null, pdf: null });
+    stateValues.llmProvider = "openai";
+    changeListeners.forEach((l) => l("llmProvider", "openai"));
+    await settle(4);
+    expect(composer().attach).toEqual({ image: "gatewayOptIn", pdf: "pdfNeedsMcp" });
+    stateValues.llmImageInput = true;
+    changeListeners.forEach((l) => l("llmImageInput", true));
+    await settle(4);
+    expect(composer().attach).toEqual({ image: null, pdf: "pdfNeedsMcp" });
+  });
+});

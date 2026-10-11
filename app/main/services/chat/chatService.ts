@@ -18,6 +18,7 @@
  * to unwind first; deleting a background one leaves it running.
  */
 import * as path from "node:path";
+import { randomUUID } from "node:crypto";
 import { createCodexAgent } from "./agents/codex";
 import { createClaudeAgent } from "./agents/claude";
 import type { AgentSession, ToolOutcome } from "./agents/types";
@@ -26,6 +27,10 @@ import { app, ipcMain, WebContents } from "electron";
 import type {
   ChatConversationInfo,
   ChatUsage,
+  ChatAttachment,
+  ChatAttachmentInput,
+  ChatAttachmentKind,
+  ChatComposerState,
   ChatErrorKind,
   ChatImage,
   ChatPendingApproval,
@@ -44,6 +49,13 @@ import {
   type ApprovalMode,
 } from "./toolPolicy";
 import { callInsideProject } from "./toolPaths";
+import {
+  attachmentSupport,
+  enforceAttachmentBudget,
+  onlyNewestAttachments,
+  validateAttachments,
+  withoutUnsupported,
+} from "./chatAttachments";
 import { stateStore } from "../stateStore";
 import { getSecret } from "./secrets";
 import type { McpManager } from "./mcpManager";
@@ -89,7 +101,14 @@ export const LLM_KEYS = {
   customOutputPrice: "llmCustomOutputPrice",
   customCacheReadPrice: "llmCustomCacheReadPrice",
   customCacheWritePrice: "llmCustomCacheWritePrice",
+  imageInput: "llmImageInput", // opt-in: image attachments to OpenAI-compatible gateways
 } as const;
+
+/** Whether the user has said their OpenAI-compatible model can read images.
+ *  Read per use so flipping it applies to the next message. */
+export function readImageInput(): boolean {
+  return stateStore.get<unknown>(LLM_KEYS.imageInput) === true;
+}
 
 /** User-entered figures for models the reviewed table does not list. Read per
  *  use (like the approval mode) so an edit applies to the next readout. */
@@ -419,6 +438,11 @@ export function evictImages(images: Map<string, ChatImage[]>, budget = IMAGE_BUD
   }
 }
 
+/** The displayable (image) attachments, in the shape the sidebar paints. */
+function imagesOf(attachments: readonly ChatAttachment[] | undefined): Array<{ id: string; mimeType: string; dataBase64: string }> {
+  return (attachments ?? []).filter((a) => a.kind === "image").map((a) => ({ id: a.id, mimeType: a.mimeType, dataBase64: a.dataBase64 }));
+}
+
 /** Shared empty set, so the common (no grants) path allocates nothing. */
 const EMPTY_ALLOW_SET: ReadonlySet<string> = new Set<string>();
 
@@ -560,7 +584,7 @@ export class ChatService {
           this.setThinking(msg.level);
           break;
         case "send":
-          this.turn = this.run(msg.text).finally(() => {
+          this.turn = this.run(typeof msg.text === "string" ? msg.text : "", msg.attachments).finally(() => {
             this.turn = null;
           });
           break;
@@ -785,6 +809,11 @@ export class ChatService {
     void stateStore.update(LLM_KEYS.thinking, level === "auto" ? undefined : level);
   }
 
+  private attachState(provider: LlmProvider): ChatComposerState["attach"] {
+    const on = readImageInput();
+    return { image: attachmentSupport(provider, "image", on), pdf: attachmentSupport(provider, "pdf", on) };
+  }
+
   private sendComposer(): void {
     if (!this.target) return;
     const settings = readLlmSettings();
@@ -799,6 +828,7 @@ export class ChatService {
         modelManaged: stateStore.isManaged(key),
         thinking: readThinking(),
         thinkingSupported: settings.provider !== "codex" && settings.provider !== "claude-code",
+        attach: this.attachState(settings.provider),
       },
     });
   }
@@ -829,6 +859,10 @@ export class ChatService {
     // conversation, rename, every switch), and webContents.send structured-
     // clones synchronously on the main thread.
     for (const [callId, images] of this.toolImages) this.send({ type: "toolImages", callId, images, live: false });
+    // User attachments live in the stored entries (they are the model's input),
+    // so unlike tool images they survive a restart and are replayed from there.
+    const userImages = convo.entries.flatMap((e) => (e.kind === "user" ? imagesOf(e.attachments) : []));
+    if (userImages.length) this.send({ type: "userImages", images: userImages });
   }
 
   private sendConversations(): void {
@@ -1160,9 +1194,28 @@ export class ChatService {
     return entry;
   }
 
-  async run(text: string): Promise<void> {
+  async run(text: string, rawAttachments?: ChatAttachmentInput[]): Promise<void> {
     const trimmed = text.trim();
-    if (!trimmed || this.busy) return;
+    const validated = validateAttachments(rawAttachments);
+    const hasFiles = validated.ok ? validated.attachments.length > 0 : Array.isArray(rawAttachments) && rawAttachments.length > 0;
+    if ((!trimmed && !hasFiles) || this.busy) return;
+
+    // Refused before anything is appended: the sidebar clears its draft on
+    // submit, so this hands the text back with the reason. The composer disables
+    // attaching up front; this is the gate for a stale or hostile renderer.
+    if (!validated.ok) {
+      this.send({ type: "sendRefused", reason: "invalid", text, detail: validated.detail });
+      return;
+    }
+    const imageOn = readImageInput();
+    const providerNow = readLlmSettings().provider;
+    for (const file of validated.attachments) {
+      const refusal = attachmentSupport(providerNow, file.kind, imageOn);
+      if (refusal) {
+        this.send({ type: "sendRefused", reason: refusal, text });
+        return;
+      }
+    }
 
     // Bound once, here: everything below appends to and paints into this
     // conversation, even if the user moves to another one mid-turn.
@@ -1171,7 +1224,14 @@ export class ChatService {
     // Recorded before the provider is resolved: the composer has already
     // cleared, so a message dropped here (no API key) would simply vanish —
     // and would leave a stored conversation holding nothing but an error.
-    this.append(convo, { kind: "user", text: trimmed });
+    const attachments: ChatAttachment[] = validated.attachments.map((a) => ({ id: randomUUID(), ...a }));
+    this.append(convo, { kind: "user", text: trimmed, ...(attachments.length ? { attachments } : {}) });
+    if (attachments.length) {
+      this.sendTo(convo, { type: "userImages", images: imagesOf(attachments) });
+      // Over the stored budget: the oldest messages' files go, marked on their
+      // bubbles, so the sidebar is repainted from the entries that now say so.
+      if (enforceAttachmentBudget(convo.entries) > 0 && convo.alive) this.sendState();
+    }
     // Undebounced: a user message is a checkpoint worth keeping even if the
     // turn never comes back, and it is what puts a brand-new conversation into
     // the history list — the first one also names it.
@@ -1202,10 +1262,16 @@ export class ChatService {
 
     // The context suffix rides on a copy of the transcript so it never
     // accumulates in the stored history.
+    let trimOldFiles = false;
     const requestEntries = (): ChatEntry[] => {
       // Compaction first: it allocates its own array, and the suffix has to land
       // on an entry that survived it.
-      const copy = applyCompaction(convo.entries, convo.compactedResults ?? 0);
+      // A provider/model switched since a file was attached must not receive it:
+      // a text-only gateway would answer with an opaque error. Request copy only.
+      const supported = (kind: ChatAttachmentKind): boolean => attachmentSupport(settings.provider, kind, imageOn) === null;
+      let base = withoutUnsupported(convo.entries, supported, "was left out: the current provider cannot receive it");
+      if (trimOldFiles) base = onlyNewestAttachments(base);
+      const copy = applyCompaction(base, convo.compactedResults ?? 0);
       for (let i = copy.length - 1; i >= 0; i--) {
         const entry = copy[i];
         if (entry.kind === "user") {
@@ -1228,7 +1294,8 @@ export class ChatService {
           this.sendTo(convo, { type: "assistantDone", entry: toWire(entry) });
           this.partial = ""; opened = false;
         };
-        const entries = [...convo.entries];
+        // The runtimes take text only; the files are replaced by a note.
+        const entries = withoutUnsupported(convo.entries, () => false, "was left out: this runtime cannot receive files");
         const last = entries[entries.length - 1];
         if (last?.kind === "user") entries[entries.length - 1] = { ...last, text: last.text + this.contextSuffix() };
         try {
@@ -1280,7 +1347,13 @@ export class ChatService {
           // returns no TurnResult, so no usage can be counted twice.
           if (signal.aborted) throw error;
           if (!(error instanceof ProviderError) || error.kind !== "context") throw error;
-          if (!this.advanceCompaction(convo)) throw error;
+          if (!this.advanceCompaction(convo)) {
+            // Nothing left to clear. Files are the other thing that can fill a
+            // window, so retry once with only the newest message's files.
+            const older = convo.entries.filter((e) => e.kind === "user" && e.attachments?.length).length > 1;
+            if (trimOldFiles || !older) throw error;
+            trimOldFiles = true;
+          }
           result = await provider!.streamTurn({ ...turnOptions, entries: requestEntries() });
         }
 

@@ -79,6 +79,7 @@ The **scale picker** on the right of the shell toolbar (75 %–150 %) sets how l
 | OpenCode Go Model | any Go `chat/completions` model id | `glm-5.3-flash` |
 | Thinking | `Auto` / `Off` / `Low effort` / `High effort` — also the brain picker in the chat sidebar; not used by the subscription providers | Auto |
 | Max Output Tokens | upper bound on one reply (256–128000); empty keeps the built-in 16000 (Anthropic) or the gateway default | — |
+| Allow Image Attachments (OpenAI-compatible) | lets the chat composer attach images for the OpenAI-compatible, OpenCode Zen and OpenCode Go providers — off because KKSS cannot know whether a gateway's model has vision; Anthropic always accepts images and PDFs, the subscription providers neither (see [Attaching images and PDFs](getting-started.md#attaching-images-and-pdfs)) | Off |
 | Tool Approval | `Ask before tools that change files` / `Ask before every tool` / `Never ask` | Ask before tools that change files |
 
 The provider menu also includes **ChatGPT subscription (Codex)** and **Claude subscription (Claude Code)**. These options require the matching official local tool and an eligible signed-in subscription account. Their submenu offers a runtime check, official setup link, model override, and optional executable path. KKSS does not import or store subscription credentials.

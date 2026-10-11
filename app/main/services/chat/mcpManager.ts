@@ -1,4 +1,6 @@
 import { KRATOS_MCP_VERSION } from "./kratosMcpVersion";
+import { PDF_MCP_PACKAGE, PDF_MCP_VERSION } from "./pdfMcpVersion";
+import { BASE64_RE, IMAGE_MIME_TYPES } from "./chatAttachments";
 import { appTools, callAppTool } from "./appTools";
 /**
  * MCP client manager for the chat agent: spawns the three stdio MCP servers
@@ -53,15 +55,10 @@ export const RESULT_CHARS = 50_000;
  * cap plus the renderer attaching its <img> lazily are the two halves of that
  * bound; 512 KB is ample for what render_snapshot and compare_models emit.
  */
-const IMAGE_MIME_TYPES: readonly string[] = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 /** compare_models' own ceiling is eight labelled views. */
 const MAX_IMAGES_PER_RESULT = 8;
 const MAX_IMAGE_BYTES = 512 * 1024;
 const MAX_IMAGE_BYTES_TOTAL = 2 * 1024 * 1024;
-/** Standard base64, no whitespace or URL-safe alphabet — this string is
- *  interpolated into a data: URL by the renderer, and an MCP server is not a
- *  trusted source. */
-const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
 /** uvx cold-starts by downloading the package — allow a slow first connect. */
 const CONNECT_TIMEOUT_MS = 60_000;
 /** Meshing/simulation tools can legitimately run for minutes. */
@@ -166,7 +163,7 @@ export function extractImages(content: unknown): ChatImage[] {
   return images;
 }
 
-/** The three server specs, resolved relative to out/ (== __dirname of main.js). */
+/** The server specs, resolved relative to out/ (== __dirname of main.js). */
 export function buildServerSpecs(outDir: string): ServerSpec[] {
   const nodeEnv = { ...process.env, ELECTRON_RUN_AS_NODE: "1" } as Record<string, string>;
   return [
@@ -194,8 +191,21 @@ export function buildServerSpecs(outDir: string): ServerSpec[] {
       args: ["--with", "mcp<2", `kratos-mcp-server@${KRATOS_MCP_VERSION}`],
       env: { ...process.env } as Record<string, string>,
     },
+    {
+      // Preconfigured PDF reader: lets every provider read a PDF by path, and
+      // handles the files the composer's native attachment refuses (>5 MB, or a
+      // provider with no PDF wire format). Launched through the same uv as Kratos.
+      key: "pdf",
+      name: PDF_MCP_PACKAGE,
+      command: "uvx",
+      args: ["--with", "mcp<2", `${PDF_MCP_PACKAGE}@${PDF_MCP_VERSION}`],
+      env: { ...process.env } as Record<string, string>,
+    },
   ];
 }
+
+/** Servers launched through uv: they share one runtime (and its recovery UI). */
+const UV_SERVERS: readonly ServerKey[] = ["kratos", "pdf"];
 
 interface ServerState {
   spec: ServerSpec;
@@ -246,7 +256,21 @@ export class McpManager {
   retryKratos(install = false): Promise<void> {
     const server = this.servers.find((s) => s.spec.key === "kratos");
     if (!server || this.disposed || server.status.state === "ready") return Promise.resolve();
-    return this.connect(server, install);
+    const operation = this.connect(server, install);
+    void operation.then(() => this.revivePdf());
+    return operation;
+  }
+
+  /**
+   * The PDF server rides the same uv, so the one Install/Retry button on the
+   * Kratos banner recovers both. Fire-and-forget and idempotent: Kratos callers
+   * must not wait on a second five-minute connect, and a server already ready or
+   * already connecting is left alone.
+   */
+  private revivePdf(): void {
+    const pdf = this.servers.find((s) => s.spec.key === "pdf");
+    if (!pdf || this.disposed || pdf.status.state === "ready" || this.connecting.has("pdf")) return;
+    void this.connect(pdf);
   }
 
   /**
@@ -257,7 +281,9 @@ export class McpManager {
   restartKratos(): Promise<void> {
     const server = this.servers.find((s) => s.spec.key === "kratos");
     if (!server || this.disposed) return Promise.resolve();
-    return this.connect(server);
+    const operation = this.connect(server);
+    void operation.then(() => this.revivePdf());
+    return operation;
   }
 
   private connect(server: ServerState, install = false): Promise<void> {
@@ -283,6 +309,7 @@ export class McpManager {
   private async connectAttempt(server: ServerState, install: boolean): Promise<void> {
     let stderr = "";
     const kratos = server.spec.key === "kratos";
+    const viaUv = UV_SERVERS.includes(server.spec.key);
     const status = (phase: NonNullable<ChatServerStatus["phase"]>) => {
       server.status = { key: server.spec.key, name: server.spec.name, state: "starting", phase };
       this.onStatus(this.statuses());
@@ -291,8 +318,10 @@ export class McpManager {
     await this.closeServer(server);
     try {
       let spec = server.spec;
-      if (kratos && this.runtime) {
-        if (install) {
+      if (viaUv && this.runtime) {
+        // Only Kratos owns installing uv: a PDF server that fails for want of uv
+        // is revived by the Kratos banner's button, not a second prompt.
+        if (install && kratos) {
           // A stale click must not install over an already usable runtime.
           try { await this.runtime.discover(this.abort.signal); }
           catch (error) {
@@ -304,7 +333,11 @@ export class McpManager {
           }
         }
         const runtime = await this.runtime.discover(this.abort.signal);
-        spec = { ...spec, command: runtime.command, args: runtime.bundled ? runtime.args : [...runtime.args, ...spec.args], env: { ...process.env } as Record<string, string> };
+        // `bundled` is the Docker image's own kratos-mcp-server launcher, which
+        // is no use for another package — the PDF spec keeps its plain uvx.
+        if (kratos || !runtime.bundled) {
+          spec = { ...spec, command: runtime.command, args: runtime.bundled ? runtime.args : [...runtime.args, ...spec.args], env: { ...process.env } as Record<string, string> };
+        }
       }
       if (kratos && this.kratosEnv) spec = { ...spec, env: { ...spec.env, ...this.kratosEnv() } };
       this.abort.signal.throwIfAborted();
@@ -318,7 +351,7 @@ export class McpManager {
       });
       const client = new Client({ name: "kkss-chat", version: "1.0.0" });
       server.client = client;
-      const timeout = kratos ? 5 * 60_000 : CONNECT_TIMEOUT_MS;
+      const timeout = viaUv ? 5 * 60_000 : CONNECT_TIMEOUT_MS;
       await client.connect(transport, { timeout, signal: this.abort.signal });
       const { tools } = await client.listTools(undefined, { timeout, signal: this.abort.signal });
       this.abort.signal.throwIfAborted();

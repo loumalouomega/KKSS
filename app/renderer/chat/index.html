@@ -25,6 +25,10 @@
     <div id="compaction" hidden></div>
     <div id="messages" role="region" aria-label="Conversation" data-i18n-aria-label="Conversation" tabindex="0"></div>
     <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
+    <div id="attachments" hidden>
+      <div id="attach-notice" role="status" aria-live="polite" hidden></div>
+      <div id="attach-list"></div>
+    </div>
     <div id="composer-options" hidden>
       <span id="model-icon" class="opt-icon" aria-hidden="true"></span>
       <select id="model-select" class="field" title="Model for the next message" data-i18n-title="Model for the next message" aria-label="Model" data-i18n-aria-label="Model"></select>
@@ -36,6 +40,8 @@
     <footer id="composer">
       <textarea id="input" aria-label="Message to the assistant" data-i18n-aria-label="Message to the assistant" class="field" rows="3"
         placeholder="Ask about the open model, meshing, or running Kratos… (Enter to send, Shift+Enter for a new line)" data-i18n-placeholder="Ask about the open model, meshing, or running Kratos… (Enter to send, Shift+Enter for a new line)"></textarea>
+      <input id="file-input" type="file" multiple hidden accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" />
+      <button id="attach-btn" class="icon-btn" title="Attach images or PDFs" data-i18n-title="Attach images or PDFs" aria-label="Attach images or PDFs" data-i18n-aria-label="Attach images or PDFs"></button>
       <button id="send-btn" aria-label="Send message" data-i18n-aria-label="Send message" class="btn btn-primary" title="Send (Enter)" data-i18n-title="Send (Enter)"></button>
     </footer>
   </div>

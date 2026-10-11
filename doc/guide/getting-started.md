@@ -176,7 +176,7 @@ The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**) 
 
 ## AI assistant
 
-The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**) opens a chat sidebar on the right where an LLM can drive KKSS for you: load and edit CAD models, define sub-model-parts, generate and export meshes, inspect and transform MDPA/VTK files, set up Kratos cases, and run simulations. The assistant works through the same tool servers (MCP) that power the two viewers plus the standalone [kratos-mcp-server](https://pypi.org/project/kratos-mcp-server/); the three dots in the sidebar header show each server's status (green = ready, red = unavailable — hover for details). The first two ship with KKSS; the Kratos one is fetched with [`uvx`](https://docs.astral.sh/uv/) and can install an app-local copy of uv when it is missing.
+The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**) opens a chat sidebar on the right where an LLM can drive KKSS for you: load and edit CAD models, define sub-model-parts, generate and export meshes, inspect and transform MDPA/VTK files, set up Kratos cases, and run simulations. The assistant works through the same tool servers (MCP) that power the two viewers plus the standalone [kratos-mcp-server](https://pypi.org/project/kratos-mcp-server/); the four dots in the sidebar header show each server's status (green = ready, red = unavailable — hover for details). The first two ship with KKSS; the Kratos server and a **PDF reader** ([`pdf-insight-mcp`](https://pypi.org/project/pdf-insight-mcp/), pinned) are fetched with [`uvx`](https://docs.astral.sh/uv/) and share one uv, which KKSS can install into its own data directory when it is missing.
 
 CAD layers (`list_layers` / `set_layer` / `assign_layer`, in `<model>.layers.json`) organise what is shown, locked or drawn together — never the finite-element sub-model (that is Parts); drawing exports take an optional `layers` filter, and layer structure syncs with the post mode's view layers. `remesh_mesh` remeshes an FE mesh with MMG, and `list_scad_parameters` / `convert_scad` handle OpenSCAD Customizer models without touching the source. For mesh-format CAD models, the assistant replays pending edits when it generates a mesh, exports an FE mesh or compares models. `save_model` bakes the pending edits into the source file itself (STEP, IGES, BREP, STL, OBJ or PLY) after approval, keeping a `.bak` copy; it writes exactly what **File ▸ Save** writes in the CAD viewer, so save or close the tab first — the assistant cannot see an open, unsaved tab. Mesh health, inspection and promotion tools report the raw source.
 
@@ -261,7 +261,27 @@ If even that is not enough, you will get the "start a new conversation" message.
 
 Some tools return pictures — a rendered snapshot of a model, or a side-by-side comparison of two. Those appear in the tool's entry in the transcript, so when the assistant says a part looks wrong you can look at the same image it did. A result that has just arrived opens by itself; older ones in a long conversation stay folded away until you click them.
 
-Images live for as long as the app is running. They are not written into the saved conversation, so reopening it later shows the tool call and its text, without the pictures.
+These tool-result images live for as long as the app is running. They are not written into the saved conversation, so reopening it later shows the tool call and its text, without the pictures. (Files *you* attach are different — see below.)
+
+### Attaching images and PDFs
+
+Paste a screenshot into the message box, drop files onto the sidebar, or use the paperclip button to attach up to four images and three PDFs to a message. A thumbnail (or a file chip for a PDF) appears above the box; the **×** removes it before you send. You can send files with no text at all.
+
+- **Images** (PNG, JPEG, WebP; a GIF becomes its first frame) are resized to at most 1568 px on the long edge before they are sent, so a full-screen capture stays small. SVG is not accepted.
+- **PDFs** are sent as they are, up to 5 MB each. A larger PDF is refused rather than altered — ask the assistant to read it by path instead (below).
+- Attachments are **saved with the conversation**, so reopening it shows them again and the assistant still sees them on later messages. Each conversation keeps about 16 MB of attachments; past that the oldest messages' files are dropped (their bubbles say so) and the assistant is no longer sent them.
+
+Which providers accept what:
+
+| Provider | Images | PDFs |
+| --- | --- | --- |
+| Anthropic | yes | yes, natively |
+| OpenAI-compatible, OpenCode Zen / Go | only after you turn on **Settings ▸ LLM Assistant ▸ Allow Image Attachments** (KKSS cannot tell whether a gateway's model reads images) | no — see below |
+| Codex / Claude Code subscription | no | no |
+
+When the current provider cannot take a file, the paperclip is disabled or the file is refused with the reason, and your text is put back in the box. If you switch to a provider that cannot take files mid-conversation, earlier files are left out of the requests (a short note stands in for them) and stay in the saved conversation.
+
+**Reading a PDF by path.** Every provider can read PDFs through the preconfigured `pdf__*` tools (text by page range, search, tables, outline, page info): give the assistant the file's path — for example a spec sheet in your project folder. They are read-only, so they run without asking. The PDF reader starts like the Kratos server, so the first use downloads it (a few seconds to minutes), and if uv is missing the **Install uv for KKSS** button above recovers both. There is no PDF reader in the offline Docker image unless the container can reach PyPI.
 
 ### Conversations
 

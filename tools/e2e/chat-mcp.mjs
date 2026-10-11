@@ -8,13 +8,17 @@ import { kratosFixture } from './fixtures.mjs';
 await scenario('chat-mcp', async c => {
   const fixture = kratosFixture(c.dir);
   let streamClosed = false;
+  let imageParts = -1; // image_url parts in the newest user message the fixture received
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP4z8CAFWEXHbQSACj/P8Fu7N9hAAAAAElFTkSuQmCC';
   const server = http.createServer(async (req, res) => {
     let raw = ''; for await (const b of req) raw += b;
     const request = JSON.parse(raw);
     const lastUser = request.messages.filter(m => m.role === 'user').at(-1).content;
+    imageParts = Array.isArray(lastUser) ? lastUser.filter(p => p.type === 'image_url').length : 0;
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     const emit = (delta, finish_reason = null) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason }] })}\n\n`);
     const done = () => { res.write('data: [DONE]\n\n'); res.end(); };
+    if (Array.isArray(lastUser)) { emit({ content: 'Image received.' }); done(); return; }
     if (String(lastUser).includes('cancel-stream')) {
       emit({ content: 'Cancellable stream started' }); res.on('close', () => { streamClosed = true; }); return;
     }
@@ -28,7 +32,7 @@ await scenario('chat-mcp', async c => {
   // Reserve a candidate port before launch; endpoint bind failures remain test failures.
   const portProbe = http.createServer(); await new Promise(r => portProbe.listen(0, '127.0.0.1', r));
   const port = portProbe.address().port; await new Promise(r => portProbe.close(r));
-  c.seed({ llmProvider: 'openai', llmModelOpenai: 'fixture', llmOpenaiBaseUrl: `http://127.0.0.1:${server.address().port}/v1`, llmToolApproval: 'always', metaServerPort: port, metaServerToken: { plain: 'e2e-local-token' } });
+  c.seed({ llmProvider: 'openai', llmImageInput: true, llmModelOpenai: 'fixture', llmOpenaiBaseUrl: `http://127.0.0.1:${server.address().port}/v1`, llmToolApproval: 'always', metaServerPort: port, metaServerToken: { plain: 'e2e-local-token' } });
   let client;
   try {
     let app = await c.launch(undefined, { env: fixture.env }); let shell = await c.page(app, 'shell');
@@ -51,6 +55,17 @@ await scenario('chat-mcp', async c => {
       await chat.keyboard.press('Enter');
     };
     await send('hello'); await chat.getByText('Hello from the local fixture.', { exact: true }).waitFor(); await idle();
+    // Attachments: an image is staged, sent as an image_url part, painted in the
+    // bubble, and survives a restart; a PDF is refused up front for a gateway.
+    await chat.locator('#file-input').setInputFiles({ name: 'spec.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF') });
+    await chat.getByText(/can't take PDFs directly/).waitFor();
+    assert.equal(await chat.locator('.attach-chip').count(), 0, 'a refused PDF is not staged');
+    await chat.locator('#file-input').setInputFiles({ name: 'shot.png', mimeType: 'image/png', buffer: Buffer.from(PNG, 'base64') });
+    await chat.locator('#attach-list .attach-chip img').waitFor();
+    await send('describe-image'); await chat.getByText('Image received.', { exact: true }).waitFor(); await idle();
+    assert.equal(imageParts, 1, 'the gateway received one image_url part');
+    assert.equal(await chat.locator('#attach-list .attach-chip').count(), 0, 'the composer is cleared after sending');
+    await chat.locator('.msg.user img.sent-image[src^="data:image/"]').waitFor();
     await send('deny-tool'); await chat.getByRole('button', { name: 'Deny', exact: true }).waitFor();
     assert.equal(JSON.parse(fs.readFileSync(fixture.file)).jobs[0].state, 'running');
     await decideWithKeyboard('Deny');
@@ -79,5 +94,6 @@ await scenario('chat-mcp', async c => {
     app = await c.launch(undefined, { env: fixture.env }); shell = await c.page(app, 'shell'); await shell.locator('#chat-btn').click(); chat = await c.page(app, 'chat');
     await chat.getByText('Hello from the local fixture.', { exact: true }).waitFor();
     assert.equal(await chat.getByRole('button', { name: 'Allow', exact: true }).count(), 0, 'restoration must not rerun approvals');
+    await chat.locator('.msg.user img.sent-image[src^="data:image/"]').waitFor();
   } finally { await client?.close(); server.closeAllConnections(); await new Promise(r => server.close(r)); }
 });
