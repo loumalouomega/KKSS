@@ -29,7 +29,11 @@ for (const name of ["job_list", "job_status", "job_logs", "job_cancel"]) {
     if (name === "job_status") return respond({ ...job, elapsed_seconds: 24, progress: { current_step: 12, current_time: 0.12 } });
     if (name === "job_logs") return respond({ job_id, log: "Cantilever — structural analysis\nSTEP: 12\nTIME: 0.12\nConvergence achieved\nResidual < 1e-5" });
     job.state = "cancelled"; job.finished_at = 1720000024;
-    fs.writeFileSync(file, JSON.stringify(state));
+    // Write-then-rename: the e2e harness polls this file while it is rewritten, and a
+    // bare writeFileSync truncates first, so a reader could see an empty file.
+    const temp = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(temp, JSON.stringify(state));
+    fs.renameSync(temp, file);
     return respond(job);
   });
 }
