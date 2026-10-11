@@ -15,6 +15,8 @@ const require = createRequire(import.meta.url);
 export const electronPath = require("electron");
 /** Repo root. */
 export const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+/** Pid of every app launchApp started, read while the app is still alive. */
+const launchedPids = new WeakMap();
 
 /**
  * Launches KKSS with `file` opened via the CLI hook (omit `file` to land on
@@ -72,6 +74,7 @@ export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDa
     },
     timeout,
   });
+  launchedPids.set(app, app.process().pid);
   let captured = "";
   app.process().stdout?.on("data", (d) => (captured += d.toString()));
   app.process().stderr?.on("data", (d) => (captured += d.toString()));
@@ -153,6 +156,19 @@ function killTree(pid) {
 }
 
 /**
+ * The app's main-process pid. Once a crash has disposed the ElectronApplication,
+ * asking it for `process()` throws, so launchApp's recorded pid is used instead.
+ */
+function pidOf(app) {
+  if (launchedPids.has(app)) return launchedPids.get(app);
+  try {
+    return app.process().pid;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Closes `app` and guarantees no descendant process survives it.
  *
  * Chromium's GPU process can wedge (the "stall on ReadPixels" case
@@ -163,7 +179,7 @@ function killTree(pid) {
  * a wedged process never survives past its case.
  */
 export async function closeApp(app) {
-  const pid = app.process().pid;
+  const pid = pidOf(app);
   await Promise.race([app.close().catch(() => {}), sleep(5000)]);
   if (pid) killTree(pid);
 }
