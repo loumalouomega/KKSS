@@ -8,6 +8,10 @@ import { t, currentLocale } from "../../shared/i18n";
  * page keeps the strict CSP.
  */
 import type {
+  ChatAttachmentInput,
+  ChatAttachmentKind,
+  ChatAttachmentRefusal,
+  ChatAttachmentRef,
   ChatComposerState,
   ChatConversationInfo,
   ChatThinking,
@@ -22,6 +26,7 @@ import type {
 
 import { kratosStatusView } from "./serverStatus";
 import { glyph } from "../glyphs";
+import { MAX_IMAGE_B64, MAX_IMAGES_PER_MESSAGE, MAX_PDF_B64, MAX_PDFS_PER_MESSAGE, kindOfMime } from "../../main/services/chat/chatAttachments";
 
 declare global {
   interface Window {
@@ -50,6 +55,11 @@ const composerOptions = byId<HTMLDivElement>("composer-options");
 const modelSelect = byId<HTMLSelectElement>("model-select");
 const modelInput = byId<HTMLInputElement>("model-input");
 const thinkSelect = byId<HTMLSelectElement>("think-select");
+const attachBtn = byId<HTMLButtonElement>("attach-btn");
+const fileInput = byId<HTMLInputElement>("file-input");
+const attachmentsEl = byId<HTMLDivElement>("attachments");
+const attachList = byId<HTMLDivElement>("attach-list");
+const attachNotice = byId<HTMLDivElement>("attach-notice");
 
 // Static header glyphs (the buttons ship empty in index.html so the markup
 // stays free of SVG).
@@ -58,6 +68,7 @@ historyBtn.innerHTML = glyph("history");
 newBtn.innerHTML = glyph("plus");
 hideBtn.innerHTML = glyph("x");
 byId<HTMLElement>("think-icon").innerHTML = glyph("thinkBrain");
+attachBtn.innerHTML = glyph("paperclip");
 
 /** One own-drawn mark per provider (never a vendor's trademarked logo). */
 const PROVIDER_GLYPH = {
@@ -112,6 +123,13 @@ function renderComposer(c: ChatComposerState): void {
   thinkSelect.value = c.thinking;
   thinkSelect.disabled = !c.thinkingSupported;
   thinkSelect.title = c.thinkingSupported ? t("Thinking effort for the next message") : t("Not available for the Codex and Claude Code subscription providers.");
+
+  attach = c.attach;
+  // Disabled only when nothing at all can be attached; a kind that is refused
+  // alone (a PDF on a gateway) is explained at the moment it is dropped.
+  const none = !!c.attach.image && !!c.attach.pdf;
+  attachBtn.disabled = none;
+  attachBtn.title = none ? refusalText(c.attach.image!) : t("Attach images or PDFs");
 }
 
 modelSelect.addEventListener("change", () => {
@@ -215,12 +233,62 @@ function renderRich(target: HTMLElement, text: string): void {
 
 // ---- element builders ------------------------------------------------------
 
-function addUser(text: string): void {
+function addUser(entry: Extract<ChatWireEntry, { kind: "user" }>): void {
   const el = document.createElement("div");
   el.className = "msg user";
-  el.textContent = text;
+  if (entry.attachments?.length) {
+    const files = document.createElement("div");
+    files.className = "msg-files";
+    for (const file of entry.attachments) files.appendChild(sentFile(file, entry.attachments));
+    el.appendChild(files);
+  }
+  if (entry.text) {
+    const body = document.createElement("div");
+    body.textContent = entry.text;
+    el.appendChild(body);
+  }
+  if (entry.attachmentsEvicted) {
+    const note = document.createElement("div");
+    note.className = "attach-evicted";
+    note.textContent =
+      entry.attachmentsEvicted === 1
+        ? t("1 attached file is no longer kept in this conversation.")
+        : t("{0} attached files are no longer kept in this conversation.", { 0: entry.attachmentsEvicted });
+    el.appendChild(note);
+  }
   messages.appendChild(el);
   scrollDown(true);
+}
+
+/** A file in a sent bubble. Images are placeholders until main's `userImages`
+ *  message supplies the bytes (they never ride the wire entry); a PDF is only a name. */
+function sentFile(file: ChatAttachmentRef, all: ChatAttachmentRef[]): HTMLElement {
+  if (file.kind === "pdf") {
+    const chip = document.createElement("span");
+    chip.className = "file-chip";
+    chip.innerHTML = glyph("filePage", "sm");
+    const label = document.createElement("span");
+    label.textContent = file.name ?? "PDF";
+    chip.appendChild(label);
+    return chip;
+  }
+  const img = document.createElement("img");
+  img.className = "sent-image";
+  img.dataset.attId = file.id;
+  img.alt = t("Attached image {0} of {1}", { 0: all.filter((a) => a.kind === "image").findIndex((a) => a.id === file.id) + 1, 1: all.filter((a) => a.kind === "image").length });
+  img.decoding = "async";
+  return img;
+}
+
+function paintUserImages(images: Array<{ id: string; mimeType: string; dataBase64: string }>): void {
+  for (const image of images) {
+    // Assigned on a created element, never interpolated into markup: the page has
+    // no 'unsafe-inline', and the bytes were validated as base64 in main.
+    for (const img of messages.querySelectorAll<HTMLImageElement>(`img[data-att-id="${CSS.escape(image.id)}"]`)) {
+      img.src = `data:${image.mimeType};base64,${image.dataBase64}`;
+    }
+  }
+  scrollDown();
 }
 
 function addAssistant(text: string, stopped?: boolean): HTMLDivElement {
@@ -495,7 +563,7 @@ function prettyJson(json: string): string {
 function addEntry(entry: ChatWireEntry): void {
   switch (entry.kind) {
     case "user":
-      addUser(entry.text);
+      addUser(entry);
       break;
     case "assistant":
       addAssistant(entry.text, entry.stopped);
@@ -758,15 +826,198 @@ function setBusy(value: boolean): void {
   if (!busy && armedApproval) settleApproval(armedApproval, t("Cancelled."));
 }
 
+// ---- attachments -------------------------------------------------------------
+
+interface Staged extends ChatAttachmentInput {
+  kind: ChatAttachmentKind;
+}
+/** Files chosen for the next message. */
+let staged: Staged[] = [];
+/** What the last submit sent, so a refusal can put it back. */
+let lastSent: { text: string; files: Staged[] } | null = null;
+let attach: ChatComposerState["attach"] = { image: null, pdf: null };
+/** Longest edge of an attached image. Past this the model downsizes it anyway,
+ *  so the extra bytes only cost transfer, storage and tokens. */
+const MAX_EDGE = 1568;
+const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
+
+function refusalText(reason: ChatAttachmentRefusal | "invalid", detail?: string): string {
+  switch (reason) {
+    case "subscription":
+      return t("Files can't be attached with the Codex and Claude Code subscription providers.");
+    case "gatewayOptIn":
+      return t("Image attachments are off for this provider. Turn on “Allow Image Attachments” in Settings if your model reads images.");
+    case "pdfNeedsMcp":
+      return t("This provider can't take PDFs directly. Give the assistant the file's path instead — it can read PDFs with the PDF tools.");
+    case "invalid":
+      return t("That attachment was rejected: {0}", { 0: detail ?? "" });
+  }
+}
+
+function showNotice(text: string): void {
+  attachNotice.hidden = !text;
+  attachNotice.textContent = text;
+  renderStaged();
+}
+
+function renderStaged(): void {
+  attachList.textContent = "";
+  staged.forEach((file, index) => {
+    const chip = document.createElement("div");
+    chip.className = "attach-chip";
+    if (file.kind === "image") {
+      const img = document.createElement("img");
+      img.src = `data:${file.mimeType};base64,${file.dataBase64}`;
+      img.alt = file.name ?? t("Pasted image");
+      chip.appendChild(img);
+    } else {
+      const icon = document.createElement("span");
+      icon.innerHTML = glyph("filePage");
+      const label = document.createElement("span");
+      label.className = "attach-name";
+      label.textContent = file.name ?? "PDF";
+      chip.append(icon, label);
+    }
+    const remove = document.createElement("button");
+    remove.className = "icon-btn attach-remove";
+    remove.innerHTML = glyph("x", "sm");
+    remove.title = t("Remove attachment");
+    remove.setAttribute("aria-label", t("Remove attachment"));
+    remove.addEventListener("click", () => {
+      staged.splice(index, 1);
+      showNotice("");
+      input.focus();
+    });
+    chip.appendChild(remove);
+    attachList.appendChild(chip);
+  });
+  attachmentsEl.hidden = staged.length === 0 && attachNotice.hidden;
+}
+
+function readBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ""));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Re-encodes an image to fit the stored/sent limits. Small PNG/JPEG/WebP that
+ * already fit are kept byte-for-byte; everything else (a large screenshot, a
+ * GIF — which becomes its first frame) is drawn to a canvas, capped at
+ * MAX_EDGE, and written as WebP. Returns null if it cannot be made to fit.
+ */
+async function prepareImage(file: File): Promise<{ mimeType: string; dataBase64: string } | null> {
+  if (file.size > MAX_SOURCE_BYTES) return null;
+  const keepable = file.type !== "image/gif" && file.size * (4 / 3) <= MAX_IMAGE_B64 / 2;
+  const bitmap = await createImageBitmap(file);
+  try {
+    const longest = Math.max(bitmap.width, bitmap.height);
+    if (keepable && longest <= MAX_EDGE) return { mimeType: file.type, dataBase64: await readBase64(file) };
+    for (const [edge, quality] of [[MAX_EDGE, 0.85], [MAX_EDGE, 0.6], [1024, 0.6]] as const) {
+      const scale = Math.min(1, edge / longest);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
+      if (!blob) continue;
+      const dataBase64 = await readBase64(blob);
+      if (dataBase64.length <= MAX_IMAGE_B64) return { mimeType: blob.type || "image/webp", dataBase64 };
+    }
+    return null;
+  } finally {
+    bitmap.close();
+  }
+}
+
+async function addFiles(files: File[]): Promise<void> {
+  let problem = "";
+  for (const file of files) {
+    const mime = file.type || (/\.pdf$/i.test(file.name) ? "application/pdf" : "");
+    const kind = kindOfMime(mime);
+    if (!kind) {
+      problem = t("Unsupported file type: {0}", { 0: file.name || mime || "?" });
+      continue;
+    }
+    const refusal = attach[kind];
+    if (refusal) {
+      problem = refusalText(refusal);
+      continue;
+    }
+    if (staged.filter((f) => f.kind === "image").length >= MAX_IMAGES_PER_MESSAGE && kind === "image" ||
+        staged.filter((f) => f.kind === "pdf").length >= MAX_PDFS_PER_MESSAGE && kind === "pdf") {
+      problem = t("At most {0} images and {1} PDFs per message.", { 0: MAX_IMAGES_PER_MESSAGE, 1: MAX_PDFS_PER_MESSAGE });
+      continue;
+    }
+    try {
+      if (kind === "pdf") {
+        const dataBase64 = await readBase64(file);
+        if (dataBase64.length > MAX_PDF_B64) {
+          problem = t("{0} is larger than 5 MB.", { 0: file.name || "PDF" });
+          continue;
+        }
+        staged.push({ kind, mimeType: mime, name: file.name || undefined, dataBase64 });
+      } else {
+        const prepared = await prepareImage(file);
+        if (!prepared) {
+          problem = t("{0} is too large, even after resizing.", { 0: file.name || t("Pasted image") });
+          continue;
+        }
+        staged.push({ kind, ...prepared, name: file.name || undefined });
+      }
+    } catch {
+      problem = t("Couldn't read {0}.", { 0: file.name || t("Pasted image") });
+    }
+  }
+  showNotice(problem);
+}
+
+attachBtn.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  const files = Array.from(fileInput.files ?? []);
+  fileInput.value = "";
+  void addFiles(files);
+});
+input.addEventListener("paste", (event) => {
+  const files = Array.from(event.clipboardData?.files ?? []);
+  if (!files.length) return; // plain text paste stays native
+  event.preventDefault();
+  void addFiles(files);
+});
+// Always cancelled: an unhandled file drop makes the browser navigate the view
+// to the file, which would replace the whole sidebar.
+document.addEventListener("dragover", (event) => event.preventDefault());
+document.addEventListener("drop", (event) => {
+  event.preventDefault();
+  const files = Array.from(event.dataTransfer?.files ?? []);
+  if (files.length) void addFiles(files);
+});
+
 function submit(): void {
   if (busy) {
     post({ type: "stop" });
     return;
   }
   const text = input.value.trim();
-  if (!text) return;
+  if (!text && !staged.length) return;
+  const files = staged;
+  lastSent = { text, files };
   input.value = "";
-  post({ type: "send", text });
+  staged = [];
+  showNotice("");
+  post({ type: "send", text, ...(files.length ? { attachments: files.map(({ mimeType, name, dataBase64 }) => ({ mimeType, dataBase64, ...(name ? { name } : {}) })) } : {}) });
+}
+
+/** Main refused the send before appending anything: put the draft back. */
+function restoreDraft(text: string, reason: ChatAttachmentRefusal | "invalid", detail?: string): void {
+  if (!input.value) input.value = text;
+  if (lastSent) staged = lastSent.files;
+  lastSent = null;
+  showNotice(refusalText(reason, detail));
+  input.focus();
 }
 
 sendBtn.innerHTML = sendLabel(false);
@@ -824,6 +1075,12 @@ api.onMessage((raw) => {
       break;
     case "toolImages":
       attachImages(msg.callId, msg.images, msg.live);
+      break;
+    case "userImages":
+      paintUserImages(msg.images);
+      break;
+    case "sendRefused":
+      restoreDraft(msg.text, msg.reason, msg.detail);
       break;
     case "usage":
       renderUsage(msg.usage);

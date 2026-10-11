@@ -201,6 +201,11 @@ describe.skipIf(!fs.existsSync(path.join(outDir, "chat", "index.html")))("chat s
       'id="model-select"',
       'id="model-input"',
       'id="think-select"',
+      'id="attachments"',
+      'id="attach-list"',
+      'id="attach-notice"',
+      'id="attach-btn"',
+      'id="file-input"',
     ]) {
       expect(html()).toContain(anchor);
     }

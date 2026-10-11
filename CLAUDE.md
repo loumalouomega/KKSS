@@ -944,7 +944,7 @@ resubmitted automatically.
   toggle; it reaches views through `initialState` on their next file load).
 - **Chat sidebar: main process owns network + processes; MCP servers ship
   as-built.** `app/main/services/chat/` runs the LLM agent loop and spawns
-  the three stdio MCP servers; the chat renderer keeps the strict CSP and
+  the four stdio MCP servers (cad, mesh, kratos, pdf); the chat renderer keeps the strict CSP and
   never sees an API key. Placement contracts of the unmodified server
   bundles: `cad/dist/mcp-server.js` is copied to
   **`out/cad-runtime/dist/mcp-server.js`** (its `extensionPath` = the
@@ -1069,7 +1069,7 @@ resubmitted automatically.
   what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 205-name key set, including the 52 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise).
+  `test/chatToolPolicy.test.ts` pins the exact 217-name key set, including the 52 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1094,6 +1094,37 @@ resubmitted automatically.
   worded narrowly on purpose — cad gates its OCCT replay on the same flag it
   gates its writes on, so it says which ops parse and are legal, never what the
   geometry would become. Hence **Validate (dry run)**, not "Preview".
+- **User attachments (images and PDFs) are the opposite of tool-result images:
+  stored, capped, and refused up front by code.** A user message carries
+  `attachments?` + `attachmentsEvicted?` (optional ⇒ no `CHAT_STORE_VERSION`
+  bump). `services/chat/chatAttachments.ts` (pure) owns every decision: mime
+  allow-list (never SVG), base64 + `%PDF-` magic checks, caps, all-or-nothing
+  `validateAttachments` (the renderer is untrusted on every `send`), the
+  16 MiB per-conversation budget that evicts the oldest message's files whole
+  and never the newest, and `attachmentSupport(provider, kind, optIn)` — the
+  single who-may-receive-what decision (Anthropic: images + native PDF;
+  OpenAI-compatible/OpenCode: images only behind `llmImageInput`, never PDF —
+  `pdfNeedsMcp`; subscription runtimes: nothing). **`toWire()` must strip the
+  bytes**: user entries used to pass through by identity, which would put every
+  stored file on every `state`/`entry` message. Image bytes travel as their own
+  `userImages` message, replayed from the stored entries. Refusal reasons are
+  codes the renderer maps through `t()`; a refused `send` answers
+  `sendRefused` *before* appending (the draft was already cleared). The same
+  decision guards the request copy (a provider switched mid-conversation must
+  not be sent files it cannot take), `seedPrompt` (no base64 in a subscription
+  prompt) and the overflow retry. Text-only requests stay byte-identical: the
+  OpenAI `content` is a string unless an image is present, and Anthropic never
+  gets an empty text block.
+- **The PDF reader is a fourth uv-launched server that shares Kratos's
+  recovery.** `pdf-insight-mcp` pinned in `services/chat/pdfMcpVersion.ts`
+  (chosen by a real `uvx` handshake; MIT, PyMuPDF/AGPL launched out-of-process,
+  never bundled). `McpManager`'s `UV_SERVERS` = kratos + pdf share runtime
+  discovery and the five-minute first connect; only Kratos installs uv
+  (one banner, one button) and `revivePdf()` retries a down PDF server after
+  a Kratos retry. A failing PDF server never blocks the others. The
+  Docker image's bundled Kratos launcher does not apply to it. All twelve tools
+  are `read` (no scope row needed); bumping the pin means re-reading the tool
+  list and moving `PDF_TOOLS_REVIEWED_VERSION` with it.
 - **Tool-result images are session-only, and never ride a `ChatWireEntry`.**
   `mcpManager.extractImages()` forwards `{type:"image"}` blocks for display;
   `flattenContent()` is deliberately untouched, so the model keeps seeing its
@@ -1265,7 +1296,7 @@ resubmitted automatically.
 - **One shared McpManager, two front-ends.** `McpHub`
   (`services/chat/mcpHub.ts`) owns the single `McpManager`; both the chat loop
   and the optional **HTTP meta MCP server** (`services/metaServer/`) call
-  `hub.ensureStarted()`, so the three children are spawned once (constructed in
+  `hub.ensureStarted()`, so the four children are spawned once (constructed in
   `index.ts`, disposed on `will-quit`). The meta server re-exposes the same
   aggregated toolset (+ resources/prompts) over `127.0.0.1:<port>/mcp`
   (`StreamableHTTPServerTransport`) for an external LLM client — **off by
