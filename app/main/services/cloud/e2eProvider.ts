@@ -28,5 +28,6 @@ export function fixtureProvider(dir: string): CloudProvider {
       return file();
     },
     create: async () => { throw new Error('Unexpected fixture sidecar upload'); },
+    ensureFolder: async () => { throw new Error('Unexpected fixture folder creation'); },
   };
 }

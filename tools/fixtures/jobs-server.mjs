@@ -4,6 +4,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 if (process.argv.includes("--version")) { console.log("uvx 0.11.0"); process.exit(0); }
+// The preconfigured PDF reader launches through the same uvx shim. Answer it as
+// a tiny, distinct server so it never impersonates (or doubles) the Kratos one.
+if (process.argv.some((arg) => arg.startsWith("pdf-insight-mcp"))) {
+  const pdf = new McpServer({ name: "PDF fixture", version: "0.2.1" });
+  for (const name of ["get_pdf_info", "read_pdf_as_text"]) {
+    pdf.registerTool(name, { inputSchema: { file_path: z.string() } }, async ({ file_path }) =>
+      ({ content: [{ type: "text", text: JSON.stringify({ file_path, page_count: 1, full_text: "Hello KKSS PDF" }) }] }));
+  }
+  await pdf.connect(new StdioServerTransport());
+} else {
 const file = process.env.KKSS_JOBS_FIXTURE;
 if (!file) throw new Error("Fixture state file required");
 const server = new McpServer({ name: "Kratos jobs fixture", version: "0.3.0" });
@@ -24,3 +34,4 @@ for (const name of ["job_list", "job_status", "job_logs", "job_cancel"]) {
   });
 }
 await server.connect(new StdioServerTransport());
+}

@@ -1,8 +1,9 @@
 /**
  * Anthropic provider: streams a turn through the official SDK. Adaptive
- * thinking is requested by default; if the (user-configurable) model predates
- * it and rejects the request with a 400, the turn is retried once without
- * the thinking parameter and with a conservative max_tokens.
+ * thinking is requested by default (the sidebar can lower the effort or omit
+ * thinking); if the (user-configurable) model predates it and rejects the
+ * request with a 400, the turn is retried once without the thinking and effort
+ * parameters and with a conservative max_tokens.
  *
  * The request carries one prompt-cache breakpoint on the system block. The
  * render order is tools -> system -> messages, so that single breakpoint covers
@@ -21,30 +22,46 @@ export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8";
 const MAX_TOKENS = 16000;
 const FALLBACK_MAX_TOKENS = 4096;
 
+/**
+ * The request body for one attempt. Pure, so the thinking/effort/max-token
+ * mapping is tested without standing up the SDK.
+ *
+ * Thinking: `auto` is adaptive thinking exactly as before. `low`/`high` add
+ * `output_config.effort` to it. `off` *omits* `thinking` rather than sending
+ * `{type:"disabled"}` — that form is a 400 on newer models, while omitting it is
+ * accepted everywhere (models that always think simply keep thinking).
+ *
+ * The conservative retry drops `thinking`, `output_config` and the cache
+ * breakpoint together: a model old enough to reject one may reject the others
+ * (Haiku 4.5 rejects effort), and the retry exists to be maximally plain rather
+ * than maximally cheap. It keeps the small fixed max_tokens even when the user
+ * raised the cap — a model that needs the retry is the one that rejected it.
+ */
+export function buildAnthropicParams(options: StreamTurnOptions, conservative: boolean): Anthropic.MessageCreateParamsNonStreaming {
+  const level = options.thinking ?? "auto";
+  const maxTokens = options.maxOutputTokens && options.maxOutputTokens > 0 ? options.maxOutputTokens : MAX_TOKENS;
+  return {
+    model: options.model,
+    max_tokens: conservative ? FALLBACK_MAX_TOKENS : maxTokens,
+    ...(conservative || level === "off" ? {} : { thinking: { type: "adaptive" as const } }),
+    ...(conservative || level === "auto" || level === "off" ? {} : { output_config: { effort: level } }),
+    system: conservative
+      ? options.system
+      : [{ type: "text" as const, text: options.system, cache_control: { type: "ephemeral" as const } }],
+    tools: options.tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
+    })),
+    messages: toAnthropicMessages(options.entries, options.toolName),
+  };
+}
+
 export function createAnthropicProvider(apiKey: string): Provider {
   const client = new Anthropic({ apiKey });
 
   const runStream = async (options: StreamTurnOptions, conservative: boolean): Promise<TurnResult> => {
-    const stream = client.messages.stream(
-      {
-        model: options.model,
-        max_tokens: conservative ? FALLBACK_MAX_TOKENS : MAX_TOKENS,
-        ...(conservative ? {} : { thinking: { type: "adaptive" as const } }),
-        // Conservative retry drops the cache breakpoint along with thinking: a
-        // model old enough to reject one may reject the other, and the retry
-        // exists to be maximally plain rather than maximally cheap.
-        system: conservative
-          ? options.system
-          : [{ type: "text" as const, text: options.system, cache_control: { type: "ephemeral" as const } }],
-        tools: options.tools.map((t) => ({
-          name: t.name,
-          description: t.description,
-          input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
-        })),
-        messages: toAnthropicMessages(options.entries, options.toolName),
-      },
-      { signal: options.signal }
-    );
+    const stream = client.messages.stream(buildAnthropicParams(options, conservative), { signal: options.signal });
     stream.on("text", (delta) => options.onTextDelta(delta));
     const final = await stream.finalMessage();
     const text = final.content

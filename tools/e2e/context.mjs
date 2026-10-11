@@ -18,6 +18,17 @@ export async function scenario(name, run) {
     page(app, name) { return appWindow(app, `/renderer/${name}/`, Date.now() + 60_000); },
   };
   try { await run(ctx); console.log(`PASS ${name}`); }
-  catch (error) { console.error(`FAIL ${name}:`, error); for (const [i, l] of launches.entries()) await diagnostics(l.app, l.output, `${name}-${i}`).catch(() => {}); throw error; }
-  finally { for (const l of launches) if (l.process.exitCode === null) await closeApp(l.app); fs.rmSync(dir, { recursive: true, force: true }); }
+  catch (error) {
+    console.error(`FAIL ${name}:`, error);
+    for (const [i, l] of launches.entries()) {
+      await diagnostics(l.app, l.output, `${name}-${i}`).catch(() => {});
+      // The app's own stderr is only captured, never printed, so a native abort
+      // (e.g. SIGABRT during quit) left no trace in the CI job log. Print its tail.
+      console.error(`--- app ${i} output (tail) ---\n${l.output().split('\n').slice(-80).join('\n')}\n--- end app ${i} output ---`);
+    }
+    throw error;
+  }
+  // Closes only apps still running: a signal-killed one has exitCode null too,
+  // and closing it again is what threw over the scenario's own failure.
+  finally { for (const l of launches) if (l.process.exitCode === null && l.process.signalCode === null) await closeApp(l.app); fs.rmSync(dir, { recursive: true, force: true }); }
 }

@@ -410,7 +410,12 @@ export function installMenu(deps: MenuDeps): void {
             if (inEditor()) {
               editor.requestSave(false);
             } else if (inCad()) {
-              void activeCadHost()?.flushSidecars();
+              // Flushes the sidecars and bakes the unbaked tail into the source
+              // (the failure is already on the tab's error banner). Cloud
+              // write-back waits for it, so it sees the rewritten source.
+              const saved = activeCadHost()?.saveDocument().catch(() => undefined);
+              void Promise.resolve(saved).then(() => deps.cloud.saveNow());
+              return;
             } else {
               void activeMeshHost()?.dispatchMenu({ type: "menuSave" });
             }

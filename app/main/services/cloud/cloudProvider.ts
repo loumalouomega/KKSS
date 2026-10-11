@@ -53,6 +53,12 @@ export interface CloudProvider {
     localPath: string,
     options?: TransferOptions
   ): Promise<CloudFile>;
+  /**
+   * The folder called `name` under `parentId`, created when absent. Idempotent
+   * and race-tolerant (a concurrent creator is re-found, not an error). A
+   * non-folder item with that name is a `conflict` — never replaced.
+   */
+  ensureFolder(parentId: string, name: string): Promise<CloudFile>;
 }
 
 /** How a provider reads and writes its own credentials and account record. */
@@ -98,6 +104,7 @@ export abstract class OAuthProviderBase implements CloudProvider {
     localPath: string,
     options?: TransferOptions
   ): Promise<CloudFile>;
+  abstract ensureFolder(parentId: string, name: string): Promise<CloudFile>;
 
   account(): CloudAccount | undefined {
     return this.store.account();

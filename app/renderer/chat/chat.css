@@ -425,6 +425,43 @@ body {
   cursor: wait;
 }
 
+/* ---- composer options (model + thinking) ------------------------------- */
+
+#composer-options {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s-2);
+  padding: var(--ui-s-2) var(--ui-s-3) 0;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+#composer-options[hidden] {
+  display: none;
+}
+
+/* The strip owns the divider above the composer while it is showing. */
+#composer-options + #composer {
+  border-top: 0;
+  padding-top: var(--ui-s-2);
+}
+
+.opt-icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--vscode-descriptionForeground);
+}
+
+#model-select,
+#model-input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+#think-select {
+  flex: none;
+}
+
 /* ---- composer -------------------------------------------------------- */
 
 #composer {
@@ -453,4 +490,92 @@ body {
 #send-btn.stop:hover:not(:disabled) {
   background: var(--vscode-inputValidation-errorBorder);
   color: var(--vscode-button-foreground);
+}
+
+/* ---- attachments --------------------------------------------------------- */
+
+#attachments {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s-2);
+  padding: var(--ui-s-2) var(--ui-s-3) 0;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+#attachments[hidden],
+#attach-notice[hidden] {
+  display: none;
+}
+
+#attach-notice {
+  color: var(--vscode-errorForeground);
+}
+
+#attach-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-s-2);
+}
+
+.attach-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-s-2);
+  max-width: 100%;
+  padding: var(--ui-s-1) var(--ui-s-2);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--ui-r-sm);
+  background: var(--vscode-editorWidget-background);
+}
+
+.attach-chip img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--ui-r-sm);
+}
+
+.attach-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#attach-btn {
+  align-self: flex-end;
+}
+
+.msg-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-s-2);
+  margin-bottom: var(--ui-s-2);
+}
+
+.msg .sent-image {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: var(--ui-r-sm);
+}
+
+.msg .sent-image:not([src]) {
+  display: none;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-s-1);
+  padding: var(--ui-s-1) var(--ui-s-2);
+  border-radius: var(--ui-r-sm);
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.attach-evicted {
+  margin-top: var(--ui-s-2);
+  opacity: 0.8;
+  font-style: italic;
 }

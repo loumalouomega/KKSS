@@ -15,7 +15,7 @@ for (const [id,domain,title,geometry,result,units,geometryTable,physicsTable] of
  const fieldFigures=id==='structural'
    ? `![Solver result viewed in KKSS](/screenshots/tutorial-structural-results.png)\n\n![Displacement field on the deformed cantilever at 1000× warp scale](/screenshots/tutorial-structural-deformed.png)\n\n![Von Mises stress field on the deformed cantilever](/screenshots/tutorial-structural-stress.png)`
    : id==='fluid'
-   ? `![Velocity wake behind the obstacle in KKSS](/screenshots/tutorial-fluid-results.png)\n\n![Pressure around the obstacle in KKSS](/screenshots/tutorial-fluid-pressure.png)`
+   ? `![Velocity wake behind the obstacle in KKSS](/screenshots/tutorial-fluid-results.png)\n\n![Pressure around the obstacle in KKSS](/screenshots/tutorial-fluid-pressure.png)\n\n![Velocity magnitude from step 1 to 51 on a fixed 0–0.17 m/s scale](/screenshots/tutorial-fluid-velocity.gif)\n\n![Pressure from step 5 to 51 on a fixed ±10 Pa scale](/screenshots/tutorial-fluid-pressure.gif)`
    : `![Solver result viewed in KKSS](/screenshots/tutorial-${id}-results.png)`;
  const figures=`![CAD geometry and named parts](/screenshots/tutorial-${id}-geometry.png)\n\n![Problemtype setup](/screenshots/tutorial-${id}-setup.png)\n\n${fieldFigures}`;
  const cadSteps=id==='fluid'

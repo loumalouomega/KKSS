@@ -120,7 +120,8 @@ bring your own OAuth client — see [Configuration ▸ Cloud accounts](/guide/co
 for the one-time setup.
 
 Opening a cloud file **downloads it into a local staging cache**, along with any of its sidecars
-that exist beside it, and everything after that behaves exactly like a local document: the same
+and companion files that exist beside it (XDMF's `.h5`, an OpenFOAM case's `constant/polyMesh/`
+mesh), and everything after that behaves exactly like a local document: the same
 viewers, the same tools, the same assistant. Cloud tabs are marked with a ☁ in the tab strip.
 
 Saving pushes it back. That happens on **File ▸ Save**, and also a few seconds after any automatic
@@ -136,21 +137,28 @@ What to expect in the awkward cases:
   finish. If that is not enough — or the machine loses power — the local copy is still there and
   is flagged; the next launch tells you which files have changes that never reached the provider.
 - **Recent files.** A cloud document stays in **File ▸ Open Recent** even after the cache trims its
-  local copy; clicking it downloads again. Restoring the previous session on launch does not
-  re-download, because that would mean network access before the window appears — anything trimmed
-  is reported in the usual "files could not be found" notice instead.
+  local copy; clicking it downloads again. Restoring the previous session on launch downloads a trimmed
+  document again too, **in the background**: the window and its tabs appear immediately, and each
+  such tab fills in as its download finishes (with the usual cancellable progress notice). If the
+  account is no longer signed in, one notice says so — reconnect under **Settings ▸ Cloud Accounts**
+  and reopen the document from Recent files.
 - **The macro library is not synced.** `cad-preview-macros.json` belongs to a whole folder while
   the cache holds one document per directory, so uploading it would let two models from the same
   remote folder overwrite each other's macros. It stays local.
-- **Nested export trees stay local too.** A sibling companion file (XDMF's `.h5`) is uploaded; an
-  OpenFOAM case, which writes a whole `constant/polyMesh/` subdirectory, is not.
+- **Companion files and the OpenFOAM mesh tree travel with the document.** An XDMF's sibling `.h5`
+  and a `.foam` case's `constant/polyMesh/` folder are downloaded when you open the file and
+  uploaded when they change (the folders are created on the provider as needed). They follow the
+  same conflict rule as the document, file by file: if someone changed one remotely, yours is
+  uploaded beside it as `points (conflict …)`. If any of them cannot be downloaded the open fails
+  with a message instead of showing an empty case. Other folders of a case (`system/`, time
+  directories) are not synced, and deleting a file locally never deletes it remotely.
 
 The cache is trimmed on an LRU budget (**Settings ▸ Cloud Accounts ▸ Cache Size Limit…**, 2 GB by
 default). A document that is open, or that holds an unsent change, is never trimmed.
 
 ### Picking up where you left off
 
-KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing — and the chat sidebar comes back on the conversation you were last in. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there.
+KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing — and the chat sidebar comes back on the conversation you were last in. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there. A cloud document KKSS has trimmed from its local cache is the exception: its tab is kept and downloaded again in the background.
 
 Turn it off with **Settings ▸ Restore Last Session** to start clean every time. (Setting `KKSS_NO_RESTORE=1` in the environment does the same for one launch, which is handy if a particular document is giving the viewer trouble.) Opening a file from the command line always wins: it takes the screen and gets its own tab, leaving the restored documents untouched.
 
@@ -164,7 +172,7 @@ The toolbar also has an **interface-scale** picker on the right (75 %–150 %) f
 
 **Help** on the home screen (or **Help ▸ About KKSS…**) shows the app version and checks GitHub for a newer release. **Include prerelease updates** in Settings controls whether stable-only or prerelease releases are selected. When an update exists, **Update now** downloads and installs it in place on Windows and on the Linux AppImage — restart when prompted. `.deb`, `.rpm` and unsigned macOS installs instead get a button to the releases page. No network? The dialog still shows your version and offers a Retry.
 
-Installing a supported file type (`.stp`, `.mdpa`, `.vtk`, `.post.msh` and the other formats shown in the Open dialog) opens it in KKSS when the file is double-clicked. The `kkss://open?file=…` link form accepts the same local files; links to application pages, relative paths and unsupported files are rejected.
+Installing a supported file type (`.stp`, `.mdpa`, `.vtk`, `.post.msh` and the other formats shown in the Open dialog) opens it in KKSS when the file is double-clicked. The `kkss://open?file=…` link form accepts the same local files; links to application pages and relative paths are rejected. An existing file KKSS cannot read gets a warning naming its suffix and linking [the supported formats](/guide/file-formats#if-a-file-won-t-open) rather than being ignored.
 
 After an update, the next launch automatically pops up a **What's New** window listing what changed since the version you last ran — no popup on a first install, and it only ever shows entries newer than what you'd already seen. Dismiss it with **Got it** (or Esc); reopen the full history any time from **Help ▸ What's New…**.
 
@@ -174,9 +182,9 @@ The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**) 
 
 ## AI assistant
 
-The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**) opens a chat sidebar on the right where an LLM can drive KKSS for you: load and edit CAD models, define sub-model-parts, generate and export meshes, inspect and transform MDPA/VTK files, set up Kratos cases, and run simulations. The assistant works through the same tool servers (MCP) that power the two viewers plus the standalone [kratos-mcp-server](https://pypi.org/project/kratos-mcp-server/); the three dots in the sidebar header show each server's status (green = ready, red = unavailable — hover for details). The first two ship with KKSS; the Kratos one is fetched with [`uvx`](https://docs.astral.sh/uv/) and can install an app-local copy of uv when it is missing.
+The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**) opens a chat sidebar on the right where an LLM can drive KKSS for you: load and edit CAD models, define sub-model-parts, generate and export meshes, inspect and transform MDPA/VTK files, set up Kratos cases, and run simulations. The assistant works through the same tool servers (MCP) that power the two viewers plus the standalone [kratos-mcp-server](https://pypi.org/project/kratos-mcp-server/); the four dots in the sidebar header show each server's status (green = ready, red = unavailable — hover for details). The first two ship with KKSS; the Kratos server and a **PDF reader** ([`pdf-insight-mcp`](https://pypi.org/project/pdf-insight-mcp/), pinned) are fetched with [`uvx`](https://docs.astral.sh/uv/) and share one uv, which KKSS can install into its own data directory when it is missing.
 
-CAD layers (`list_layers` / `set_layer` / `assign_layer`, in `<model>.layers.json`) organise what is shown, locked or drawn together — never the finite-element sub-model (that is Parts); drawing exports take an optional `layers` filter, and layer structure syncs with the post mode's view layers. `remesh_mesh` remeshes an FE mesh with MMG, and `list_scad_parameters` / `convert_scad` handle OpenSCAD Customizer models without touching the source. For mesh-format CAD models, the assistant replays pending edits when it generates a mesh, exports an FE mesh or compares models. `save_model` can bake edits into STL, OBJ or PLY sources after approval, keeping a `.bak` copy; mesh health, inspection and promotion tools report the raw source. The CAD viewer’s **File ▸ Save** continues to save its edit history and settings to sidecars.
+CAD layers (`list_layers` / `set_layer` / `assign_layer`, in `<model>.layers.json`) organise what is shown, locked or drawn together — never the finite-element sub-model (that is Parts); drawing exports take an optional `layers` filter, and layer structure syncs with the post mode's view layers. `remesh_mesh` remeshes an FE mesh with MMG, and `list_scad_parameters` / `convert_scad` handle OpenSCAD Customizer models without touching the source. For mesh-format CAD models, the assistant replays pending edits when it generates a mesh, exports an FE mesh or compares models. `save_model` bakes the pending edits into the source file itself (STEP, IGES, BREP, STL, OBJ or PLY) after approval, keeping a `.bak` copy; it writes exactly what **File ▸ Save** writes in the CAD viewer, so save or close the tab first — the assistant cannot see an open, unsaved tab. Mesh health, inspection and promotion tools report the raw source.
 
 The assistant can also pack a run's per-step results with `mesh_pack_series`, matching **File ▸ Pack Time Series Into One File…**. XDMF needs a constant mesh; keep its `.xdmf` and sibling `.h5` together. Use `target: "pvd"` for changing meshes or an already-stepped source, and keep the index and step directory together. Packing/resampling return per-step export reports, and the preview's **Advanced ▸ Export report…** inspector reviews the same fidelity categories used by the write tools. Boundary flow scans support all steps and explicit pressure-density conversion; field conversion accepts a constant or same-kind density field without guessing units or pressure reference. See the [mesh guide](/guide/mesh-mode).
 
@@ -214,9 +222,10 @@ The assistant's tools are not suggestions — they write files, overwrite meshes
 
 - **Allow** — run it this once.
 - **Always allow in this chat** — stop asking about *that* tool for the rest of this conversation. It is per tool and per conversation; it is never remembered after you start a new chat or restart KKSS.
+- **Always allow in project folder** — shown only when you have opened a project folder (**File ▸ Open Folder…**) and every path in this call is inside it. It stops asking about *that* tool for the rest of this conversation, but only while the paths it touches stay inside the folder; a call that points anywhere else (or uses a relative path) asks again. Tools that run scripts or solvers never get this option.
 - **Deny** — don't run it. Nothing on disk is touched, and the assistant is told you refused, so it explains what it wanted rather than trying again.
 
-Read-only tools — inspect, measure, mesh info, render — run without asking, so asking questions feels exactly as it did before. A tool KKSS has no policy for always asks; that is currently every tool from the Kratos server, because that server is fetched at runtime and its tools can't be classified in advance.
+Read-only tools — inspect, measure, mesh info, render — run without asking, so asking questions feels exactly as it did before. A tool KKSS has no policy for always asks. Kratos status, listing, validation and job-status tools run without asking; starting or cancelling a solve, scaffolding a case and writing result files ask, like any other write.
 
 **Settings ▸ LLM Assistant ▸ Tool Approval** changes this: *Ask before tools that change files* (the default), *Ask before every tool*, or *Never ask*. The last one turns the gate off entirely and asks you to confirm once before it does.
 
@@ -226,13 +235,25 @@ For a few CAD tools — applying edit operations, and running a parametric or sa
 
 What it checks is narrower than a preview: it tells you which operations parse and are legal, not what the geometry would look like afterwards. The report is for you only — the assistant is not told about it, and is not told a call happened when it did not.
 
+### Choosing the model and thinking level
+
+A strip above the message box carries two quick controls, each with its own mark: the **model** picker (a small glyph for the active provider — Anthropic, OpenAI-compatible, OpenCode, Codex or Claude Code — beside a dropdown) and the **thinking** picker (a brain). The model dropdown offers *Default*, the models KKSS knows for the active provider, the model you currently use if it is custom, and **Other…**, which opens a text box for any other id (a gateway or local-server model) — press Enter to apply it. The thinking picker offers **Auto** (the provider's own default), **Off**, **Low effort** and **High effort**.
+
+Both write the same settings as **Settings ▸ LLM Assistant** (*…Model* for the active provider and *Thinking*), so the three always agree, and a change applies from your **next message** — a reply in progress is never altered. Notes:
+
+- **Off** asks for no thinking where the model allows it; models that always think keep thinking. A model that rejects the chosen level is retried automatically without it, so a picker choice never breaks a turn.
+- For **OpenAI-compatible** backends the level is sent as `reasoning_effort` only when it is not *Auto* (**Off** is sent as `none`); a gateway that does not recognise it is retried without it.
+- The thinking picker is disabled for the **Codex** and **Claude Code** subscription providers, which choose their own reasoning.
+- If your administrator pins the model through the environment, the model dropdown is shown but locked.
+- *Max Output Tokens* (Settings only) caps one reply; leave it empty for the default.
+
 ### Tokens, context and cost
 
 The sidebar header shows how much of the model's context window your last message filled, and roughly what the conversation has cost so far — for example `12.4k/1M · $0.03`. Hover it for the full breakdown: the model, the split between fresh and cached input, and the output total.
 
 It turns amber as the window fills up. That is worth acting on: when a conversation no longer fits, the provider rejects it outright, and the fix is to start a new one with the header's **+** (New conversation) button (the old conversation is saved, not lost).
 
-Cost is an estimate from published per-token prices for the Claude models KKSS knows about. Point the OpenAI-compatible provider at your own gateway — Ollama, OpenRouter, a local model — and KKSS has no way to know what it charges, so you get token counts and nothing else rather than a made-up figure. None of this leaves your machine; it is calculated from what the provider returned with your response.
+Cost is an estimate from published per-token prices for the Claude models KKSS knows about. Point the OpenAI-compatible provider at your own gateway — Ollama, OpenRouter, a local model — and KKSS has no way to know what it charges, so by default you get token counts and nothing else rather than a made-up figure. If you know the figures, enter them under **Settings ▸ LLM Assistant** (*Custom Context Window* and the *Custom … Price* rows, in USD per million tokens): the readout then shows the context fill and, once both the input and output price are set, a cost — and its tooltip says the numbers are yours. Cache prices are optional and default to the input price (no discount assumed). These values apply to whichever unlisted model is currently selected and never override a model KKSS has reviewed prices for. None of this leaves your machine; it is calculated from what the provider returned with your response.
 
 ### When a conversation gets long
 
@@ -246,7 +267,27 @@ If even that is not enough, you will get the "start a new conversation" message.
 
 Some tools return pictures — a rendered snapshot of a model, or a side-by-side comparison of two. Those appear in the tool's entry in the transcript, so when the assistant says a part looks wrong you can look at the same image it did. A result that has just arrived opens by itself; older ones in a long conversation stay folded away until you click them.
 
-Images live for as long as the app is running. They are not written into the saved conversation, so reopening it later shows the tool call and its text, without the pictures.
+These tool-result images live for as long as the app is running. They are not written into the saved conversation, so reopening it later shows the tool call and its text, without the pictures. (Files *you* attach are different — see below.)
+
+### Attaching images and PDFs
+
+Paste a screenshot into the message box, drop files onto the sidebar, or use the paperclip button to attach up to four images and three PDFs to a message. A thumbnail (or a file chip for a PDF) appears above the box; the **×** removes it before you send. You can send files with no text at all.
+
+- **Images** (PNG, JPEG, WebP; a GIF becomes its first frame) are resized to at most 1568 px on the long edge before they are sent, so a full-screen capture stays small. SVG is not accepted.
+- **PDFs** are sent as they are, up to 5 MB each. A larger PDF is refused rather than altered — ask the assistant to read it by path instead (below).
+- Attachments are **saved with the conversation**, so reopening it shows them again and the assistant still sees them on later messages. Each conversation keeps about 16 MB of attachments; past that the oldest messages' files are dropped (their bubbles say so) and the assistant is no longer sent them.
+
+Which providers accept what:
+
+| Provider | Images | PDFs |
+| --- | --- | --- |
+| Anthropic | yes | yes, natively |
+| OpenAI-compatible, OpenCode Zen / Go | only after you turn on **Settings ▸ LLM Assistant ▸ Allow Image Attachments** (KKSS cannot tell whether a gateway's model reads images) | no — see below |
+| Codex / Claude Code subscription | no | no |
+
+When the current provider cannot take a file, the paperclip is disabled or the file is refused with the reason, and your text is put back in the box. If you switch to a provider that cannot take files mid-conversation, earlier files are left out of the requests (a short note stands in for them) and stay in the saved conversation.
+
+**Reading a PDF by path.** Every provider can read PDFs through the preconfigured `pdf__*` tools (text by page range, search, tables, outline, page info): give the assistant the file's path — for example a spec sheet in your project folder. They are read-only, so they run without asking. The PDF reader starts like the Kratos server, so the first use downloads it (a few seconds to minutes), and if uv is missing the **Install uv for KKSS** button above recovers both. There is no PDF reader in the offline Docker image unless the container can reach PyPI.
 
 ### Conversations
 
@@ -262,7 +303,7 @@ The 50 most recently used conversations are kept; older ones are dropped, except
 
 ### Use your own MCP client
 
-If you'd rather drive KKSS from an **external** LLM client (Claude Code, GitHub Copilot, Claude Desktop, another agent) than the built-in sidebar, enable **Settings ▸ MCP Server**. KKSS then serves the same unified cad + mesh + Kratos toolset — plus the Kratos worked-example resources and guided prompts — over a localhost **Streamable HTTP** MCP endpoint. Use **Copy Address & Token…** to grab the `http://127.0.0.1:<port>/mcp` URL and its bearer token (default port `7391`). It is off by default and bound to localhost only; the token gates access because these tools read and write files on disk — **Regenerate Token…** rotates it (update your clients afterwards). Change the port under the same menu (toggle the server off and on to rebind). Tools arrive namespaced `cad__*` / `mesh__*` / `kratos__*`; the Kratos worked examples show up as MCP resources and prompts.
+If you'd rather drive KKSS from an **external** LLM client (Claude Code, GitHub Copilot, Claude Desktop, another agent) than the built-in sidebar, enable **Settings ▸ MCP Server**. KKSS then serves the same unified cad + mesh + Kratos toolset — plus the Kratos worked-example resources and guided prompts — over a localhost **Streamable HTTP** MCP endpoint. Use **Copy Address & Token…** to grab the `http://127.0.0.1:<port>/mcp` URL and its bearer token (default port `7391`). It is off by default and bound to localhost only; the token gates access because these tools read and write files on disk — **Regenerate Token…** rotates it (update your clients afterwards). **Allowed Tools** limits what a client may call: *Read-only tools* (the default for a newly enabled server — inspect, measure, validate, job status), *Read-only tools and the listed write tools* (name the extra tools under **Allowed Write Tools**) or *All tools* (what the server allowed before this setting existed, and what an install that already used it keeps). A refused call returns an error that says so. Change the port under the same menu (toggle the server off and on to rebind). Tools arrive namespaced `cad__*` / `mesh__*` / `kratos__*`; the Kratos worked examples show up as MCP resources and prompts.
 
 Leave KKSS running with the server enabled, then point a client at it:
 
@@ -328,7 +369,7 @@ The **Edit** toolbar button opens the file currently loaded in the active mode (
 | **Text Editor** | Font size and family, tab size, word wrap, line numbers. All apply immediately. |
 | **Terminal** | Shell (applies to the next session), font size and family, scrollback, cursor style and blink. |
 | **LLM Assistant** | Provider, **Tool Approval**, API keys, models, the OpenAI-compatible base URL, and the Codex / Claude Code model and executable. Keys are write-only: the page shows whether one is stored, never the key itself. |
-| **MCP Server** | Enable the localhost endpoint, its port, and copying or regenerating the token (see *AI assistant ▸ Use your own MCP client* above). |
+| **MCP Server** | Enable the localhost endpoint, its port, which tools a client may call, and copying or regenerating the token (see *AI assistant ▸ Use your own MCP client* above). |
 | **Cloud Accounts** | Per provider: client ID, client secret, and connect / disconnect. Also the cache size limit, and clearing the cache. |
 
 The **Settings** menu keeps quick radios for **UI Theme**, **3D Scene Theme** and **Terminal Shell**, plus the checkboxes and actions it always had. **View** carries the Post-Processing **3D Renderer** beside the other viewer toggles, enabled only in that mode. Every menu entry and its row on the page stay in sync both ways. Three VS Code-only extension settings have no row, because KKSS never reaches the code that reads them: `kratos.showWhatsNew`, `kratos.preview.autoSave` and `kratos.run.launchMode`.
@@ -346,6 +387,10 @@ Viewer actions (mesh quality, field visualization, find entity…) are *not* in 
 
 Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the toolbar, one per open document. Click **+** at the end of the strip, or **File ▸ New CAD Tab** / **New Mesh Tab**, to open a second document alongside the first — each tab keeps its own camera position, edit history, and (in Post-Processing) its own Flowgraph session, completely independent of the others. Click a tab to switch to it; click its **×** to close it. Closing a CAD tab needs no confirmation, since the CAD viewer autosaves its sidecars; closing a mesh tab with unsaved operations prompts first (see below). A mesh exported from a Pre-Processing tab (**File ▸ Export…** to `.mdpa`/`.vtk`/…) opens in a *new* Post-Processing tab. Exporting again to the same path refreshes its existing tab if it has no unsaved mesh edits; unrelated and dirty tabs are preserved.
 
+## If a view stops responding
+
+Opening a very large mesh can freeze a viewer for a while — that is normal, and KKSS never reloads it behind your back. If a view (a CAD or mesh tab, the editor, or a panel) stays unresponsive for about 30 seconds, a dialog asks what to do: **Wait** gives it more time (it asks again only after twice as long, up to ten minutes), **Reload** restarts just that view. The dialog says what a reload discards — a mesh tab's unsaved changes, the editor's unsaved text; a CAD tab's edits are kept beside the file. If the view recovers on its own, the dialog closes by itself.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
@@ -355,7 +400,7 @@ Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the too
 | — | **File ▸ Open Recent** reopens one of the last ten files, in the mode it was opened in |
 | — | **File ▸ New Blank Model…** creates an empty `.brep` to build from scratch (Pre-Processing) |
 | `Ctrl+W` | Close the focused tab |
-| `Ctrl+S` | Save (CAD: flush sidecars · Mesh: overwrite the source file) |
+| `Ctrl+S` | Save (CAD: flush sidecars, then write unbaked edits into the STEP/IGES/BREP/STL/OBJ/PLY source · Mesh: overwrite the source file) |
 | `Ctrl+Shift+S` | Save As |
 | `Ctrl+E` | Export |
 | `Ctrl+Alt+S` / `Ctrl+Alt+O` | Save / Load a problem archive (Post-Processing) |

@@ -18,9 +18,10 @@
  * - **No description scraping.** Several tools say "Read-only." in prose; a
  *   reworded description must not silently change a safety class.
  *
- * So: unlisted ⇒ `unknown` ⇒ ask. That is what makes the external
- * `kratos-mcp-server` (tools resolved by uvx at runtime, not in this tree)
- * safe by default without pretending we know what its tools do.
+ * So: unlisted ⇒ `unknown` ⇒ ask. The external `kratos-mcp-server` is resolved
+ * by uvx at runtime and is not in this tree, so its rows are pinned to
+ * `KRATOS_MCP_VERSION` (reviewed from the published package's tool functions);
+ * a newer or different server's extra tools stay `unknown` and ask.
  *
  * ## Judgment calls
  *
@@ -61,6 +62,12 @@
  *   mesh path writes a PLY; `cad__generate_prep_report` and `cad__batch_export`
  *   always create output files. Diagnostic and inventory tools stay `read`.
  *
+ * - `kratos__results_time_history`, `kratos__results_compare`,
+ *   `kratos__study_results` — **write**: each takes an optional `csv_file`.
+ *   `kratos__results_render` / `results_animate` always write a PNG / GIF.
+ * - `kratos__kratos_get_process_defaults` and the `kratos__kratos_list_*` tools — **read**: they
+ *   parse the Kratos source tree or registry and execute nothing.
+ *
  * The tool this whole feature exists for is `mesh__mesh_transform`, whose own
  * description carries "WARNING: when `outputPath` is omitted the input file is
  * overwritten".
@@ -71,8 +78,20 @@ export type ToolAccess = "read" | "write";
 /** `unknown` = this table has no row for it, which always means "ask". */
 export type ToolClass = ToolAccess | "unknown";
 export type ApprovalMode = "askOnWrite" | "askAlways" | "never";
-export type ApprovalDecision = "allow" | "allowAlways" | "deny";
+/** `allowScoped` = allow, and keep allowing this tool while its paths stay
+ *  inside the explicit project folder (see toolPaths.ts). */
+export type ApprovalDecision = "allow" | "allowAlways" | "allowScoped" | "deny";
 export type ToolGate = "auto" | "ask";
+
+/**
+ * The `KRATOS_MCP_VERSION` whose tool list the `kratos__*` rows above were
+ * reviewed against. `test/chatToolPolicy.test.ts` fails when the pin moves
+ * without this (and the rows) being re-reviewed.
+ */
+export const KRATOS_TOOLS_REVIEWED_VERSION = "0.5.0";
+
+/** Same contract for the `pdf__*` rows and `PDF_MCP_VERSION`. */
+export const PDF_TOOLS_REVIEWED_VERSION = "0.2.1";
 
 export const DEFAULT_APPROVAL_MODE: ApprovalMode = "askOnWrite";
 
@@ -257,7 +276,81 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mcp__list_prompts: "read",
   mcp__get_prompt: "read",
 
-  // kratos-mcp-server is deliberately absent — see the module comment.
+
+  // ---- pdf-insight-mcp (12), reviewed at PDF_TOOLS_REVIEWED_VERSION --------
+  // All read-only: every tool takes a `file_path` and returns text/JSON; none
+  // writes (the image tools return base64 in the result, not files).
+  pdf__get_pdf_info: "read",
+  pdf__read_pdf_as_text: "read",
+  pdf__read_pdf_as_images: "read",
+  pdf__get_pdf_outline: "read",
+  pdf__search_pdf_text: "read",
+  pdf__extract_pdf_tables: "read",
+  pdf__extract_pdf_images: "read",
+  pdf__get_pdf_page_info: "read",
+  pdf__extract_pdf_links: "read",
+  pdf__get_pdf_annotations: "read",
+  pdf__get_pdf_text_stats: "read",
+  pdf__compare_pdf_pages: "read",
+
+  // ---- kratos-mcp-server (52), reviewed at KRATOS_TOOLS_REVIEWED_VERSION ---
+  // Read: inspection, listing, validation and job/study status only.
+  kratos__kratos_check_installation: "read",
+  kratos__kratos_list_applications: "read",
+  kratos__kratos_list_elements: "read",
+  kratos__kratos_list_conditions: "read",
+  kratos__kratos_list_constitutive_laws: "read",
+  kratos__kratos_list_variables: "read",
+  kratos__kratos_list_solvers: "read",
+  kratos__kratos_list_processes: "read",
+  kratos__kratos_get_process_defaults: "read",
+  kratos__kratos_get_solver_defaults: "read",
+  kratos__explain_project_parameters: "read",
+  kratos__mdpa_inspect: "read",
+  kratos__mdpa_validate: "read",
+  kratos__mdpa_get_nodes: "read",
+  kratos__results_list: "read",
+  kratos__results_summary: "read",
+  kratos__results_probe: "read",
+  kratos__results_convergence: "read",
+  kratos__list_templates: "read",
+  kratos__list_material_presets: "read",
+  kratos__list_linear_solver_presets: "read",
+  kratos__validate_project_parameters: "read",
+  kratos__validate_case: "read",
+  kratos__job_status: "read",
+  kratos__job_list: "read",
+  kratos__job_logs: "read",
+  kratos__job_checkpoints: "read",
+  kratos__study_status: "read",
+  kratos__study_list: "read",
+  // Write: scaffolding, solver/job control, pip install, and every tool that
+  // writes an output file (rendering and animation always; the time-history,
+  // compare and study-result tools when `csv_file` is given — the table cannot
+  // see arguments, so the conservative class wins).
+  kratos__kratos_install: "write",
+  kratos__run_simulation: "write",
+  kratos__job_cancel: "write",
+  kratos__job_rerun: "write",
+  kratos__job_resume: "write",
+  kratos__configure_checkpoints: "write",
+  kratos__study_start: "write",
+  kratos__study_cancel: "write",
+  kratos__study_resume: "write",
+  kratos__create_project: "write",
+  kratos__create_multistage_project: "write",
+  kratos__create_project_parameters: "write",
+  kratos__create_materials: "write",
+  kratos__add_boundary_condition: "write",
+  kratos__add_output_process: "write",
+  kratos__mdpa_create_structured_mesh: "write",
+  kratos__export_case_to_flowgraph: "write",
+  kratos__import_flowgraph_to_case: "write",
+  kratos__results_render: "write",
+  kratos__results_animate: "write",
+  kratos__results_time_history: "write",
+  kratos__results_compare: "write",
+  kratos__study_results: "write",
 };
 
 /**
@@ -318,6 +411,13 @@ export interface GateOptions {
   mode: ApprovalMode;
   /** Tools the user chose "always allow" for, in this conversation. */
   allowed: ReadonlySet<string>;
+  /**
+   * "Always allow in the project folder" grants for this conversation, plus the
+   * check that *this* call's paths lie inside the explicit project root. The
+   * check is injected so this module stays free of `node:*`; it is only asked
+   * when the tool is a granted `write` tool.
+   */
+  scoped?: { granted: ReadonlySet<string>; inside(): boolean };
 }
 
 /**
@@ -330,10 +430,21 @@ export interface GateOptions {
  * 2. An "always allow" grant beats `askAlways`. A user who said *always allow
  *    this one, in this conversation* meant it, and re-asking would train them
  *    to stop reading the prompt.
+ * 3. A project-folder grant behaves the same way, but only for a `write` tool
+ *    and only while every path in the call is inside the project root; any
+ *    other call falls through to the normal rules and asks.
  */
 export function gateFor(namespaced: string, options: GateOptions): ToolGate {
   if (options.mode === "never") return "auto";
   if (options.allowed.has(namespaced)) return "auto";
+  if (
+    options.scoped &&
+    options.scoped.granted.has(namespaced) &&
+    classifyTool(namespaced) === "write" &&
+    options.scoped.inside()
+  ) {
+    return "auto";
+  }
   if (options.mode === "askAlways") return "ask";
   return classifyTool(namespaced) === "read" ? "auto" : "ask";
 }

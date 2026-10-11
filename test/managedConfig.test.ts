@@ -8,7 +8,7 @@ describe('operator settings', () => {
     expect(c.values.get('llmModelOpenai')).toBe('lab-model');
     expect(c.values.get('restoreSession')).toBe(false);
   });
-  it.each([{ KKSS_LLM_PROVIDER: 'unknown' }, { KKSS_LLM_MODEL: 'ambiguous' }, { KKSS_PROJECT_ROOT: '../relative' }, { KKSS_META_PORT: '0' }, { KKSS_RESTORE_SESSION: 'true' }, { KKSS_ZOOM: 'NaN' }])('rejects invalid startup configuration %j', env => {
+  it.each([{ KKSS_LLM_PROVIDER: 'unknown' }, { KKSS_LLM_MODEL: 'ambiguous' }, { KKSS_PROJECT_ROOT: '../relative' }, { KKSS_META_PORT: '0' }, { KKSS_META_ACCESS: 'everything' }, { KKSS_RESTORE_SESSION: 'true' }, { KKSS_ZOOM: 'NaN' }])('rejects invalid startup configuration %j', env => {
     expect(() => parseManagedConfig(env)).toThrow('Invalid operator setting');
   });
   it('redacts file errors', () => {

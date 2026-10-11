@@ -151,9 +151,13 @@ timelines together with required companion revisions; queue review, imported
 runs, result opening and quantity evaluation use the same discovery. Missing,
 unreadable, unsafe or unknown configured outputs are findings, not solver
 success. Keep the documented VTK fallback only for legacy cases with no output
-settings. Live VTK and GiD acceptance passed; Kratos 10.4.3's XDMF/HDF5 writer
-fails before producing its XDMF index, so live XDMF acceptance remains open in
-`doc/roadmap.md`.
+settings. Live VTK and GiD acceptance passed. For XDMF/HDF5, Kratos 10.4.2–10.4.4's
+`single_mesh_xdmf_output_process` fails by default (its XDMF step ignores
+`mock_hdf5_file_io`, and `TimeLabel()` drops the time label of any file stem ending
+in `e`); `tools/workflows/outputs.mjs` documents the settings that avoid both and
+live-verifies solver + discovery. The read-back is still open: meshio++ (16.31.0 and
+16.32.0) rejects Kratos's multi-file temporal XDMF, so the harness records an explicit
+`read-back` failure rather than claiming acceptance (`doc/roadmap.md`).
 
 Mesh-sensitivity metadata is revision-bound and records characteristic size,
 unit, dimension, sizing method and justification. Count-derived effective sizes
@@ -252,6 +256,25 @@ resubmitted automatically.
   `MeshHost` whose document owns the uri and calls its `saveDocument()`, which
   calls `saveCustomDocument` on the exact document object.
 - **CAD mesh-edit replay stays in the compute worker.** When `CadHost` has no viewer-serialized STL, `app/main/cadMeshInput.ts` resolves the source (including glTF and meshio++ companions) and calls CAD’s `bakeMeshEdits` over only the unbaked tail. A viewer-supplied STL already contains edits. Keep source inspection facts raw where their identifiers are defined over the raw file, and surface each replay outcome in export provenance. Native CAD Save persists sidecars; only explicit assistant `cad__save_model` bakes STL/OBJ/PLY sources.
+- **Interactive bake (CAD File ▸ Save) is an ordering contract, kept in a pure
+  module.** `app/main/cadSaveInPlace.ts` (Electron-free, every effect injected —
+  the `cadOpOutcomes.ts` precedent) owns the order, `CadHost.saveDocument()` wires
+  the kernel, filesystem and prompts into it. Order, each step guarding a
+  silent-wrong-geometry failure: confirm (first save of the session only) →
+  one-deep `<file>.bak` → temp sibling + rename → **only then** advance
+  `bakedThrough` (and roll the source back if that write fails) → two-byte
+  `rebindPartsAcrossSave` for Parts/annotations/layers. B-rep exports the
+  unbaked **tail** at the file's own declared unit with `parts` passed (assembly
+  and names survive); mesh bakes run in the compute worker (`bakeMeshEdits`, never
+  a viewer round trip) inside the recoverable `meshSaveRecovery` transaction.
+  Pass `rebindPartsAcrossSave` the **tail**, not the full history — cad's own
+  provider and `save_model` pass the full list, which double-applies the baked
+  prefix from the second save on (latent upstream bug; do not copy it). KKSS has
+  no source watcher, so a bake is followed by `loadModel`, and the
+  `kkss-file://` URL carries a `?v=` cache-bust (the handler routes on the path
+  only). Headless/quit (`stopHeadless`) still only flush sidecars — a silent bake
+  on exit is exactly what the confirm exists to prevent. The chat's
+  `cad__save_model` writes the same file; there is no cross-process lock.
 - **Heavy WASM stays off the UI thread.** OCCT + Gmsh run in
   `app/main/cadCompute.worker.ts` (RPC via `cadComputeClient.ts`); MMG runs in
   the mesh submodule's own worker pair. Path contracts of the unmodified
@@ -566,18 +589,22 @@ resubmitted automatically.
   the flag and session list on its single provider, so KKSS keeps them in a
   module-level `liveHosts` registry in `cadHost.ts` instead. **Open (Ctrl+O) replaces the focused tab's document**, matching
   pre-tabs muscle memory exactly; **File ▸ New CAD/Mesh Tab** (or the tab
-  strip's `+`) is the explicit way to open a second document instead. Closing a
-  cad tab has no dirty-prompt — cad's sidecars autosave on a debounce, so it is
-  a plain dispose, same as replacing a tab's document always has been. mesh
+  strip's `+`) is the explicit way to open a second document instead. A tab is
+  **dirty** when it has an unbaked edit tail on a source that can bake
+  (`CadHost.isDirty()`, cad's `isDocumentDirty` predicate — the document chip and
+  the tab dot share it); sidecars autosave on a debounce, so what a dirty CAD tab
+  stands to lose is only the *bake*, never the edits. mesh
   3.18.0 gave its previews an app-level "unsaved changes" concept of their own
   (applying an operation marks the tab dirty; only `vscode.workspace.save`
-  clears it — see the shim invariant below), so **closing a dirty mesh tab
-  prompts Save / Don't Save / Cancel first** (`index.ts`'s
-  `confirmDiscardMeshTab`, mirroring `EditorService.confirmClose`'s exact dialog
-  shape), and quitting with any dirty mesh tab open does the same, ahead of the
+  clears it — see the shim invariant below). **Closing a dirty CAD or mesh tab
+  prompts Save / Don't Save / Cancel first** (`index.ts`'s `confirmDiscardTab`,
+  mirroring `EditorService.confirmClose`'s exact dialog shape; Save =
+  `host.saveDocument()`, and Don't Save on a CAD tab flushes its sidecars first
+  so a not-yet-debounced edit survives the dispose), and quitting with any dirty tab open does the same, ahead of the
   text editor's own equivalent guard — both live on `main.win.on("close")`
-  rather than adding a second `before-quit` hold, since that hook already
-  carries a single-shot cloud-drain `preventDefault`. Replace-in-place opens also await this guard through `openFile` and
+  rather than adding a before-quit hold of their own. The one single-shot
+  before-quit hold (uploads and the live shell, see the node-pty bullet) waits until
+  those prompts can no longer cancel the quit, so a cancelled quit never finds its shell shut down. Replace-in-place opens also await this guard through `openFile` and
   `documentReplacementQueue`: menu, toolbar, recents and the first OS dropped
   file all preserve the document on Cancel or failed Save. Queued replacements
   capture the host/document and recheck it after consent; external launch opens
@@ -625,7 +652,10 @@ resubmitted automatically.
   electron-builder.yml; linux/mac tolerate it, which is also what
   `USE_HARD_LINKS=false` in release.yml is about). Pages that need
   runtime-injected styles (terminal's xterm.js) may relax CSP to
-  `style-src kkss: 'unsafe-inline'` — that page only.
+  `style-src kkss: 'unsafe-inline'` — that page only. node-pty's exit callback has
+  no exception guard, so quit must observe a live shell's exit before `will-quit`:
+  `before-quit` awaits `TerminalService.shutdown()` (bounded SIGHUP → SIGKILL in
+  `services/terminalShutdown.ts`), and the exit listener must never throw.
 - **Docker web deployment streams the unmodified desktop app.** `docker/`
   (Dockerfile + `entrypoint.sh`) + root `docker-compose.yml` (build) /
   `docker-compose.ghcr.yml` (pull) run the app headless (Xvfb + openbox +
@@ -702,6 +732,18 @@ resubmitted automatically.
   SIGKILLs the tree between runs, so a leftover lock would make every later
   launch quit on startup. The lifecycle suite explicitly enables the lock with
   an isolated profile and verifies acquisition, forwarding and reacquisition.
+- **An unreadable file is always answered, never dropped.** `openFile()` and the
+  external-launch paths (argv, second-instance, `open-file`/`open-url`) share
+  `reportUnsupported` in `index.ts`: one warning toast naming the file and
+  `unsupportedSuffix()`'s longest-suffix extension (never the last dot), with a
+  **Supported formats** action to `guide/file-formats`. `launch.ts` keeps
+  `localLaunchFile` strict (only routable files enter the queue) and exposes
+  `unsupportedLaunchFile(s)` for the rest — an *existing* file only; missing
+  paths and non-open `kkss://` URLs stay silent. There is no "try the other
+  mode" wording on purpose: `modeForFile` already sends every claimed format to
+  its owning mode, so an unroutable file is unknown to both. `toast()` takes an
+  optional `ToastAction`; main retires such a toast on click or after 15 s
+  because the shell never auto-removes a toast that has buttons.
 - **`state.json` is written atomically, and never with a bare `writeFile`.**
   `app/main/services/jsonStore.ts` (the Electron-free half of `stateStore.ts`,
   split out to be testable — same shape as `chat/secretCodec.ts` under
@@ -751,9 +793,18 @@ resubmitted automatically.
   submodule and never reports the path back, so a save can be *observed* but
   never *intercepted* — hence one chokidar watch per staging directory (the bare
   `"*"` pattern added to `services/watcher.ts`), coalesced on a 3 s debounce that
-  swallows cadHost's 500 ms one. Its `depth: 0` is a real limit: XDMF's sibling
-  `.h5` is uploaded, OpenFOAM's nested `constant/polyMesh/` tree deliberately is
-  not. Conflicts are detected by stored remote revision — Drive
+  swallows cadHost's 500 ms one. The watch is `depth: 0` unless the format
+  declares **companions** (`cachePathCore.companionsFor`, the only allow-list:
+  XDMF/XMF → sibling `<stem>.h5`, `.foam` → `constant/polyMesh/`, ≤ 2 levels,
+  ≤ 200 files). "Every other file here is a sidecar" no longer holds, so a nested
+  path uploads only if `isCompanionPath` accepts it. A companion is document
+  content, not derived state: **download** (`companions.ts`, in `stage()`) fails
+  the open on any error — a half mesh is worse than none — and **upload** follows
+  the document's conflict rule per file (`CloudEntry.companions` baselines;
+  missing baseline ⇒ conflict copy beside it), creating remote folders through
+  the providers' idempotent `ensureFolder`. A pass records what landed, so a
+  retry never re-uploads a file against its own stale baseline. Local deletes are
+  never propagated. Conflicts are detected by stored remote revision — Drive
   `headRevisionId`, Dropbox `rev`, Graph **`cTag`, never `eTag`** (which also
   moves on metadata-only edits and would manufacture a conflict copy every time
   OneDrive touched the file) — with the wire-level precondition carried
@@ -766,14 +817,23 @@ resubmitted automatically.
   `cad-preview-macros.json` is deliberately **not** synced: per-*folder* library,
   per-*file* cache, so uploading it would let two models from one remote folder
   overwrite each other's macros. `before-quit` gets one flag-guarded
-  `preventDefault()` to drain in-flight uploads (10 s cap) because `will-quit`
+  `preventDefault()` (shared with the live shell) to drain in-flight uploads (10 s cap) because `will-quit`
   cannot await an HTTPS upload; anything still pending stays `dirty: true` in the
   manifest and is reported on the next launch. Recents carrying a `cloud` ref are
-  **exempt from the existence prune** and re-download on click; **session restore
-  deliberately does not re-download**, since it is synchronous and never stats by
-  design — an evicted path falls into the existing "files could not be found"
-  toast, and eviction's `keep` set (open tabs + `sessionPaths()`) makes that
-  rare. OAuth is **bring-your-own client** — the user pastes their own client ID
+  **exempt from the existence prune** and re-download on click. **Session restore
+  stays synchronous but does re-download**: the session itself stores each cloud
+  tab's ref (`ModeSession.cloud`, from `CloudService.refFor`) because nothing else
+  can supply it — eviction deletes the manifest entry together with the file, the
+  staging path is a one-way hash, and recents is capped. `planRestore` keeps a
+  vanished cloud file as a *pending slot*; restore makes its tab at once (so tab
+  order and focus are right) and `restoreCloudTabs` fills it afterwards
+  (`services/cloudRestore.ts`, effects injected): one download at a time, only
+  into a placeholder that is still blank — the result is re-checked *after* the
+  await — one "not signed in" message per provider (its other tabs skipped
+  without a request), any other failure closes just that placeholder. It uses
+  `openPath`, not `openFile` (no focused-tab replace, no dirty guard, **no
+  recents**), and `pendingCloudTabs` keeps a still-downloading tab in the saved
+  session so quitting mid-download does not lose it. OAuth is **bring-your-own client** — the user pastes their own client ID
   (+ secret where the provider issues one; a Google "Desktop app" secret is
   explicitly not confidential) — with PKCE + `state` over a one-shot 127.0.0.1
   loopback redirect built on `metaServer.ts`'s listen/error/Host-check handling;
@@ -800,14 +860,21 @@ resubmitted automatically.
   crash cannot loop, honors the per-tab rule (recover one tab, never a whole
   mode), and **`unresponsive` is deliberately not wired to it** — that fires on
   any long synchronous parse, exactly what both viewers do on a large mesh, so
-  reloading on it would destroy a working session mid-load.
+  reloading on it would destroy a working session mid-load. It only feeds
+  `unresponsiveGuard.ts` (pure, effects injected): after 30 s unresponsive the
+  user is *asked* Wait / Reload; Wait doubles the next delay (cap 10 min), a
+  recovered/closed/reloaded view or quit cancels and aborts the dialog, and
+  **Reload is reachable only through the click** — through `recoverView`
+  flagged user-initiated (not counted against the crash-loop budget).
 - **The project folder is a default, never a fence.** `services/projectRoot.ts`
   seeds the terminal's cwd, file-dialog start folders, the chat context suffix
   and the shim's `workspaceFolders` — and refuses nothing. It is deliberately
   **not** wired to `protocol.ts`'s `allowRoot`, which stays per-document:
   widening that allow-list to the root would silently make every file under it
   fetchable by a webview, i.e. build a fence out of the thing that was decided
-  not to be one. Path scoping for the MCP toolset is a separate, later decision.
+  not to be one. The one place it *is* consulted for scope is the chat's
+  "Always allow in project folder" grant (see the tool-gate bullet), which is
+  a prompt-skipping convenience, not a fence.
   Two levels: `explicit()` (chosen, persisted under `projectRoot`) and
   `effective()` (explicit, else the focused document's directory). **Consumers
   use `effective()`, so with no explicit root behavior is byte-identical to
@@ -874,7 +941,10 @@ resubmitted automatically.
   anything opens: both hosts' `openPath()` is synchronous and never stats the
   file, so a vanished path becomes a ghost tab whose error only ever appears as
   an in-pane banner. Restore opens with `openPath()` (append, mode already
-  known, no recording) and closes the blank starter tab. `saveSession()` must
+  known, no recording) and closes the blank starter tab. The one exception to
+  "prune first" is an evicted **cloud** document whose ref the session carries:
+  it keeps its slot as a placeholder tab and is downloaded in the background (see
+  the cloud invariant above). `saveSession()` must
   run **before** `stateStore.flushSync()` in `will-quit` — that call sets the
   store `stopped`, after which queued writes return early. A launch-time file
   wins, taking the screen and its own tab so it never overwrites a restored
@@ -887,7 +957,7 @@ resubmitted automatically.
   toggle; it reaches views through `initialState` on their next file load).
 - **Chat sidebar: main process owns network + processes; MCP servers ship
   as-built.** `app/main/services/chat/` runs the LLM agent loop and spawns
-  the three stdio MCP servers; the chat renderer keeps the strict CSP and
+  the four stdio MCP servers (cad, mesh, kratos, pdf); the chat renderer keeps the strict CSP and
   never sees an API key. Placement contracts of the unmodified server
   bundles: `cad/dist/mcp-server.js` is copied to
   **`out/cad-runtime/dist/mcp-server.js`** (its `extensionPath` = the
@@ -984,13 +1054,35 @@ resubmitted automatically.
   optional field degrades in both directions). "Always allow in this
   conversation" lives in a service-level `Map<conversationId, Set<string>>`,
   **not** on `LiveConversation` — `store.close()` drops that object on every
-  conversation switch, so a grant there would silently expire. **Path scoping is
-  out of scope** (classification only), and **the HTTP meta server
-  (`metaServer/buildServer.ts`'s `callToolRaw`) is deliberately un-gated** —
-  bearer token only, since an external client has no user to prompt. Every
+  conversation switch, so a grant there would silently expire. **"Always allow in
+  project folder" is a second, narrower grant** (`scopedAllow`, same lifetime and
+  key as `alwaysAllow`; `ApprovalDecision` gained `allowScoped`). It is offered
+  only when an *explicit* project root is set and `toolPaths.ts`'s
+  `scopedCallPaths` can account for **every** path in the call, and every later
+  call re-checks against `projectRoot.explicit()` at the gate (so clearing the
+  folder revokes it with no bookkeeping). `SCOPED_TOOL_PATH_ARGS` is a
+  fail-closed per-tool table of path argument names: no row ⇒ ask; a
+  path-looking argument the table does not know (name heuristic, suffix
+  `path|file|dir|folder|…`, minus `format|ext|type|name|id|mode|kind`) ⇒ ask;
+  relative paths ⇒ ask (the server resolves them against its own cwd);
+  symlinks are resolved on the nearest existing ancestor. Tools that *execute*
+  (solver/job/study tools, `mesh__case_run`, `problemtype_*`, scripts) and
+  tools with nested-path documents (`plot_dataset`) are deliberately unlisted.
+  `toolPolicy.ts` stays free of `node:*` — the inside-check is injected into
+  `gateFor`. A new write tool defaults to unscoped; the unscoped set is pinned
+  in `test/toolPaths.test.ts`. **The HTTP meta server is
+  gated by an access setting, not a prompt** — an external client has no user to
+  ask, so `metaServer/accessPolicy.ts` (pure, reusing `classifyTool`) allows or
+  refuses each call per **Settings ▸ MCP Server ▸ Allowed Tools** (`readOnly`
+  default, `readListed` with `metaServerAllowedTools`, `all`); `buildServer.ts`
+  filters `tools/list`, refuses with an MCP error naming the setting, and an
+  `unknown` tool is never allowed unless listed. Installs that already had the
+  server configured migrate once to `all` (`metaServerAccessMigrated` flag —
+  the default value is stored as an absent key, so the flag, not the key, is
+  what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 153-name key set.
+  `test/chatToolPolicy.test.ts` pins the exact 217-name key set, including the 52 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1015,6 +1107,37 @@ resubmitted automatically.
   worded narrowly on purpose — cad gates its OCCT replay on the same flag it
   gates its writes on, so it says which ops parse and are legal, never what the
   geometry would become. Hence **Validate (dry run)**, not "Preview".
+- **User attachments (images and PDFs) are the opposite of tool-result images:
+  stored, capped, and refused up front by code.** A user message carries
+  `attachments?` + `attachmentsEvicted?` (optional ⇒ no `CHAT_STORE_VERSION`
+  bump). `services/chat/chatAttachments.ts` (pure) owns every decision: mime
+  allow-list (never SVG), base64 + `%PDF-` magic checks, caps, all-or-nothing
+  `validateAttachments` (the renderer is untrusted on every `send`), the
+  16 MiB per-conversation budget that evicts the oldest message's files whole
+  and never the newest, and `attachmentSupport(provider, kind, optIn)` — the
+  single who-may-receive-what decision (Anthropic: images + native PDF;
+  OpenAI-compatible/OpenCode: images only behind `llmImageInput`, never PDF —
+  `pdfNeedsMcp`; subscription runtimes: nothing). **`toWire()` must strip the
+  bytes**: user entries used to pass through by identity, which would put every
+  stored file on every `state`/`entry` message. Image bytes travel as their own
+  `userImages` message, replayed from the stored entries. Refusal reasons are
+  codes the renderer maps through `t()`; a refused `send` answers
+  `sendRefused` *before* appending (the draft was already cleared). The same
+  decision guards the request copy (a provider switched mid-conversation must
+  not be sent files it cannot take), `seedPrompt` (no base64 in a subscription
+  prompt) and the overflow retry. Text-only requests stay byte-identical: the
+  OpenAI `content` is a string unless an image is present, and Anthropic never
+  gets an empty text block.
+- **The PDF reader is a fourth uv-launched server that shares Kratos's
+  recovery.** `pdf-insight-mcp` pinned in `services/chat/pdfMcpVersion.ts`
+  (chosen by a real `uvx` handshake; MIT, PyMuPDF/AGPL launched out-of-process,
+  never bundled). `McpManager`'s `UV_SERVERS` = kratos + pdf share runtime
+  discovery and the five-minute first connect; only Kratos installs uv
+  (one banner, one button) and `revivePdf()` retries a down PDF server after
+  a Kratos retry. A failing PDF server never blocks the others. The
+  Docker image's bundled Kratos launcher does not apply to it. All twelve tools
+  are `read` (no scope row needed); bumping the pin means re-reading the tool
+  list and moving `PDF_TOOLS_REVIEWED_VERSION` with it.
 - **Tool-result images are session-only, and never ride a `ChatWireEntry`.**
   `mcpManager.extractImages()` forwards `{type:"image"}` blocks for display;
   `flattenContent()` is deliberately untouched, so the model keeps seeing its
@@ -1051,7 +1174,10 @@ resubmitted automatically.
   reject, hence the retry-without-it (the same shape as Anthropic's conservative
   retry). `services/chat/modelInfo.ts` is a deliberate table in the
   `toolPolicy.ts` mould: **an unknown model resolves to `null` and the sidebar
-  shows token counts with no cost and no context percentage**, which is the
+  shows token counts with no cost and no context percentage** (unless the user
+  entered the five `llm.custom*` Settings rows: `resolvePricing` applies them only
+  when the reviewed table has no row, needs both input and output prices to show a
+  cost, and sets `ChatUsage.userSupplied`), which is the
   normal case for the OpenAI-compatible provider and is the honest answer rather
   than a gap to fill by guessing. Cache rates are stored per row, not derived
   from input (Fable 5.1 reads at a flat $0.25/MTok, and a pricing rule with one
@@ -1142,6 +1268,18 @@ resubmitted automatically.
   reading zero across repeated turns means a silent invalidator. The conservative
   retry drops `cache_control` along with `thinking`, so a model old enough to
   reject one degrades the way it already did.
+- **The composer strip's model and thinking level are global settings, not
+  conversation state, and absent means unchanged.** `setModel`/`setThinking`
+  write the same `llm*` keys as Settings and the menu (main validates and refuses
+  a managed key); `ChatService` repaints the strip from `stateStore.onDidChange`
+  on any `llm*` key. `StreamTurnOptions.thinking`/`maxOutputTokens` are omitted for
+  `auto`/unset so default requests stay byte-identical. Anthropic `off` **omits**
+  `thinking` (never `{type:"disabled"}`); `low`/`high` add `output_config.effort`;
+  the conservative retry drops `thinking`, `output_config` and `cache_control`
+  together. OpenAI-compatible extras (`stream_options`, `reasoning_effort`,
+  `max_tokens`) are dropped together on one retry. Subscription runtimes get no
+  thinking control. Provider/thinking glyphs are our own drawings, never vendor
+  trademarks.
 - **`ChatErrorKind` gained `context` and `rateLimit`, and every kind must be
   listed in `transcriptStoreCore.ts`'s `ERROR_KINDS`** — a kind missing there is
   not rejected on read, it is silently rewritten to `"other"`, so the banner
@@ -1171,7 +1309,7 @@ resubmitted automatically.
 - **One shared McpManager, two front-ends.** `McpHub`
   (`services/chat/mcpHub.ts`) owns the single `McpManager`; both the chat loop
   and the optional **HTTP meta MCP server** (`services/metaServer/`) call
-  `hub.ensureStarted()`, so the three children are spawned once (constructed in
+  `hub.ensureStarted()`, so the four children are spawned once (constructed in
   `index.ts`, disposed on `will-quit`). The meta server re-exposes the same
   aggregated toolset (+ resources/prompts) over `127.0.0.1:<port>/mcp`
   (`StreamableHTTPServerTransport`) for an external LLM client — **off by
@@ -1505,12 +1643,15 @@ four small ports; mesh 3.27.0 → 4.0.7 needed no code at all.**
   vtk.js 37, and `toWireModel`, which copies every field array on every model post
   to dodge a VS Code transport bug Electron does not have — pure overhead here,
   and not fixable without editing the submodule.
-- **Known, pre-existing gap (not from this bump):** `handleBRep`'s `geometry`
-  post carries only meshes/edges/points. The provider also sends `autoFit`,
-  `opOutcomes` (rebased by `bakedThrough`), `guideIds` and `opBuckets`, so in KKSS
-  the Edits panel never flags an op the kernel skipped and `guide: true`
-  construction geometry is not dimmed. It predates 2.3.0; porting it means
-  threading `bakedKinds` through the load path.
+- **`handleBRep`'s `geometry` post is the provider's full message.** It carries
+  `autoFit`, `opOutcomes`, `guideIds` and `opBuckets` beside meshes/edges/points,
+  so the Edits panel flags an op the kernel skipped and `guide: true` geometry is
+  dimmed. The kernel replays only the unbaked tail, so its op indices are
+  tail-relative; `cadOpOutcomes.ts`'s `rebaseOpOutcomes` pads the baked prefix as
+  applied and shifts outcomes and buckets by `bakedThrough` (identity at 0) — the
+  provider's inline rebase, extracted to be testable. `autoFit: false` forces a
+  re-frame: `ready`'s `loadModel(false)` is a genuine open, the edits handler's
+  default `loadModel()` is an edit-driven rebuild.
 - **Verified live** (Playwright-Electron, message capture on the cad view's
   `webContents.send`): plane-authored profile survives reopen; the four bundled
   starters list read-only, Apply writes `<model>.mesh.json` + `.geo`, and Delete
@@ -1545,10 +1686,10 @@ mesh was then redesigned to match it.**
   `kernel-worker.js` child is a different process and does not feed this.
 - **The document chip is a faithful port, and that has a visible consequence.**
   `isDocumentDirty()` is cad's predicate: unbaked tail on a source that can bake
-  (STEP/IGES/BREP, STL/OBJ/PLY). KKSS never advances `bakedThrough` (no
-  interactive bake), so an edited such file reads "N unsaved edits" for good — true
-  by cad's definition (the source file does not contain what is on screen),
-  documented in `doc/guide/cad-mode.md` rather than special-cased.
+  (STEP/IGES/BREP, STL/OBJ/PLY). **File ▸ Save in CAD mode bakes** (see "Interactive
+  bake" below), which advances `bakedThrough` and clears the chip; until then an
+  edited such file honestly reads "N unsaved edits" — the source file does not
+  contain what is on screen (`doc/guide/cad-mode.md`).
   `syncDocumentInfo()` is deduplicated and reset in `disposeSession()`.
 - **The shell learns panel state from main, never from its own clicks.** A
   `panels {terminal, chat}` message (`pushPanels()` in `index.ts`, called from all
@@ -1761,6 +1902,17 @@ fresh profile also pins theme/zoom/viewer defaults so the shots are
 reproducible. screenshots.mjs shares **one** temp profile across its four base
 sessions *in order* — that is what makes the home shot deterministic, since the
 first three sessions are what populate its recents list.
+
+**Timeline GIFs follow the same rule.** `tools/tutorials/animations.mjs`
+(`npm run docs:screenshots -- --animations-only`, also part of the full run)
+captures the fluid tutorial's committed `vtk_output` series — no solver run —
+with the Field panel's Range pinned, via a dependency-free GIF89a encoder
+(`tools/lib/gif.mjs`; node-pty stays the only native module). Budget 1.5 MB per
+GIF, asserted; first/last frames must differ. Shallow water is deliberately not
+animated (a still basin: every frame identical) and fluid pressure starts at
+step 5 because the impulsive start would flatten a fixed colour scale. If the
+tutorial figures change, update both `doc/guide/tutorial-fluid.md` and
+`tools/tutorials/writeDocs.mjs`, which regenerates them.
 
 ## Icons — TikZ pipeline (never hand-edit generated files)
 

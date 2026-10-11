@@ -35,6 +35,7 @@ services:
       KKSS_ZOOM: "${KKSS_ZOOM:-}"
       KKSS_META_ENABLED: "${KKSS_META_ENABLED:-}"
       KKSS_META_PORT: "${KKSS_META_PORT:-}"
+      KKSS_META_ACCESS: "${KKSS_META_ACCESS:-}"
       DISPLAY_SIZE: "${KKSS_DISPLAY_SIZE:-1920x1080}" # virtual screen geometry (fixed per start)
       # Prefer a mounted KKSS_AUTH_USERS_FILE for operator-provisioned bcrypt accounts.
       # OPEN_FILE: /workspace/model.mdpa # optional file to open at launch
