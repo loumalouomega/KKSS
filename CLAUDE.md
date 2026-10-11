@@ -151,9 +151,13 @@ timelines together with required companion revisions; queue review, imported
 runs, result opening and quantity evaluation use the same discovery. Missing,
 unreadable, unsafe or unknown configured outputs are findings, not solver
 success. Keep the documented VTK fallback only for legacy cases with no output
-settings. Live VTK and GiD acceptance passed; Kratos 10.4.3's XDMF/HDF5 writer
-fails before producing its XDMF index, so live XDMF acceptance remains open in
-`doc/roadmap.md`.
+settings. Live VTK and GiD acceptance passed. For XDMF/HDF5, Kratos 10.4.2–10.4.4's
+`single_mesh_xdmf_output_process` fails by default (its XDMF step ignores
+`mock_hdf5_file_io`, and `TimeLabel()` drops the time label of any file stem ending
+in `e`); `tools/workflows/outputs.mjs` documents the settings that avoid both and
+live-verifies solver + discovery. The read-back is still open: meshio++ (16.31.0 and
+16.32.0) rejects Kratos's multi-file temporal XDMF, so the harness records an explicit
+`read-back` failure rather than claiming acceptance (`doc/roadmap.md`).
 
 Mesh-sensitivity metadata is revision-bound and records characteristic size,
 unit, dimension, sizing method and justification. Count-derived effective sizes
@@ -1898,6 +1902,17 @@ fresh profile also pins theme/zoom/viewer defaults so the shots are
 reproducible. screenshots.mjs shares **one** temp profile across its four base
 sessions *in order* — that is what makes the home shot deterministic, since the
 first three sessions are what populate its recents list.
+
+**Timeline GIFs follow the same rule.** `tools/tutorials/animations.mjs`
+(`npm run docs:screenshots -- --animations-only`, also part of the full run)
+captures the fluid tutorial's committed `vtk_output` series — no solver run —
+with the Field panel's Range pinned, via a dependency-free GIF89a encoder
+(`tools/lib/gif.mjs`; node-pty stays the only native module). Budget 1.5 MB per
+GIF, asserted; first/last frames must differ. Shallow water is deliberately not
+animated (a still basin: every frame identical) and fluid pressure starts at
+step 5 because the impulsive start would flatten a fixed colour scale. If the
+tutorial figures change, update both `doc/guide/tutorial-fluid.md` and
+`tools/tutorials/writeDocs.mjs`, which regenerates them.
 
 ## Icons — TikZ pipeline (never hand-edit generated files)
 

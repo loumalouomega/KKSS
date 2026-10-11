@@ -70,3 +70,11 @@ The measured values are the published baseline; acceptance tolerances are separa
 ![Velocity wake behind the obstacle in KKSS](/screenshots/tutorial-fluid-results.png)
 
 ![Pressure field around the obstacle in KKSS](/screenshots/tutorial-fluid-pressure.png)
+
+The timeline can also be played. These loops step through the published series (every third step, ending on step 51) with the Field panel's colour range pinned, so a colour means the same value in every frame. The velocity loop starts from the near-potential flow of step 1 and shows the wake forming behind the obstacle.
+
+![Velocity magnitude from step 1 to 51 on a fixed 0–0.17 m/s scale](/screenshots/tutorial-fluid-velocity.gif)
+
+The pressure loop starts at step 5. Steps 1–4 are the impulsive start (about 3300 Pa at step 1, falling to ±9 Pa by step 10) and would stretch the scale until the later frames looked flat; the scale here is fixed at ±10 Pa, so step 5 saturates. The loop shows that start-up pressure decaying until only the small stagnation and wake pattern around the obstacle remains.
+
+![Pressure from step 5 to 51 on a fixed ±10 Pa scale](/screenshots/tutorial-fluid-pressure.gif)
