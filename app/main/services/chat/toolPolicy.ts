@@ -90,6 +90,9 @@ export type ToolGate = "auto" | "ask";
  */
 export const KRATOS_TOOLS_REVIEWED_VERSION = "0.5.0";
 
+/** Same contract for the `pdf__*` rows and `PDF_MCP_VERSION`. */
+export const PDF_TOOLS_REVIEWED_VERSION = "0.2.1";
+
 export const DEFAULT_APPROVAL_MODE: ApprovalMode = "askOnWrite";
 
 export function isApprovalMode(value: unknown): value is ApprovalMode {
@@ -273,6 +276,22 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mcp__list_prompts: "read",
   mcp__get_prompt: "read",
 
+
+  // ---- pdf-insight-mcp (12), reviewed at PDF_TOOLS_REVIEWED_VERSION --------
+  // All read-only: every tool takes a `file_path` and returns text/JSON; none
+  // writes (the image tools return base64 in the result, not files).
+  pdf__get_pdf_info: "read",
+  pdf__read_pdf_as_text: "read",
+  pdf__read_pdf_as_images: "read",
+  pdf__get_pdf_outline: "read",
+  pdf__search_pdf_text: "read",
+  pdf__extract_pdf_tables: "read",
+  pdf__extract_pdf_images: "read",
+  pdf__get_pdf_page_info: "read",
+  pdf__extract_pdf_links: "read",
+  pdf__get_pdf_annotations: "read",
+  pdf__get_pdf_text_stats: "read",
+  pdf__compare_pdf_pages: "read",
 
   // ---- kratos-mcp-server (52), reviewed at KRATOS_TOOLS_REVIEWED_VERSION ---
   // Read: inspection, listing, validation and job/study status only.

@@ -42,6 +42,19 @@ await scenario('workspace', async c => {
     await until(async () => shell.evaluate(() => document.activeElement?.matches('.tab.active .tab-label')),
       'focus returns to the remaining tab');
   }
+  // An unroutable drop is answered with the suffix and a way to the supported-formats page.
+  const unsupported = path.join(c.dir, 'notes.txt'); fs.writeFileSync(unsupported, 'not a model\n');
+  const view = await c.page(app, 'mesh');
+  await view.evaluate(() => { const input = document.createElement('input'); input.type = 'file'; input.id = 'e2e-unsupported-drop'; input.hidden = true; document.body.append(input); });
+  await view.locator('#e2e-unsupported-drop').setInputFiles(unsupported);
+  await view.evaluate(() => {
+    const dataTransfer = new DataTransfer(); dataTransfer.items.add(document.getElementById('e2e-unsupported-drop').files[0]);
+    window.dispatchEvent(new DragEvent('drop', { dataTransfer, bubbles: true, cancelable: true }));
+  });
+  const note = shell.locator('.toast.warning').filter({ hasText: '.txt' });
+  await note.waitFor();
+  assert.match(await note.textContent(), /notes\.txt/);
+  assert.equal(await note.locator('button').textContent(), 'Supported formats');
   await menu(app, 'Reset Zoom'); await until(async () => await shell.locator('#zoom-select').inputValue() === '1');
   await until(async () => app.evaluate(({ webContents }) => webContents.getAllWebContents().filter(w => w.getURL().startsWith('kkss://')).every(w => Math.abs(w.getZoomFactor() - 1) < 0.01)), 'reset applies to every view');
 });

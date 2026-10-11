@@ -37,11 +37,14 @@ import {
   childrenQuery,
   DRIVE_ROOT,
   FILE_FIELDS,
+  FOLDER_MIME,
+  folderQuery,
   LIST_FIELDS,
   parseAboutUser,
   parseFileList,
   parseFileMeta,
 } from "../providerCore/gdriveCore";
+import { ensureFolderVia } from "../providerCore/folderCore";
 import { byFolderThenName } from "./dropbox";
 
 const API = "https://www.googleapis.com/drive/v3";
@@ -193,6 +196,31 @@ export class GoogleDriveProvider extends OAuthProviderBase {
       }
     );
     return this.finishResumable(start, localPath, size, options);
+  }
+
+  async ensureFolder(parentId: string, name: string): Promise<CloudFile> {
+    return ensureFolderVia({
+      label: this.label,
+      name,
+      find: async () => {
+        const url = new URL(`${API}/files`);
+        url.searchParams.set("q", folderQuery(parentId, name));
+        url.searchParams.set("fields", LIST_FIELDS);
+        url.searchParams.set("pageSize", "1");
+        return parseFileList(await this.json(url.toString())).files[0];
+      },
+      make: async () => {
+        const response = await this.authed(`${API}/files?fields=${FILE_FIELDS}`, {
+          method: "POST",
+          headers: { "content-type": "application/json; charset=UTF-8" },
+          body: JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parentId] }),
+        });
+        if (!response.ok) await this.fail(response, "create folder");
+        const folder = parseFileMeta(await response.json());
+        if (!folder) throw new CloudError("other", `Google Drive returned no folder for ${name}.`);
+        return folder;
+      },
+    });
   }
 
   /** Takes the session-init response's `Location` and streams the file to it. */

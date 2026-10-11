@@ -3,14 +3,15 @@ import { configureLocale } from "./services/locale";
 import { t } from "../shared/i18n";
 import { beginOpen, configurePerformance } from "./services/performance";
 /** KKSS Electron main entry. */
-import { app, clipboard, dialog, ipcMain, Menu } from "electron";
+import { app, clipboard, dialog, ipcMain, Menu, shell } from "electron";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
 import { managedConfig } from "./services/managedConfig";
 import { startHeadlessControl, prepareHeadlessShutdown } from "./services/headless";
 import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
-import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash } from "./windows";
+import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash, ViewRef } from "./windows";
+import { UnresponsiveGuard, type UnresponsiveAnswer } from "./unresponsiveGuard";
 import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
 import { rendererAssetsPresent } from "./mesh/rendererPage";
@@ -18,8 +19,9 @@ import { FlowgraphController } from "../../mesh/src/flowgraphController";
 import { RunManager } from "../../mesh/src/runManager";
 import { RecentMeshStore } from "../../mesh/src/recentMeshes";
 import { installMenu } from "./menu";
-import { modeForFile, modeForViewType } from "./router";
-import { LaunchQueue, launchFiles, localLaunchFile } from "./launch";
+import { modeForFile, modeForViewType, unsupportedSuffix } from "./router";
+import { DOCS_URL } from "./urls";
+import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsupportedLaunchFiles } from "./launch";
 import { showOpenDialog } from "./services/dialogs";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
@@ -41,11 +43,13 @@ import { defaultPythonPath } from "../../mesh/src/problemtype/kratosEnv";
 import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
 import { META_ACCESS_MIGRATED_KEY, metaAccessMigration, normalizeAllowedWrites, readMetaAccess } from "./services/metaServer/accessPolicy";
-import { configureNotifications, handleToastButton, progressToast, toast } from "./services/notifications";
+import { configureNotifications, handleToastButton, progressToast, toast, type ToastAction } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { recentFiles } from "./services/recentFiles";
 import { CloudService } from "./services/cloud/cloudService";
-import { PROVIDER_LABELS, type CloudRef, type ProviderId } from "./services/cloud/cloudCore";
+import { CloudError, PROVIDER_LABELS, type CloudRef, type ProviderId } from "./services/cloud/cloudCore";
+import { fillCloudTabs, type PendingCloudTab, type DownloadResult } from "./services/cloudRestore";
+import type { SessionCloudRef } from "./services/sessionCore";
 import { configureProjectRoot, projectRoot } from "./services/projectRoot";
 import { abbreviateHome, describeWithin, rootLabel } from "./services/projectRootCore";
 import {
@@ -95,25 +99,33 @@ if (!gotInstanceLock) {
 
 const launchQueue = new LaunchQueue();
 launchQueue.enqueue(launchFiles(process.argv, app.isPackaged, process.cwd()));
+const startupUnsupported = unsupportedLaunchFiles(process.argv, app.isPackaged, process.cwd());
 
 app.on("open-file", (event, value) => {
   event.preventDefault();
   const file = localLaunchFile(value, process.cwd());
   if (file) launchQueue.enqueue([file]);
-  else console.warn("Rejected unsupported external open request");
+  else {
+    console.warn("Rejected unsupported external open request");
+    reportUnsupported(unsupportedLaunchFile(value, process.cwd()));
+  }
   focusMainWindow();
 });
 app.on("open-url", (event, value) => {
   event.preventDefault();
   const file = localLaunchFile(value, process.cwd());
   if (file) launchQueue.enqueue([file]);
-  else console.warn("Rejected unsupported external open request");
+  else {
+    console.warn("Rejected unsupported external open request");
+    reportUnsupported(unsupportedLaunchFile(value, process.cwd()));
+  }
   focusMainWindow();
 });
 
 app.on("second-instance", (_event, argv, workingDirectory) => {
   focusMainWindow();
   launchQueue.enqueue(launchFiles(argv, app.isPackaged, workingDirectory));
+  reportUnsupported(...unsupportedLaunchFiles(argv, app.isPackaged, workingDirectory));
 });
 
 app.whenReady().then(() => {
@@ -155,10 +167,18 @@ let jobs: JobsService | null = null;
 let workflows: WorkflowService | undefined;
 let metaServer: MetaMcpServer | null = null;
 let cloud: CloudService | null = null;
-/** `before-quit` may hold the quit open exactly once to drain uploads. */
-let cloudDrainAttempted = false;
-/** ...and exactly once more to let the shell's exit be delivered (TerminalService.drain). */
-let shellDrainAttempted = false;
+/** `before-quit` holds the quit open exactly once: for cloud uploads and/or the live shell. */
+let quitDrainAttempted = false;
+
+/**
+ * True while the close handler could still cancel the quit: a live window with a
+ * dirty editor or CAD/mesh tab. Once the window is destroyed no prompt can run,
+ * even though Don't Save leaves its edits (so `isDirty()`) in place.
+ */
+function closeMayPrompt(): boolean {
+  if (!main || main.win.isDestroyed()) return false;
+  return editor?.isDirty() === true || [...cadHosts.values(), ...meshHosts.values()].some((host) => host.isDirty());
+}
 
 function sendShell(message: unknown): void {
   if (!main || main.win.isDestroyed() || main.shell.webContents.isDestroyed()) return;
@@ -300,20 +320,94 @@ let quitting = false;
 /** A toast the shell cannot show yet — because it is reloading after a crash,
  *  or because it has not finished its first load during launch. Replayed from
  *  the shellReady handshake. */
-let deferredShellToast: { kind: "info" | "warning" | "error"; text: string } | undefined;
+let deferredShellToast: { kind: "info" | "warning" | "error"; text: string; action?: ToastAction } | undefined;
 /** Whether the shell page is up. `toast()` is a silent no-op before its first
  *  load and while it reloads after a crash, so anything sent then must wait. */
 let shellUp = false;
 
 /** Toasts now if the shell can show it, otherwise on its next shellReady. */
-function shellToast(kind: "info" | "warning" | "error", text: string): void {
-  if (shellUp) toast(kind, text);
-  else deferredShellToast = { kind, text };
+function shellToast(kind: "info" | "warning" | "error", text: string, action?: ToastAction): void {
+  if (shellUp) toast(kind, text, action);
+  else deferredShellToast = { kind, text, action };
+}
+
+/** Tells the user why a file will not open and where the supported formats are
+ *  listed. Several files at once (a multi-file launch) are summed up as one
+ *  toast naming the first. Undefined entries are ignored. */
+function reportUnsupported(...files: (string | undefined)[]): void {
+  const named = files.filter((file): file is string => !!file);
+  if (!named.length) return;
+  const name = path.basename(named[0]);
+  const suffix = unsupportedSuffix(named[0]);
+  let text = suffix
+    ? t("Can't open {0}: KKSS doesn't read \"{1}\" files.", {0: name, 1: suffix})
+    : t("Can't open {0}: it has no file extension, so its format can't be told.", {0: name});
+  if (named.length > 1) text += " " + t("{0} other files were also skipped.", {0: String(named.length - 1)});
+  shellToast("warning", text, {
+    label: t("Supported formats"),
+    run: () => void shell.openExternal(`${DOCS_URL}guide/file-formats#which-mode-opens-what`),
+  });
+}
+
+function viewKey(ref: ViewRef): string {
+  return ref.kind === "tab" ? `tab:${ref.mode}:${ref.tabId}` : ref.kind;
+}
+
+function viewLabel(ref: ViewRef): string {
+  return ref.kind === "tab" ? (ref.mode === "cad" ? "CAD viewer" : "Mesh viewer") : `${ref.kind} view`;
+}
+
+/**
+ * A view that stays unresponsive gets a Wait / Reload prompt — never an
+ * automatic reload (see `unresponsiveGuard.ts` and the `windows.ts` note: a
+ * large mesh parse trips `unresponsive` legitimately). Reload is the user's
+ * click, so it does not count against the crash-loop budget and reuses
+ * `recoverView`, the crash path's own replay.
+ */
+const unresponsiveGuard = new UnresponsiveGuard<ViewRef>({
+  setTimer: (run, ms) => {
+    const handle = setTimeout(run, ms);
+    handle.unref?.(); // a pending prompt must never hold the process open
+    return handle;
+  },
+  clearTimer: (handle) => clearTimeout(handle as NodeJS.Timeout),
+  prompt: promptUnresponsive,
+  reload: (ref) => recoverView({ ...ref, reason: "unresponsive" }, viewLabel(ref), true),
+});
+
+async function promptUnresponsive(ref: ViewRef, info: { attempt: number; signal: AbortSignal }): Promise<UnresponsiveAnswer> {
+  if (quitting || !main) return "gone";
+  let detail: string | undefined;
+  if (ref.kind === "tab") {
+    const hosts: Map<string, CadHost | MeshHost> = ref.mode === "cad" ? cadHosts : meshHosts;
+    const host = ref.tabId ? hosts.get(ref.tabId) : undefined;
+    if (!host) return "gone"; // the tab was closed on the way here
+    if (host.currentFile) {
+      const name = path.basename(host.currentFile);
+      detail = host instanceof CadHost
+        ? t("Reloading reopens {0}; your edits are kept beside the file.", {0: name})
+        : host.isDirty()
+          ? t("Reloading reopens {0} and discards its unsaved changes in this tab.", {0: name})
+          : t("Reloading reopens {0}.", {0: name});
+    }
+  } else if (ref.kind === "editor" && editor?.isDirty()) {
+    detail = t("Reloading discards unsaved text in the editor.");
+  }
+  const { response } = await dialog.showMessageBox(main.win, {
+    type: "warning",
+    message: t("The {0} is not responding.", {0: viewLabel(ref)}),
+    detail: [t("It may only be busy with a large file. Wait gives it more time; Reload restarts this view."), detail].filter(Boolean).join("\n\n"),
+    buttons: [t("Wait"), t("Reload")],
+    defaultId: 0,
+    cancelId: 0,
+    signal: info.signal,
+  });
+  return response === 1 ? "reload" : "wait";
 }
 
 function onViewCrash(crash: ViewCrash): void {
   if (quitting || !main) return;
-  const key = crash.kind === "tab" ? `tab:${crash.mode}:${crash.tabId}` : crash.kind;
+  const key = viewKey(crash);
   const now = Date.now();
   const prev = recoveries.get(key);
   const count = prev && now - prev.last < RECOVERY_WINDOW_MS ? prev.count + 1 : 1;
@@ -327,7 +421,7 @@ function onViewCrash(crash: ViewCrash): void {
   recoverView(crash, label);
 }
 
-function recoverView(crash: ViewCrash, label: string): void {
+function recoverView(crash: ViewCrash, label: string, userInitiated = false): void {
   if (!main) return;
   if (crash.kind === "tab") {
     const { mode, tabId } = crash;
@@ -340,10 +434,12 @@ function recoverView(crash: ViewCrash, label: string): void {
       // rejects the pending promises a crash would otherwise leak forever —
       // so never also call reloadView here, or the two reloads race.
       host.openPath(file);
-      toast("warning", t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}));
+      toast("warning", userInitiated
+        ? t("{0} reloaded — {1}.", {0: label, 1: path.basename(file)})
+        : t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}));
     } else {
       main.reloadView(crash);
-      toast("warning", t("{0} crashed — reloaded.", {0: label}));
+      toast("warning", userInitiated ? t("{0} reloaded.", {0: label}) : t("{0} crashed — reloaded.", {0: label}));
     }
     return;
   }
@@ -354,13 +450,15 @@ function recoverView(crash: ViewCrash, label: string): void {
       // The toast renderer *is* the shell, so hold the message until it is back
       // (replayed from the shellReady handshake below).
       shellUp = false;
-      deferredShellToast = { kind: "warning", text: t("Toolbar reloaded after a crash.") };
+      deferredShellToast = { kind: "warning", text: userInitiated ? t("{0} reloaded.", {0: label}) : t("Toolbar reloaded after a crash.") };
       break;
     case "editor":
       if (editor?.notifyRendererGone()) {
-        toast("warning", t("Text editor crashed — reloaded from disk; unsaved changes were lost."));
+        toast("warning", userInitiated
+          ? t("Text editor reloaded from disk; unsaved changes were lost.")
+          : t("Text editor crashed — reloaded from disk; unsaved changes were lost."));
       } else {
-        toast("warning", t("Text editor crashed — reloaded."));
+        toast("warning", userInitiated ? t("{0} reloaded.", {0: label}) : t("Text editor crashed — reloaded."));
       }
       break;
     case "terminal":
@@ -384,10 +482,23 @@ function currentSession() {
   const snapshot = (mode: Mode) => {
     const hosts = mode === "cad" ? cadHosts : meshHosts;
     const activeId = main!.activeTabId(mode);
-    return {
-      files: main!.tabs(mode).map((t) => hosts.get(t.id)?.currentFile),
-      activeFile: activeId ? hosts.get(activeId)?.currentFile : undefined,
-    };
+    // A restored cloud tab still waiting on its download has no document yet;
+    // it keeps its saved path (and ref) so quitting mid-download does not lose it.
+    // Only while the tab is still blank: once the user has put another document
+    // into it, the pending entry (and its ref) no longer describes the tab.
+    const pendingOf = (tabId: string) => (hosts.get(tabId)?.currentFile ? undefined : pendingCloudTabs.get(tabId));
+    const fileOf = (tabId: string) => hosts.get(tabId)?.currentFile ?? pendingOf(tabId)?.path;
+    const files = main!.tabs(mode).map((t) => fileOf(t.id));
+    // The cloud origin of every open staged copy. It must ride the session:
+    // once the cache evicts a document its manifest entry goes with it, and
+    // nothing else can say where it came from (see SessionCloudRef).
+    const refs: Record<string, SessionCloudRef> = {};
+    main!.tabs(mode).forEach((t, k) => {
+      const file = files[k];
+      const ref = file ? (pendingOf(t.id)?.ref ?? cloud?.refFor(file)) : undefined;
+      if (file && ref) refs[file] = { provider: ref.provider, accountId: ref.accountId, itemId: ref.itemId, name: ref.name, ...(ref.parentId ? { parentId: ref.parentId } : {}) };
+    });
+    return { files, activeFile: activeId ? fileOf(activeId) : undefined, cloud: refs };
   };
   return captureSession({
     cad: snapshot("cad"),
@@ -399,7 +510,7 @@ function currentSession() {
 }
 
 const SESSION_SAVE_DEBOUNCE_MS = 1_000;
-/** How long `before-quit` may hold the quit open to finish uploads. */
+/** How long the quit hold may wait on cloud uploads (the shell has its own bounds: terminalShutdown.ts). */
 const CLOUD_DRAIN_TIMEOUT_MS = 10_000;
 /** Keeps the cache housekeeping off the launch critical path. */
 const CLOUD_STARTUP_DELAY_MS = 5_000;
@@ -409,6 +520,9 @@ let sessionSaveTimer: NodeJS.Timeout | undefined;
 /** True while restoreSession() is opening tabs — its own churn must not be
  *  captured half-finished. */
 let restoring = false;
+/** Restored cloud tabs whose document is still downloading, by tab id. The tab
+ *  exists (so order and focus are right) but its host has no file yet. */
+const pendingCloudTabs = new Map<string, { mode: Mode; path: string; ref: CloudRef }>();
 
 /**
  * Records the session as the user works, rather than only on quit: a SIGKILL
@@ -444,9 +558,10 @@ function syncTabs(mode: Mode): void {
       // remote one are the same except where the OS forced a substitution.
       fileName: file ? path.basename(file) : null,
       cloud: origin ? { provider: origin.providerLabel, name: origin.name } : undefined,
-      // cad has no unsaved-changes concept (sidecars autosave); mesh 3.18.0
-      // gave its previews one, tracked per tab by MeshHost.isDirty().
-      dirty: mode === "mesh" ? (host as MeshHost | undefined)?.isDirty() : undefined,
+      // mesh 3.18.0 gave its previews unsaved-edit tracking (MeshHost.isDirty());
+      // a CAD tab is dirty while it holds an unbaked tail on a source that can
+      // take it back (CadHost.isDirty — the document chip's own predicate).
+      dirty: host?.isDirty(),
     };
   });
   sendShell({ type: "tabs", mode, tabs, activeTabId: main.activeTabId(mode) });
@@ -459,6 +574,22 @@ function syncTabs(mode: Mode): void {
 const cadHostHooks = {
   onOpenRequest: (fsPath: string) => { void openFile(fsPath); },
   onTitle: () => syncTabs("cad"),
+  // A CAD tab's unsaved state (an unbaked tail on a source that can take it
+  // back) drives the same tab dot a dirty mesh tab shows.
+  onDirtyChanged: () => syncTabs("cad"),
+  // The first bake of a session rewrites the user's file — ask, like the
+  // provider's modal "Save in place" / "Cancel".
+  confirmSaveInPlace: async (message: string) => {
+    if (!main || main.win.isDestroyed()) return false;
+    const { response } = await dialog.showMessageBox(main.win, {
+      type: "warning",
+      message,
+      buttons: [t("Save in place"), t("Cancel")],
+      defaultId: 1,
+      cancelId: 1,
+    });
+    return response === 0;
+  },
   // Pre → post sync: a mesh exported from CAD that post mode can display
   // (.mdpa, .vtk, …) refreshes a matching clean tab or opens a NEW mesh tab.
   // Unrelated documents and tabs with unsaved operations are preserved.
@@ -605,25 +736,37 @@ function newTab(mode: Mode): void {
 }
 
 /**
- * Save / Don't Save / Cancel for a dirty mesh tab, mirroring
- * EditorService.confirmClose's exact dialog shape. cad has no unsaved-changes
- * concept (sidecars autosave), so this is only ever asked of a MeshHost.
- * Resolves false ("Cancel") to abort whatever wanted to discard the tab.
+ * Save / Don't Save / Cancel for a dirty tab, mirroring
+ * EditorService.confirmClose's exact dialog shape. Mesh tabs have been dirty
+ * since mesh 3.18.0; a CAD tab is dirty while its unbaked edit tail has not
+ * been written into the source file (File ▸ Save). Don't Save is harmless for
+ * CAD — the edits stay in the sidecar either way — and the dialog says so.
+ * Resolves false ("Cancel", or a Save that was declined or failed) to abort
+ * whatever wanted to discard the tab.
  */
-async function confirmDiscardMeshTab(host: MeshHost): Promise<boolean> {
+async function confirmDiscardTab(host: CadHost | MeshHost): Promise<boolean> {
   if (!main || !host.isDirty()) return true;
-  const name = host.currentFile ? path.basename(host.currentFile) : "this mesh";
+  const name = host.currentFile ? path.basename(host.currentFile) : t("this document");
   const { response } = await dialog.showMessageBox(main.win, {
     type: "warning",
     message: t("Save changes to {0}?", {0: name}),
+    detail: host instanceof CadHost
+      ? t("Your edits are kept beside the file either way. Save also writes them into {0} itself.", {0: name})
+      : undefined,
     buttons: [t("Save"), t("Don't Save"), t("Cancel")],
     defaultId: 0,
     cancelId: 2,
   });
   if (response === 2) return false;
+  // "Your edits are kept beside the file either way" has to be true the moment
+  // the dialog is answered, not 500 ms later: disposing a CAD tab clears its
+  // autosave timers, so flush them before Don't Save lets the tab go.
+  if (response === 1 && host instanceof CadHost) await host.flushSidecars();
   if (response === 0) {
     try {
-      await host.saveDocument();
+      // CadHost resolves false when the user declined the in-place
+      // confirmation; MeshHost has no such second prompt and resolves void.
+      if ((await host.saveDocument()) === false) return false;
     } catch (err) {
       toast("error", err instanceof Error ? err.message : String(err));
       return false; // the write failed — keep the tab open, still dirty
@@ -632,18 +775,19 @@ async function confirmDiscardMeshTab(host: MeshHost): Promise<boolean> {
   return true;
 }
 
-/** ✕ on a tab. cad has no dirty-prompt — sidecars autosave, same as any other
- *  document replace/close in this app (see CLAUDE.md's tabs invariant). mesh
- *  3.18.0 gave its previews unsaved-edit tracking, so a dirty mesh tab prompts
- *  first (confirmDiscardMeshTab) — Cancel leaves the tab open, untouched. */
+/** ✕ on a tab. A dirty tab — mesh since 3.18.0, CAD while it holds an unbaked
+ *  edit tail — prompts first (confirmDiscardTab); Cancel leaves it open,
+ *  untouched. A clean CAD tab is a plain dispose: its sidecars autosave. */
 async function closeTab(mode: Mode, tabId: string): Promise<void> {
   if (!main) return;
   const hosts = mode === "cad" ? cadHosts : meshHosts;
   const host = hosts.get(tabId);
-  if (mode === "mesh" && host instanceof MeshHost && !(await confirmDiscardMeshTab(host))) return;
+  if (host && !(await confirmDiscardTab(host))) return;
   const closing = host?.currentFile;
   host?.dispose();
   hosts.delete(tabId);
+  pendingCloudTabs.delete(tabId);
+  unresponsiveGuard.responsive(viewKey({ kind: "tab", mode, tabId })); // a closed tab has nothing to ask about
   main.closeTab(mode, tabId);
   // Stop watching the staging directory once no tab holds the document any
   // more. A pending upload still finishes — closing a tab must not discard a
@@ -764,13 +908,31 @@ async function clearCloudCache(): Promise<void> {
  * later session.
  */
 async function openCloudFile(ref: CloudRef, forcedMode?: Mode): Promise<void> {
-  if (!cloud) return;
-  // Already on disk from an earlier session: reopen without a round trip.
-  const cached = cloud.stagedPath(ref);
-  if (cached) {
-    if (await openFile(cached, forcedMode)) recordCloudRecent(cached, ref, forcedMode);
+  const result = await downloadCloud(ref);
+  if (!result.ok) {
+    if (result.kind !== "aborted") toast("error", t("Could not open {0}: {1}", {0: ref.name, 1: result.message}));
     return;
   }
+  try {
+    if (await openFile(result.path, forcedMode)) recordCloudRecent(result.path, ref, forcedMode);
+  } catch (err) {
+    toast("error", t("Could not open {0}: {1}", {0: ref.name, 1: err instanceof Error ? err.message : String(err)}));
+  }
+}
+
+/**
+ * Gets the local staging path for a cloud document — from the cache when it is
+ * already there, otherwise with a cancellable progress toast. Shared by the
+ * user-driven open (`openCloudFile`) and the session restore's background fill,
+ * which differ only in what they do with the path. Never throws and never
+ * toasts an error: the caller decides, since "not signed in" is one message for
+ * a whole restore but one per click for an open.
+ */
+async function downloadCloud(ref: CloudRef): Promise<DownloadResult> {
+  if (!cloud) return { ok: false, kind: "other", message: t("Cloud accounts are not available.") };
+  // Already on disk from an earlier session: no round trip.
+  const cached = cloud.stagedPath(ref);
+  if (cached) return { ok: true, path: cached };
   const progress = progressToast(t("Downloading {0}…", {0: ref.name}), true);
   const abort = new AbortController();
   progress.onCancel(() => abort.abort());
@@ -787,11 +949,11 @@ async function openCloudFile(ref: CloudRef, forcedMode?: Mode): Promise<void> {
         progress.report(transferLabel(ref.name, done, total));
       },
     });
-    if (await openFile(staged, forcedMode)) recordCloudRecent(staged, ref, forcedMode);
+    return { ok: true, path: staged };
   } catch (err) {
-    if (!abort.signal.aborted) {
-      toast("error", t("Could not open {0}: {1}", {0: ref.name, 1: err instanceof Error ? err.message : err}));
-    }
+    const message = err instanceof Error ? err.message : String(err);
+    if (abort.signal.aborted) return { ok: false, kind: "aborted", message };
+    return { ok: false, kind: err instanceof CloudError && err.kind === "auth" ? "auth" : "other", message };
   } finally {
     progress.done();
   }
@@ -842,7 +1004,7 @@ function openFile(fsPath: string, forcedMode?: Mode, external = false): Promise<
   const resolved = path.resolve(fsPath);
   const mode = forcedMode ?? modeForFile(resolved, main.mode());
   if (!mode) {
-    toast("warning", t("Unsupported file type: {0}", {0: path.basename(resolved)}));
+    reportUnsupported(resolved);
     return Promise.resolve(false);
   }
   const tabId = ensureActiveTab(mode);
@@ -853,7 +1015,7 @@ function openFile(fsPath: string, forcedMode?: Mode, external = false): Promise<
   pendingOpenHosts.add(host);
   return replaceDocument(
     () => !!main && !main.win.isDestroyed() && hosts.get(tabId) === host && host.currentFile === previous && (external || main.activeTabId(mode) === tabId),
-    () => host instanceof MeshHost ? confirmDiscardMeshTab(host) : Promise.resolve(true),
+    () => confirmDiscardTab(host),
     () => {
       beginOpen(resolved);
       host.openPath(resolved);
@@ -904,29 +1066,43 @@ function restoreSession(hasLaunchFile: boolean): boolean {
   // only ever appears as an in-pane banner, never a toast.
   const loaded = loadSession();
   if (!loaded) return false;
-  const { state, missing } = loaded;
+  const { missing } = loaded;
+  const state = loaded;
+  const fills: PendingCloudTab<CloudRef>[] = [];
 
   restoring = true;
   try {
     for (const mode of ["cad", "mesh"] as Mode[]) {
-      const { files, activeFile } = state[mode];
-      if (files.length === 0) continue;
+      const { slots, activeFile } = state[mode];
+      if (slots.length === 0) continue;
       // The blank starter tab this mode was seeded with; without closing it,
       // every launch would leave a leading empty tab behind.
       const starter = main.activeTabId(mode);
       const hosts = mode === "cad" ? cadHosts : meshHosts;
       let focusId: string | undefined;
-      for (const file of files) {
+      for (const { path: file, ref: saved } of slots) {
         const tab = createTab(mode);
-        // openPath, not openFile: the mode is already known (re-routing a
-        // restored .stl through modeForFile could flip it), tabs must be
-        // appended rather than replaced, and a restore is not a user open, so
-        // it must not touch the recents list.
-        hosts.get(tab.id)?.openPath(file);
-      // Restore bypasses stage()/stagedPath(), the only other places a staging
-      // directory starts being watched — without this a restored cloud tab
-      // would show the ☁ mark and silently never upload an edit again.
-      cloud?.trackIfStaged(file);
+        if (saved && cloud) {
+          // An evicted cloud document: keep its slot now, fill it once the
+          // download lands (restoreCloudTabs). Restore itself stays synchronous.
+          const ref: CloudRef = { ...saved, provider: saved.provider as ProviderId };
+          pendingCloudTabs.set(tab.id, { mode, path: file, ref });
+          fills.push({ tabId: tab.id, path: file, ref });
+        } else if (saved) {
+          // No cloud layer to fetch it with: same outcome as before — dropped.
+          void closeTab(mode, tab.id);
+          continue;
+        } else {
+          // openPath, not openFile: the mode is already known (re-routing a
+          // restored .stl through modeForFile could flip it), tabs must be
+          // appended rather than replaced, and a restore is not a user open, so
+          // it must not touch the recents list.
+          hosts.get(tab.id)?.openPath(file);
+          // Restore bypasses stage()/stagedPath(), the only other places a staging
+          // directory starts being watched — without this a restored cloud tab
+          // would show the ☁ mark and silently never upload an edit again.
+          cloud?.trackIfStaged(file);
+        }
         if (file === activeFile) focusId = tab.id;
       }
       if (starter) void closeTab(mode, starter);
@@ -956,11 +1132,67 @@ function restoreSession(hasLaunchFile: boolean): boolean {
     // and toast() silently drops anything sent before it is up.
     shellToast(
       "warning",
-      `Restored your last session — ${missing} file${missing === 1 ? "" : "s"} could not be found.`
+      missing === 1
+        ? t("Restored your last session — 1 file could not be found.")
+        : t("Restored your last session — {0} files could not be found.", {0: String(missing)})
     );
   }
+  if (fills.length) whenShellUp(() => void restoreCloudTabs(fills));
   saveSessionSoon();
   return true;
+}
+
+/** Runs `run` once the shell page can show toasts: now, or on its next shellReady. */
+const shellUpCallbacks: (() => void)[] = [];
+function whenShellUp(run: () => void): void {
+  if (shellUp) run();
+  else shellUpCallbacks.push(run);
+}
+
+/**
+ * Fills restored cloud tabs in the background (policy: services/cloudRestore.ts).
+ * Deliberately not `openFile`: that replaces the *focused* tab behind a dirty
+ * guard and records a recent, while a restore fills a *specific* tab it already
+ * made and, like the rest of restore, records nothing.
+ */
+async function restoreCloudTabs(tabs: PendingCloudTab<CloudRef>[]): Promise<void> {
+  const where = (tab: PendingCloudTab<CloudRef>) => pendingCloudTabs.get(tab.tabId);
+  await fillCloudTabs(tabs, {
+    download: (tab) => downloadCloud(tab.ref),
+    tabState: (tab) => {
+      const mode = where(tab)?.mode;
+      const host = mode ? (mode === "cad" ? cadHosts : meshHosts).get(tab.tabId) : undefined;
+      return !host ? "gone" : host.currentFile ? "used" : "untouched";
+    },
+    open: (tab, staged) => {
+      const mode = where(tab)?.mode;
+      if (!mode) return;
+      (mode === "cad" ? cadHosts : meshHosts).get(tab.tabId)?.openPath(staged);
+      cloud?.trackIfStaged(staged);
+      syncTabs(mode);
+    },
+    close: (tab) => {
+      const mode = where(tab)?.mode;
+      if (mode) void closeTab(mode, tab.tabId);
+    },
+    settle: (tab) => {
+      pendingCloudTabs.delete(tab.tabId);
+      saveSessionSoon();
+    },
+    notify: (event) => {
+      if (event.kind === "failed") {
+        toast("error", t("Could not open {0}: {1}", {0: event.tab.ref.name, 1: event.message}));
+      } else if (event.kind === "used") {
+        toast("info", t("{0} finished downloading, but its tab was in use — open it from Recent files.", {0: event.tab.ref.name}));
+      } else {
+        const label = providerLabel(event.provider);
+        toast("warning", event.count === 1
+          ? t("Not signed in to {0} — 1 document from your last session was not restored. Reconnect under Settings ▸ Cloud Accounts.", {0: label})
+          : t("Not signed in to {0} — {1} documents from your last session were not restored. Reconnect under Settings ▸ Cloud Accounts.", {0: label, 1: String(event.count)}));
+      }
+    },
+    stopped: () => quitting || !main || main.win.isDestroyed(),
+  });
 }
 
 /** Tells the shell which panels are showing, so the toolbar toggles read as pressed. */
@@ -1085,6 +1317,8 @@ app.whenReady().then(() => {
   configurePerformance();
   main = createMainWindow(__dirname, stateStore.get<number>(UI_ZOOM_KEY, DEFAULT_ZOOM) ?? DEFAULT_ZOOM, {
     onViewCrash,
+    onViewUnresponsive: (ref) => { if (!quitting) unresponsiveGuard.unresponsive(viewKey(ref), ref); },
+    onViewResponsive: (ref) => unresponsiveGuard.responsive(viewKey(ref)),
   });
   main.win.setBackgroundColor(windowBackground());
   configureNotifications(sendShell);
@@ -1152,9 +1386,9 @@ app.whenReady().then(() => {
   // Closing the window is the one destructive path for an unsaved buffer —
   // screen switches only hide the editor/mode views, so they need no guard.
   // mesh 3.18.0 gave its previews the same kind of unsaved-edit tracking the
-  // text editor already had; both are checked here rather than adding a
-  // second before-quit hold (which already carries a single-shot cloud-drain
-  // preventDefault it is best not to complicate further). Mesh tabs are
+  // text editor already had; both are checked here rather than in before-quit.
+  // The one before-quit hold waits for this prompt to resolve (`closeMayPrompt`),
+  // so a cancelled quit never finds its shell already shut down. Dirty tabs (CAD and mesh) are
   // confirmed first, one dialog per dirty tab, sequentially — a Cancel at any
   // point aborts the whole close before the editor is even asked. If the
   // editor is ALSO dirty, its own confirmClose() owns window.destroy() when
@@ -1162,12 +1396,12 @@ app.whenReady().then(() => {
   // itself once every mesh tab has resolved.
   main.win.on("close", (event) => {
     if (headlessStopping) return;
-    const dirtyMeshTabs = [...meshHosts.values()].filter((host) => host.isDirty());
-    if (!editor?.isDirty() && dirtyMeshTabs.length === 0) return;
+    const dirtyTabs = [...cadHosts.values(), ...meshHosts.values()].filter((host) => host.isDirty());
+    if (!closeMayPrompt()) return;
     event.preventDefault();
     void (async () => {
-      for (const host of dirtyMeshTabs) {
-        if (!(await confirmDiscardMeshTab(host))) return;
+      for (const host of dirtyTabs) {
+        if (!(await confirmDiscardTab(host))) return;
       }
       if (editor?.isDirty()) {
         void editor.confirmClose();
@@ -1503,6 +1737,7 @@ app.whenReady().then(() => {
         jobs?.publish();
         pushPanels();
         shellUp = true;
+        shellUpCallbacks.splice(0).forEach((run) => run());
         // The shell page may finish loading after a CLI file-open already ran
         // (or after a reload) — replay the current screen + tab strips + zoom.
         sendShell({ type: "screen", screen: main.screen() });
@@ -1511,7 +1746,7 @@ app.whenReady().then(() => {
         sendShell({ type: "zoom", factor: main.zoom() });
         pushProjectRoot();
         if (deferredShellToast) {
-          toast(deferredShellToast.kind, deferredShellToast.text);
+          toast(deferredShellToast.kind, deferredShellToast.text, deferredShellToast.action);
           deferredShellToast = undefined;
         }
         break;
@@ -1571,6 +1806,7 @@ app.whenReady().then(() => {
   checkForNewVersion();
 
   // Each external open gets an empty tab, preserving restored and active work.
+  reportUnsupported(...startupUnsupported);
   launchQueue.ready(file => {
     const mode = modeForFile(file, main!.mode());
     if (!mode) return;
@@ -1592,12 +1828,19 @@ async function stopHeadless(): Promise<void> {
     ...[...meshHosts.values()].filter(host => host.isDirty()).map(host => () => host.saveForShutdown(path.join(app.getPath("userData"), "recovery"))),
     () => editor?.saveForShutdown(path.join(app.getPath("userData"), "recovery")) ?? Promise.resolve(),
   ], async () => {
-    if (cloud?.hasPending()) await Promise.race([
-      cloud.flushPending(),
-      new Promise<void>((_, reject) => setTimeout(() => reject(new Error("Cloud upload drain timed out; pending uploads retained")), CLOUD_DRAIN_TIMEOUT_MS)),
-    ]);
+    // Awaited even when the cloud drain rejects: quit goes on to `will-quit`
+    // either way, and a shell still exiting must not outlive it.
+    const shell = terminal?.shutdown() ?? Promise.resolve();
+    try {
+      if (cloud?.hasPending()) await Promise.race([
+        cloud.flushPending(),
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error("Cloud upload drain timed out; pending uploads retained")), CLOUD_DRAIN_TIMEOUT_MS)),
+      ]);
+    } finally {
+      await shell;
+    }
   });
-  cloudDrainAttempted = true;
+  quitDrainAttempted = true;
   if (failures.length) { headlessExitCode = 1; console.error("Headless persistence failures:", failures); }
   if (app.isReady()) {
     if (main) saveSession(currentSession());
@@ -1635,34 +1878,40 @@ if (process.env.KKSS_HEADLESS === "1") {
 app.on("before-quit", (event) => {
   if (process.env.KKSS_HEADLESS === "1" && !headlessPrepared) { event.preventDefault(); void stopHeadless(); return; }
   quitting = true;
-  // `will-quit` cannot await and an HTTPS upload cannot finish synchronously,
-  // so this is the only window Electron gives an async task at shutdown. Held
-  // open exactly once — the flag makes a repeated preventDefault impossible, so
-  // a stuck upload can delay the quit by the cap and never block it.
-  if (!cloudDrainAttempted && cloud?.hasPending()) {
-    cloudDrainAttempted = true;
-    event.preventDefault();
-    const progress = progressToast(t("Finishing cloud uploads…"), false);
-    void Promise.race([
-      cloud.flushPending(),
+  // `will-quit` cannot await, so this is the only window Electron gives an async
+  // task at shutdown: an HTTPS upload draining, or the live shell's exit being
+  // delivered while the app can still take it (terminal.ts). Held open exactly
+  // once — the flag makes a repeated preventDefault impossible, so a stuck upload
+  // or shell can delay the quit by its cap and never block it. Taken only when no
+  // dirty prompt can still cancel the quit, so a cancelled quit keeps the shell
+  // running; once those prompts resolve, the window closes, `window-all-closed`
+  // quits again, and the hold runs then.
+  if (quitDrainAttempted || closeMayPrompt()) return;
+  const pendingCloud = cloud?.hasPending() === true ? cloud : null;
+  const liveShell = terminal?.hasLiveShell() === true ? terminal : null;
+  if (!pendingCloud && !liveShell) return;
+  quitDrainAttempted = true;
+  event.preventDefault();
+  const progress = pendingCloud ? progressToast(t("Finishing cloud uploads…"), false) : undefined;
+  void Promise.allSettled([
+    pendingCloud && Promise.race([
+      pendingCloud.flushPending(),
       new Promise((resolve) => setTimeout(resolve, CLOUD_DRAIN_TIMEOUT_MS)),
-    ]).finally(() => {
-      progress.done();
-      // Anything still unsent stays `dirty: true` in the manifest and is
-      // offered again on the next launch, rather than vanishing silently.
-      app.quit();
-    });
-  } else if (!shellDrainAttempted && terminal?.hasLiveShell()) {
-    // The shell's exit must reach JS before Electron starts tearing the
-    // environment down (see TerminalService.drain). Once only, like the cloud hold.
-    shellDrainAttempted = true;
-    event.preventDefault();
-    void terminal.drain().finally(() => app.quit());
-  }
+    ]),
+    liveShell?.shutdown(),
+  ]).then((results) => {
+    for (const result of results) if (result.status === "rejected") console.error("Quit drain failed", result.reason);
+  }).finally(() => {
+    progress?.done();
+    // Anything still unsent stays `dirty: true` in the manifest and is
+    // offered again on the next launch, rather than vanishing silently.
+    app.quit();
+  });
 });
 
 app.on("will-quit", () => {
   quitting = true;
+  unresponsiveGuard.dispose();
   // Capture the final session BEFORE flushSync(): that call marks the store
   // stopped, after which every queued write returns early — saving afterwards
   // would be silently dropped on every quit.

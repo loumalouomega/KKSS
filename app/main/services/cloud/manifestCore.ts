@@ -12,7 +12,16 @@
  * a hand-edited or half-written manifest degrades to "these entries are gone",
  * never to a crash on launch.
  */
+import { MAX_COMPANION_FILES } from "./cachePathCore";
 import type { ProviderId } from "./cloudCore";
+
+/** Revision baseline of one companion file (a sibling or a file inside a tree),
+ *  keyed in `CloudEntry.companions` by its "/"-relative path. Same meaning as
+ *  the document's own `remoteRev`/`remotePrecondition`. */
+export interface CompanionBaseline {
+  rev?: string;
+  precondition?: string;
+}
 
 export interface CloudEntry {
   provider: ProviderId;
@@ -33,11 +42,30 @@ export interface CloudEntry {
   /** A local change that has not landed remotely. Survives a crash, which is
    *  what makes an interrupted upload recoverable instead of silent. */
   dirty?: boolean;
+  /** Baselines for the document's companions (see `companionsFor`). Optional,
+   *  so older manifests read unchanged — no version bump. */
+  companions?: Record<string, CompanionBaseline>;
 }
 
 export type Manifest = Record<string, CloudEntry>;
 
 const PROVIDERS = new Set(["gdrive", "dropbox", "onedrive"]);
+
+function parseCompanions(value: unknown): Record<string, CompanionBaseline> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const out: Record<string, CompanionBaseline> = {};
+  let count = 0;
+  for (const [rel, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!raw || typeof raw !== "object" || count >= MAX_COMPANION_FILES) continue;
+    const v = raw as Record<string, unknown>;
+    out[rel] = {
+      rev: typeof v.rev === "string" ? v.rev : undefined,
+      precondition: typeof v.precondition === "string" ? v.precondition : undefined,
+    };
+    count++;
+  }
+  return count ? out : undefined;
+}
 
 function parseEntry(value: unknown): CloudEntry | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -61,6 +89,7 @@ function parseEntry(value: unknown): CloudEntry | undefined {
     syncedAt: num(v.syncedAt, 0),
     lastOpenedAt: num(v.lastOpenedAt, num(v.syncedAt, 0)),
     dirty: v.dirty === true ? true : undefined,
+    companions: parseCompanions(v.companions),
   };
 }
 

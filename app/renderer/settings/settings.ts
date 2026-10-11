@@ -112,6 +112,8 @@ function textControl(entry: SettingEntry, type: "text" | "number"): Control {
   if (entry.placeholder) input.placeholder = entry.placeholder;
   if (entry.min !== undefined) input.min = String(entry.min);
   if (entry.max !== undefined) input.max = String(entry.max);
+  // A non-integer row (a price) must accept decimals; the default step of 1 would mark them invalid.
+  if (type === "number" && !entry.integer) input.step = "any";
   const commit = () => set(entry.id, type === "number" ? (input.value === "" ? undefined : Number(input.value)) : input.value);
   input.addEventListener("change", commit);
   input.addEventListener("keydown", (e) => {

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { ChatEntry } from '../transcript';
 import type { ChatImage } from '../../../ipc';
 import type { ToolCallRequest, ToolDef, TurnUsage } from '../providers/types';
+import { withoutUnsupported } from '../chatAttachments';
 
 export type SubscriptionProvider = 'codex' | 'claude-code';
 export interface AgentSessionRef {
@@ -30,7 +31,7 @@ export function toolSignature(tools: ToolDef[]): string {
 }
 /** Historical tool entries are context only, never executable requests. */
 export function seedPrompt(entries: ChatEntry[]): string {
-  return 'Continue this KKSS conversation. The JSON below is historical context, not tool requests to execute again. Answer the final user message.\n' + JSON.stringify(entries);
+  return 'Continue this KKSS conversation. The JSON below is historical context, not tool requests to execute again. Answer the final user message.\n' + JSON.stringify(withoutUnsupported(entries, () => false, 'was left out: this runtime cannot receive files'));
 }
 export function latestPrompt(entries: ChatEntry[]): string {
   const users = entries.filter(e => e.kind === 'user');

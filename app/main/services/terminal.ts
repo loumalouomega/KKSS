@@ -10,6 +10,7 @@ import * as os from "node:os";
 import * as pty from "node-pty";
 import type { TermToHost, TermToWebview } from "../ipc";
 import { stateStore } from "./stateStore";
+import { endShell } from "./terminalShutdown";
 
 /** Settings ▸ Terminal Shell override, else the platform default. */
 function configuredShell(): string {
@@ -24,6 +25,8 @@ export class TerminalService {
   private target: WebContents | null = null;
   private lastCols = 80;
   private lastRows = 24;
+  /** Settles when the current shell's exit has been observed (set in `spawn`). */
+  private exited: Promise<void> | null = null;
 
   /**
    * @param cwdProvider Directory for new shells (current file's dir, or home).
@@ -80,51 +83,45 @@ export class TerminalService {
       env: process.env as Record<string, string>,
     });
     this.proc = proc;
+    let markExited = (): void => undefined;
+    this.exited = new Promise<void>((resolve) => {
+      markExited = () => resolve();
+    });
     proc.onData((data) => this.send({ type: "data", data }));
+    // node-pty calls this from a native callback with no exception guard, so
+    // nothing may throw out of it: an escape aborts the whole app. Resolving
+    // first lets `shutdown()` finish even if the notice below fails.
     proc.onExit(({ exitCode }) => {
+      markExited();
       if (this.proc === proc) this.proc = null;
-      this.send({ type: "exit", code: exitCode });
+      try {
+        this.send({ type: "exit", code: exitCode });
+      } catch (error) {
+        console.error("Terminal exit notice failed", error);
+      }
     });
   }
 
-  /** Whether a shell process is alive. Quit holds until `drain()` has run. */
+  /** Whether a shell process is running (its exit has not been observed yet). */
   hasLiveShell(): boolean {
     return this.proc !== null;
   }
 
   /**
-   * Kills the shell and resolves once its exit has been delivered. Quit waits
-   * for this because node-pty reports an exit from a native thread: if that
-   * report lands after Electron has begun tearing the JS environment down, the
-   * N-API call fails and an uncaught Napi::Error aborts the process (SIGABRT),
-   * which is what the accessibility acceptance scenario hit in CI. A shell that
-   * ignores SIGHUP is escalated to SIGKILL, so it cannot hold quit open.
+   * Ends the shell and resolves once its exit has been observed, or the bounded
+   * waits in `endShell` gave up. Quit awaits this in `before-quit`, so node-pty's
+   * exit callback is delivered while the app is still alive to take it.
    */
-  async drain(timeoutMs = 1500): Promise<void> {
+  async shutdown(): Promise<void> {
     const proc = this.proc;
-    if (!proc) return;
-    const exited = new Promise<void>((resolve) => proc.onExit(() => resolve()));
-    proc.kill();
-    if (!(await settledWithin(exited, timeoutMs))) {
-      proc.kill("SIGKILL");
-      await settledWithin(exited, timeoutMs);
-    }
-    if (this.proc === proc) this.proc = null;
+    const exited = this.exited;
+    if (!proc || !exited) return;
+    await endShell({ kill: (signal) => proc.kill(signal), exited }, process.platform);
   }
 
+  /** Last-resort kill for `will-quit`, for a shell `shutdown()` did not reap. */
   dispose(): void {
     this.proc?.kill();
     this.proc = null;
   }
-}
-
-/** Resolves true if `promise` settles within `ms`, false on timeout. */
-function settledWithin(promise: Promise<void>, ms: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), ms);
-    void promise.then(() => {
-      clearTimeout(timer);
-      resolve(true);
-    });
-  });
 }

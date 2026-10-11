@@ -28,7 +28,7 @@ export async function scenario(name, run) {
     }
     throw error;
   }
-  finally { // Still running only: an app killed by a signal has exitCode null too, and
-// closing it again makes Playwright throw while masking the real failure.
-for (const l of launches) if (l.process.exitCode === null && l.process.signalCode === null) await closeApp(l.app); fs.rmSync(dir, { recursive: true, force: true }); }
+  // Closes only apps still running: a signal-killed one has exitCode null too,
+  // and closing it again is what threw over the scenario's own failure.
+  finally { for (const l of launches) if (l.process.exitCode === null && l.process.signalCode === null) await closeApp(l.app); fs.rmSync(dir, { recursive: true, force: true }); }
 }

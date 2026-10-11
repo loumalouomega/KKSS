@@ -111,6 +111,56 @@ export function isSidecarOf(modelName: string, candidate: string): boolean {
   return candidate === `${meshStem(modelName)}${MESH_VIEW_SIDECAR}`;
 }
 
+/** Files a document needs that are not KKSS-written sidecars: a sibling
+ *  (XDMF's `.h5`) or a nested directory (OpenFOAM's `constant/polyMesh`). */
+export interface CompanionSpec {
+  /** Sibling file names, relative to the document's directory. */
+  siblings: string[];
+  /** "/"-joined directories, relative to the document's directory. */
+  trees: string[];
+}
+
+/** Upper bound on files transferred for one document's companions. A tree is
+ *  followed on download, so a runaway remote folder must not fill the cache. */
+export const MAX_COMPANION_FILES = 200;
+/** How many path segments below a tree's root a companion may sit
+ *  (`sets/foo` is 2): polyMesh stays shallow, and the cap bounds the watcher. */
+export const MAX_TREE_DEPTH = 2;
+
+/**
+ * The companions of a staged document, by format. **Declarative on purpose:**
+ * "every other file in this directory is a sidecar" stopped being a safe rule
+ * the moment a tree could live beside the document, so anything uploaded or
+ * downloaded beyond the sidecar names must be named here.
+ */
+export function companionsFor(modelName: string): CompanionSpec {
+  const ext = meshExtname(modelName);
+  if (ext === ".xdmf" || ext === ".xmf") {
+    return { siblings: [`${meshStem(modelName)}.h5`], trees: [] };
+  }
+  if (ext === ".foam") return { siblings: [], trees: ["constant/polyMesh"] };
+  return { siblings: [], trees: [] };
+}
+
+/** How deep (in directory levels) the staging watcher must look. 0 = root only. */
+export function companionWatchDepth(modelName: string): number {
+  const { trees } = companionsFor(modelName);
+  return trees.reduce((max, tree) => Math.max(max, tree.split("/").length + MAX_TREE_DEPTH), 0);
+}
+
+/** Whether a "/"-relative path under the document's directory is one of its
+ *  companions. Rejects traversal and any staging artifact at any segment. */
+export function isCompanionPath(modelName: string, relPath: string): boolean {
+  const segments = relPath.split("/");
+  if (segments.some((s) => !s || s === "." || s === ".." || isStagingArtifact(s))) return false;
+  const { siblings, trees } = companionsFor(modelName);
+  if (siblings.includes(relPath)) return true;
+  return trees.some((tree) => {
+    if (!relPath.startsWith(`${tree}/`)) return false;
+    return relPath.slice(tree.length + 1).split("/").length <= MAX_TREE_DEPTH;
+  });
+}
+
 /** Every sidecar name `stage()` should look for beside a remote model. */
 export function sidecarNamesFor(modelName: string): string[] {
   return [

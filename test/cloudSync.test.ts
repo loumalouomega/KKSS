@@ -26,9 +26,26 @@ const settle = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 const watcherReady = () => settle(300);
 
 interface Call {
-  op: "upload" | "create" | "stat" | "findChild";
+  op: "upload" | "create" | "stat" | "findChild" | "ensureFolder";
   id?: string;
   name?: string;
+  parent?: string;
+}
+
+/** Same factory the app uses, with the same relative-path reporting. */
+function watchLikeTheApp(watchDir: string, onChange: (rel: string) => void, depth: number) {
+  const watcher = createFileSystemWatcher(watchDir, "*", { depth });
+  const rel = (p: string) => path.relative(watchDir, p).split(path.sep).join("/");
+  const subs = [
+    watcher.onDidChange((p) => onChange(rel(p))),
+    watcher.onDidCreate((p) => onChange(rel(p))),
+  ];
+  return {
+    dispose() {
+      for (const s of subs) s.dispose();
+      watcher.dispose();
+    },
+  };
 }
 
 class FakeProvider implements CloudProvider {
@@ -47,6 +64,10 @@ class FakeProvider implements CloudProvider {
   };
   /** Sidecars that already exist remotely, by name. */
   existing = new Map<string, CloudFile>();
+  /** Items that exist remotely, by `<parentId>|<name>` — checked first. */
+  existingAt = new Map<string, CloudFile>();
+  /** Names whose `create` throws. */
+  failCreate = new Set<string>();
   failNext: Error | undefined;
   failAlways: Error | undefined;
   /** When set, `stat` blocks on it — lets a test observe a pass mid-flight. */
@@ -70,9 +91,13 @@ class FakeProvider implements CloudProvider {
     if (this.gate) await this.gate;
     return this.remote;
   }
-  async findChild(_parentId: string, name: string): Promise<CloudFile | undefined> {
-    this.calls.push({ op: "findChild", name });
-    return this.existing.get(name);
+  async findChild(parentId: string, name: string): Promise<CloudFile | undefined> {
+    this.calls.push({ op: "findChild", name, parent: parentId });
+    return this.existingAt.get(`${parentId}|${name}`) ?? this.existing.get(name);
+  }
+  async ensureFolder(parentId: string, name: string): Promise<CloudFile> {
+    this.calls.push({ op: "ensureFolder", name, parent: parentId });
+    return { id: `${parentId}/${name}`, name, isFolder: true };
   }
   async download() {}
   async upload(fileId: string, _localPath: string): Promise<CloudFile> {
@@ -86,8 +111,9 @@ class FakeProvider implements CloudProvider {
     this.remote = { ...this.remote, rev: "r2", precondition: "r2" };
     return this.remote;
   }
-  async create(_parentId: string, name: string): Promise<CloudFile> {
-    this.calls.push({ op: "create", name });
+  async create(parentId: string, name: string): Promise<CloudFile> {
+    this.calls.push({ op: "create", name, parent: parentId });
+    if (this.failCreate.has(name)) throw new Error(`create ${name} failed`);
     return { id: `new:${name}`, name, isFolder: false, rev: "rn", precondition: "rn" };
   }
 
@@ -131,19 +157,7 @@ beforeEach(async () => {
     saveEntry: (key, value) => {
       manifest[key] = value;
     },
-    watch: (watchDir, onChange) => {
-      const watcher = createFileSystemWatcher(watchDir, "*");
-      const subs = [
-        watcher.onDidChange((p) => onChange(path.basename(p))),
-        watcher.onDidCreate((p) => onChange(path.basename(p))),
-      ];
-      return {
-        dispose() {
-          for (const s of subs) s.dispose();
-          watcher.dispose();
-        },
-      };
-    },
+    watch: watchLikeTheApp,
     toast: (kind, text) => toasts.push({ kind, text }),
     debounceMs: DEBOUNCE,
     now: () => Date.UTC(2026, 8, 6, 14, 3, 11),
@@ -333,5 +347,170 @@ describe("CloudSync", () => {
     await settle();
     await sync.flushPending();
     expect(provider.calls).toEqual([]);
+  });
+});
+
+describe("CloudSync companions", () => {
+  let cdir: string;
+  let csync: CloudSync;
+  let cmanifest: Manifest;
+  let cprovider: FakeProvider;
+  let ctoasts: Array<{ kind: string; text: string }>;
+  const KEY = "dropbox/xyz/case.foam";
+
+  const setup = async (fileName: string, over: Partial<CloudEntry> = {}) => {
+    cdir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-sync-comp-"));
+    fs.writeFileSync(path.join(cdir, fileName), "");
+    cprovider = new FakeProvider();
+    ctoasts = [];
+    cmanifest = { [KEY]: entry({ itemId: "doc", name: fileName, ...over }) };
+    csync = new CloudSync({
+      provider: (id) => (id === "dropbox" ? cprovider : undefined),
+      entry: (key) => cmanifest[key],
+      saveEntry: (key, value) => {
+        cmanifest[key] = value;
+      },
+      watch: watchLikeTheApp,
+      toast: (kind, text) => ctoasts.push({ kind, text }),
+      debounceMs: DEBOUNCE,
+      now: () => Date.UTC(2026, 8, 6, 14, 3, 11),
+    });
+    csync.track({ key: KEY, dir: cdir, fileName });
+    await watcherReady();
+  };
+  const cwrite = (rel: string, text = "x") => {
+    const full = path.join(cdir, ...rel.split("/"));
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, text);
+  };
+  const flush = async () => {
+    await settle();
+    await csync.flushPending();
+  };
+
+  afterEach(() => {
+    csync.dispose();
+    fs.rmSync(cdir, { recursive: true, force: true });
+  });
+
+  it("creates the polyMesh folders once and uploads every file into them", async () => {
+    await setup("case.foam");
+    cwrite("constant/polyMesh/points");
+    cwrite("constant/polyMesh/faces");
+    await flush();
+    const folders = cprovider.calls.filter((c) => c.op === "ensureFolder");
+    expect(folders.map((c) => `${c.parent}>${c.name}`)).toEqual([
+      "/kkss>constant",
+      "/kkss/constant>polyMesh",
+    ]);
+    const created = cprovider.calls.filter((c) => c.op === "create");
+    expect(created.map((c) => c.name).sort()).toEqual(["faces", "points"]);
+    expect(created.every((c) => c.parent === "/kkss/constant/polyMesh")).toBe(true);
+    expect(cmanifest[KEY].dirty).toBe(false);
+    expect(Object.keys(cmanifest[KEY].companions ?? {}).sort()).toEqual([
+      "constant/polyMesh/faces",
+      "constant/polyMesh/points",
+    ]);
+  });
+
+  it("ignores files outside the declared tree", async () => {
+    await setup("case.foam");
+    cwrite("system/controlDict");
+    cwrite("constant/other/thing");
+    cwrite("constant/polyMesh/.hidden");
+    cwrite("constant/polyMesh/points.12345.tmp");
+    cwrite("constant/polyMesh/a/b/c/too-deep");
+    await flush();
+    expect(cprovider.calls).toEqual([]);
+  });
+
+  it("overwrites a companion whose remote revision matches the stored baseline", async () => {
+    await setup("case.foam", {
+      companions: { "constant/polyMesh/points": { rev: "p1", precondition: "p1" } },
+    });
+    cprovider.existingAt.set("/kkss/constant/polyMesh|points", {
+      id: "remote-points",
+      name: "points",
+      isFolder: false,
+      rev: "p1",
+      precondition: "p1",
+    });
+    cwrite("constant/polyMesh/points", "edited");
+    await flush();
+    expect(cprovider.calls.find((c) => c.op === "upload")?.id).toBe("remote-points");
+    expect(cprovider.countOf("create")).toBe(0);
+    expect(cmanifest[KEY].companions?.["constant/polyMesh/points"]?.rev).toBe("r2");
+  });
+
+  it("keeps the local file and uploads a conflict copy when the remote moved", async () => {
+    await setup("case.foam", {
+      companions: { "constant/polyMesh/points": { rev: "p1", precondition: "p1" } },
+    });
+    cprovider.existingAt.set("/kkss/constant/polyMesh|points", {
+      id: "remote-points",
+      name: "points",
+      isFolder: false,
+      rev: "p-changed",
+    });
+    cwrite("constant/polyMesh/points", "edited");
+    await flush();
+    expect(cprovider.countOf("upload")).toBe(0);
+    expect(cprovider.calls.find((c) => c.op === "create")?.name).toBe(
+      "points (conflict 2026-09-06 14-03-11)"
+    );
+    expect(ctoasts.some((x) => x.kind === "warning")).toBe(true);
+    // The remote's revision is the new baseline, so the next tick is quiet.
+    expect(cmanifest[KEY].companions?.["constant/polyMesh/points"]?.rev).toBe("p-changed");
+    expect(fs.readFileSync(path.join(cdir, "constant/polyMesh/points"), "utf8")).toBe("edited");
+  });
+
+  it("treats an existing remote companion with no baseline as a conflict", async () => {
+    await setup("case.foam");
+    cprovider.existingAt.set("/kkss/constant/polyMesh|points", {
+      id: "remote-points",
+      name: "points",
+      isFolder: false,
+      rev: "p1",
+    });
+    cwrite("constant/polyMesh/points");
+    await flush();
+    expect(cprovider.countOf("upload")).toBe(0);
+    expect(cprovider.calls.find((c) => c.op === "create")?.name).toContain("(conflict");
+  });
+
+  it("uploads XDMF's sibling .h5", async () => {
+    await setup("run.xdmf");
+    cwrite("run.h5");
+    cwrite("other.h5");
+    await flush();
+    const created = cprovider.calls.filter((c) => c.op === "create");
+    expect(created.map((c) => c.name)).toEqual(["run.h5"]);
+    expect(created[0].parent).toBe("/kkss");
+    expect(cprovider.countOf("ensureFolder")).toBe(0);
+  });
+
+  it("does not repeat what landed when a later file in the pass fails", async () => {
+    await setup("case.foam");
+    cprovider.failCreate.add("faces");
+    cwrite("case.foam", "marker edited");
+    cwrite("constant/polyMesh/points");
+    cwrite("constant/polyMesh/faces");
+    await flush();
+    expect(cmanifest[KEY].dirty).toBe(true);
+    expect(csync.hasPending()).toBe(true);
+    const uploadsBefore = cprovider.countOf("upload");
+    cprovider.failCreate.clear();
+    cprovider.calls.length = 0;
+    await csync.flushPending();
+    // The document landed in the first pass and is not re-uploaded against its
+    // stale baseline (which would read our own write as a remote edit).
+    expect(cprovider.countOf("upload")).toBe(0);
+    expect(uploadsBefore).toBe(1);
+    expect(cprovider.calls.map((c) => c.name)).toContain("faces");
+    expect(Object.keys(cmanifest[KEY].companions ?? {}).sort()).toEqual([
+      "constant/polyMesh/faces",
+      "constant/polyMesh/points",
+    ]);
+    expect(cmanifest[KEY].dirty).toBe(false);
   });
 });

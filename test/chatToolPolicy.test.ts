@@ -21,6 +21,7 @@ import {
   isApprovalMode,
   TOOL_ACCESS,
   KRATOS_TOOLS_REVIEWED_VERSION,
+  PDF_TOOLS_REVIEWED_VERSION,
   type ApprovalMode,
   unclassifiedTools,
 } from "../app/main/services/chat/toolPolicy";
@@ -33,6 +34,7 @@ import {
   readMetaAccess,
 } from "../app/main/services/metaServer/accessPolicy";
 import { KRATOS_MCP_VERSION } from "../app/main/services/chat/kratosMcpVersion";
+import { PDF_MCP_VERSION } from "../app/main/services/chat/pdfMcpVersion";
 
 const none = new Set<string>();
 const root = path.resolve(__dirname, "..");
@@ -210,11 +212,11 @@ describe("unclassifiedTools", () => {
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
     // 74 cad + 44 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
-    // + 52 kratos-mcp-server tools (reviewed at the pinned version).
+    // + 52 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(205);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(217);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
@@ -225,7 +227,9 @@ describe("the table itself", () => {
     expect(app).toHaveLength(31);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
     expect(kratos).toHaveLength(52);
-    expect(cad.length + mesh.length + meta.length + app.length + kratos.length).toBe(Object.keys(TOOL_ACCESS).length);
+    const pdf = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("pdf__"));
+    expect(pdf).toHaveLength(12);
+    expect(cad.length + mesh.length + meta.length + app.length + kratos.length + pdf.length).toBe(Object.keys(TOOL_ACCESS).length);
   });
 
   it("matches every currently registered CAD and mesh MCP tool by exact name", () => {
@@ -243,6 +247,12 @@ describe("the table itself", () => {
       .filter((name) => name.startsWith("cad__") || name.startsWith("mesh__"))
       .sort();
     expect(classified).toEqual(actual);
+  });
+
+  it("ties the PDF rows to the pinned server release, and every one is read-only", () => {
+    expect(PDF_TOOLS_REVIEWED_VERSION).toBe(PDF_MCP_VERSION);
+    const rows = Object.entries(TOOL_ACCESS).filter(([name]) => name.startsWith("pdf__"));
+    expect(rows.every(([, access]) => access === "read")).toBe(true);
   });
 
   it("ties the Kratos rows to the pinned server release", () => {
