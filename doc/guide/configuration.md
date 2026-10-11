@@ -77,6 +77,8 @@ The **scale picker** on the right of the shell toolbar (75 %–150 %) sets how l
 | OpenCode API Key | one key for both Zen and Go (from `https://opencode.ai/auth`) | — |
 | OpenCode Zen Model | any Zen `chat/completions` model id | `glm-5.3-flash` |
 | OpenCode Go Model | any Go `chat/completions` model id | `glm-5.3-flash` |
+| Thinking | `Auto` / `Off` / `Low effort` / `High effort` — also the brain picker in the chat sidebar; not used by the subscription providers | Auto |
+| Max Output Tokens | upper bound on one reply (256–128000); empty keeps the built-in 16000 (Anthropic) or the gateway default | — |
 | Tool Approval | `Ask before tools that change files` / `Ask before every tool` / `Never ask` | Ask before tools that change files |
 
 The provider menu also includes **ChatGPT subscription (Codex)** and **Claude subscription (Claude Code)**. These options require the matching official local tool and an eligible signed-in subscription account. Their submenu offers a runtime check, official setup link, model override, and optional executable path. KKSS does not import or store subscription credentials.
@@ -85,7 +87,7 @@ The provider menu also includes **ChatGPT subscription (Codex)** and **Claude su
 
 **Tool Approval** decides when the assistant has to ask you before running one of its tools. Read versus write is a KKSS-side classification keyed by the tool's full name, not something the tool servers declare about themselves — a server's own claim about whether it is safe is exactly the thing that should not be trusted. A tool KKSS has no entry for always asks. The Kratos server's 52 tools are classified against the pinned release (status, listing and validation tools run without asking; scaffolding, solver and job control, and anything that writes a file ask), while a tool a different server version adds stays unclassified and asks. The setting applies to the very next tool call. *Never ask* turns the gate off and confirms once before doing so; it covers the built-in sidebar only, since the HTTP MCP endpoint has no user to prompt.
 
-Changes apply to the next chat message — no restart. API keys are encrypted with the OS keychain when one is available; on systems without a keyring they fall back to plaintext in `state.json` (below). Entering an empty value clears a stored key.
+The model and thinking level can also be changed from the strip above the chat message box ([Choosing the model and thinking level](/guide/getting-started#choosing-the-model-and-thinking-level)); it writes these same settings. Changes apply to the next chat message — no restart. API keys are encrypted with the OS keychain when one is available; on systems without a keyring they fall back to plaintext in `state.json` (below). Entering an empty value clears a stored key.
 
 ## Cloud accounts
 

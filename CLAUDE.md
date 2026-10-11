@@ -1207,6 +1207,18 @@ resubmitted automatically.
   reading zero across repeated turns means a silent invalidator. The conservative
   retry drops `cache_control` along with `thinking`, so a model old enough to
   reject one degrades the way it already did.
+- **The composer strip's model and thinking level are global settings, not
+  conversation state, and absent means unchanged.** `setModel`/`setThinking`
+  write the same `llm*` keys as Settings and the menu (main validates and refuses
+  a managed key); `ChatService` repaints the strip from `stateStore.onDidChange`
+  on any `llm*` key. `StreamTurnOptions.thinking`/`maxOutputTokens` are omitted for
+  `auto`/unset so default requests stay byte-identical. Anthropic `off` **omits**
+  `thinking` (never `{type:"disabled"}`); `low`/`high` add `output_config.effort`;
+  the conservative retry drops `thinking`, `output_config` and `cache_control`
+  together. OpenAI-compatible extras (`stream_options`, `reasoning_effort`,
+  `max_tokens`) are dropped together on one retry. Subscription runtimes get no
+  thinking control. Provider/thinking glyphs are our own drawings, never vendor
+  trademarks.
 - **`ChatErrorKind` gained `context` and `rateLimit`, and every kind must be
   listed in `transcriptStoreCore.ts`'s `ERROR_KINDS`** — a kind missing there is
   not rejected on read, it is silently rewritten to `"other"`, so the banner

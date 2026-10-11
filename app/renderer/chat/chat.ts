@@ -8,7 +8,9 @@ import { t, currentLocale } from "../../shared/i18n";
  * page keeps the strict CSP.
  */
 import type {
+  ChatComposerState,
   ChatConversationInfo,
+  ChatThinking,
   ChatUsage,
   ChatImage,
   ChatPendingApproval,
@@ -44,6 +46,10 @@ const newBtn = byId<HTMLButtonElement>("new-btn");
 const hideBtn = byId<HTMLButtonElement>("hide-btn");
 const usageEl = byId<HTMLSpanElement>("usage");
 const compactionEl = byId<HTMLDivElement>("compaction");
+const composerOptions = byId<HTMLDivElement>("composer-options");
+const modelSelect = byId<HTMLSelectElement>("model-select");
+const modelInput = byId<HTMLInputElement>("model-input");
+const thinkSelect = byId<HTMLSelectElement>("think-select");
 
 // Static header glyphs (the buttons ship empty in index.html so the markup
 // stays free of SVG).
@@ -51,6 +57,84 @@ byId<HTMLElement>("chat-icon").innerHTML = glyph("messageSquare");
 historyBtn.innerHTML = glyph("history");
 newBtn.innerHTML = glyph("plus");
 hideBtn.innerHTML = glyph("x");
+byId<HTMLElement>("think-icon").innerHTML = glyph("thinkBrain");
+
+/** One own-drawn mark per provider (never a vendor's trademarked logo). */
+const PROVIDER_GLYPH = {
+  anthropic: "providerAnthropic",
+  openai: "providerOpenai",
+  "opencode-zen": "providerOpencode",
+  "opencode-go": "providerOpencode",
+  codex: "providerCodex",
+  "claude-code": "providerClaudeCode",
+} as const;
+
+const OTHER = "\u0000other"; // can't collide with a typed model id
+
+/**
+ * The composer strip: model picker + thinking level. Rebuilt from main's
+ * `composer` message (sent after `state` and on every `llm*` setting change),
+ * so it can never show a stale choice. Options are built with createElement —
+ * a model id is user text and must not reach innerHTML.
+ */
+function renderComposer(c: ChatComposerState): void {
+  composerOptions.hidden = false;
+  byId<HTMLElement>("model-icon").innerHTML = glyph(PROVIDER_GLYPH[c.provider]);
+
+  modelSelect.textContent = "";
+  const add = (value: string, label: string): void => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    modelSelect.append(option);
+  };
+  // "" = clear the stored value, i.e. the provider default (which the runtime
+  // providers resolve themselves, so they have no name to show).
+  add("", c.defaultModel ? t("Default ({0})", { 0: c.defaultModel }) : t("Runtime default"));
+  const ids = c.choices.filter((id) => id !== c.defaultModel);
+  ids.forEach((id) => add(id, id));
+  const custom = c.model && c.model !== c.defaultModel && !c.choices.includes(c.model);
+  if (custom) add(c.model, c.model);
+  add(OTHER, t("Other…"));
+  modelSelect.value = !c.model || c.model === c.defaultModel ? "" : c.model;
+  modelSelect.disabled = c.modelManaged;
+  if (c.modelManaged) modelSelect.title = `${t("Model for the next message")}${t(" (set by the environment)")}`;
+  else modelSelect.title = t("Model for the next message");
+  modelInput.hidden = true;
+
+  thinkSelect.textContent = "";
+  (["auto", "off", "low", "high"] as const).forEach((level) => {
+    const option = document.createElement("option");
+    option.value = level;
+    option.textContent = { auto: t("Auto"), off: t("Off"), low: t("Low effort"), high: t("High effort") }[level];
+    thinkSelect.append(option);
+  });
+  thinkSelect.value = c.thinking;
+  thinkSelect.disabled = !c.thinkingSupported;
+  thinkSelect.title = c.thinkingSupported ? t("Thinking effort for the next message") : t("Not available for the Codex and Claude Code subscription providers.");
+}
+
+modelSelect.addEventListener("change", () => {
+  if (modelSelect.value === OTHER) {
+    modelInput.hidden = false;
+    modelInput.value = "";
+    modelInput.focus();
+    return;
+  }
+  post({ type: "setModel", model: modelSelect.value });
+});
+modelInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    const value = modelInput.value.trim();
+    if (value) post({ type: "setModel", model: value });
+  } else if (event.key === "Escape") {
+    // Back to the real choice; main's next `composer` message would do the same.
+    modelInput.hidden = true;
+    modelSelect.focus();
+  }
+});
+thinkSelect.addEventListener("change", () => post({ type: "setThinking", level: thinkSelect.value as ChatThinking }));
 
 /** Markup for the composer's one button: Send or Stop. */
 function sendLabel(stop: boolean): string {
@@ -731,6 +815,9 @@ api.onMessage((raw) => {
       renderServers(msg.servers);
       setBusy(msg.busy);
       scrollDown(true);
+      break;
+    case "composer":
+      renderComposer(msg.composer);
       break;
     case "approvalRequest":
       showApproval(msg.pending);

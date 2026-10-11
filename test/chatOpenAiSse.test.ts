@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
+import type { StreamTurnOptions } from "../app/main/services/chat/providers/types";
 import {
+  buildOpenAiBody,
   accumulateToolCallDeltas,
   createOpenAiCompatProvider,
   createSseParser,
@@ -129,5 +131,66 @@ describe("request headers", () => {
     expect(headers.authorization).toBeUndefined();
     expect(headers["user-agent"]).toBeUndefined();
     expect(headers["x-opencode-session"]).toBeUndefined();
+  });
+});
+
+describe("optional request fields", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const opts = (extra: Partial<StreamTurnOptions> = {}): StreamTurnOptions => ({
+    system: "s", entries: [], tools: [], model: "m",
+    signal: new AbortController().signal,
+    onTextDelta: () => undefined,
+    toolName: () => "x",
+    ...extra,
+  });
+
+  it("sends neither reasoning_effort nor max_tokens by default", () => {
+    const body = buildOpenAiBody(opts(), true);
+    expect(body.stream_options).toEqual({ include_usage: true });
+    expect("reasoning_effort" in body).toBe(false);
+    expect("max_tokens" in body).toBe(false);
+    expect("reasoning_effort" in buildOpenAiBody(opts({ thinking: "auto" }), true)).toBe(false);
+  });
+
+  it("maps the thinking levels to reasoning_effort", () => {
+    expect(buildOpenAiBody(opts({ thinking: "low" }), true).reasoning_effort).toBe("low");
+    expect(buildOpenAiBody(opts({ thinking: "high" }), true).reasoning_effort).toBe("high");
+    expect(buildOpenAiBody(opts({ thinking: "off" }), true).reasoning_effort).toBe("none");
+  });
+
+  it("sends max_tokens only when set to a positive number", () => {
+    expect(buildOpenAiBody(opts({ maxOutputTokens: 2048 }), true).max_tokens).toBe(2048);
+    expect("max_tokens" in buildOpenAiBody(opts({ maxOutputTokens: 0 }), true)).toBe(false);
+  });
+
+  it("drops every optional field together on the plain attempt", () => {
+    const body = buildOpenAiBody(opts({ thinking: "high", maxOutputTokens: 100 }), false);
+    for (const key of ["stream_options", "reasoning_effort", "max_tokens"]) expect(key in body).toBe(false);
+    expect(body.model).toBe("m");
+  });
+
+  it("retries once without the extras when a gateway names one in its error", async () => {
+    const bodies: any[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      if (bodies.length === 1) return new Response('{"error":"Unrecognized request argument: reasoning_effort"}', { status: 400 });
+      return new Response(new ReadableStream({ start: (c) => { c.enqueue(new TextEncoder().encode("data: [DONE]\n\n")); c.close(); } }), { status: 200 });
+    }));
+    const provider = createOpenAiCompatProvider({ baseUrl: "http://localhost:1/v1" });
+    await provider.streamTurn(opts({ thinking: "low", maxOutputTokens: 500 }));
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0].reasoning_effort).toBe("low");
+    expect(bodies[1].reasoning_effort).toBeUndefined();
+    expect(bodies[1].max_tokens).toBeUndefined();
+    expect(bodies[1].stream_options).toBeUndefined();
+  });
+
+  it("does not retry an unrelated failure", async () => {
+    const fetchMock = vi.fn(async () => new Response("boom", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createOpenAiCompatProvider({ baseUrl: "http://localhost:1/v1" });
+    await expect(provider.streamTurn(opts({ thinking: "low" }))).rejects.toThrow(/Request failed/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

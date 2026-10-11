@@ -8,7 +8,7 @@
  * token counts, which is the honest answer, instead of a fabricated price.
  */
 import { describe, expect, it } from "vitest";
-import { estimateCost, MODEL_INFO, modelInfo, parseCustomPricing, resolvePricing } from "../app/main/services/chat/modelInfo";
+import { estimateCost, knownModels, MODEL_INFO, modelInfo, parseCustomPricing, resolvePricing } from "../app/main/services/chat/modelInfo";
 
 describe("the model table", () => {
   it("holds exactly the reviewed rows", () => {
@@ -135,5 +135,23 @@ describe("user-supplied pricing", () => {
       inputPer1M: 0,
       outputPer1M: 0,
     });
+  });
+});
+
+describe("knownModels (the sidebar picker's suggestions)", () => {
+  it("lists only Claude rows for Anthropic", () => {
+    const ids = knownModels("anthropic");
+    expect(ids.length).toBeGreaterThan(5);
+    expect(ids.every((id) => id.startsWith("claude-") && id in MODEL_INFO)).toBe(true);
+  });
+
+  it("lists the non-Claude rows for both OpenCode gateways, identically", () => {
+    expect(knownModels("opencode-zen")).toEqual(knownModels("opencode-go"));
+    expect(knownModels("opencode-go")).toContain("kimi-k2.6");
+    expect(knownModels("opencode-go").some((id) => id.startsWith("claude-"))).toBe(false);
+  });
+
+  it("offers nothing for a generic gateway or a subscription runtime", () => {
+    for (const provider of ["openai", "codex", "claude-code", "unknown"]) expect(knownModels(provider)).toEqual([]);
   });
 });

@@ -227,6 +227,18 @@ For a few CAD tools — applying edit operations, and running a parametric or sa
 
 What it checks is narrower than a preview: it tells you which operations parse and are legal, not what the geometry would look like afterwards. The report is for you only — the assistant is not told about it, and is not told a call happened when it did not.
 
+### Choosing the model and thinking level
+
+A strip above the message box carries two quick controls, each with its own mark: the **model** picker (a small glyph for the active provider — Anthropic, OpenAI-compatible, OpenCode, Codex or Claude Code — beside a dropdown) and the **thinking** picker (a brain). The model dropdown offers *Default*, the models KKSS knows for the active provider, the model you currently use if it is custom, and **Other…**, which opens a text box for any other id (a gateway or local-server model) — press Enter to apply it. The thinking picker offers **Auto** (the provider's own default), **Off**, **Low effort** and **High effort**.
+
+Both write the same settings as **Settings ▸ LLM Assistant** (*…Model* for the active provider and *Thinking*), so the three always agree, and a change applies from your **next message** — a reply in progress is never altered. Notes:
+
+- **Off** asks for no thinking where the model allows it; models that always think keep thinking. A model that rejects the chosen level is retried automatically without it, so a picker choice never breaks a turn.
+- For **OpenAI-compatible** backends the level is sent as `reasoning_effort` only when it is not *Auto* (**Off** is sent as `none`); a gateway that does not recognise it is retried without it.
+- The thinking picker is disabled for the **Codex** and **Claude Code** subscription providers, which choose their own reasoning.
+- If your administrator pins the model through the environment, the model dropdown is shown but locked.
+- *Max Output Tokens* (Settings only) caps one reply; leave it empty for the default.
+
 ### Tokens, context and cost
 
 The sidebar header shows how much of the model's context window your last message filled, and roughly what the conversation has cost so far — for example `12.4k/1M · $0.03`. Hover it for the full breakdown: the model, the split between fresh and cached input, and the output total.

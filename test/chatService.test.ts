@@ -26,11 +26,26 @@ vi.mock("electron", async () => {
  *  reset in beforeEach, so an unset key still yields the real default. */
 const stateValues: Record<string, unknown> = {};
 
+/** Keys the (mock) environment locks, and the live change listeners. */
+const managedKeys = new Set<string>();
+const changeListeners = new Set<(key: string, value: unknown) => void>();
+
 vi.mock("../app/main/services/stateStore", () => ({
   stateStore: {
     get: <T,>(key: string, defaultValue?: T) =>
       key in stateValues ? (stateValues[key] as T) : defaultValue,
-    update: async () => undefined,
+    // Records the write and notifies, like the real store (a managed key is refused).
+    update: async (key: string, value: unknown) => {
+      if (managedKeys.has(key)) return;
+      if (value === undefined) delete stateValues[key];
+      else stateValues[key] = value;
+      changeListeners.forEach((listener) => listener(key, value));
+    },
+    isManaged: (key: string) => managedKeys.has(key),
+    onDidChange: (listener: (key: string, value: unknown) => void) => {
+      changeListeners.add(listener);
+      return { dispose: () => void changeListeners.delete(listener) };
+    },
     flush: async () => undefined,
     flushSync: () => undefined,
   },
@@ -146,6 +161,8 @@ let dir: string;
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-chat-"));
   for (const key of Object.keys(stateValues)) delete stateValues[key];
+  managedKeys.clear();
+  changeListeners.clear();
 });
 
 afterEach(async () => {
@@ -1207,6 +1224,138 @@ describe("token, cost and context accounting", () => {
     const latest = latestUsage(messages);
     expect(latest.costUsd).toBeCloseTo(5, 6);
     expect(latest.userSupplied).toBeUndefined();
+  });
+
+  describe("composer strip (model picker + thinking level)", () => {
+    const composers = (messages: ChatToWebview[]) =>
+      messages.filter((m): m is Extract<ChatToWebview, { type: "composer" }> => m.type === "composer").map((m) => m.composer);
+    const lastComposer = (messages: ChatToWebview[]) => composers(messages).at(-1)!;
+
+    it("describes the active provider on chatReady", () => {
+      stateValues.llmModelAnthropic = "claude-sonnet-4-6";
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      expect(lastComposer(messages)).toMatchObject({
+        provider: "anthropic",
+        model: "claude-sonnet-4-6",
+        defaultModel: "claude-opus-4-8",
+        modelManaged: false,
+        thinking: "auto",
+        thinkingSupported: true,
+      });
+      expect(lastComposer(messages).choices).toContain("claude-haiku-4-5");
+      expect(lastComposer(messages).choices.every((id) => id.startsWith("claude-"))).toBe(true);
+    });
+
+    it("offers no suggestions for an OpenAI-compatible gateway, and locks thinking for runtimes", () => {
+      stateValues.llmProvider = "openai";
+      const first = makeService();
+      first.post({ type: "chatReady" });
+      expect(lastComposer(first.messages)).toMatchObject({ provider: "openai", choices: [], defaultModel: "gpt-4o" });
+
+      stateValues.llmProvider = "claude-code";
+      const second = makeService();
+      second.post({ type: "chatReady" });
+      expect(lastComposer(second.messages)).toMatchObject({ provider: "claude-code", thinkingSupported: false, defaultModel: "" });
+    });
+
+    it("setModel writes the active provider's own key and repaints", async () => {
+      stateValues.llmProvider = "opencode-go";
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      post({ type: "setModel", model: "  kimi-k2.6  " });
+      await settle();
+      expect(stateValues.llmModelGo).toBe("kimi-k2.6");
+      expect(stateValues.llmModelAnthropic).toBeUndefined();
+      expect(lastComposer(messages).model).toBe("kimi-k2.6");
+    });
+
+    it("setModel with an empty value clears back to the default", async () => {
+      stateValues.llmModelAnthropic = "claude-haiku-4-5";
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      post({ type: "setModel", model: "   " });
+      await settle();
+      expect("llmModelAnthropic" in stateValues).toBe(false);
+      expect(lastComposer(messages).model).toBe("claude-opus-4-8");
+    });
+
+    it("refuses a managed model, an oversized id and a non-string", async () => {
+      managedKeys.add("llmModelAnthropic");
+      stateValues.llmModelAnthropic = "claude-opus-4-8";
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      expect(lastComposer(messages).modelManaged).toBe(true);
+      post({ type: "setModel", model: "claude-haiku-4-5" });
+      await settle();
+      expect(stateValues.llmModelAnthropic).toBe("claude-opus-4-8");
+
+      managedKeys.clear();
+      post({ type: "setModel", model: "x".repeat(201) });
+      post({ type: "setModel", model: 42 });
+      await settle();
+      expect(stateValues.llmModelAnthropic).toBe("claude-opus-4-8");
+    });
+
+    it("strips control characters from a typed model id", async () => {
+      const { post } = makeService();
+      post({ type: "chatReady" });
+      post({ type: "setModel", model: "my-model\n\u0000x" });
+      await settle();
+      expect(stateValues.llmModelAnthropic).toBe("my-modelx");
+    });
+
+    it("setThinking stores a valid level, clears on auto, ignores junk", async () => {
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      post({ type: "setThinking", level: "high" });
+      await settle();
+      expect(stateValues.llmThinking).toBe("high");
+      expect(lastComposer(messages).thinking).toBe("high");
+      post({ type: "setThinking", level: "turbo" });
+      await settle();
+      expect(stateValues.llmThinking).toBe("high");
+      post({ type: "setThinking", level: "auto" });
+      await settle();
+      expect("llmThinking" in stateValues).toBe(false);
+    });
+
+    it("repaints when a setting changes elsewhere (Settings page, menu)", async () => {
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      const before = composers(messages).length;
+      stateValues.llmModelAnthropic = "claude-haiku-4-5";
+      const { stateStore } = await import("../app/main/services/stateStore");
+      await stateStore.update("llmModelAnthropic", "claude-haiku-4-5");
+      expect(composers(messages).length).toBeGreaterThan(before);
+      expect(lastComposer(messages).model).toBe("claude-haiku-4-5");
+      // Unrelated keys do not cause traffic.
+      const count = composers(messages).length;
+      await stateStore.update("uiZoom", 1.2);
+      expect(composers(messages).length).toBe(count);
+    });
+
+    it("passes the chosen thinking level and output cap to the provider", async () => {
+      stateValues.llmThinking = "low";
+      stateValues.llmMaxOutputTokens = 4000;
+      const { provider, post } = makeService();
+      post({ type: "chatReady" });
+      await send(post, "go");
+      provider.finish("done");
+      await settle();
+      expect(provider.requests[0]).toMatchObject({ thinking: "low", maxOutputTokens: 4000 });
+    });
+
+    it("leaves both undefined by default, and ignores an out-of-range cap", async () => {
+      stateValues.llmMaxOutputTokens = 5; // below the floor
+      const { provider, post } = makeService();
+      post({ type: "chatReady" });
+      await send(post, "go");
+      provider.finish("done");
+      await settle();
+      expect(provider.requests[0].thinking).toBeUndefined();
+      expect(provider.requests[0].maxOutputTokens).toBeUndefined();
+    });
   });
 
   it("leaves the total untouched when a provider reports nothing", async () => {

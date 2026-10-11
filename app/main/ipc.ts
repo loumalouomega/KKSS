@@ -216,7 +216,31 @@ export type ChatToHost =
   | { type: "renameConversation"; id: string; title: string }
   | { type: "deleteConversation"; id: string }
   | { type: "openSettings" }
+  /** The composer strip's model picker. Writes the same setting as Settings ▸
+   *  LLM Assistant, for the active provider; applies from the next message.
+   *  Empty clears it back to the provider default. */
+  | { type: "setModel"; model: string }
+  | { type: "setThinking"; level: ChatThinking }
   | { type: "hide" };
+
+/** Reasoning effort chosen in the sidebar. `auto` sends nothing new. */
+export type ChatThinking = "auto" | "off" | "low" | "high";
+
+/** The composer strip's controls, resolved in main (the renderer carries no model list). */
+export interface ChatComposerState {
+  provider: "anthropic" | "openai" | "opencode-zen" | "opencode-go" | "codex" | "claude-code";
+  /** The model in effect — the stored one, else `defaultModel`; "" for a runtime default. */
+  model: string;
+  /** The provider's built-in default ("" when the runtime picks). */
+  defaultModel: string;
+  /** Suggested ids; the renderer adds Default / the current custom value / Other…. */
+  choices: string[];
+  /** Locked by the environment (managed deployment): shown, not editable. */
+  modelManaged: boolean;
+  thinking: ChatThinking;
+  /** False for the subscription runtimes, which expose no such control to KKSS. */
+  thinkingSupported: boolean;
+}
 
 /** Messages sent to the chat-sidebar renderer. */
 export type ChatToWebview =
@@ -243,6 +267,9 @@ export type ChatToWebview =
       compactedResults?: number;
     }
   | { type: "entry"; entry: ChatWireEntry }
+  /** The composer strip's state. Sent after `state` and again whenever an
+   *  `llm*` setting changes elsewhere (Settings page, native menu). */
+  | { type: "composer"; composer: ChatComposerState }
   | { type: "approvalRequest"; pending: ChatPendingApproval }
   | { type: "approvalResolved"; callId: string; approval: ChatToolApproval }
   /** Images from a tool result, sent right after its entry (and replayed after

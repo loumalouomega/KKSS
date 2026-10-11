@@ -133,6 +133,20 @@ export function resolvePricing(model: string, custom: CustomPricing): ResolvedPr
   return { contextWindow: custom.contextWindow, rates, userSupplied: rates !== undefined || custom.contextWindow !== undefined };
 }
 
+/**
+ * Model ids offered by the chat sidebar's picker for a provider — suggestions,
+ * never a limit (every provider's model stays free text via "Other…"). Derived
+ * from the reviewed table so the picker cannot offer a model the readout can't
+ * price; the OpenAI-compatible provider points at arbitrary gateways, so it has
+ * no list, and the subscription runtimes choose their own models.
+ */
+export function knownModels(provider: string): string[] {
+  const ids = Object.keys(MODEL_INFO);
+  if (provider === "anthropic") return ids.filter((id) => id.startsWith("claude-"));
+  if (provider === "opencode-zen" || provider === "opencode-go") return ids.filter((id) => !id.startsWith("claude-"));
+  return [];
+}
+
 /** USD for one usage total. Callers must have a row already — there is no
  *  fallback rate, because a made-up rate is the failure mode this avoids. */
 export function estimateCost(

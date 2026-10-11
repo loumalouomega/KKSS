@@ -120,6 +120,40 @@ export function parseUsageChunk(payload: string): TurnUsage | null {
   };
 }
 
+/** A 4xx naming one of the optional request fields: retry once without them. */
+const OPTIONAL_PARAM_ERROR = /stream_options|reasoning_effort|max_tokens|max_completion_tokens/i;
+
+/** `reasoning_effort` for each non-`auto` level. `off` is `"none"`, which newer
+ *  OpenAI-style reasoning models accept; a gateway that does not will name the
+ *  field in its error and the turn is retried without it. */
+const REASONING_EFFORT = { off: "none", low: "low", high: "high" } as const;
+
+/**
+ * The request body for one attempt. Pure, so the optional-field mapping is
+ * tested without a network stub. `askForExtras` carries everything a strict
+ * gateway might reject: usage reporting, reasoning effort and the output cap —
+ * none is sent for `auto`/unset, so default requests are unchanged.
+ */
+export function buildOpenAiBody(options: StreamTurnOptions, askForExtras: boolean): Record<string, unknown> {
+  const level = options.thinking ?? "auto";
+  return {
+    model: options.model,
+    stream: true,
+    ...(askForExtras ? { stream_options: { include_usage: true } } : {}),
+    ...(askForExtras && level !== "auto" ? { reasoning_effort: REASONING_EFFORT[level] } : {}),
+    ...(askForExtras && options.maxOutputTokens && options.maxOutputTokens > 0 ? { max_tokens: options.maxOutputTokens } : {}),
+    messages: [{ role: "system", content: options.system }, ...toOpenAiMessages(options.entries, options.toolName)],
+    ...(options.tools.length
+      ? {
+          tools: options.tools.map((t) => ({
+            type: "function",
+            function: { name: t.name, description: t.description, parameters: t.inputSchema },
+          })),
+        }
+      : {}),
+  };
+}
+
 export function createOpenAiCompatProvider(config: {
   baseUrl: string;
   apiKey?: string;
@@ -135,15 +169,16 @@ export function createOpenAiCompatProvider(config: {
 
   return {
     async streamTurn(options: StreamTurnOptions): Promise<TurnResult> {
-      // Gateways vary: `stream_options` is standard OpenAI, but a stricter
-      // compatible server may reject the unknown field outright and take the
-      // whole turn with it. Same shape as the Anthropic conservative retry —
-      // ask for usage, and give it up rather than the turn.
+      // Gateways vary: `stream_options`, `reasoning_effort` and `max_tokens` are
+      // standard OpenAI, but a stricter compatible server may reject an unknown
+      // field outright and take the whole turn with it. Same shape as the
+      // Anthropic conservative retry — ask for the extras, and give them up
+      // (together, once) rather than the turn.
       try {
         return await runStream(options, true);
       } catch (error) {
         if (options.signal.aborted) throw error;
-        if (error instanceof ProviderError && error.kind === "other" && /stream_options/i.test(error.message)) {
+        if (error instanceof ProviderError && error.kind === "other" && OPTIONAL_PARAM_ERROR.test(error.message)) {
           return runStream(options, false);
         }
         throw error;
@@ -151,7 +186,7 @@ export function createOpenAiCompatProvider(config: {
     },
   };
 
-  async function runStream(options: StreamTurnOptions, askForUsage: boolean): Promise<TurnResult> {
+  async function runStream(options: StreamTurnOptions, askForExtras: boolean): Promise<TurnResult> {
     let response: Response;
     try {
       response = await fetch(url, {
@@ -162,20 +197,7 @@ export function createOpenAiCompatProvider(config: {
           ...(config.userAgent ? { "user-agent": config.userAgent } : {}),
           ...(config.sendSessionHeader && options.sessionId ? { "x-opencode-session": options.sessionId } : {}),
         },
-        body: JSON.stringify({
-          model: options.model,
-          stream: true,
-          ...(askForUsage ? { stream_options: { include_usage: true } } : {}),
-          messages: [{ role: "system", content: options.system }, ...toOpenAiMessages(options.entries, options.toolName)],
-          ...(options.tools.length
-            ? {
-                tools: options.tools.map((t) => ({
-                  type: "function",
-                  function: { name: t.name, description: t.description, parameters: t.inputSchema },
-                })),
-              }
-            : {}),
-        }),
+        body: JSON.stringify(buildOpenAiBody(options, askForExtras)),
         signal: options.signal,
       });
     } catch (error) {

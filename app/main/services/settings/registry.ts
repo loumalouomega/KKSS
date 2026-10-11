@@ -797,6 +797,31 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       applies: "live",
       description: t("Absolute path to the claude executable."),
     },
+    {
+      id: "llm.thinking",
+      label: t("Thinking"),
+      category: "LLM Assistant",
+      type: "enum",
+      storeKey: "llmThinking",
+      default: "auto",
+      enum: ["auto", "off", "low", "high"],
+      enumLabels: [t("Auto"), t("Off"), t("Low effort"), t("High effort")],
+      applies: "live",
+      description: t("How hard the model reasons before answering (also in the chat sidebar). Auto keeps the provider's default; Off asks for no thinking where the model allows it. Not available for the Codex and Claude Code subscription providers. A model that rejects the setting is retried without it."),
+    },
+    {
+      id: "llm.maxOutputTokens",
+      label: t("Max Output Tokens"),
+      category: "LLM Assistant",
+      type: "number",
+      storeKey: "llmMaxOutputTokens",
+      min: 256,
+      max: 128000,
+      integer: true,
+      placeholder: t("Provider default"),
+      applies: "live",
+      description: t("Upper bound on one reply. Empty keeps the built-in 16000 (Anthropic) or the gateway's default. A model that rejects the value is retried without it."),
+    },
     // User-supplied figures for models the reviewed table (chat/modelInfo.ts) does
     // not list — an OpenAI-compatible gateway, a local server. A listed model is
     // never overridden. Cost needs both the input and output price.
