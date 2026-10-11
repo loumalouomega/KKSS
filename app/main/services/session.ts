@@ -18,11 +18,11 @@
 import * as fs from "node:fs";
 import { stateStore } from "./stateStore";
 import {
-  isEmptySession,
+  isEmptyPlan,
   parseSession,
-  pruneSession,
-  sessionFileCount,
+  planRestore,
   SESSION_KEY,
+  type RestorePlan,
   type SessionState,
 } from "./sessionCore";
 
@@ -34,21 +34,15 @@ export function restoreEnabled(): boolean {
   return stateStore.get<boolean>(RESTORE_SESSION_KEY, true) !== false;
 }
 
-export interface LoadedSession {
-  state: SessionState;
-  /** How many stored documents had vanished — surfaced as a toast so a
-   *  short restore is explained rather than mysterious. */
-  missing: number;
-}
-
-/** The stored session with vanished files already dropped, or `undefined` when
- *  there is nothing worth restoring. */
-export function loadSession(): LoadedSession | undefined {
+/** The stored session as a plan: vanished files dropped, evicted cloud documents
+ *  kept as pending slots. `undefined` when there is nothing worth restoring.
+ *  `plan.missing` counts only the dropped ones, so a short restore is explained
+ *  rather than mysterious. */
+export function loadSession(): RestorePlan | undefined {
   const stored = parseSession(stateStore.get(SESSION_KEY));
   if (!stored) return undefined;
-  const state = pruneSession(stored, fs.existsSync);
-  if (isEmptySession(state)) return undefined;
-  return { state, missing: sessionFileCount(stored) - sessionFileCount(state) };
+  const plan = planRestore(stored, fs.existsSync);
+  return isEmptyPlan(plan) ? undefined : plan;
 }
 
 /**

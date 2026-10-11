@@ -807,11 +807,20 @@ resubmitted automatically.
   `preventDefault()` (shared with the live shell) to drain in-flight uploads (10 s cap) because `will-quit`
   cannot await an HTTPS upload; anything still pending stays `dirty: true` in the
   manifest and is reported on the next launch. Recents carrying a `cloud` ref are
-  **exempt from the existence prune** and re-download on click; **session restore
-  deliberately does not re-download**, since it is synchronous and never stats by
-  design — an evicted path falls into the existing "files could not be found"
-  toast, and eviction's `keep` set (open tabs + `sessionPaths()`) makes that
-  rare. OAuth is **bring-your-own client** — the user pastes their own client ID
+  **exempt from the existence prune** and re-download on click. **Session restore
+  stays synchronous but does re-download**: the session itself stores each cloud
+  tab's ref (`ModeSession.cloud`, from `CloudService.refFor`) because nothing else
+  can supply it — eviction deletes the manifest entry together with the file, the
+  staging path is a one-way hash, and recents is capped. `planRestore` keeps a
+  vanished cloud file as a *pending slot*; restore makes its tab at once (so tab
+  order and focus are right) and `restoreCloudTabs` fills it afterwards
+  (`services/cloudRestore.ts`, effects injected): one download at a time, only
+  into a placeholder that is still blank — the result is re-checked *after* the
+  await — one "not signed in" message per provider (its other tabs skipped
+  without a request), any other failure closes just that placeholder. It uses
+  `openPath`, not `openFile` (no focused-tab replace, no dirty guard, **no
+  recents**), and `pendingCloudTabs` keeps a still-downloading tab in the saved
+  session so quitting mid-download does not lose it. OAuth is **bring-your-own client** — the user pastes their own client ID
   (+ secret where the provider issues one; a Google "Desktop app" secret is
   explicitly not confidential) — with PKCE + `state` over a one-shot 127.0.0.1
   loopback redirect built on `metaServer.ts`'s listen/error/Host-check handling;
@@ -919,7 +928,10 @@ resubmitted automatically.
   anything opens: both hosts' `openPath()` is synchronous and never stats the
   file, so a vanished path becomes a ghost tab whose error only ever appears as
   an in-pane banner. Restore opens with `openPath()` (append, mode already
-  known, no recording) and closes the blank starter tab. `saveSession()` must
+  known, no recording) and closes the blank starter tab. The one exception to
+  "prune first" is an evicted **cloud** document whose ref the session carries:
+  it keeps its slot as a placeholder tab and is downloaded in the background (see
+  the cloud invariant above). `saveSession()` must
   run **before** `stateStore.flushSync()` in `will-quit` — that call sets the
   store `stopped`, after which queued writes return early. A launch-time file
   wins, taking the screen and its own tab so it never overwrites a restored

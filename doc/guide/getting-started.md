@@ -136,9 +136,11 @@ What to expect in the awkward cases:
   finish. If that is not enough — or the machine loses power — the local copy is still there and
   is flagged; the next launch tells you which files have changes that never reached the provider.
 - **Recent files.** A cloud document stays in **File ▸ Open Recent** even after the cache trims its
-  local copy; clicking it downloads again. Restoring the previous session on launch does not
-  re-download, because that would mean network access before the window appears — anything trimmed
-  is reported in the usual "files could not be found" notice instead.
+  local copy; clicking it downloads again. Restoring the previous session on launch downloads a trimmed
+  document again too, **in the background**: the window and its tabs appear immediately, and each
+  such tab fills in as its download finishes (with the usual cancellable progress notice). If the
+  account is no longer signed in, one notice says so — reconnect under **Settings ▸ Cloud Accounts**
+  and reopen the document from Recent files.
 - **The macro library is not synced.** `cad-preview-macros.json` belongs to a whole folder while
   the cache holds one document per directory, so uploading it would let two models from the same
   remote folder overwrite each other's macros. It stays local.
@@ -150,7 +152,7 @@ default). A document that is open, or that holds an unsent change, is never trim
 
 ### Picking up where you left off
 
-KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing — and the chat sidebar comes back on the conversation you were last in. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there.
+KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing — and the chat sidebar comes back on the conversation you were last in. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there. A cloud document KKSS has trimmed from its local cache is the exception: its tab is kept and downloaded again in the background.
 
 Turn it off with **Settings ▸ Restore Last Session** to start clean every time. (Setting `KKSS_NO_RESTORE=1` in the environment does the same for one launch, which is handy if a particular document is giving the viewer trouble.) Opening a file from the command line always wins: it takes the screen and gets its own tab, leaving the restored documents untouched.
 
