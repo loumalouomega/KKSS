@@ -24,6 +24,14 @@ import {
   type ApprovalMode,
   unclassifiedTools,
 } from "../app/main/services/chat/toolPolicy";
+import {
+  DEFAULT_META_ACCESS,
+  isMetaAccess,
+  metaAccessMigration,
+  metaToolAllowed,
+  normalizeAllowedWrites,
+  readMetaAccess,
+} from "../app/main/services/metaServer/accessPolicy";
 import { KRATOS_MCP_VERSION } from "../app/main/services/chat/kratosMcpVersion";
 
 const none = new Set<string>();
@@ -455,5 +463,52 @@ describe("dryRunArgs", () => {
 
   it("treats empty arguments as an empty object", () => {
     expect(dryRunArgs(CALL, "")).toBe('{"dryRun":true}');
+  });
+});
+
+describe("meta server access policy", () => {
+  const none = new Set<string>();
+  it("defaults to read-only and degrades corrupt values to the default", () => {
+    expect(DEFAULT_META_ACCESS).toBe("readOnly");
+    expect(readMetaAccess(undefined)).toBe("readOnly");
+    expect(readMetaAccess("everything")).toBe("readOnly");
+    expect(readMetaAccess("all")).toBe("all");
+    expect(isMetaAccess("readListed")).toBe(true);
+    expect(isMetaAccess(true)).toBe(false);
+  });
+
+  it("readOnly allows read tools and nothing else", () => {
+    const policy = { access: "readOnly" as const, allowedWrites: new Set(["cad__apply_edit_ops"]) };
+    expect(metaToolAllowed("cad__inspect", policy)).toBe(true);
+    expect(metaToolAllowed("kratos__job_status", policy)).toBe(true);
+    expect(metaToolAllowed("cad__apply_edit_ops", policy)).toBe(false); // list ignored
+    expect(metaToolAllowed("kratos__run_simulation", policy)).toBe(false);
+    expect(metaToolAllowed("kratos__not_in_the_pinned_server", policy)).toBe(false);
+  });
+
+  it("readListed adds exactly the named tools", () => {
+    const policy = { access: "readListed" as const, allowedWrites: new Set(["kratos__run_simulation"]) };
+    expect(metaToolAllowed("kratos__run_simulation", policy)).toBe(true);
+    expect(metaToolAllowed("kratos__job_cancel", policy)).toBe(false);
+    expect(metaToolAllowed("cad__inspect", policy)).toBe(true);
+  });
+
+  it("all allows everything, unclassified tools included", () => {
+    expect(metaToolAllowed("kratos__not_in_the_pinned_server", { access: "all", allowedWrites: none })).toBe(true);
+    expect(metaToolAllowed("mesh__mesh_transform", { access: "all", allowedWrites: none })).toBe(true);
+  });
+
+  it("normalizes the stored allow-list", () => {
+    expect([...normalizeAllowedWrites([" cad__a ", 3, "", "mesh__b"])]).toEqual(["cad__a", "mesh__b"]);
+    expect(normalizeAllowedWrites("cad__a").size).toBe(0);
+  });
+
+  it("migrates only an already-configured, undecided install to all", () => {
+    expect(metaAccessMigration(undefined, true, false)).toBe("all");
+    expect(metaAccessMigration(undefined, false, false)).toBeUndefined(); // fresh install: safe default
+    expect(metaAccessMigration("readOnly", true, false)).toBeUndefined(); // explicit choice wins
+    // The default value is stored as an absent key, so only the flag prevents a
+    // user who picked read-only from being promoted to "all" on the next launch.
+    expect(metaAccessMigration(undefined, true, true)).toBeUndefined();
   });
 });

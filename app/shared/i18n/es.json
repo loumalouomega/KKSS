@@ -696,5 +696,12 @@
   "Manifold (2025+)": "Manifold (2025+)",
   "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.": "Motor geométrico con el que OpenSCAD evalúa las fuentes .scad. Automático no pasa ninguna opción. Manifold necesita un OpenSCAD reciente.",
   "OpenSCAD Library Folders": "Carpetas de bibliotecas de OpenSCAD",
-  "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.": "Carpetas adicionales de bibliotecas de OpenSCAD antepuestas a OPENSCADPATH solo para la conversión. Rutas absolutas."
+  "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.": "Carpetas adicionales de bibliotecas de OpenSCAD antepuestas a OPENSCADPATH solo para la conversión. Rutas absolutas.",
+  "Allowed Tools": "Herramientas permitidas",
+  "Read-only tools": "Solo herramientas de lectura",
+  "Read-only tools and the listed write tools": "Herramientas de lectura y las de escritura indicadas",
+  "All tools": "Todas las herramientas",
+  "Which tools an external client may call. Calls to other tools are refused with an error. Read-only is the default for a newly enabled server; “All tools” can modify files and run solvers.": "Qué herramientas puede llamar un cliente externo. Las demás llamadas se rechazan con un error. Solo lectura es el valor predeterminado de un servidor recién activado; «Todas las herramientas» puede modificar archivos y ejecutar solvers.",
+  "Allowed Write Tools": "Herramientas de escritura permitidas",
+  "Full tool names (for example cad__apply_edit_ops) an external client may call in addition to read-only tools. Used only by “Read-only tools and the listed write tools”.": "Nombres completos de herramientas (por ejemplo cad__apply_edit_ops) que un cliente externo puede llamar además de las de lectura. Solo se usa con «Herramientas de lectura y las de escritura indicadas»."
 }

@@ -696,5 +696,12 @@
   "Manifold (2025+)": "Manifold (2025+)",
   "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.": "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.",
   "OpenSCAD Library Folders": "OpenSCAD Library Folders",
-  "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.": "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths."
+  "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.": "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.",
+  "Allowed Tools": "Allowed Tools",
+  "Read-only tools": "Read-only tools",
+  "Read-only tools and the listed write tools": "Read-only tools and the listed write tools",
+  "All tools": "All tools",
+  "Which tools an external client may call. Calls to other tools are refused with an error. Read-only is the default for a newly enabled server; “All tools” can modify files and run solvers.": "Which tools an external client may call. Calls to other tools are refused with an error. Read-only is the default for a newly enabled server; “All tools” can modify files and run solvers.",
+  "Allowed Write Tools": "Allowed Write Tools",
+  "Full tool names (for example cad__apply_edit_ops) an external client may call in addition to read-only tools. Used only by “Read-only tools and the listed write tools”.": "Full tool names (for example cad__apply_edit_ops) an external client may call in addition to read-only tools. Used only by “Read-only tools and the listed write tools”."
 }

@@ -22,12 +22,15 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import type { ChatServerStatus } from "../../ipc";
 import type { McpHub } from "../chat/mcpHub";
 import { buildMetaServer } from "./buildServer";
+import type { MetaAccessPolicy } from "./accessPolicy";
 
 /** stateStore / secrets keys for the meta server settings. */
 export const META_SERVER_KEYS = {
   enabled: "metaServerEnabled", // stateStore boolean
   port: "metaServerPort", // stateStore number
   token: "metaServerToken", // secrets.ts (safeStorage-encrypted)
+  access: "metaServerAccess", // stateStore MetaAccess: readOnly | readListed | all
+  allowedWrites: "metaServerAllowedTools", // stateStore string[] (readListed mode)
 } as const;
 
 export const DEFAULT_META_SERVER_PORT = 7391;
@@ -41,6 +44,8 @@ export interface MetaServerDeps {
   port(): number;
   /** Required bearer token; requests without it are rejected. */
   token(): string | undefined;
+  /** Which tools external clients may call; read on every request. */
+  access(): MetaAccessPolicy;
 }
 
 interface Session {
@@ -112,6 +117,11 @@ export class MetaMcpServer {
     await this.disable();
   }
 
+  /** Tells live sessions to re-list tools after the access setting changes. */
+  refreshTools(): void {
+    for (const { server } of this.sessions.values()) void server.sendToolListChanged().catch(() => {});
+  }
+
   /** Notifies live sessions that the aggregated tool/resource/prompt lists changed. */
   private broadcastListChanged(_statuses: ChatServerStatus[]): void {
     for (const { server } of this.sessions.values()) {
@@ -169,7 +179,7 @@ export class MetaMcpServer {
   }
 
   private async openSession(req: http.IncomingMessage, res: http.ServerResponse, body: unknown): Promise<void> {
-    const server = buildMetaServer(this.deps.hub, this.deps.version);
+    const server = buildMetaServer(this.deps.hub, this.deps.version, () => this.deps.access());
     const transport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sid: string): void => {

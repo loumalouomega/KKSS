@@ -40,6 +40,7 @@ import { kratosEnvDelta } from "./services/settings/kratosEnv";
 import { defaultPythonPath } from "../../mesh/src/problemtype/kratosEnv";
 import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
+import { META_ACCESS_MIGRATED_KEY, metaAccessMigration, normalizeAllowedWrites, readMetaAccess } from "./services/metaServer/accessPolicy";
 import { configureNotifications, handleToastButton, progressToast, toast } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { recentFiles } from "./services/recentFiles";
@@ -1232,11 +1233,25 @@ app.whenReady().then(() => {
     notify: (job) => shellToast(job.state === "failed" ? "error" : "info", `Kratos: ${path.basename(job.case_dir)} ${job.state}.`),
   });
 
+  // Upgrade decision, taken once: a server that was already set up keeps
+  // running every tool ("all"); a fresh install starts read-only.
+  const migratedAccess = metaAccessMigration(
+    stateStore.get(META_SERVER_KEYS.access),
+    stateStore.get(META_SERVER_KEYS.enabled) === true || !!getSecret(META_SERVER_KEYS.token),
+    stateStore.get(META_ACCESS_MIGRATED_KEY) === true
+  );
+  if (migratedAccess) void stateStore.update(META_SERVER_KEYS.access, migratedAccess);
+  void stateStore.update(META_ACCESS_MIGRATED_KEY, true);
+
   metaServer = new MetaMcpServer({
     hub: mcpHub,
     version: app.getVersion(),
     port: metaServerPort,
     token: () => getSecret(META_SERVER_KEYS.token),
+    access: () => ({
+      access: readMetaAccess(stateStore.get(META_SERVER_KEYS.access)),
+      allowedWrites: normalizeAllowedWrites(stateStore.get(META_SERVER_KEYS.allowedWrites)),
+    }),
   });
 
   // One CloudService for the whole app: it owns the three providers, the
@@ -1349,6 +1364,7 @@ app.whenReady().then(() => {
   const settingKeys = new Set(registry().map((e) => e.storeKey).filter((k): k is string => !!k));
   stateStore.onDidChange((key) => {
     if (settingKeys.has(key)) installMenu(menuDeps);
+    if (key === META_SERVER_KEYS.access || key === META_SERVER_KEYS.allowedWrites) metaServer?.refreshTools();
     if (["kratos.pythonPath", "kratos.installPath", "kratos.extraEnv", "kratos.threads"].includes(key)) runs?.requestCapabilityRefresh();
     // The renderer is read when a preview's PAGE loads, so a change cannot
     // reach a scene already on screen (upstream says the same and shows the
