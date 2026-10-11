@@ -340,7 +340,7 @@ The pure/glue split is the usual one, so `test/` can drive the interesting parts
 `providerCore/*.ts` parsers are pure; `oauth.ts`, `providers/*.ts`, `stagingCache.ts`,
 `cloudSync.ts` and the `cloudService.ts` façade are the glue. Tests:
 `cloudCachePath`, `cloudManifest`, `cloudConflict`, `cloudOauth`, `cloudProviders`,
-`cloudUploadChunks` and `cloudSync` — the last drives the whole write-back engine against a real
+`cloudUploadChunks`, `cloudCompanions` and `cloudSync` — the last drives the whole write-back engine against a real
 temp directory, real chokidar and a fake provider.
 
 Decisions worth knowing before changing any of it:
@@ -349,9 +349,8 @@ Decisions worth knowing before changing any of it:
   Deterministic so sidecars survive across sessions, opaque so a Dropbox path or Drive id cannot
   escape the cache root, and the filename is preserved byte-for-byte because routing is
   extension-driven (`case.post.msh` must not become `case.msh`). **One directory holds exactly one
-  document plus its sidecars** — that is what makes cad's `${modelPath}.parts.json` siblings land
-  correctly with no `cadHost.ts` change, and makes "every other non-artifact file here is a
-  sidecar" a safe rule rather than a guess.
+  document plus its sidecars and declared companions** — that is what makes cad's
+  `${modelPath}.parts.json` siblings land correctly with no `cadHost.ts` change.
 - **`allowRoot()` is untouched.** `CadHost.openPath` already allow-lists `path.dirname(fsPath)`,
   which for a staged file *is* its staging directory. Allow-listing `cloud-cache/` itself would
   make every cached document from every account fetchable by any webview — the mistake the
@@ -359,11 +358,24 @@ Decisions worth knowing before changing any of it:
 - **Write-back is watcher-driven, not host-driven, and that is forced.**
   `mesh/src/meshExport.ts`'s `saveMesh()` overwrites the document in place with a bare
   `fs.promises.writeFile` inside the submodule and never reports the path back, so a save can be
-  observed but never intercepted. One `depth: 0` chokidar watch per staging directory (the bare
+  observed but never intercepted. One chokidar watch per staging directory (the bare
   `*` pattern added to `services/watcher.ts`) covers cad's ten sidecar writers, mesh's in-place
-  save, an export aimed back into the directory and `EditorService` at once. Its `depth: 0` is also
-  a real limit: XDMF's sibling `.h5` is uploaded, OpenFOAM's nested `constant/polyMesh/` tree is
-  deliberately not.
+  save, an export aimed back into the directory and `EditorService` at once. It is `depth: 0`
+  unless the format declares **companions**.
+- **Companions are an explicit allow-list.** `cachePathCore.companionsFor` names them: XDMF/XMF
+  → sibling `<stem>.h5`; `.foam` → the `constant/polyMesh/` tree (at most two levels below it,
+  `MAX_COMPANION_FILES` = 200). Because a tree can now sit beside the document, "every other file
+  is a sidecar" is no longer true — `isCompanionPath` (traversal, dotfiles, `.tmp`/`.download` at
+  any segment) decides what a nested path may upload. `companions.ts` is the transfer half:
+  `downloadCompanions` (called from `StagingCache.stage`; **any failure fails the open**, since a
+  `.foam` without its mesh is an empty case) and `RemoteFolders` (per-pass cache over the
+  providers' idempotent, race-tolerant `ensureFolder`; a file where a folder is needed is a
+  `conflict`, never replaced). Uploads follow the *document's* conflict rule per file, with
+  baselines in the optional `CloudEntry.companions` (no manifest version bump): absent remotely →
+  create; remote still at the stored revision → overwrite; otherwise (including no baseline) →
+  keep local, upload a `(conflict …)` copy beside it, adopt the remote revision. Companion bytes
+  count toward the cache budget. A pass remembers which names landed, so a retry after a partial
+  failure never re-uploads a file against its own stale baseline. Local deletes are not propagated.
 - **Revisions.** Drive `headRevisionId`, Dropbox `rev`, Graph **`cTag` — never `eTag`**, which also
   moves on metadata-only edits and would manufacture a conflict copy every time OneDrive touched
   the file for its own reasons. The wire-level precondition is carried separately (`precondition`

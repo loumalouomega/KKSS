@@ -120,7 +120,8 @@ bring your own OAuth client — see [Configuration ▸ Cloud accounts](/guide/co
 for the one-time setup.
 
 Opening a cloud file **downloads it into a local staging cache**, along with any of its sidecars
-that exist beside it, and everything after that behaves exactly like a local document: the same
+and companion files that exist beside it (XDMF's `.h5`, an OpenFOAM case's `constant/polyMesh/`
+mesh), and everything after that behaves exactly like a local document: the same
 viewers, the same tools, the same assistant. Cloud tabs are marked with a ☁ in the tab strip.
 
 Saving pushes it back. That happens on **File ▸ Save**, and also a few seconds after any automatic
@@ -144,8 +145,13 @@ What to expect in the awkward cases:
 - **The macro library is not synced.** `cad-preview-macros.json` belongs to a whole folder while
   the cache holds one document per directory, so uploading it would let two models from the same
   remote folder overwrite each other's macros. It stays local.
-- **Nested export trees stay local too.** A sibling companion file (XDMF's `.h5`) is uploaded; an
-  OpenFOAM case, which writes a whole `constant/polyMesh/` subdirectory, is not.
+- **Companion files and the OpenFOAM mesh tree travel with the document.** An XDMF's sibling `.h5`
+  and a `.foam` case's `constant/polyMesh/` folder are downloaded when you open the file and
+  uploaded when they change (the folders are created on the provider as needed). They follow the
+  same conflict rule as the document, file by file: if someone changed one remotely, yours is
+  uploaded beside it as `points (conflict …)`. If any of them cannot be downloaded the open fails
+  with a message instead of showing an empty case. Other folders of a case (`system/`, time
+  directories) are not synced, and deleting a file locally never deletes it remotely.
 
 The cache is trimmed on an LRU budget (**Settings ▸ Cloud Accounts ▸ Cache Size Limit…**, 2 GB by
 default). A document that is open, or that holds an unsent change, is never trimmed.
