@@ -252,6 +252,25 @@ resubmitted automatically.
   `MeshHost` whose document owns the uri and calls its `saveDocument()`, which
   calls `saveCustomDocument` on the exact document object.
 - **CAD mesh-edit replay stays in the compute worker.** When `CadHost` has no viewer-serialized STL, `app/main/cadMeshInput.ts` resolves the source (including glTF and meshio++ companions) and calls CAD’s `bakeMeshEdits` over only the unbaked tail. A viewer-supplied STL already contains edits. Keep source inspection facts raw where their identifiers are defined over the raw file, and surface each replay outcome in export provenance. Native CAD Save persists sidecars; only explicit assistant `cad__save_model` bakes STL/OBJ/PLY sources.
+- **Interactive bake (CAD File ▸ Save) is an ordering contract, kept in a pure
+  module.** `app/main/cadSaveInPlace.ts` (Electron-free, every effect injected —
+  the `cadOpOutcomes.ts` precedent) owns the order, `CadHost.saveDocument()` wires
+  the kernel, filesystem and prompts into it. Order, each step guarding a
+  silent-wrong-geometry failure: confirm (first save of the session only) →
+  one-deep `<file>.bak` → temp sibling + rename → **only then** advance
+  `bakedThrough` (and roll the source back if that write fails) → two-byte
+  `rebindPartsAcrossSave` for Parts/annotations/layers. B-rep exports the
+  unbaked **tail** at the file's own declared unit with `parts` passed (assembly
+  and names survive); mesh bakes run in the compute worker (`bakeMeshEdits`, never
+  a viewer round trip) inside the recoverable `meshSaveRecovery` transaction.
+  Pass `rebindPartsAcrossSave` the **tail**, not the full history — cad's own
+  provider and `save_model` pass the full list, which double-applies the baked
+  prefix from the second save on (latent upstream bug; do not copy it). KKSS has
+  no source watcher, so a bake is followed by `loadModel`, and the
+  `kkss-file://` URL carries a `?v=` cache-bust (the handler routes on the path
+  only). Headless/quit (`stopHeadless`) still only flush sidecars — a silent bake
+  on exit is exactly what the confirm exists to prevent. The chat's
+  `cad__save_model` writes the same file; there is no cross-process lock.
 - **Heavy WASM stays off the UI thread.** OCCT + Gmsh run in
   `app/main/cadCompute.worker.ts` (RPC via `cadComputeClient.ts`); MMG runs in
   the mesh submodule's own worker pair. Path contracts of the unmodified
@@ -566,15 +585,18 @@ resubmitted automatically.
   the flag and session list on its single provider, so KKSS keeps them in a
   module-level `liveHosts` registry in `cadHost.ts` instead. **Open (Ctrl+O) replaces the focused tab's document**, matching
   pre-tabs muscle memory exactly; **File ▸ New CAD/Mesh Tab** (or the tab
-  strip's `+`) is the explicit way to open a second document instead. Closing a
-  cad tab has no dirty-prompt — cad's sidecars autosave on a debounce, so it is
-  a plain dispose, same as replacing a tab's document always has been. mesh
+  strip's `+`) is the explicit way to open a second document instead. A tab is
+  **dirty** when it has an unbaked edit tail on a source that can bake
+  (`CadHost.isDirty()`, cad's `isDocumentDirty` predicate — the document chip and
+  the tab dot share it); sidecars autosave on a debounce, so what a dirty CAD tab
+  stands to lose is only the *bake*, never the edits. mesh
   3.18.0 gave its previews an app-level "unsaved changes" concept of their own
   (applying an operation marks the tab dirty; only `vscode.workspace.save`
-  clears it — see the shim invariant below), so **closing a dirty mesh tab
-  prompts Save / Don't Save / Cancel first** (`index.ts`'s
-  `confirmDiscardMeshTab`, mirroring `EditorService.confirmClose`'s exact dialog
-  shape), and quitting with any dirty mesh tab open does the same, ahead of the
+  clears it — see the shim invariant below). **Closing a dirty CAD or mesh tab
+  prompts Save / Don't Save / Cancel first** (`index.ts`'s `confirmDiscardTab`,
+  mirroring `EditorService.confirmClose`'s exact dialog shape; Save =
+  `host.saveDocument()`, and Don't Save on a CAD tab flushes its sidecars first
+  so a not-yet-debounced edit survives the dispose), and quitting with any dirty tab open does the same, ahead of the
   text editor's own equivalent guard — both live on `main.win.on("close")`
   rather than adding a second `before-quit` hold, since that hook already
   carries a single-shot cloud-drain `preventDefault`. Replace-in-place opens also await this guard through `openFile` and
@@ -1584,10 +1606,10 @@ mesh was then redesigned to match it.**
   `kernel-worker.js` child is a different process and does not feed this.
 - **The document chip is a faithful port, and that has a visible consequence.**
   `isDocumentDirty()` is cad's predicate: unbaked tail on a source that can bake
-  (STEP/IGES/BREP, STL/OBJ/PLY). KKSS never advances `bakedThrough` (no
-  interactive bake), so an edited such file reads "N unsaved edits" for good — true
-  by cad's definition (the source file does not contain what is on screen),
-  documented in `doc/guide/cad-mode.md` rather than special-cased.
+  (STEP/IGES/BREP, STL/OBJ/PLY). **File ▸ Save in CAD mode bakes** (see "Interactive
+  bake" below), which advances `bakedThrough` and clears the chip; until then an
+  edited such file honestly reads "N unsaved edits" — the source file does not
+  contain what is on screen (`doc/guide/cad-mode.md`).
   `syncDocumentInfo()` is deduplicated and reset in `disposeSession()`.
 - **The shell learns panel state from main, never from its own clicks.** A
   `panels {terminal, chat}` message (`pushPanels()` in `index.ts`, called from all

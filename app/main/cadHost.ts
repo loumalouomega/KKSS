@@ -44,10 +44,11 @@ import { finishOpen } from "./services/performance";
  * here: `kernelStatus` (readiness, fed by cadComputeClient's tracker and fanned
  * out to every tab — the provider's constructor subscription) and
  * `documentInfo` (the menubar chip). The chip is a FAITHFUL port of the
- * provider's predicate: KKSS never advances `bakedThrough` (no interactive
- * bake), so an edited STEP/IGES/BREP/STL/OBJ/PLY reads "N unsaved edits" for
- * good. That is accurate by cad's own definition — the source file does not yet
- * contain what is on screen — and is documented rather than special-cased.
+ * provider's predicate: an edited STEP/IGES/BREP/STL/OBJ/PLY reads "N unsaved
+ * edits" until File ▸ Save bakes the tail into the source (`saveDocument`, with
+ * the ordering owned by `cadSaveInPlace.ts`), which advances `bakedThrough`.
+ * That is accurate by cad's own definition — the source file does not yet
+ * contain what is on screen.
  */
 import { ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs/promises";
@@ -124,6 +125,14 @@ import { detectStepLengthUnit } from "../../cad/src/stepUnits";
 import { detectIgesLengthUnit } from "../../cad/src/igesUnits";
 import { resolveCadMeshInput } from "./cadMeshInput";
 import { rebaseOpOutcomes } from "./cadOpOutcomes";
+import {
+  saveBrepInPlace,
+  saveMeshInPlace,
+  type BrepSaveFormat,
+  type MeshSaveFormat,
+  type SaveFs,
+  type SaveOutcome,
+} from "./cadSaveInPlace";
 import { normalizeViewerDefaults } from "../../cad/src/viewerDefaults";
 import { validateEditOp, type EditOp } from "../../cad/src/editOps";
 import { resolvePlaneRefs } from "../../cad/src/planeRefs";
@@ -442,7 +451,20 @@ export interface CadHostHooks {
    * `sourcePath` is the CAD document it was exported from, so the layer
    * sync can translate `<source>.layers.json` into the target's view sidecar. */
   onMeshExported(fsPath: string, sourcePath: string): void;
+  /** The tab's unsaved state flipped (drives the tab dot). */
+  onDirtyChanged(): void;
+  /** Modal "Save in place" / Cancel for a bake into the source file. */
+  confirmSaveInPlace(message: string): Promise<boolean>;
 }
+
+/** The real filesystem, shaped for `cadSaveInPlace`. */
+const SAVE_FS: SaveFs = {
+  readFile: (p) => fs.readFile(p),
+  writeFile: (p, bytes) => fs.writeFile(p, bytes),
+  copyFile: (from, to) => fs.copyFile(from, to),
+  rename: (from, to) => fs.rename(from, to),
+  rm: (p) => fs.rm(p, { force: true }),
+};
 
 export class CadHost {
   private doc: { path: string; route: FileRoute | undefined } | undefined;
@@ -459,8 +481,8 @@ export class CadHost {
   private currentVariables: ParamVariable[] = [];
   /** ops[0..bakedThrough) are already baked into the CAD source file itself
    *  (by `cad__save_model` or another process) — only the tail is ever
-   *  replayed against the loaded body. Read from the sidecar; never advanced
-   *  here, since KKSS has no interactive bake action of its own yet. */
+   *  replayed against the loaded body. Read from the sidecar and advanced by
+   *  File ▸ Save (`saveDocument`) or by another process (`cad__save_model`). */
   private currentBakedThrough = 0;
   private currentParts: Part[] = [];
   private currentLayers: Layer[] = [];
@@ -476,6 +498,12 @@ export class CadHost {
   private epoch = 0;
   /** Last `documentInfo` actually posted (serialized), so syncing is idempotent. */
   private lastDocumentInfo = "";
+  /** Last dirty value reported to the tab strip, so the hook fires on a flip only. */
+  private lastDirty = false;
+  /** True once this session has made the one-deep `<file>.bak` (first save asks). */
+  private madeSourceBackupThisSession = false;
+  /** Re-entrancy guard: a second Save while one is in flight would stack two bakes. */
+  private saving: Promise<boolean> | undefined;
 
   constructor(
     private readonly view: WebContentsView,
@@ -633,9 +661,21 @@ export class CadHost {
       unsavedEdits: dirty ? this.currentEdits.length - this.currentBakedThrough : 0,
     };
     const serialized = JSON.stringify(info);
+    // The tab dot follows the same predicate as the chip, reported on a flip
+    // only. Before the dedup return: the chip may be unchanged while a reset
+    // `lastDirty` still needs reconciling.
+    if (dirty !== this.lastDirty) {
+      this.lastDirty = dirty;
+      this.hooks.onDirtyChanged();
+    }
     if (serialized === this.lastDocumentInfo) return;
     this.lastDocumentInfo = serialized;
     this.post(info);
+  }
+
+  /** Unsaved edits that File ▸ Save would write into the source file. */
+  isDirty(): boolean {
+    return this.isDocumentDirty();
   }
 
   /** Every place the host tells the webview about the op list also settles the
@@ -670,7 +710,7 @@ export class CadHost {
     if (picked) this.hooks.onOpenRequest(picked[0]);
   }
 
-  /** File ▸ Save — immediately flushes all sidecars (provider flushSidecars). */
+  /** The sidecar half of File ▸ Save (provider flushSidecars) — `saveDocument` adds the bake. */
   async flushSidecars(): Promise<void> {
     if (!this.doc) return;
     if (this.partsSaveTimer) clearTimeout(this.partsSaveTimer);
@@ -698,6 +738,186 @@ export class CadHost {
       this.post({ type: "status", text: "Saved" });
     } catch (err) {
       this.post({ type: "error", message: `Save failed: ${(err as Error).message}` });
+    }
+  }
+
+  /**
+   * File ▸ Save, and the "Save" of the close/quit/replace prompts: flushes every
+   * sidecar, then — when the source is a format that can take its own edits
+   * back — bakes the unbaked tail into the file itself (cad's
+   * `saveDocumentSource`, Ctrl+S in VS Code).
+   *
+   * Resolves `true` when there is nothing left unsaved, `false` when the user
+   * declined the first-save confirmation (nothing was written, the tab stays
+   * dirty), and THROWS when the write failed — the same contract
+   * `MeshHost.saveDocument` has, so index.ts's one dirty-tab guard serves both.
+   * Concurrent calls share one in-flight save: a second bake stacked on the
+   * first would replay the same tail over a half-written source.
+   */
+  saveDocument(): Promise<boolean> {
+    if (this.saving) return this.saving;
+    const run = this.runSave().finally(() => {
+      this.saving = undefined;
+    });
+    this.saving = run;
+    return run;
+  }
+
+  private async runSave(): Promise<boolean> {
+    const doc = this.doc;
+    if (!doc?.route) return true;
+    const epoch = this.epoch;
+    const route = doc.route;
+    await this.flushSidecars();
+    if (!this.isDocumentDirty()) return true;
+
+    // Settle a transaction a previous run (or `cad__save_model`) left in flight
+    // BEFORE opening a new one, so two saves can never stack their markers. A
+    // `finish` moves the watermark and a `restore` rewrote the source, so the
+    // sidecar is re-read and the page reloaded.
+    if (route.strategy === "three") {
+      const recovered = await this.recoverMeshSave();
+      if (recovered.sidecarChanged || recovered.sourceChanged) {
+        const settled = await readEdits(doc.path);
+        this.currentEdits = resolvePlaneRefs(settled.ops, this.currentPlanes).ops;
+        this.currentVariables = settled.variables;
+        this.currentBakedThrough = settled.bakedThrough;
+        this.postEdits();
+        if (recovered.sourceChanged) this.loadModel();
+        if (!this.isDocumentDirty()) return true;
+      }
+    }
+
+    const warnings: string[] = [];
+    const common = {
+      fs: SAVE_FS,
+      confirm: (message: string) => this.hooks.confirmSaveInPlace(message),
+      commitWatermark: (next: number) => this.commitWatermark(next),
+    };
+    let outcome: SaveOutcome;
+    if (route.strategy === "occt") {
+      const format = route.format as BrepSaveFormat;
+      const bakedBefore = this.currentBakedThrough;
+      outcome = await saveBrepInPlace(
+        {
+          docPath: doc.path,
+          format,
+          edits: this.currentEdits,
+          bakedThrough: bakedBefore,
+          parts: this.currentParts,
+          annotations: this.currentAnnotations,
+          layers: this.currentLayers,
+          firstSaveOfSession: !this.madeSourceBackupThisSession,
+        },
+        {
+          ...common,
+          readSource: () => this.readOcctSource(doc.path, route.format, warnings),
+          exportBRep: (src, tail, unit, parts) =>
+            cadCompute.exportBRep(this.runtimePath, src.bytes, src.format as OcctSourceFormat, format, tail, unit, true, parts),
+          rebindAcrossSave: (oldBytes, oldFormat, oldOps, newBytes, parts, annotations, layers) =>
+            cadCompute.rebindPartsAcrossSave(
+              this.runtimePath,
+              oldBytes,
+              oldFormat as OcctSourceFormat,
+              oldOps,
+              newBytes,
+              format,
+              [],
+              parts,
+              annotations,
+              layers
+            ),
+        }
+      );
+    } else if (route.strategy === "three" && MESH_SAVE_IN_PLACE_FORMATS.has(route.format)) {
+      const format = route.format as MeshSaveFormat;
+      outcome = await saveMeshInPlace(
+        {
+          docPath: doc.path,
+          format,
+          edits: this.currentEdits,
+          variables: this.currentVariables,
+          bakedThrough: this.currentBakedThrough,
+          firstSaveOfSession: !this.madeSourceBackupThisSession,
+        },
+        {
+          ...common,
+          bake: (bytes, fmt, tail) => cadCompute.bakeMeshEdits(bytes, fmt, tail, fmt),
+        }
+      );
+    } else {
+      // meshio / glTF / CAD-text sources have no same-format writer: the
+      // sidecars were flushed above and that is the whole save.
+      return true;
+    }
+
+    if (outcome.status === "cancelled") return false;
+    if (outcome.status === "failed") {
+      this.post({ type: "error", message: outcome.message });
+      throw new Error(outcome.message);
+    }
+    if (epoch !== this.epoch) return true; // document replaced while saving
+    if (outcome.madeBackup) this.madeSourceBackupThisSession = true;
+    for (const w of [...warnings, ...outcome.warnings]) this.post({ type: "status", text: w });
+    await this.adoptRebound(doc.path, outcome.rebound);
+    // The webview adopts the new save point from the `edits` post (its undo
+    // gate and the locked rows), then the page reloads from the new bytes.
+    this.postEdits();
+    this.post({
+      type: "status",
+      text: `Saved in place to ${path.basename(doc.path)} (${outcome.baked} op(s) baked)`,
+    });
+    if (route.strategy === "three") {
+      // The bytes at the same URL just changed; a query string defeats any
+      // cached copy (the protocol handler routes on the path alone).
+      this.post({ type: "loadUrl", url: `${toKkssUrl(doc.path)}?v=${Date.now()}`, format: route.format });
+    } else {
+      this.loadModel();
+    }
+    return true;
+  }
+
+  /**
+   * Advances the save marker and persists it — the host half of
+   * `SaveInPlaceDeps.commitWatermark`. Clears the pending autosave first (a
+   * stale-watermark write must not land after this one), and leaves the
+   * previous watermark in effect if the write throws.
+   */
+  private async commitWatermark(next: number): Promise<void> {
+    const doc = this.doc;
+    if (!doc) throw new Error("The document was closed while saving.");
+    if (this.editsSaveTimer) clearTimeout(this.editsSaveTimer);
+    this.editsSaveTimer = undefined;
+    const before = this.currentBakedThrough;
+    this.currentBakedThrough = next;
+    try {
+      await writeEdits(doc.path, this.currentEdits, this.currentVariables, next);
+    } catch (err) {
+      this.currentBakedThrough = before;
+      throw err;
+    }
+  }
+
+  /** Persists and posts whichever of Parts/annotations/layers a save's rebind changed. */
+  private async adoptRebound(
+    modelPath: string,
+    rebound: { parts?: Part[]; annotations?: Annotation[]; layers?: Layer[] } | undefined
+  ): Promise<void> {
+    if (!rebound) return;
+    if (rebound.parts) {
+      this.currentParts = rebound.parts;
+      await writeParts(modelPath, this.currentParts);
+      this.post({ type: "parts", parts: this.currentParts });
+    }
+    if (rebound.annotations) {
+      this.currentAnnotations = rebound.annotations;
+      await writeAnnotations(modelPath, this.currentAnnotations);
+      this.post({ type: "annotations", annotations: this.currentAnnotations });
+    }
+    if (rebound.layers) {
+      this.currentLayers = rebound.layers;
+      await writeLayers(modelPath, this.currentLayers, this.currentLayersNextId);
+      this.post({ type: "layers", layers: this.currentLayers, nextId: this.currentLayersNextId });
     }
   }
 
@@ -761,6 +981,10 @@ export class CadHost {
     this.lastPartsSearch = null;
     // A reopened page must receive the chip again even for an identical value.
     this.lastDocumentInfo = "";
+    // Not fired: the caller (openPath → onTitle, or tab close) refreshes the strip.
+    this.lastDirty = false;
+    // The one-deep backup belongs to a document session, not to the tab.
+    this.madeSourceBackupThisSession = false;
     // The provider frees its per-document BRepCacheEntry in onDidDispose; here
     // the entry lives in the worker, so ask it to. Fire-and-forget: a failure
     // only costs the next load a fresh parse. TWO keys since cad 1.7.0 — the
@@ -905,9 +1129,9 @@ export class CadHost {
       this.lastDocumentInfo = "";
       // cad 3.7.0's recoverable mesh save-in-place (roadmap 1.5): repair an
       // interrupted transaction FIRST, so the hydration below reads whatever
-      // watermark recovery landed. KKSS never opens one itself — it has no
-      // interactive bake — but `cad__save_model` (and any other process) bakes
-      // in place, and a `finish` here is the difference between the pending
+      // watermark recovery landed. The interactive bake and `cad__save_model`
+      // (or any other process) both bake in place, so an interrupted one can be
+      // left behind, and a `finish` here is the difference between the pending
       // edits applying once and being replayed over geometry that already
       // contains them.
       await this.recoverMeshSave();
@@ -1347,7 +1571,9 @@ export class CadHost {
     }
 
     if (msg.type === "saveSidecars") {
-      void this.flushSidecars();
+      // The webview's own File ▸ Save — the same save as the native menu's.
+      // A failure is already on the error banner (runSave posts it).
+      void this.saveDocument().catch(() => undefined);
       return;
     }
 

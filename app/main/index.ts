@@ -469,9 +469,10 @@ function syncTabs(mode: Mode): void {
       // remote one are the same except where the OS forced a substitution.
       fileName: file ? path.basename(file) : null,
       cloud: origin ? { provider: origin.providerLabel, name: origin.name } : undefined,
-      // cad has no unsaved-changes concept (sidecars autosave); mesh 3.18.0
-      // gave its previews one, tracked per tab by MeshHost.isDirty().
-      dirty: mode === "mesh" ? (host as MeshHost | undefined)?.isDirty() : undefined,
+      // mesh 3.18.0 gave its previews unsaved-edit tracking (MeshHost.isDirty());
+      // a CAD tab is dirty while it holds an unbaked tail on a source that can
+      // take it back (CadHost.isDirty — the document chip's own predicate).
+      dirty: host?.isDirty(),
     };
   });
   sendShell({ type: "tabs", mode, tabs, activeTabId: main.activeTabId(mode) });
@@ -484,6 +485,22 @@ function syncTabs(mode: Mode): void {
 const cadHostHooks = {
   onOpenRequest: (fsPath: string) => { void openFile(fsPath); },
   onTitle: () => syncTabs("cad"),
+  // A CAD tab's unsaved state (an unbaked tail on a source that can take it
+  // back) drives the same tab dot a dirty mesh tab shows.
+  onDirtyChanged: () => syncTabs("cad"),
+  // The first bake of a session rewrites the user's file — ask, like the
+  // provider's modal "Save in place" / "Cancel".
+  confirmSaveInPlace: async (message: string) => {
+    if (!main || main.win.isDestroyed()) return false;
+    const { response } = await dialog.showMessageBox(main.win, {
+      type: "warning",
+      message,
+      buttons: [t("Save in place"), t("Cancel")],
+      defaultId: 1,
+      cancelId: 1,
+    });
+    return response === 0;
+  },
   // Pre → post sync: a mesh exported from CAD that post mode can display
   // (.mdpa, .vtk, …) refreshes a matching clean tab or opens a NEW mesh tab.
   // Unrelated documents and tabs with unsaved operations are preserved.
@@ -630,25 +647,37 @@ function newTab(mode: Mode): void {
 }
 
 /**
- * Save / Don't Save / Cancel for a dirty mesh tab, mirroring
- * EditorService.confirmClose's exact dialog shape. cad has no unsaved-changes
- * concept (sidecars autosave), so this is only ever asked of a MeshHost.
- * Resolves false ("Cancel") to abort whatever wanted to discard the tab.
+ * Save / Don't Save / Cancel for a dirty tab, mirroring
+ * EditorService.confirmClose's exact dialog shape. Mesh tabs have been dirty
+ * since mesh 3.18.0; a CAD tab is dirty while its unbaked edit tail has not
+ * been written into the source file (File ▸ Save). Don't Save is harmless for
+ * CAD — the edits stay in the sidecar either way — and the dialog says so.
+ * Resolves false ("Cancel", or a Save that was declined or failed) to abort
+ * whatever wanted to discard the tab.
  */
-async function confirmDiscardMeshTab(host: MeshHost): Promise<boolean> {
+async function confirmDiscardTab(host: CadHost | MeshHost): Promise<boolean> {
   if (!main || !host.isDirty()) return true;
-  const name = host.currentFile ? path.basename(host.currentFile) : "this mesh";
+  const name = host.currentFile ? path.basename(host.currentFile) : t("this document");
   const { response } = await dialog.showMessageBox(main.win, {
     type: "warning",
     message: t("Save changes to {0}?", {0: name}),
+    detail: host instanceof CadHost
+      ? t("Your edits are kept beside the file either way. Save also writes them into {0} itself.", {0: name})
+      : undefined,
     buttons: [t("Save"), t("Don't Save"), t("Cancel")],
     defaultId: 0,
     cancelId: 2,
   });
   if (response === 2) return false;
+  // "Your edits are kept beside the file either way" has to be true the moment
+  // the dialog is answered, not 500 ms later: disposing a CAD tab clears its
+  // autosave timers, so flush them before Don't Save lets the tab go.
+  if (response === 1 && host instanceof CadHost) await host.flushSidecars();
   if (response === 0) {
     try {
-      await host.saveDocument();
+      // CadHost resolves false when the user declined the in-place
+      // confirmation; MeshHost has no such second prompt and resolves void.
+      if ((await host.saveDocument()) === false) return false;
     } catch (err) {
       toast("error", err instanceof Error ? err.message : String(err));
       return false; // the write failed — keep the tab open, still dirty
@@ -657,15 +686,14 @@ async function confirmDiscardMeshTab(host: MeshHost): Promise<boolean> {
   return true;
 }
 
-/** ✕ on a tab. cad has no dirty-prompt — sidecars autosave, same as any other
- *  document replace/close in this app (see CLAUDE.md's tabs invariant). mesh
- *  3.18.0 gave its previews unsaved-edit tracking, so a dirty mesh tab prompts
- *  first (confirmDiscardMeshTab) — Cancel leaves the tab open, untouched. */
+/** ✕ on a tab. A dirty tab — mesh since 3.18.0, CAD while it holds an unbaked
+ *  edit tail — prompts first (confirmDiscardTab); Cancel leaves it open,
+ *  untouched. A clean CAD tab is a plain dispose: its sidecars autosave. */
 async function closeTab(mode: Mode, tabId: string): Promise<void> {
   if (!main) return;
   const hosts = mode === "cad" ? cadHosts : meshHosts;
   const host = hosts.get(tabId);
-  if (mode === "mesh" && host instanceof MeshHost && !(await confirmDiscardMeshTab(host))) return;
+  if (host && !(await confirmDiscardTab(host))) return;
   const closing = host?.currentFile;
   host?.dispose();
   hosts.delete(tabId);
@@ -878,7 +906,7 @@ function openFile(fsPath: string, forcedMode?: Mode, external = false): Promise<
   pendingOpenHosts.add(host);
   return replaceDocument(
     () => !!main && !main.win.isDestroyed() && hosts.get(tabId) === host && host.currentFile === previous && (external || main.activeTabId(mode) === tabId),
-    () => host instanceof MeshHost ? confirmDiscardMeshTab(host) : Promise.resolve(true),
+    () => confirmDiscardTab(host),
     () => {
       beginOpen(resolved);
       host.openPath(resolved);
@@ -1179,7 +1207,7 @@ app.whenReady().then(() => {
   // mesh 3.18.0 gave its previews the same kind of unsaved-edit tracking the
   // text editor already had; both are checked here rather than adding a
   // second before-quit hold (which already carries a single-shot cloud-drain
-  // preventDefault it is best not to complicate further). Mesh tabs are
+  // preventDefault it is best not to complicate further). Dirty tabs (CAD and mesh) are
   // confirmed first, one dialog per dirty tab, sequentially — a Cancel at any
   // point aborts the whole close before the editor is even asked. If the
   // editor is ALSO dirty, its own confirmClose() owns window.destroy() when
@@ -1187,12 +1215,12 @@ app.whenReady().then(() => {
   // itself once every mesh tab has resolved.
   main.win.on("close", (event) => {
     if (headlessStopping) return;
-    const dirtyMeshTabs = [...meshHosts.values()].filter((host) => host.isDirty());
-    if (!editor?.isDirty() && dirtyMeshTabs.length === 0) return;
+    const dirtyTabs = [...cadHosts.values(), ...meshHosts.values()].filter((host) => host.isDirty());
+    if (!editor?.isDirty() && dirtyTabs.length === 0) return;
     event.preventDefault();
     void (async () => {
-      for (const host of dirtyMeshTabs) {
-        if (!(await confirmDiscardMeshTab(host))) return;
+      for (const host of dirtyTabs) {
+        if (!(await confirmDiscardTab(host))) return;
       }
       if (editor?.isDirty()) {
         void editor.confirmClose();
