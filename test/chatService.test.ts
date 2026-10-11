@@ -1229,7 +1229,10 @@ describe("token, cost and context accounting", () => {
   describe("composer strip (model picker + thinking level)", () => {
     const composers = (messages: ChatToWebview[]) =>
       messages.filter((m): m is Extract<ChatToWebview, { type: "composer" }> => m.type === "composer").map((m) => m.composer);
-    const lastComposer = (messages: ChatToWebview[]) => composers(messages).at(-1)!;
+    const lastComposer = (messages: ChatToWebview[]) => {
+      const all = composers(messages);
+      return all[all.length - 1];
+    };
 
     it("describes the active provider on chatReady", () => {
       stateValues.llmModelAnthropic = "claude-sonnet-4-6";
