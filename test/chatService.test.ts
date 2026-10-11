@@ -587,7 +587,7 @@ describe("workspace context suffix", () => {
 describe("tool-call approval", () => {
   const READ = { id: "t1", name: "cad__inspect", argsJson: "{}" };
   const WRITE = { id: "t1", name: "mesh__mesh_transform", argsJson: '{"path":"/a.mdpa"}' };
-  const UNKNOWN = { id: "t1", name: "kratos__run_simulation", argsJson: "{}" };
+  const UNKNOWN = { id: "t1", name: "kratos__not_in_the_pinned_server", argsJson: "{}" };
 
   const requests = (messages: ChatToWebview[]) =>
     messages.filter((m): m is Extract<ChatToWebview, { type: "approvalRequest" }> => m.type === "approvalRequest");
@@ -691,8 +691,8 @@ describe("tool-call approval", () => {
   });
 
   it("asks about a tool it has no policy for", async () => {
-    // Every kratos tool, today: that server is resolved at runtime and is not
-    // in this tree, so it cannot be honestly classified.
+    // A tool the pinned kratos-mcp-server (or a newer one) advertises that the
+    // table was never reviewed against.
     const { provider, mcp, messages, post } = makeService();
     await upToTool(UNKNOWN, post, provider);
     expect(requests(messages)[0].pending.access).toBe("unknown");
