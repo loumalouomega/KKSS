@@ -807,7 +807,9 @@ resubmitted automatically.
   **not** wired to `protocol.ts`'s `allowRoot`, which stays per-document:
   widening that allow-list to the root would silently make every file under it
   fetchable by a webview, i.e. build a fence out of the thing that was decided
-  not to be one. Path scoping for the MCP toolset is a separate, later decision.
+  not to be one. The one place it *is* consulted for scope is the chat's
+  "Always allow in project folder" grant (see the tool-gate bullet), which is
+  a prompt-skipping convenience, not a fence.
   Two levels: `explicit()` (chosen, persisted under `projectRoot`) and
   `effective()` (explicit, else the focused document's directory). **Consumers
   use `effective()`, so with no explicit root behavior is byte-identical to
@@ -984,13 +986,35 @@ resubmitted automatically.
   optional field degrades in both directions). "Always allow in this
   conversation" lives in a service-level `Map<conversationId, Set<string>>`,
   **not** on `LiveConversation` — `store.close()` drops that object on every
-  conversation switch, so a grant there would silently expire. **Path scoping is
-  out of scope** (classification only), and **the HTTP meta server
-  (`metaServer/buildServer.ts`'s `callToolRaw`) is deliberately un-gated** —
-  bearer token only, since an external client has no user to prompt. Every
+  conversation switch, so a grant there would silently expire. **"Always allow in
+  project folder" is a second, narrower grant** (`scopedAllow`, same lifetime and
+  key as `alwaysAllow`; `ApprovalDecision` gained `allowScoped`). It is offered
+  only when an *explicit* project root is set and `toolPaths.ts`'s
+  `scopedCallPaths` can account for **every** path in the call, and every later
+  call re-checks against `projectRoot.explicit()` at the gate (so clearing the
+  folder revokes it with no bookkeeping). `SCOPED_TOOL_PATH_ARGS` is a
+  fail-closed per-tool table of path argument names: no row ⇒ ask; a
+  path-looking argument the table does not know (name heuristic, suffix
+  `path|file|dir|folder|…`, minus `format|ext|type|name|id|mode|kind`) ⇒ ask;
+  relative paths ⇒ ask (the server resolves them against its own cwd);
+  symlinks are resolved on the nearest existing ancestor. Tools that *execute*
+  (solver/job/study tools, `mesh__case_run`, `problemtype_*`, scripts) and
+  tools with nested-path documents (`plot_dataset`) are deliberately unlisted.
+  `toolPolicy.ts` stays free of `node:*` — the inside-check is injected into
+  `gateFor`. A new write tool defaults to unscoped; the unscoped set is pinned
+  in `test/toolPaths.test.ts`. **The HTTP meta server is
+  gated by an access setting, not a prompt** — an external client has no user to
+  ask, so `metaServer/accessPolicy.ts` (pure, reusing `classifyTool`) allows or
+  refuses each call per **Settings ▸ MCP Server ▸ Allowed Tools** (`readOnly`
+  default, `readListed` with `metaServerAllowedTools`, `all`); `buildServer.ts`
+  filters `tools/list`, refuses with an MCP error naming the setting, and an
+  `unknown` tool is never allowed unless listed. Installs that already had the
+  server configured migrate once to `all` (`metaServerAccessMigrated` flag —
+  the default value is stored as an absent key, so the flag, not the key, is
+  what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 153-name key set.
+  `test/chatToolPolicy.test.ts` pins the exact 205-name key set, including the 52 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is

@@ -115,6 +115,12 @@ export interface ChatPendingApproval {
    *  Computed by the main process: the renderer must not carry toolPolicy's
    *  table, and a client-side guess would offer a button that cannot work. */
   dryRunnable: boolean;
+  /** Offer "Always allow in project folder": an explicit project root is set,
+   *  the tool is a scopable write tool, and every path in *this* call is
+   *  inside that root. Computed by main — the renderer carries no policy. */
+  scopable?: boolean;
+  /** The project folder the grant would be scoped to (shown on the button). */
+  scopeRoot?: string;
   /** A validation already run for this call. Replayed alongside the prompt for
    *  the same reason the prompt itself is: a renderer reload must not silently
    *  discard the answer the user is still looking at. Text only — images would
@@ -193,7 +199,7 @@ export type ChatToHost =
   | { type: "retryKratos" }
   | { type: "send"; text: string }
   | { type: "stop" }
-  | { type: "approveTool"; callId: string; decision: "allow" | "allowAlways" | "deny" }
+  | { type: "approveTool"; callId: string; decision: "allow" | "allowAlways" | "allowScoped" | "deny" }
   /** Re-runs the blocked call in validate-only mode. Deliberately NOT an
    *  `approveTool` decision: it leaves the gate open so the user answers it
    *  with the report in front of them. */

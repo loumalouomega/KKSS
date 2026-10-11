@@ -20,9 +20,19 @@ import {
   gateFor,
   isApprovalMode,
   TOOL_ACCESS,
+  KRATOS_TOOLS_REVIEWED_VERSION,
   type ApprovalMode,
   unclassifiedTools,
 } from "../app/main/services/chat/toolPolicy";
+import {
+  DEFAULT_META_ACCESS,
+  isMetaAccess,
+  metaAccessMigration,
+  metaToolAllowed,
+  normalizeAllowedWrites,
+  readMetaAccess,
+} from "../app/main/services/metaServer/accessPolicy";
+import { KRATOS_MCP_VERSION } from "../app/main/services/chat/kratosMcpVersion";
 
 const none = new Set<string>();
 const root = path.resolve(__dirname, "..");
@@ -93,10 +103,8 @@ describe("classifyTool", () => {
   });
 
   it("treats anything the table does not name as unknown", () => {
-    // Every kratos tool, always: that server is resolved by uvx at runtime and
-    // is not in this tree, so we cannot honestly classify any of its 40 tools.
-    expect(classifyTool("kratos__run_simulation")).toBe("unknown");
-    expect(classifyTool("kratos__create_project")).toBe("unknown");
+    // A tool a newer kratos-mcp-server adds beyond the reviewed pin.
+    expect(classifyTool("kratos__not_in_the_pinned_server")).toBe("unknown");
     // A tool a future submodule bump adds.
     expect(classifyTool("cad__does_not_exist_yet")).toBe("unknown");
     // Malformed names must not throw or accidentally match.
@@ -110,14 +118,21 @@ describe("classifyTool", () => {
     // and is not one. If someone ever adds prefix matching, this fails.
     expect(classifyTool("mesh__problemtype_list")).toBe("write");
     expect(classifyTool("kratos__list_projects")).toBe("unknown");
+    expect(classifyTool("kratos__list_templates")).toBe("read");
   });
 });
 
 describe("gateFor", () => {
-  it.each(["study_start", "study_cancel", "study_resume", "job_rerun", "job_resume", "configure_checkpoints", "results_time_history", "results_compare"])("keeps new Kratos tool %s unclassified and approval-gated", (name) => {
+  it.each(["study_start", "study_cancel", "study_resume", "job_rerun", "job_resume", "configure_checkpoints", "results_time_history", "results_compare", "study_results"])("classifies Kratos write tool %s and gates it", (name) => {
     const tool = `kratos__${name}`;
-    expect(classifyTool(tool)).toBe("unknown");
+    expect(classifyTool(tool)).toBe("write");
     expect(gate(tool, "askOnWrite")).toBe("ask");
+    expect(gate(tool, "askAlways")).toBe("ask");
+  });
+  it.each(["job_status", "job_list", "job_logs", "job_checkpoints", "study_status", "study_list", "validate_case", "results_summary"])("runs Kratos read tool %s without asking", (name) => {
+    const tool = `kratos__${name}`;
+    expect(classifyTool(tool)).toBe("read");
+    expect(gate(tool, "askOnWrite")).toBe("auto");
     expect(gate(tool, "askAlways")).toBe("ask");
   });
   it("auto-approves reads and asks for writes in the default mode", () => {
@@ -127,8 +142,9 @@ describe("gateFor", () => {
   });
 
   it("asks about an unknown tool — the whole point of the default", () => {
+    expect(gate("kratos__not_in_the_pinned_server", "askOnWrite")).toBe("ask");
+    expect(gate("kratos__not_in_the_pinned_server", "askAlways")).toBe("ask");
     expect(gate("kratos__run_simulation", "askOnWrite")).toBe("ask");
-    expect(gate("kratos__run_simulation", "askAlways")).toBe("ask");
   });
 
   it("asks about everything in askAlways, reads included", () => {
@@ -140,13 +156,13 @@ describe("gateFor", () => {
     // An explicit, dialog-confirmed opt-out. Half-honouring it would be worse
     // than not offering it at all.
     expect(gate("cad__apply_edit_ops", "never")).toBe("auto");
-    expect(gate("kratos__run_simulation", "never")).toBe("auto");
+    expect(gate("kratos__not_in_the_pinned_server", "never")).toBe("auto");
   });
 
   it("lets an always-allow grant cover a write and an unknown tool", () => {
-    const allowed = new Set(["cad__apply_edit_ops", "kratos__run_simulation"]);
+    const allowed = new Set(["cad__apply_edit_ops", "kratos__not_in_the_pinned_server"]);
     expect(gate("cad__apply_edit_ops", "askOnWrite", allowed)).toBe("auto");
-    expect(gate("kratos__run_simulation", "askOnWrite", allowed)).toBe("auto");
+    expect(gate("kratos__not_in_the_pinned_server", "askOnWrite", allowed)).toBe("auto");
     // ...but only the tools actually granted.
     expect(gate("cad__export_mesh", "askOnWrite", allowed)).toBe("ask");
   });
@@ -177,11 +193,12 @@ describe("unclassifiedTools", () => {
     expect(
       unclassifiedTools([
         { name: "cad__inspect" },
-        { name: "kratos__run_simulation" },
+        { name: "kratos__newer_server_tool" },
         { name: "mesh__mesh_transform" },
-        { name: "kratos__create_project" },
+        { name: "kratos__job_list" },
+        { name: "kratos__another_new_tool" },
       ])
-    ).toEqual(["kratos__run_simulation", "kratos__create_project"]);
+    ).toEqual(["kratos__newer_server_tool", "kratos__another_new_tool"]);
   });
 
   it("is empty when every advertised tool is classified", () => {
@@ -192,11 +209,12 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 74 cad + 44 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools.
+    // 74 cad + 44 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
+    // + 52 kratos-mcp-server tools (reviewed at the pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(153);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(205);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
@@ -205,8 +223,9 @@ describe("the table itself", () => {
     expect(mesh).toHaveLength(44);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
-    // No kratos__ row: its external server is deliberately unclassified.
-    expect(cad.length + mesh.length + meta.length + app.length).toBe(Object.keys(TOOL_ACCESS).length);
+    const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
+    expect(kratos).toHaveLength(52);
+    expect(cad.length + mesh.length + meta.length + app.length + kratos.length).toBe(Object.keys(TOOL_ACCESS).length);
   });
 
   it("matches every currently registered CAD and mesh MCP tool by exact name", () => {
@@ -226,9 +245,76 @@ describe("the table itself", () => {
     expect(classified).toEqual(actual);
   });
 
+  it("ties the Kratos rows to the pinned server release", () => {
+    // Bumping KRATOS_MCP_VERSION must be a reviewed edit: re-read the new
+    // release's tool list, update the rows below, then move the marker.
+    expect(KRATOS_TOOLS_REVIEWED_VERSION).toBe(KRATOS_MCP_VERSION);
+    const kratos = (access: string) =>
+      Object.entries(TOOL_ACCESS)
+        .filter(([name, a]) => name.startsWith("kratos__") && a === access)
+        .map(([name]) => name.slice("kratos__".length))
+        .sort();
+    expect(kratos("read")).toEqual([
+      "explain_project_parameters",
+      "job_checkpoints",
+      "job_list",
+      "job_logs",
+      "job_status",
+      "kratos_check_installation",
+      "kratos_get_process_defaults",
+      "kratos_get_solver_defaults",
+      "kratos_list_applications",
+      "kratos_list_conditions",
+      "kratos_list_constitutive_laws",
+      "kratos_list_elements",
+      "kratos_list_processes",
+      "kratos_list_solvers",
+      "kratos_list_variables",
+      "list_linear_solver_presets",
+      "list_material_presets",
+      "list_templates",
+      "mdpa_get_nodes",
+      "mdpa_inspect",
+      "mdpa_validate",
+      "results_convergence",
+      "results_list",
+      "results_probe",
+      "results_summary",
+      "study_list",
+      "study_status",
+      "validate_case",
+      "validate_project_parameters",
+    ]);
+    expect(kratos("write")).toEqual([
+      "add_boundary_condition",
+      "add_output_process",
+      "configure_checkpoints",
+      "create_materials",
+      "create_multistage_project",
+      "create_project",
+      "create_project_parameters",
+      "export_case_to_flowgraph",
+      "import_flowgraph_to_case",
+      "job_cancel",
+      "job_rerun",
+      "job_resume",
+      "kratos_install",
+      "mdpa_create_structured_mesh",
+      "results_animate",
+      "results_compare",
+      "results_render",
+      "results_time_history",
+      "run_simulation",
+      "study_cancel",
+      "study_results",
+      "study_resume",
+      "study_start",
+    ]);
+  });
+
   it("names every write tool explicitly, so the list is reviewable", () => {
     const writes = Object.entries(TOOL_ACCESS)
-      .filter(([, access]) => access === "write")
+      .filter(([name, access]) => access === "write" && !name.startsWith("kratos__"))
       .map(([name]) => name)
       .sort();
     expect(writes).toEqual([
@@ -377,5 +463,52 @@ describe("dryRunArgs", () => {
 
   it("treats empty arguments as an empty object", () => {
     expect(dryRunArgs(CALL, "")).toBe('{"dryRun":true}');
+  });
+});
+
+describe("meta server access policy", () => {
+  const none = new Set<string>();
+  it("defaults to read-only and degrades corrupt values to the default", () => {
+    expect(DEFAULT_META_ACCESS).toBe("readOnly");
+    expect(readMetaAccess(undefined)).toBe("readOnly");
+    expect(readMetaAccess("everything")).toBe("readOnly");
+    expect(readMetaAccess("all")).toBe("all");
+    expect(isMetaAccess("readListed")).toBe(true);
+    expect(isMetaAccess(true)).toBe(false);
+  });
+
+  it("readOnly allows read tools and nothing else", () => {
+    const policy = { access: "readOnly" as const, allowedWrites: new Set(["cad__apply_edit_ops"]) };
+    expect(metaToolAllowed("cad__inspect", policy)).toBe(true);
+    expect(metaToolAllowed("kratos__job_status", policy)).toBe(true);
+    expect(metaToolAllowed("cad__apply_edit_ops", policy)).toBe(false); // list ignored
+    expect(metaToolAllowed("kratos__run_simulation", policy)).toBe(false);
+    expect(metaToolAllowed("kratos__not_in_the_pinned_server", policy)).toBe(false);
+  });
+
+  it("readListed adds exactly the named tools", () => {
+    const policy = { access: "readListed" as const, allowedWrites: new Set(["kratos__run_simulation"]) };
+    expect(metaToolAllowed("kratos__run_simulation", policy)).toBe(true);
+    expect(metaToolAllowed("kratos__job_cancel", policy)).toBe(false);
+    expect(metaToolAllowed("cad__inspect", policy)).toBe(true);
+  });
+
+  it("all allows everything, unclassified tools included", () => {
+    expect(metaToolAllowed("kratos__not_in_the_pinned_server", { access: "all", allowedWrites: none })).toBe(true);
+    expect(metaToolAllowed("mesh__mesh_transform", { access: "all", allowedWrites: none })).toBe(true);
+  });
+
+  it("normalizes the stored allow-list", () => {
+    expect([...normalizeAllowedWrites([" cad__a ", 3, "", "mesh__b"])]).toEqual(["cad__a", "mesh__b"]);
+    expect(normalizeAllowedWrites("cad__a").size).toBe(0);
+  });
+
+  it("migrates only an already-configured, undecided install to all", () => {
+    expect(metaAccessMigration(undefined, true, false)).toBe("all");
+    expect(metaAccessMigration(undefined, false, false)).toBeUndefined(); // fresh install: safe default
+    expect(metaAccessMigration("readOnly", true, false)).toBeUndefined(); // explicit choice wins
+    // The default value is stored as an absent key, so only the flag prevents a
+    // user who picked read-only from being promoted to "all" on the next launch.
+    expect(metaAccessMigration(undefined, true, true)).toBeUndefined();
   });
 });

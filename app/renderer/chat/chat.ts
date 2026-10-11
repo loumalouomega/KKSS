@@ -281,13 +281,17 @@ function showApproval(pending: ChatPendingApproval): void {
     row.appendChild(dry);
   }
 
-  const choices: Array<[string, "allow" | "allowAlways" | "deny", string]> = [
+  const choices: Array<[string, "allow" | "allowAlways" | "allowScoped" | "deny", string]> = [
     [t("Allow"), "allow", "allow"],
     [t("Always allow in this chat"), "allowAlways", "always"],
-    [t("Deny"), "deny", "deny"],
   ];
+  // Offered only when main says this call's paths are inside the explicit
+  // project folder; main re-checks every later call against the same folder.
+  if (pending.scopable) choices.push([t("Always allow in project folder"), "allowScoped", "scoped"]);
+  choices.push([t("Deny"), "deny", "deny"]);
   for (const [label, decision, cls] of choices) {
     const button = document.createElement("button");
+    if (decision === "allowScoped" && pending.scopeRoot) button.title = t("Applies to writes inside {0}", { 0: pending.scopeRoot });
     button.className = `${cls} btn btn-sm ${decision === "allow" ? "btn-primary" : "btn-secondary"}`;
     button.textContent = label;
     button.addEventListener("click", () => {

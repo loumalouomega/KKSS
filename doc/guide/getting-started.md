@@ -214,9 +214,10 @@ The assistant's tools are not suggestions — they write files, overwrite meshes
 
 - **Allow** — run it this once.
 - **Always allow in this chat** — stop asking about *that* tool for the rest of this conversation. It is per tool and per conversation; it is never remembered after you start a new chat or restart KKSS.
+- **Always allow in project folder** — shown only when you have opened a project folder (**File ▸ Open Folder…**) and every path in this call is inside it. It stops asking about *that* tool for the rest of this conversation, but only while the paths it touches stay inside the folder; a call that points anywhere else (or uses a relative path) asks again. Tools that run scripts or solvers never get this option.
 - **Deny** — don't run it. Nothing on disk is touched, and the assistant is told you refused, so it explains what it wanted rather than trying again.
 
-Read-only tools — inspect, measure, mesh info, render — run without asking, so asking questions feels exactly as it did before. A tool KKSS has no policy for always asks; that is currently every tool from the Kratos server, because that server is fetched at runtime and its tools can't be classified in advance.
+Read-only tools — inspect, measure, mesh info, render — run without asking, so asking questions feels exactly as it did before. A tool KKSS has no policy for always asks. Kratos status, listing, validation and job-status tools run without asking; starting or cancelling a solve, scaffolding a case and writing result files ask, like any other write.
 
 **Settings ▸ LLM Assistant ▸ Tool Approval** changes this: *Ask before tools that change files* (the default), *Ask before every tool*, or *Never ask*. The last one turns the gate off entirely and asks you to confirm once before it does.
 
@@ -262,7 +263,7 @@ The 50 most recently used conversations are kept; older ones are dropped, except
 
 ### Use your own MCP client
 
-If you'd rather drive KKSS from an **external** LLM client (Claude Code, GitHub Copilot, Claude Desktop, another agent) than the built-in sidebar, enable **Settings ▸ MCP Server**. KKSS then serves the same unified cad + mesh + Kratos toolset — plus the Kratos worked-example resources and guided prompts — over a localhost **Streamable HTTP** MCP endpoint. Use **Copy Address & Token…** to grab the `http://127.0.0.1:<port>/mcp` URL and its bearer token (default port `7391`). It is off by default and bound to localhost only; the token gates access because these tools read and write files on disk — **Regenerate Token…** rotates it (update your clients afterwards). Change the port under the same menu (toggle the server off and on to rebind). Tools arrive namespaced `cad__*` / `mesh__*` / `kratos__*`; the Kratos worked examples show up as MCP resources and prompts.
+If you'd rather drive KKSS from an **external** LLM client (Claude Code, GitHub Copilot, Claude Desktop, another agent) than the built-in sidebar, enable **Settings ▸ MCP Server**. KKSS then serves the same unified cad + mesh + Kratos toolset — plus the Kratos worked-example resources and guided prompts — over a localhost **Streamable HTTP** MCP endpoint. Use **Copy Address & Token…** to grab the `http://127.0.0.1:<port>/mcp` URL and its bearer token (default port `7391`). It is off by default and bound to localhost only; the token gates access because these tools read and write files on disk — **Regenerate Token…** rotates it (update your clients afterwards). **Allowed Tools** limits what a client may call: *Read-only tools* (the default for a newly enabled server — inspect, measure, validate, job status), *Read-only tools and the listed write tools* (name the extra tools under **Allowed Write Tools**) or *All tools* (what the server allowed before this setting existed, and what an install that already used it keeps). A refused call returns an error that says so. Change the port under the same menu (toggle the server off and on to rebind). Tools arrive namespaced `cad__*` / `mesh__*` / `kratos__*`; the Kratos worked examples show up as MCP resources and prompts.
 
 Leave KKSS running with the server enabled, then point a client at it:
 
@@ -328,7 +329,7 @@ The **Edit** toolbar button opens the file currently loaded in the active mode (
 | **Text Editor** | Font size and family, tab size, word wrap, line numbers. All apply immediately. |
 | **Terminal** | Shell (applies to the next session), font size and family, scrollback, cursor style and blink. |
 | **LLM Assistant** | Provider, **Tool Approval**, API keys, models, the OpenAI-compatible base URL, and the Codex / Claude Code model and executable. Keys are write-only: the page shows whether one is stored, never the key itself. |
-| **MCP Server** | Enable the localhost endpoint, its port, and copying or regenerating the token (see *AI assistant ▸ Use your own MCP client* above). |
+| **MCP Server** | Enable the localhost endpoint, its port, which tools a client may call, and copying or regenerating the token (see *AI assistant ▸ Use your own MCP client* above). |
 | **Cloud Accounts** | Per provider: client ID, client secret, and connect / disconnect. Also the cache size limit, and clearing the cache. |
 
 The **Settings** menu keeps quick radios for **UI Theme**, **3D Scene Theme** and **Terminal Shell**, plus the checkboxes and actions it always had. **View** carries the Post-Processing **3D Renderer** beside the other viewer toggles, enabled only in that mode. Every menu entry and its row on the page stay in sync both ways. Three VS Code-only extension settings have no row, because KKSS never reaches the code that reads them: `kratos.showWhatsNew`, `kratos.preview.autoSave` and `kratos.run.launchMode`.

@@ -63,6 +63,7 @@ export function parseManagedConfig(env: NodeJS.ProcessEnv, read = (file: string)
   number('KKSS_ZOOM', 'uiZoom', 0.5, 3);
   bool('KKSS_META_ENABLED', 'metaServerEnabled');
   number('KKSS_META_PORT', 'metaServerPort', 1, 65535, true);
+  choice('KKSS_META_ACCESS', 'metaServerAccess', ['readOnly', 'readListed', 'all']);
   secret('KKSS_META_TOKEN_FILE', 'metaServerToken');
   // mesh 4.8.0's experimental VTK-wasm renderer. Worth an operator knob: it is
   // the one setting that changes what a machine draws with, and a shared
