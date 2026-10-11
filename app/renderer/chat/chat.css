@@ -425,6 +425,43 @@ body {
   cursor: wait;
 }
 
+/* ---- composer options (model + thinking) ------------------------------- */
+
+#composer-options {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s-2);
+  padding: var(--ui-s-2) var(--ui-s-3) 0;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+#composer-options[hidden] {
+  display: none;
+}
+
+/* The strip owns the divider above the composer while it is showing. */
+#composer-options + #composer {
+  border-top: 0;
+  padding-top: var(--ui-s-2);
+}
+
+.opt-icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--vscode-descriptionForeground);
+}
+
+#model-select,
+#model-input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+#think-select {
+  flex: none;
+}
+
 /* ---- composer -------------------------------------------------------- */
 
 #composer {

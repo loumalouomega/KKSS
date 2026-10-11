@@ -148,7 +148,9 @@ export interface ChatImage {
  *
  * `contextWindow` and `costUsd` are resolved in the main process from
  * `modelInfo.ts` and are **absent for a model KKSS has no reviewed figures
- * for** — the sidebar then shows token counts alone rather than a wrong number.
+ * for** — the sidebar then shows token counts alone rather than a wrong number —
+ * unless the user entered prices/a window themselves, in which case
+ * `userSupplied` is set so the readout can say whose figures they are.
  */
 export interface ChatUsage {
   billingMode?: "api" | "subscription" | "mixed";
@@ -164,6 +166,8 @@ export interface ChatUsage {
   model: string;
   contextWindow?: number;
   costUsd?: number;
+  /** `contextWindow`/`costUsd` came from Settings ▸ LLM Assistant, not the reviewed table. */
+  userSupplied?: boolean;
 }
 
 export type ChatWireEntry =
@@ -212,7 +216,31 @@ export type ChatToHost =
   | { type: "renameConversation"; id: string; title: string }
   | { type: "deleteConversation"; id: string }
   | { type: "openSettings" }
+  /** The composer strip's model picker. Writes the same setting as Settings ▸
+   *  LLM Assistant, for the active provider; applies from the next message.
+   *  Empty clears it back to the provider default. */
+  | { type: "setModel"; model: string }
+  | { type: "setThinking"; level: ChatThinking }
   | { type: "hide" };
+
+/** Reasoning effort chosen in the sidebar. `auto` sends nothing new. */
+export type ChatThinking = "auto" | "off" | "low" | "high";
+
+/** The composer strip's controls, resolved in main (the renderer carries no model list). */
+export interface ChatComposerState {
+  provider: "anthropic" | "openai" | "opencode-zen" | "opencode-go" | "codex" | "claude-code";
+  /** The model in effect — the stored one, else `defaultModel`; "" for a runtime default. */
+  model: string;
+  /** The provider's built-in default ("" when the runtime picks). */
+  defaultModel: string;
+  /** Suggested ids; the renderer adds Default / the current custom value / Other…. */
+  choices: string[];
+  /** Locked by the environment (managed deployment): shown, not editable. */
+  modelManaged: boolean;
+  thinking: ChatThinking;
+  /** False for the subscription runtimes, which expose no such control to KKSS. */
+  thinkingSupported: boolean;
+}
 
 /** Messages sent to the chat-sidebar renderer. */
 export type ChatToWebview =
@@ -239,6 +267,9 @@ export type ChatToWebview =
       compactedResults?: number;
     }
   | { type: "entry"; entry: ChatWireEntry }
+  /** The composer strip's state. Sent after `state` and again whenever an
+   *  `llm*` setting changes elsewhere (Settings page, native menu). */
+  | { type: "composer"; composer: ChatComposerState }
   | { type: "approvalRequest"; pending: ChatPendingApproval }
   | { type: "approvalResolved"; callId: string; approval: ChatToolApproval }
   /** Images from a tool result, sent right after its entry (and replayed after

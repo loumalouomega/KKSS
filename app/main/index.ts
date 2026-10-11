@@ -10,7 +10,8 @@ import { managedConfig } from "./services/managedConfig";
 import { startHeadlessControl, prepareHeadlessShutdown } from "./services/headless";
 import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
-import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash } from "./windows";
+import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash, ViewRef } from "./windows";
+import { UnresponsiveGuard, type UnresponsiveAnswer } from "./unresponsiveGuard";
 import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
 import { rendererAssetsPresent } from "./mesh/rendererPage";
@@ -46,7 +47,9 @@ import { configureNotifications, handleToastButton, progressToast, toast, type T
 import { stateStore } from "./services/stateStore";
 import { recentFiles } from "./services/recentFiles";
 import { CloudService } from "./services/cloud/cloudService";
-import { PROVIDER_LABELS, type CloudRef, type ProviderId } from "./services/cloud/cloudCore";
+import { CloudError, PROVIDER_LABELS, type CloudRef, type ProviderId } from "./services/cloud/cloudCore";
+import { fillCloudTabs, type PendingCloudTab, type DownloadResult } from "./services/cloudRestore";
+import type { SessionCloudRef } from "./services/sessionCore";
 import { configureProjectRoot, projectRoot } from "./services/projectRoot";
 import { abbreviateHome, describeWithin, rootLabel } from "./services/projectRootCore";
 import {
@@ -346,9 +349,65 @@ function reportUnsupported(...files: (string | undefined)[]): void {
   });
 }
 
+function viewKey(ref: ViewRef): string {
+  return ref.kind === "tab" ? `tab:${ref.mode}:${ref.tabId}` : ref.kind;
+}
+
+function viewLabel(ref: ViewRef): string {
+  return ref.kind === "tab" ? (ref.mode === "cad" ? "CAD viewer" : "Mesh viewer") : `${ref.kind} view`;
+}
+
+/**
+ * A view that stays unresponsive gets a Wait / Reload prompt — never an
+ * automatic reload (see `unresponsiveGuard.ts` and the `windows.ts` note: a
+ * large mesh parse trips `unresponsive` legitimately). Reload is the user's
+ * click, so it does not count against the crash-loop budget and reuses
+ * `recoverView`, the crash path's own replay.
+ */
+const unresponsiveGuard = new UnresponsiveGuard<ViewRef>({
+  setTimer: (run, ms) => {
+    const handle = setTimeout(run, ms);
+    handle.unref?.(); // a pending prompt must never hold the process open
+    return handle;
+  },
+  clearTimer: (handle) => clearTimeout(handle as NodeJS.Timeout),
+  prompt: promptUnresponsive,
+  reload: (ref) => recoverView({ ...ref, reason: "unresponsive" }, viewLabel(ref), true),
+});
+
+async function promptUnresponsive(ref: ViewRef, info: { attempt: number; signal: AbortSignal }): Promise<UnresponsiveAnswer> {
+  if (quitting || !main) return "gone";
+  let detail: string | undefined;
+  if (ref.kind === "tab") {
+    const hosts: Map<string, CadHost | MeshHost> = ref.mode === "cad" ? cadHosts : meshHosts;
+    const host = ref.tabId ? hosts.get(ref.tabId) : undefined;
+    if (!host) return "gone"; // the tab was closed on the way here
+    if (host.currentFile) {
+      const name = path.basename(host.currentFile);
+      detail = host instanceof CadHost
+        ? t("Reloading reopens {0}; your edits are kept beside the file.", {0: name})
+        : host.isDirty()
+          ? t("Reloading reopens {0} and discards its unsaved changes in this tab.", {0: name})
+          : t("Reloading reopens {0}.", {0: name});
+    }
+  } else if (ref.kind === "editor" && editor?.isDirty()) {
+    detail = t("Reloading discards unsaved text in the editor.");
+  }
+  const { response } = await dialog.showMessageBox(main.win, {
+    type: "warning",
+    message: t("The {0} is not responding.", {0: viewLabel(ref)}),
+    detail: [t("It may only be busy with a large file. Wait gives it more time; Reload restarts this view."), detail].filter(Boolean).join("\n\n"),
+    buttons: [t("Wait"), t("Reload")],
+    defaultId: 0,
+    cancelId: 0,
+    signal: info.signal,
+  });
+  return response === 1 ? "reload" : "wait";
+}
+
 function onViewCrash(crash: ViewCrash): void {
   if (quitting || !main) return;
-  const key = crash.kind === "tab" ? `tab:${crash.mode}:${crash.tabId}` : crash.kind;
+  const key = viewKey(crash);
   const now = Date.now();
   const prev = recoveries.get(key);
   const count = prev && now - prev.last < RECOVERY_WINDOW_MS ? prev.count + 1 : 1;
@@ -362,7 +421,7 @@ function onViewCrash(crash: ViewCrash): void {
   recoverView(crash, label);
 }
 
-function recoverView(crash: ViewCrash, label: string): void {
+function recoverView(crash: ViewCrash, label: string, userInitiated = false): void {
   if (!main) return;
   if (crash.kind === "tab") {
     const { mode, tabId } = crash;
@@ -375,10 +434,12 @@ function recoverView(crash: ViewCrash, label: string): void {
       // rejects the pending promises a crash would otherwise leak forever —
       // so never also call reloadView here, or the two reloads race.
       host.openPath(file);
-      toast("warning", t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}));
+      toast("warning", userInitiated
+        ? t("{0} reloaded — {1}.", {0: label, 1: path.basename(file)})
+        : t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}));
     } else {
       main.reloadView(crash);
-      toast("warning", t("{0} crashed — reloaded.", {0: label}));
+      toast("warning", userInitiated ? t("{0} reloaded.", {0: label}) : t("{0} crashed — reloaded.", {0: label}));
     }
     return;
   }
@@ -389,13 +450,15 @@ function recoverView(crash: ViewCrash, label: string): void {
       // The toast renderer *is* the shell, so hold the message until it is back
       // (replayed from the shellReady handshake below).
       shellUp = false;
-      deferredShellToast = { kind: "warning", text: t("Toolbar reloaded after a crash.") };
+      deferredShellToast = { kind: "warning", text: userInitiated ? t("{0} reloaded.", {0: label}) : t("Toolbar reloaded after a crash.") };
       break;
     case "editor":
       if (editor?.notifyRendererGone()) {
-        toast("warning", t("Text editor crashed — reloaded from disk; unsaved changes were lost."));
+        toast("warning", userInitiated
+          ? t("Text editor reloaded from disk; unsaved changes were lost.")
+          : t("Text editor crashed — reloaded from disk; unsaved changes were lost."));
       } else {
-        toast("warning", t("Text editor crashed — reloaded."));
+        toast("warning", userInitiated ? t("{0} reloaded.", {0: label}) : t("Text editor crashed — reloaded."));
       }
       break;
     case "terminal":
@@ -419,10 +482,23 @@ function currentSession() {
   const snapshot = (mode: Mode) => {
     const hosts = mode === "cad" ? cadHosts : meshHosts;
     const activeId = main!.activeTabId(mode);
-    return {
-      files: main!.tabs(mode).map((t) => hosts.get(t.id)?.currentFile),
-      activeFile: activeId ? hosts.get(activeId)?.currentFile : undefined,
-    };
+    // A restored cloud tab still waiting on its download has no document yet;
+    // it keeps its saved path (and ref) so quitting mid-download does not lose it.
+    // Only while the tab is still blank: once the user has put another document
+    // into it, the pending entry (and its ref) no longer describes the tab.
+    const pendingOf = (tabId: string) => (hosts.get(tabId)?.currentFile ? undefined : pendingCloudTabs.get(tabId));
+    const fileOf = (tabId: string) => hosts.get(tabId)?.currentFile ?? pendingOf(tabId)?.path;
+    const files = main!.tabs(mode).map((t) => fileOf(t.id));
+    // The cloud origin of every open staged copy. It must ride the session:
+    // once the cache evicts a document its manifest entry goes with it, and
+    // nothing else can say where it came from (see SessionCloudRef).
+    const refs: Record<string, SessionCloudRef> = {};
+    main!.tabs(mode).forEach((t, k) => {
+      const file = files[k];
+      const ref = file ? (pendingOf(t.id)?.ref ?? cloud?.refFor(file)) : undefined;
+      if (file && ref) refs[file] = { provider: ref.provider, accountId: ref.accountId, itemId: ref.itemId, name: ref.name, ...(ref.parentId ? { parentId: ref.parentId } : {}) };
+    });
+    return { files, activeFile: activeId ? fileOf(activeId) : undefined, cloud: refs };
   };
   return captureSession({
     cad: snapshot("cad"),
@@ -444,6 +520,9 @@ let sessionSaveTimer: NodeJS.Timeout | undefined;
 /** True while restoreSession() is opening tabs — its own churn must not be
  *  captured half-finished. */
 let restoring = false;
+/** Restored cloud tabs whose document is still downloading, by tab id. The tab
+ *  exists (so order and focus are right) but its host has no file yet. */
+const pendingCloudTabs = new Map<string, { mode: Mode; path: string; ref: CloudRef }>();
 
 /**
  * Records the session as the user works, rather than only on quit: a SIGKILL
@@ -707,6 +786,8 @@ async function closeTab(mode: Mode, tabId: string): Promise<void> {
   const closing = host?.currentFile;
   host?.dispose();
   hosts.delete(tabId);
+  pendingCloudTabs.delete(tabId);
+  unresponsiveGuard.responsive(viewKey({ kind: "tab", mode, tabId })); // a closed tab has nothing to ask about
   main.closeTab(mode, tabId);
   // Stop watching the staging directory once no tab holds the document any
   // more. A pending upload still finishes — closing a tab must not discard a
@@ -827,13 +908,31 @@ async function clearCloudCache(): Promise<void> {
  * later session.
  */
 async function openCloudFile(ref: CloudRef, forcedMode?: Mode): Promise<void> {
-  if (!cloud) return;
-  // Already on disk from an earlier session: reopen without a round trip.
-  const cached = cloud.stagedPath(ref);
-  if (cached) {
-    if (await openFile(cached, forcedMode)) recordCloudRecent(cached, ref, forcedMode);
+  const result = await downloadCloud(ref);
+  if (!result.ok) {
+    if (result.kind !== "aborted") toast("error", t("Could not open {0}: {1}", {0: ref.name, 1: result.message}));
     return;
   }
+  try {
+    if (await openFile(result.path, forcedMode)) recordCloudRecent(result.path, ref, forcedMode);
+  } catch (err) {
+    toast("error", t("Could not open {0}: {1}", {0: ref.name, 1: err instanceof Error ? err.message : String(err)}));
+  }
+}
+
+/**
+ * Gets the local staging path for a cloud document — from the cache when it is
+ * already there, otherwise with a cancellable progress toast. Shared by the
+ * user-driven open (`openCloudFile`) and the session restore's background fill,
+ * which differ only in what they do with the path. Never throws and never
+ * toasts an error: the caller decides, since "not signed in" is one message for
+ * a whole restore but one per click for an open.
+ */
+async function downloadCloud(ref: CloudRef): Promise<DownloadResult> {
+  if (!cloud) return { ok: false, kind: "other", message: t("Cloud accounts are not available.") };
+  // Already on disk from an earlier session: no round trip.
+  const cached = cloud.stagedPath(ref);
+  if (cached) return { ok: true, path: cached };
   const progress = progressToast(t("Downloading {0}…", {0: ref.name}), true);
   const abort = new AbortController();
   progress.onCancel(() => abort.abort());
@@ -850,11 +949,11 @@ async function openCloudFile(ref: CloudRef, forcedMode?: Mode): Promise<void> {
         progress.report(transferLabel(ref.name, done, total));
       },
     });
-    if (await openFile(staged, forcedMode)) recordCloudRecent(staged, ref, forcedMode);
+    return { ok: true, path: staged };
   } catch (err) {
-    if (!abort.signal.aborted) {
-      toast("error", t("Could not open {0}: {1}", {0: ref.name, 1: err instanceof Error ? err.message : err}));
-    }
+    const message = err instanceof Error ? err.message : String(err);
+    if (abort.signal.aborted) return { ok: false, kind: "aborted", message };
+    return { ok: false, kind: err instanceof CloudError && err.kind === "auth" ? "auth" : "other", message };
   } finally {
     progress.done();
   }
@@ -967,29 +1066,43 @@ function restoreSession(hasLaunchFile: boolean): boolean {
   // only ever appears as an in-pane banner, never a toast.
   const loaded = loadSession();
   if (!loaded) return false;
-  const { state, missing } = loaded;
+  const { missing } = loaded;
+  const state = loaded;
+  const fills: PendingCloudTab<CloudRef>[] = [];
 
   restoring = true;
   try {
     for (const mode of ["cad", "mesh"] as Mode[]) {
-      const { files, activeFile } = state[mode];
-      if (files.length === 0) continue;
+      const { slots, activeFile } = state[mode];
+      if (slots.length === 0) continue;
       // The blank starter tab this mode was seeded with; without closing it,
       // every launch would leave a leading empty tab behind.
       const starter = main.activeTabId(mode);
       const hosts = mode === "cad" ? cadHosts : meshHosts;
       let focusId: string | undefined;
-      for (const file of files) {
+      for (const { path: file, ref: saved } of slots) {
         const tab = createTab(mode);
-        // openPath, not openFile: the mode is already known (re-routing a
-        // restored .stl through modeForFile could flip it), tabs must be
-        // appended rather than replaced, and a restore is not a user open, so
-        // it must not touch the recents list.
-        hosts.get(tab.id)?.openPath(file);
-      // Restore bypasses stage()/stagedPath(), the only other places a staging
-      // directory starts being watched — without this a restored cloud tab
-      // would show the ☁ mark and silently never upload an edit again.
-      cloud?.trackIfStaged(file);
+        if (saved && cloud) {
+          // An evicted cloud document: keep its slot now, fill it once the
+          // download lands (restoreCloudTabs). Restore itself stays synchronous.
+          const ref: CloudRef = { ...saved, provider: saved.provider as ProviderId };
+          pendingCloudTabs.set(tab.id, { mode, path: file, ref });
+          fills.push({ tabId: tab.id, path: file, ref });
+        } else if (saved) {
+          // No cloud layer to fetch it with: same outcome as before — dropped.
+          void closeTab(mode, tab.id);
+          continue;
+        } else {
+          // openPath, not openFile: the mode is already known (re-routing a
+          // restored .stl through modeForFile could flip it), tabs must be
+          // appended rather than replaced, and a restore is not a user open, so
+          // it must not touch the recents list.
+          hosts.get(tab.id)?.openPath(file);
+          // Restore bypasses stage()/stagedPath(), the only other places a staging
+          // directory starts being watched — without this a restored cloud tab
+          // would show the ☁ mark and silently never upload an edit again.
+          cloud?.trackIfStaged(file);
+        }
         if (file === activeFile) focusId = tab.id;
       }
       if (starter) void closeTab(mode, starter);
@@ -1019,11 +1132,67 @@ function restoreSession(hasLaunchFile: boolean): boolean {
     // and toast() silently drops anything sent before it is up.
     shellToast(
       "warning",
-      `Restored your last session — ${missing} file${missing === 1 ? "" : "s"} could not be found.`
+      missing === 1
+        ? t("Restored your last session — 1 file could not be found.")
+        : t("Restored your last session — {0} files could not be found.", {0: String(missing)})
     );
   }
+  if (fills.length) whenShellUp(() => void restoreCloudTabs(fills));
   saveSessionSoon();
   return true;
+}
+
+/** Runs `run` once the shell page can show toasts: now, or on its next shellReady. */
+const shellUpCallbacks: (() => void)[] = [];
+function whenShellUp(run: () => void): void {
+  if (shellUp) run();
+  else shellUpCallbacks.push(run);
+}
+
+/**
+ * Fills restored cloud tabs in the background (policy: services/cloudRestore.ts).
+ * Deliberately not `openFile`: that replaces the *focused* tab behind a dirty
+ * guard and records a recent, while a restore fills a *specific* tab it already
+ * made and, like the rest of restore, records nothing.
+ */
+async function restoreCloudTabs(tabs: PendingCloudTab<CloudRef>[]): Promise<void> {
+  const where = (tab: PendingCloudTab<CloudRef>) => pendingCloudTabs.get(tab.tabId);
+  await fillCloudTabs(tabs, {
+    download: (tab) => downloadCloud(tab.ref),
+    tabState: (tab) => {
+      const mode = where(tab)?.mode;
+      const host = mode ? (mode === "cad" ? cadHosts : meshHosts).get(tab.tabId) : undefined;
+      return !host ? "gone" : host.currentFile ? "used" : "untouched";
+    },
+    open: (tab, staged) => {
+      const mode = where(tab)?.mode;
+      if (!mode) return;
+      (mode === "cad" ? cadHosts : meshHosts).get(tab.tabId)?.openPath(staged);
+      cloud?.trackIfStaged(staged);
+      syncTabs(mode);
+    },
+    close: (tab) => {
+      const mode = where(tab)?.mode;
+      if (mode) void closeTab(mode, tab.tabId);
+    },
+    settle: (tab) => {
+      pendingCloudTabs.delete(tab.tabId);
+      saveSessionSoon();
+    },
+    notify: (event) => {
+      if (event.kind === "failed") {
+        toast("error", t("Could not open {0}: {1}", {0: event.tab.ref.name, 1: event.message}));
+      } else if (event.kind === "used") {
+        toast("info", t("{0} finished downloading, but its tab was in use — open it from Recent files.", {0: event.tab.ref.name}));
+      } else {
+        const label = providerLabel(event.provider);
+        toast("warning", event.count === 1
+          ? t("Not signed in to {0} — 1 document from your last session was not restored. Reconnect under Settings ▸ Cloud Accounts.", {0: label})
+          : t("Not signed in to {0} — {1} documents from your last session were not restored. Reconnect under Settings ▸ Cloud Accounts.", {0: label, 1: String(event.count)}));
+      }
+    },
+    stopped: () => quitting || !main || main.win.isDestroyed(),
+  });
 }
 
 /** Tells the shell which panels are showing, so the toolbar toggles read as pressed. */
@@ -1148,6 +1317,8 @@ app.whenReady().then(() => {
   configurePerformance();
   main = createMainWindow(__dirname, stateStore.get<number>(UI_ZOOM_KEY, DEFAULT_ZOOM) ?? DEFAULT_ZOOM, {
     onViewCrash,
+    onViewUnresponsive: (ref) => { if (!quitting) unresponsiveGuard.unresponsive(viewKey(ref), ref); },
+    onViewResponsive: (ref) => unresponsiveGuard.responsive(viewKey(ref)),
   });
   main.win.setBackgroundColor(windowBackground());
   configureNotifications(sendShell);
@@ -1566,6 +1737,7 @@ app.whenReady().then(() => {
         jobs?.publish();
         pushPanels();
         shellUp = true;
+        shellUpCallbacks.splice(0).forEach((run) => run());
         // The shell page may finish loading after a CLI file-open already ran
         // (or after a reload) — replay the current screen + tab strips + zoom.
         sendShell({ type: "screen", screen: main.screen() });
@@ -1739,6 +1911,7 @@ app.on("before-quit", (event) => {
 
 app.on("will-quit", () => {
   quitting = true;
+  unresponsiveGuard.dispose();
   // Capture the final session BEFORE flushSync(): that call marks the store
   // stopped, after which every queued write returns early — saving afterwards
   // would be silently dropped on every quit.

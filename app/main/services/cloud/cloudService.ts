@@ -318,6 +318,19 @@ export class CloudService {
     };
   }
 
+  /**
+   * Everything needed to re-fetch `localPath` later, or undefined for an ordinary
+   * file. Unlike `describe` (what to *show*), this is what session restore
+   * persists so an evicted document can be brought back: eviction removes the
+   * manifest entry along with the file, so it must be captured while it exists.
+   */
+  refFor(localPath: string): CloudRef | undefined {
+    const found = this.entryForPath(localPath);
+    if (!found) return undefined;
+    const { provider, accountId, itemId, name, parentId } = found.entry;
+    return { provider, accountId, itemId, name, ...(parentId ? { parentId } : {}) };
+  }
+
   describeAll(paths: string[]): Record<string, CloudOrigin> {
     const out: Record<string, CloudOrigin> = {};
     for (const p of paths) {

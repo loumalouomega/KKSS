@@ -807,11 +807,20 @@ resubmitted automatically.
   `preventDefault()` (shared with the live shell) to drain in-flight uploads (10 s cap) because `will-quit`
   cannot await an HTTPS upload; anything still pending stays `dirty: true` in the
   manifest and is reported on the next launch. Recents carrying a `cloud` ref are
-  **exempt from the existence prune** and re-download on click; **session restore
-  deliberately does not re-download**, since it is synchronous and never stats by
-  design — an evicted path falls into the existing "files could not be found"
-  toast, and eviction's `keep` set (open tabs + `sessionPaths()`) makes that
-  rare. OAuth is **bring-your-own client** — the user pastes their own client ID
+  **exempt from the existence prune** and re-download on click. **Session restore
+  stays synchronous but does re-download**: the session itself stores each cloud
+  tab's ref (`ModeSession.cloud`, from `CloudService.refFor`) because nothing else
+  can supply it — eviction deletes the manifest entry together with the file, the
+  staging path is a one-way hash, and recents is capped. `planRestore` keeps a
+  vanished cloud file as a *pending slot*; restore makes its tab at once (so tab
+  order and focus are right) and `restoreCloudTabs` fills it afterwards
+  (`services/cloudRestore.ts`, effects injected): one download at a time, only
+  into a placeholder that is still blank — the result is re-checked *after* the
+  await — one "not signed in" message per provider (its other tabs skipped
+  without a request), any other failure closes just that placeholder. It uses
+  `openPath`, not `openFile` (no focused-tab replace, no dirty guard, **no
+  recents**), and `pendingCloudTabs` keeps a still-downloading tab in the saved
+  session so quitting mid-download does not lose it. OAuth is **bring-your-own client** — the user pastes their own client ID
   (+ secret where the provider issues one; a Google "Desktop app" secret is
   explicitly not confidential) — with PKCE + `state` over a one-shot 127.0.0.1
   loopback redirect built on `metaServer.ts`'s listen/error/Host-check handling;
@@ -838,7 +847,12 @@ resubmitted automatically.
   crash cannot loop, honors the per-tab rule (recover one tab, never a whole
   mode), and **`unresponsive` is deliberately not wired to it** — that fires on
   any long synchronous parse, exactly what both viewers do on a large mesh, so
-  reloading on it would destroy a working session mid-load.
+  reloading on it would destroy a working session mid-load. It only feeds
+  `unresponsiveGuard.ts` (pure, effects injected): after 30 s unresponsive the
+  user is *asked* Wait / Reload; Wait doubles the next delay (cap 10 min), a
+  recovered/closed/reloaded view or quit cancels and aborts the dialog, and
+  **Reload is reachable only through the click** — through `recoverView`
+  flagged user-initiated (not counted against the crash-loop budget).
 - **The project folder is a default, never a fence.** `services/projectRoot.ts`
   seeds the terminal's cwd, file-dialog start folders, the chat context suffix
   and the shim's `workspaceFolders` — and refuses nothing. It is deliberately
@@ -914,7 +928,10 @@ resubmitted automatically.
   anything opens: both hosts' `openPath()` is synchronous and never stats the
   file, so a vanished path becomes a ghost tab whose error only ever appears as
   an in-pane banner. Restore opens with `openPath()` (append, mode already
-  known, no recording) and closes the blank starter tab. `saveSession()` must
+  known, no recording) and closes the blank starter tab. The one exception to
+  "prune first" is an evicted **cloud** document whose ref the session carries:
+  it keeps its slot as a placeholder tab and is downloaded in the background (see
+  the cloud invariant above). `saveSession()` must
   run **before** `stateStore.flushSync()` in `will-quit` — that call sets the
   store `stopped`, after which queued writes return early. A launch-time file
   wins, taking the screen and its own tab so it never overwrites a restored
@@ -1113,7 +1130,10 @@ resubmitted automatically.
   reject, hence the retry-without-it (the same shape as Anthropic's conservative
   retry). `services/chat/modelInfo.ts` is a deliberate table in the
   `toolPolicy.ts` mould: **an unknown model resolves to `null` and the sidebar
-  shows token counts with no cost and no context percentage**, which is the
+  shows token counts with no cost and no context percentage** (unless the user
+  entered the five `llm.custom*` Settings rows: `resolvePricing` applies them only
+  when the reviewed table has no row, needs both input and output prices to show a
+  cost, and sets `ChatUsage.userSupplied`), which is the
   normal case for the OpenAI-compatible provider and is the honest answer rather
   than a gap to fill by guessing. Cache rates are stored per row, not derived
   from input (Fable 5.1 reads at a flat $0.25/MTok, and a pricing rule with one
@@ -1204,6 +1224,18 @@ resubmitted automatically.
   reading zero across repeated turns means a silent invalidator. The conservative
   retry drops `cache_control` along with `thinking`, so a model old enough to
   reject one degrades the way it already did.
+- **The composer strip's model and thinking level are global settings, not
+  conversation state, and absent means unchanged.** `setModel`/`setThinking`
+  write the same `llm*` keys as Settings and the menu (main validates and refuses
+  a managed key); `ChatService` repaints the strip from `stateStore.onDidChange`
+  on any `llm*` key. `StreamTurnOptions.thinking`/`maxOutputTokens` are omitted for
+  `auto`/unset so default requests stay byte-identical. Anthropic `off` **omits**
+  `thinking` (never `{type:"disabled"}`); `low`/`high` add `output_config.effort`;
+  the conservative retry drops `thinking`, `output_config` and `cache_control`
+  together. OpenAI-compatible extras (`stream_options`, `reasoning_effort`,
+  `max_tokens`) are dropped together on one retry. Subscription runtimes get no
+  thinking control. Provider/thinking glyphs are our own drawings, never vendor
+  trademarks.
 - **`ChatErrorKind` gained `context` and `rateLimit`, and every kind must be
   listed in `transcriptStoreCore.ts`'s `ERROR_KINDS`** — a kind missing there is
   not rejected on read, it is silently rewritten to `"other"`, so the banner

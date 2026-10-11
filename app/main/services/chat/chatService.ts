@@ -58,8 +58,8 @@ import {
   type LiveConversation,
   type StoredUsage,
 } from "./transcriptStoreCore";
-import { Provider, ProviderError, type TurnResult, type TurnUsage } from "./providers/types";
-import { estimateCost, modelInfo } from "./modelInfo";
+import { Provider, ProviderError, THINKING_LEVELS, type ThinkingLevel, type TurnResult, type TurnUsage } from "./providers/types";
+import { estimateCost, knownModels, parseCustomPricing, resolvePricing, type CustomPricing } from "./modelInfo";
 import { applyCompaction, nextCount } from "./compaction";
 import { createAnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from "./providers/anthropic";
 import { createOpenAiCompatProvider, DEFAULT_GO_BASE_URL, DEFAULT_GO_MODEL, DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL, DEFAULT_ZEN_BASE_URL, DEFAULT_ZEN_MODEL } from "./providers/openaiCompat";
@@ -82,9 +82,58 @@ export const LLM_KEYS = {
   zenModel: "llmModelZen",
   goModel: "llmModelGo",
   toolApproval: "llmToolApproval", // ApprovalMode; see toolPolicy.ts
+  thinking: "llmThinking",
+  maxOutputTokens: "llmMaxOutputTokens",
+  customContextWindow: "llmCustomContextWindow",
+  customInputPrice: "llmCustomInputPrice",
+  customOutputPrice: "llmCustomOutputPrice",
+  customCacheReadPrice: "llmCustomCacheReadPrice",
+  customCacheWritePrice: "llmCustomCacheWritePrice",
 } as const;
 
+/** User-entered figures for models the reviewed table does not list. Read per
+ *  use (like the approval mode) so an edit applies to the next readout. */
+export function readCustomPricing(): CustomPricing {
+  return parseCustomPricing({
+    contextWindow: stateStore.get<unknown>(LLM_KEYS.customContextWindow),
+    inputPer1M: stateStore.get<unknown>(LLM_KEYS.customInputPrice),
+    outputPer1M: stateStore.get<unknown>(LLM_KEYS.customOutputPrice),
+    cacheReadPer1M: stateStore.get<unknown>(LLM_KEYS.customCacheReadPrice),
+    cacheWritePer1M: stateStore.get<unknown>(LLM_KEYS.customCacheWritePrice),
+  });
+}
+
 export type LlmProvider = "anthropic" | "openai" | "opencode-zen" | "opencode-go" | "codex" | "claude-code";
+
+/** Settings key holding the model for each provider, and what an empty value means. */
+export const MODEL_KEY: Record<LlmProvider, string> = {
+  anthropic: LLM_KEYS.anthropicModel,
+  openai: LLM_KEYS.openaiModel,
+  "opencode-zen": LLM_KEYS.zenModel,
+  "opencode-go": LLM_KEYS.goModel,
+  codex: LLM_KEYS.codexModel,
+  "claude-code": LLM_KEYS.claudeCodeModel,
+};
+export const DEFAULT_MODEL: Record<LlmProvider, string> = {
+  anthropic: DEFAULT_ANTHROPIC_MODEL,
+  openai: DEFAULT_OPENAI_MODEL,
+  "opencode-zen": DEFAULT_ZEN_MODEL,
+  "opencode-go": DEFAULT_GO_MODEL,
+  codex: "", // the runtime picks
+  "claude-code": "",
+};
+
+/** The sidebar's reasoning control. A hand-edited state.json degrades to `auto`. */
+export function readThinking(): ThinkingLevel {
+  const stored = stateStore.get<string>(LLM_KEYS.thinking);
+  return (THINKING_LEVELS as readonly string[]).includes(stored ?? "") ? (stored as ThinkingLevel) : "auto";
+}
+
+/** User-set reply cap, or undefined for the provider's built-in default. */
+export function readMaxOutputTokens(): number | undefined {
+  const stored = stateStore.get<unknown>(LLM_KEYS.maxOutputTokens);
+  return typeof stored === "number" && Number.isInteger(stored) && stored >= 256 && stored <= 128000 ? stored : undefined;
+}
 
 export interface LlmSettings {
   provider: LlmProvider;
@@ -92,6 +141,9 @@ export interface LlmSettings {
   model: string;
   baseUrl: string;
   apiKey?: string;
+  /** Present only when the user chose something other than `auto` / a custom cap. */
+  thinking?: ThinkingLevel;
+  maxOutputTokens?: number;
 }
 
 /**
@@ -106,6 +158,12 @@ export function readApprovalMode(): ApprovalMode {
 }
 
 export function readLlmSettings(): LlmSettings {
+  const thinking = readThinking();
+  const maxOutputTokens = readMaxOutputTokens();
+  return { ...readProviderSettings(), ...(thinking !== "auto" ? { thinking } : {}), ...(maxOutputTokens ? { maxOutputTokens } : {}) };
+}
+
+function readProviderSettings(): LlmSettings {
   const stored = stateStore.get<string>(LLM_KEYS.provider, "anthropic");
   const provider: LlmProvider =
     stored === "openai" || stored === "opencode-zen" || stored === "opencode-go" || stored === "codex" || stored === "claude-code"
@@ -495,6 +553,12 @@ export class ChatService {
           this.ensureStarted();
           this.sendState();
           break;
+        case "setModel":
+          this.setModel(msg.model);
+          break;
+        case "setThinking":
+          this.setThinking(msg.level);
+          break;
         case "send":
           this.turn = this.run(msg.text).finally(() => {
             this.turn = null;
@@ -551,7 +615,14 @@ export class ChatService {
     // we only mirror their status into the sidebar and abort the loop on quit.
     this.deps.hub.onStatus((servers) => this.send({ type: "servers", servers }));
     app.on("will-quit", () => this.abort?.abort());
+    // The picker, the Settings page and the native menu all write the same
+    // `llm*` keys; any of them changing must repaint the composer strip (and,
+    // with it, the header's provider label, which used to go stale).
+    this.settingsListener = stateStore.onDidChange((key) => {
+      if (key.startsWith("llm")) this.sendComposer();
+    });
   }
+  private settingsListener: { dispose(): void } | null = null;
 
   /** Points the service at the sidebar view's WebContents (idempotent). */
   attach(target: WebContents): void {
@@ -679,14 +750,57 @@ export class ChatService {
    */
   private usageFor(convo: LiveConversation, model: string): ChatUsage | undefined {
     if (!convo.usage) return undefined;
-    const info = modelInfo(model);
+    const pricing = resolvePricing(model, readCustomPricing());
+    const showWindow = pricing.contextWindow !== undefined && convo.usageBillingMode !== "subscription" && convo.usageBillingMode !== "mixed";
+    const showCost = pricing.rates !== undefined && (!convo.usageBillingMode || convo.usageBillingMode === "api");
     return {
       ...convo.usage,
       model,
-      ...(info && convo.usageBillingMode !== "subscription" && convo.usageBillingMode !== "mixed" ? { contextWindow: info.contextWindow } : {}),
+      ...(showWindow ? { contextWindow: pricing.contextWindow } : {}),
       billingMode: convo.usageBillingMode,
-      ...(info && (!convo.usageBillingMode || convo.usageBillingMode === "api") ? { costUsd: estimateCost(convo.usage, info) } : {}),
+      ...(showCost ? { costUsd: estimateCost(convo.usage, pricing.rates!) } : {}),
+      ...(pricing.userSupplied && (showWindow || showCost) ? { userSupplied: true } : {}),
     };
+  }
+
+  /**
+   * The composer strip's model picker. Writes the same setting as the Settings
+   * page and the native menu (one source of truth), for the provider in effect,
+   * and takes effect from the next message — `run()` reads settings once per
+   * turn, so a turn in flight is never changed under it. Refused for a managed
+   * key; untrusted input is trimmed, length-capped and stripped of control
+   * characters. Empty clears back to the provider default.
+   */
+  private setModel(raw: unknown): void {
+    if (typeof raw !== "string") return;
+    const key = MODEL_KEY[readLlmSettings().provider];
+    if (stateStore.isManaged(key)) return;
+    const value = raw.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+    if (value.length > 200) return;
+    void stateStore.update(key, value || undefined); // onDidChange re-sends the composer
+  }
+
+  private setThinking(level: unknown): void {
+    if (typeof level !== "string" || !(THINKING_LEVELS as readonly string[]).includes(level)) return;
+    void stateStore.update(LLM_KEYS.thinking, level === "auto" ? undefined : level);
+  }
+
+  private sendComposer(): void {
+    if (!this.target) return;
+    const settings = readLlmSettings();
+    const key = MODEL_KEY[settings.provider];
+    this.send({
+      type: "composer",
+      composer: {
+        provider: settings.provider,
+        model: settings.model,
+        defaultModel: DEFAULT_MODEL[settings.provider],
+        choices: knownModels(settings.provider),
+        modelManaged: stateStore.isManaged(key),
+        thinking: readThinking(),
+        thinkingSupported: settings.provider !== "codex" && settings.provider !== "claude-code",
+      },
+    });
   }
 
   private sendState(): void {
@@ -708,6 +822,7 @@ export class ChatService {
       usage: this.usageFor(convo, settings.model),
       ...(convo.compactedResults ? { compactedResults: convo.compactedResults } : {}),
     });
+    this.sendComposer();
     // After the transcript, so the chips they attach to exist — and as separate
     // messages, so `state` itself stays small. sendState() fires on far more
     // than a reload (chatReady, an empty New chat, re-selecting the active
@@ -1142,6 +1257,8 @@ export class ChatService {
           system: SYSTEM_PROMPT,
           tools,
           model: settings.model,
+          thinking: settings.thinking,
+          maxOutputTokens: settings.maxOutputTokens,
           signal,
           // Stable per-conversation id for providers that route/cache on it
           // (OpenCode Go). Other gateways never see it.
@@ -1173,7 +1290,7 @@ export class ChatService {
           // folded here, and one turn can run 25 iterations and overflow without
           // ever finishing. Known windows only — an unrecognised model has no
           // figure to compare against, and relies on the reactive path above.
-          const window = modelInfo(settings.model)?.contextWindow;
+          const window = resolvePricing(settings.model, readCustomPricing()).contextWindow;
           if (window && convo.usage!.lastInput > COMPACT_AT * window) this.advanceCompaction(convo);
         }
 
@@ -1223,6 +1340,7 @@ export class ChatService {
 
   /** Aborts any in-flight turn; the servers themselves are owned by the hub. */
   dispose(): void {
+    this.settingsListener?.dispose();
     this.abort?.abort();
   }
 }

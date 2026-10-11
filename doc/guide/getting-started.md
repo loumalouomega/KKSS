@@ -136,9 +136,11 @@ What to expect in the awkward cases:
   finish. If that is not enough — or the machine loses power — the local copy is still there and
   is flagged; the next launch tells you which files have changes that never reached the provider.
 - **Recent files.** A cloud document stays in **File ▸ Open Recent** even after the cache trims its
-  local copy; clicking it downloads again. Restoring the previous session on launch does not
-  re-download, because that would mean network access before the window appears — anything trimmed
-  is reported in the usual "files could not be found" notice instead.
+  local copy; clicking it downloads again. Restoring the previous session on launch downloads a trimmed
+  document again too, **in the background**: the window and its tabs appear immediately, and each
+  such tab fills in as its download finishes (with the usual cancellable progress notice). If the
+  account is no longer signed in, one notice says so — reconnect under **Settings ▸ Cloud Accounts**
+  and reopen the document from Recent files.
 - **The macro library is not synced.** `cad-preview-macros.json` belongs to a whole folder while
   the cache holds one document per directory, so uploading it would let two models from the same
   remote folder overwrite each other's macros. It stays local.
@@ -150,7 +152,7 @@ default). A document that is open, or that holds an unsent change, is never trim
 
 ### Picking up where you left off
 
-KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing — and the chat sidebar comes back on the conversation you were last in. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there.
+KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing — and the chat sidebar comes back on the conversation you were last in. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there. A cloud document KKSS has trimmed from its local cache is the exception: its tab is kept and downloaded again in the background.
 
 Turn it off with **Settings ▸ Restore Last Session** to start clean every time. (Setting `KKSS_NO_RESTORE=1` in the environment does the same for one launch, which is handy if a particular document is giving the viewer trouble.) Opening a file from the command line always wins: it takes the screen and gets its own tab, leaving the restored documents untouched.
 
@@ -227,13 +229,25 @@ For a few CAD tools — applying edit operations, and running a parametric or sa
 
 What it checks is narrower than a preview: it tells you which operations parse and are legal, not what the geometry would look like afterwards. The report is for you only — the assistant is not told about it, and is not told a call happened when it did not.
 
+### Choosing the model and thinking level
+
+A strip above the message box carries two quick controls, each with its own mark: the **model** picker (a small glyph for the active provider — Anthropic, OpenAI-compatible, OpenCode, Codex or Claude Code — beside a dropdown) and the **thinking** picker (a brain). The model dropdown offers *Default*, the models KKSS knows for the active provider, the model you currently use if it is custom, and **Other…**, which opens a text box for any other id (a gateway or local-server model) — press Enter to apply it. The thinking picker offers **Auto** (the provider's own default), **Off**, **Low effort** and **High effort**.
+
+Both write the same settings as **Settings ▸ LLM Assistant** (*…Model* for the active provider and *Thinking*), so the three always agree, and a change applies from your **next message** — a reply in progress is never altered. Notes:
+
+- **Off** asks for no thinking where the model allows it; models that always think keep thinking. A model that rejects the chosen level is retried automatically without it, so a picker choice never breaks a turn.
+- For **OpenAI-compatible** backends the level is sent as `reasoning_effort` only when it is not *Auto* (**Off** is sent as `none`); a gateway that does not recognise it is retried without it.
+- The thinking picker is disabled for the **Codex** and **Claude Code** subscription providers, which choose their own reasoning.
+- If your administrator pins the model through the environment, the model dropdown is shown but locked.
+- *Max Output Tokens* (Settings only) caps one reply; leave it empty for the default.
+
 ### Tokens, context and cost
 
 The sidebar header shows how much of the model's context window your last message filled, and roughly what the conversation has cost so far — for example `12.4k/1M · $0.03`. Hover it for the full breakdown: the model, the split between fresh and cached input, and the output total.
 
 It turns amber as the window fills up. That is worth acting on: when a conversation no longer fits, the provider rejects it outright, and the fix is to start a new one with the header's **+** (New conversation) button (the old conversation is saved, not lost).
 
-Cost is an estimate from published per-token prices for the Claude models KKSS knows about. Point the OpenAI-compatible provider at your own gateway — Ollama, OpenRouter, a local model — and KKSS has no way to know what it charges, so you get token counts and nothing else rather than a made-up figure. None of this leaves your machine; it is calculated from what the provider returned with your response.
+Cost is an estimate from published per-token prices for the Claude models KKSS knows about. Point the OpenAI-compatible provider at your own gateway — Ollama, OpenRouter, a local model — and KKSS has no way to know what it charges, so by default you get token counts and nothing else rather than a made-up figure. If you know the figures, enter them under **Settings ▸ LLM Assistant** (*Custom Context Window* and the *Custom … Price* rows, in USD per million tokens): the readout then shows the context fill and, once both the input and output price are set, a cost — and its tooltip says the numbers are yours. Cache prices are optional and default to the input price (no discount assumed). These values apply to whichever unlisted model is currently selected and never override a model KKSS has reviewed prices for. None of this leaves your machine; it is calculated from what the provider returned with your response.
 
 ### When a conversation gets long
 
@@ -346,6 +360,10 @@ Viewer actions (mesh quality, field visualization, find entity…) are *not* in 
 ### Tabs — several open documents at once
 
 Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the toolbar, one per open document. Click **+** at the end of the strip, or **File ▸ New CAD Tab** / **New Mesh Tab**, to open a second document alongside the first — each tab keeps its own camera position, edit history, and (in Post-Processing) its own Flowgraph session, completely independent of the others. Click a tab to switch to it; click its **×** to close it. Closing a CAD tab needs no confirmation, since the CAD viewer autosaves its sidecars; closing a mesh tab with unsaved operations prompts first (see below). A mesh exported from a Pre-Processing tab (**File ▸ Export…** to `.mdpa`/`.vtk`/…) opens in a *new* Post-Processing tab. Exporting again to the same path refreshes its existing tab if it has no unsaved mesh edits; unrelated and dirty tabs are preserved.
+
+## If a view stops responding
+
+Opening a very large mesh can freeze a viewer for a while — that is normal, and KKSS never reloads it behind your back. If a view (a CAD or mesh tab, the editor, or a panel) stays unresponsive for about 30 seconds, a dialog asks what to do: **Wait** gives it more time (it asks again only after twice as long, up to ten minutes), **Reload** restarts just that view. The dialog says what a reload discards — a mesh tab's unsaved changes, the editor's unsaved text; a CAD tab's edits are kept beside the file. If the view recovers on its own, the dialog closes by itself.
 
 ## Keyboard shortcuts
 
