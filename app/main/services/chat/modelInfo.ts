@@ -10,6 +10,9 @@
  * That "unknown" path is the normal case for the OpenAI-compatible provider,
  * which points at arbitrary gateways (Ollama, OpenRouter, a local server) whose
  * pricing KKSS has no way to know. It is not a gap to fill by inventing rows.
+ * The user can fill it themselves (Settings ▸ LLM Assistant ▸ custom prices);
+ * `resolvePricing` keeps those figures separate, flagged `userSupplied`, and
+ * never lets them override a reviewed row.
  *
  * **Re-check this table whenever the model list changes** — a new model is a
  * reviewed edit here, never an inference at runtime. Prices are USD per million
@@ -75,11 +78,66 @@ export function modelInfo(model: string): ModelInfo | null {
   return MODEL_INFO[model] ?? MODEL_INFO[model.replace(DATE_SUFFIX, "")] ?? null;
 }
 
+/** Figures the user typed under Settings ▸ LLM Assistant. Every field is
+ *  optional and already validated (finite, non-negative) by `parseCustomPricing`. */
+export interface CustomPricing {
+  contextWindow?: number;
+  inputPer1M?: number;
+  outputPer1M?: number;
+  cacheReadPer1M?: number;
+  cacheWritePer1M?: number;
+}
+
+/** What the sidebar may show for a model: either field can be absent. */
+export interface ResolvedPricing {
+  contextWindow?: number;
+  /** Present only when a complete set of rates exists to price a conversation. */
+  rates?: Pick<ModelInfo, "inputPer1M" | "outputPer1M" | "cacheReadPer1M" | "cacheWritePer1M">;
+  /** True when any shown figure came from the user rather than the reviewed table. */
+  userSupplied: boolean;
+}
+
+const finiteNonNegative = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
+
+/** Keep only usable user figures: a hand-edited state.json must never produce a
+ *  NaN, negative or string rate. A window must additionally be a positive integer. */
+export function parseCustomPricing(raw: Record<keyof CustomPricing, unknown>): CustomPricing {
+  const out: CustomPricing = {};
+  const w = raw.contextWindow;
+  if (finiteNonNegative(w) && w > 0 && Number.isInteger(w)) out.contextWindow = w;
+  for (const k of ["inputPer1M", "outputPer1M", "cacheReadPer1M", "cacheWritePer1M"] as const) {
+    if (finiteNonNegative(raw[k])) out[k] = raw[k] as number;
+  }
+  return out;
+}
+
+/**
+ * The figures to show for a model. The reviewed table always wins — user values
+ * are for models it does not list, never an override of a reviewed price. A
+ * conversation is priced only when BOTH input and output rates were entered
+ * (half a price list is a wrong number); unset cache rates fall back to the
+ * input rate, i.e. no cache discount is assumed. The window stands alone.
+ */
+export function resolvePricing(model: string, custom: CustomPricing): ResolvedPricing {
+  const info = modelInfo(model);
+  if (info) return { contextWindow: info.contextWindow, rates: info, userSupplied: false };
+  const rates =
+    custom.inputPer1M !== undefined && custom.outputPer1M !== undefined
+      ? {
+          inputPer1M: custom.inputPer1M,
+          outputPer1M: custom.outputPer1M,
+          cacheReadPer1M: custom.cacheReadPer1M ?? custom.inputPer1M,
+          cacheWritePer1M: custom.cacheWritePer1M ?? custom.inputPer1M,
+        }
+      : undefined;
+  return { contextWindow: custom.contextWindow, rates, userSupplied: rates !== undefined || custom.contextWindow !== undefined };
+}
+
 /** USD for one usage total. Callers must have a row already — there is no
  *  fallback rate, because a made-up rate is the failure mode this avoids. */
 export function estimateCost(
   usage: { input: number; output: number; cacheRead: number; cacheWrite: number },
-  info: ModelInfo
+  info: Pick<ModelInfo, "inputPer1M" | "outputPer1M" | "cacheReadPer1M" | "cacheWritePer1M">
 ): number {
   return (
     (usage.input * info.inputPer1M +

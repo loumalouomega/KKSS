@@ -1178,6 +1178,37 @@ describe("token, cost and context accounting", () => {
     expect(latest.contextWindow).toBeUndefined();
   });
 
+  it("prices an unlisted model from user-entered figures and says so", async () => {
+    stateValues.llmProvider = "openai";
+    stateValues.llmModelOpenai = "llama3.1:70b";
+    stateValues.llmCustomInputPrice = 2;
+    stateValues.llmCustomOutputPrice = 8;
+    stateValues.llmCustomContextWindow = 128_000;
+    const { provider, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("done", undefined, usage(1_000_000, 500_000));
+    await settle();
+    const latest = latestUsage(messages);
+    expect(latest.costUsd).toBeCloseTo(6, 6); // $2 in + $4 out
+    expect(latest.contextWindow).toBe(128_000);
+    expect(latest.userSupplied).toBe(true);
+  });
+
+  it("does not flag a reviewed model as user-supplied, even with custom values set", async () => {
+    stateValues.llmModelAnthropic = "claude-opus-4-8";
+    stateValues.llmCustomInputPrice = 99;
+    stateValues.llmCustomOutputPrice = 99;
+    const { provider, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("done", undefined, usage(1_000_000, 0));
+    await settle();
+    const latest = latestUsage(messages);
+    expect(latest.costUsd).toBeCloseTo(5, 6);
+    expect(latest.userSupplied).toBeUndefined();
+  });
+
   it("leaves the total untouched when a provider reports nothing", async () => {
     const { provider, messages, post } = makeService();
     post({ type: "chatReady" });
@@ -1368,6 +1399,22 @@ describe("transcript compaction", () => {
     provider.finish("done", undefined, usage(999_999));
     await settle();
     expect(compactionMsgs(messages)).toHaveLength(0);
+  });
+
+  it("compacts proactively against a user-entered window", async () => {
+    stateValues.llmProvider = "openai";
+    stateValues.llmModelOpenai = "llama3.1:70b";
+    stateValues.llmCustomContextWindow = 100_000;
+    const { provider, mcp, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("calling", { id: "t1", name: "cad__inspect", argsJson: "{}" }, usage(50_000));
+    await settle(4);
+    mcp.finish("output");
+    await settle(4);
+    provider.finish("done", undefined, usage(90_000)); // past 70% of 100k
+    await settle();
+    expect(compactionMsgs(messages).length).toBeGreaterThan(0);
   });
 
   it("keeps the boundary across a conversation switch away and back", async () => {

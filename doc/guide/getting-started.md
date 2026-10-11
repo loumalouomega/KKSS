@@ -233,7 +233,7 @@ The sidebar header shows how much of the model's context window your last messag
 
 It turns amber as the window fills up. That is worth acting on: when a conversation no longer fits, the provider rejects it outright, and the fix is to start a new one with the header's **+** (New conversation) button (the old conversation is saved, not lost).
 
-Cost is an estimate from published per-token prices for the Claude models KKSS knows about. Point the OpenAI-compatible provider at your own gateway — Ollama, OpenRouter, a local model — and KKSS has no way to know what it charges, so you get token counts and nothing else rather than a made-up figure. None of this leaves your machine; it is calculated from what the provider returned with your response.
+Cost is an estimate from published per-token prices for the Claude models KKSS knows about. Point the OpenAI-compatible provider at your own gateway — Ollama, OpenRouter, a local model — and KKSS has no way to know what it charges, so by default you get token counts and nothing else rather than a made-up figure. If you know the figures, enter them under **Settings ▸ LLM Assistant** (*Custom Context Window* and the *Custom … Price* rows, in USD per million tokens): the readout then shows the context fill and, once both the input and output price are set, a cost — and its tooltip says the numbers are yours. Cache prices are optional and default to the input price (no discount assumed). These values apply to whichever unlisted model is currently selected and never override a model KKSS has reviewed prices for. None of this leaves your machine; it is calculated from what the provider returned with your response.
 
 ### When a conversation gets long
 

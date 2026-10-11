@@ -59,7 +59,7 @@ import {
   type StoredUsage,
 } from "./transcriptStoreCore";
 import { Provider, ProviderError, type TurnResult, type TurnUsage } from "./providers/types";
-import { estimateCost, modelInfo } from "./modelInfo";
+import { estimateCost, parseCustomPricing, resolvePricing, type CustomPricing } from "./modelInfo";
 import { applyCompaction, nextCount } from "./compaction";
 import { createAnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from "./providers/anthropic";
 import { createOpenAiCompatProvider, DEFAULT_GO_BASE_URL, DEFAULT_GO_MODEL, DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL, DEFAULT_ZEN_BASE_URL, DEFAULT_ZEN_MODEL } from "./providers/openaiCompat";
@@ -82,7 +82,24 @@ export const LLM_KEYS = {
   zenModel: "llmModelZen",
   goModel: "llmModelGo",
   toolApproval: "llmToolApproval", // ApprovalMode; see toolPolicy.ts
+  customContextWindow: "llmCustomContextWindow",
+  customInputPrice: "llmCustomInputPrice",
+  customOutputPrice: "llmCustomOutputPrice",
+  customCacheReadPrice: "llmCustomCacheReadPrice",
+  customCacheWritePrice: "llmCustomCacheWritePrice",
 } as const;
+
+/** User-entered figures for models the reviewed table does not list. Read per
+ *  use (like the approval mode) so an edit applies to the next readout. */
+export function readCustomPricing(): CustomPricing {
+  return parseCustomPricing({
+    contextWindow: stateStore.get<unknown>(LLM_KEYS.customContextWindow),
+    inputPer1M: stateStore.get<unknown>(LLM_KEYS.customInputPrice),
+    outputPer1M: stateStore.get<unknown>(LLM_KEYS.customOutputPrice),
+    cacheReadPer1M: stateStore.get<unknown>(LLM_KEYS.customCacheReadPrice),
+    cacheWritePer1M: stateStore.get<unknown>(LLM_KEYS.customCacheWritePrice),
+  });
+}
 
 export type LlmProvider = "anthropic" | "openai" | "opencode-zen" | "opencode-go" | "codex" | "claude-code";
 
@@ -679,13 +696,16 @@ export class ChatService {
    */
   private usageFor(convo: LiveConversation, model: string): ChatUsage | undefined {
     if (!convo.usage) return undefined;
-    const info = modelInfo(model);
+    const pricing = resolvePricing(model, readCustomPricing());
+    const showWindow = pricing.contextWindow !== undefined && convo.usageBillingMode !== "subscription" && convo.usageBillingMode !== "mixed";
+    const showCost = pricing.rates !== undefined && (!convo.usageBillingMode || convo.usageBillingMode === "api");
     return {
       ...convo.usage,
       model,
-      ...(info && convo.usageBillingMode !== "subscription" && convo.usageBillingMode !== "mixed" ? { contextWindow: info.contextWindow } : {}),
+      ...(showWindow ? { contextWindow: pricing.contextWindow } : {}),
       billingMode: convo.usageBillingMode,
-      ...(info && (!convo.usageBillingMode || convo.usageBillingMode === "api") ? { costUsd: estimateCost(convo.usage, info) } : {}),
+      ...(showCost ? { costUsd: estimateCost(convo.usage, pricing.rates!) } : {}),
+      ...(pricing.userSupplied && (showWindow || showCost) ? { userSupplied: true } : {}),
     };
   }
 
@@ -1173,7 +1193,7 @@ export class ChatService {
           // folded here, and one turn can run 25 iterations and overflow without
           // ever finishing. Known windows only — an unrecognised model has no
           // figure to compare against, and relies on the reactive path above.
-          const window = modelInfo(settings.model)?.contextWindow;
+          const window = resolvePricing(settings.model, readCustomPricing()).contextWindow;
           if (window && convo.usage!.lastInput > COMPACT_AT * window) this.advanceCompaction(convo);
         }
 

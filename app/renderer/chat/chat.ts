@@ -637,6 +637,7 @@ function renderUsage(usage: ChatUsage | undefined): void {
     t("Cache: {0} read, {1} written", {0: usage.cacheRead.toLocaleString(), 1: usage.cacheWrite.toLocaleString()}),
   ];
   if (usage.costUsd === undefined) detail.push(usage.billingMode === "subscription" ? t("Subscription usage; provider limits apply. API prices do not represent your bill.") : usage.billingMode === "mixed" ? t("Mixed providers or billing modes — token counts only.") : t("No pricing on record for this model — token counts only."));
+  if (usage.userSupplied) detail.push(t("Price and context window supplied by you (Settings ▸ LLM Assistant)."));
   usageEl.title = detail.join("\n");
 }
 

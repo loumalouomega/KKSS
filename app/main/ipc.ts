@@ -148,7 +148,9 @@ export interface ChatImage {
  *
  * `contextWindow` and `costUsd` are resolved in the main process from
  * `modelInfo.ts` and are **absent for a model KKSS has no reviewed figures
- * for** — the sidebar then shows token counts alone rather than a wrong number.
+ * for** — the sidebar then shows token counts alone rather than a wrong number —
+ * unless the user entered prices/a window themselves, in which case
+ * `userSupplied` is set so the readout can say whose figures they are.
  */
 export interface ChatUsage {
   billingMode?: "api" | "subscription" | "mixed";
@@ -164,6 +166,8 @@ export interface ChatUsage {
   model: string;
   contextWindow?: number;
   costUsd?: number;
+  /** `contextWindow`/`costUsd` came from Settings ▸ LLM Assistant, not the reviewed table. */
+  userSupplied?: boolean;
 }
 
 export type ChatWireEntry =

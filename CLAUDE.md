@@ -1113,7 +1113,10 @@ resubmitted automatically.
   reject, hence the retry-without-it (the same shape as Anthropic's conservative
   retry). `services/chat/modelInfo.ts` is a deliberate table in the
   `toolPolicy.ts` mould: **an unknown model resolves to `null` and the sidebar
-  shows token counts with no cost and no context percentage**, which is the
+  shows token counts with no cost and no context percentage** (unless the user
+  entered the five `llm.custom*` Settings rows: `resolvePricing` applies them only
+  when the reviewed table has no row, needs both input and output prices to show a
+  cost, and sets `ChatUsage.userSupplied`), which is the
   normal case for the OpenAI-compatible provider and is the honest answer rather
   than a gap to fill by guessing. Cache rates are stored per row, not derived
   from input (Fable 5.1 reads at a flat $0.25/MTok, and a pricing rule with one

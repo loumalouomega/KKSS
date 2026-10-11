@@ -8,7 +8,7 @@
  * token counts, which is the honest answer, instead of a fabricated price.
  */
 import { describe, expect, it } from "vitest";
-import { estimateCost, MODEL_INFO, modelInfo } from "../app/main/services/chat/modelInfo";
+import { estimateCost, MODEL_INFO, modelInfo, parseCustomPricing, resolvePricing } from "../app/main/services/chat/modelInfo";
 
 describe("the model table", () => {
   it("holds exactly the reviewed rows", () => {
@@ -94,5 +94,46 @@ describe("estimateCost", () => {
     const cached = estimateCost({ input: 0, output: 0, cacheRead: 500_000, cacheWrite: 0 }, info);
     const fresh = estimateCost({ input: 500_000, output: 0, cacheRead: 0, cacheWrite: 0 }, info);
     expect(cached).toBeLessThan(fresh);
+  });
+});
+
+describe("user-supplied pricing", () => {
+  it("never overrides a reviewed row", () => {
+    const r = resolvePricing("claude-opus-4-8", { contextWindow: 10, inputPer1M: 99, outputPer1M: 99 });
+    expect(r.userSupplied).toBe(false);
+    expect(r.contextWindow).toBe(1_000_000);
+    expect(r.rates?.inputPer1M).toBe(5);
+  });
+
+  it("resolves an unlisted model to nothing until the user supplies something", () => {
+    expect(resolvePricing("llama3.1:70b", {})).toEqual({ contextWindow: undefined, rates: undefined, userSupplied: false });
+  });
+
+  it("prices only when both input and output rates are set", () => {
+    expect(resolvePricing("llama3.1:70b", { inputPer1M: 1 }).rates).toBeUndefined();
+    expect(resolvePricing("llama3.1:70b", { outputPer1M: 1 }).rates).toBeUndefined();
+    const r = resolvePricing("llama3.1:70b", { inputPer1M: 1, outputPer1M: 4 });
+    expect(r.userSupplied).toBe(true);
+    expect(r.rates).toEqual({ inputPer1M: 1, outputPer1M: 4, cacheReadPer1M: 1, cacheWritePer1M: 1 });
+  });
+
+  it("honours explicit cache rates, including zero", () => {
+    const r = resolvePricing("x", { inputPer1M: 2, outputPer1M: 4, cacheReadPer1M: 0.2, cacheWritePer1M: 0 });
+    expect(r.rates).toMatchObject({ cacheReadPer1M: 0.2, cacheWritePer1M: 0 });
+  });
+
+  it("lets a context window stand alone", () => {
+    const r = resolvePricing("x", { contextWindow: 32_000 });
+    expect(r).toEqual({ contextWindow: 32_000, rates: undefined, userSupplied: true });
+  });
+
+  it("drops invalid stored values instead of producing NaN or negative rates", () => {
+    expect(
+      parseCustomPricing({ contextWindow: 1.5, inputPer1M: -1, outputPer1M: "3", cacheReadPer1M: NaN, cacheWritePer1M: Infinity })
+    ).toEqual({});
+    expect(parseCustomPricing({ contextWindow: 0, inputPer1M: 0, outputPer1M: 0, cacheReadPer1M: undefined, cacheWritePer1M: null })).toEqual({
+      inputPer1M: 0,
+      outputPer1M: 0,
+    });
   });
 });
