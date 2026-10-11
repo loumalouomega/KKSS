@@ -3,7 +3,7 @@ import { configureLocale } from "./services/locale";
 import { t } from "../shared/i18n";
 import { beginOpen, configurePerformance } from "./services/performance";
 /** KKSS Electron main entry. */
-import { app, clipboard, dialog, ipcMain, Menu } from "electron";
+import { app, clipboard, dialog, ipcMain, Menu, shell } from "electron";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
 import { managedConfig } from "./services/managedConfig";
@@ -18,8 +18,9 @@ import { FlowgraphController } from "../../mesh/src/flowgraphController";
 import { RunManager } from "../../mesh/src/runManager";
 import { RecentMeshStore } from "../../mesh/src/recentMeshes";
 import { installMenu } from "./menu";
-import { modeForFile, modeForViewType } from "./router";
-import { LaunchQueue, launchFiles, localLaunchFile } from "./launch";
+import { modeForFile, modeForViewType, unsupportedSuffix } from "./router";
+import { DOCS_URL } from "./urls";
+import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsupportedLaunchFiles } from "./launch";
 import { showOpenDialog } from "./services/dialogs";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
@@ -41,7 +42,7 @@ import { defaultPythonPath } from "../../mesh/src/problemtype/kratosEnv";
 import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
 import { META_ACCESS_MIGRATED_KEY, metaAccessMigration, normalizeAllowedWrites, readMetaAccess } from "./services/metaServer/accessPolicy";
-import { configureNotifications, handleToastButton, progressToast, toast } from "./services/notifications";
+import { configureNotifications, handleToastButton, progressToast, toast, type ToastAction } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { recentFiles } from "./services/recentFiles";
 import { CloudService } from "./services/cloud/cloudService";
@@ -95,25 +96,33 @@ if (!gotInstanceLock) {
 
 const launchQueue = new LaunchQueue();
 launchQueue.enqueue(launchFiles(process.argv, app.isPackaged, process.cwd()));
+const startupUnsupported = unsupportedLaunchFiles(process.argv, app.isPackaged, process.cwd());
 
 app.on("open-file", (event, value) => {
   event.preventDefault();
   const file = localLaunchFile(value, process.cwd());
   if (file) launchQueue.enqueue([file]);
-  else console.warn("Rejected unsupported external open request");
+  else {
+    console.warn("Rejected unsupported external open request");
+    reportUnsupported(unsupportedLaunchFile(value, process.cwd()));
+  }
   focusMainWindow();
 });
 app.on("open-url", (event, value) => {
   event.preventDefault();
   const file = localLaunchFile(value, process.cwd());
   if (file) launchQueue.enqueue([file]);
-  else console.warn("Rejected unsupported external open request");
+  else {
+    console.warn("Rejected unsupported external open request");
+    reportUnsupported(unsupportedLaunchFile(value, process.cwd()));
+  }
   focusMainWindow();
 });
 
 app.on("second-instance", (_event, argv, workingDirectory) => {
   focusMainWindow();
   launchQueue.enqueue(launchFiles(argv, app.isPackaged, workingDirectory));
+  reportUnsupported(...unsupportedLaunchFiles(argv, app.isPackaged, workingDirectory));
 });
 
 app.whenReady().then(() => {
@@ -155,8 +164,18 @@ let jobs: JobsService | null = null;
 let workflows: WorkflowService | undefined;
 let metaServer: MetaMcpServer | null = null;
 let cloud: CloudService | null = null;
-/** `before-quit` may hold the quit open exactly once to drain uploads. */
-let cloudDrainAttempted = false;
+/** `before-quit` holds the quit open exactly once: for cloud uploads and/or the live shell. */
+let quitDrainAttempted = false;
+
+/**
+ * True while the close handler could still cancel the quit: a live window with a
+ * dirty editor or CAD/mesh tab. Once the window is destroyed no prompt can run,
+ * even though Don't Save leaves its edits (so `isDirty()`) in place.
+ */
+function closeMayPrompt(): boolean {
+  if (!main || main.win.isDestroyed()) return false;
+  return editor?.isDirty() === true || [...cadHosts.values(), ...meshHosts.values()].some((host) => host.isDirty());
+}
 
 function sendShell(message: unknown): void {
   if (!main || main.win.isDestroyed() || main.shell.webContents.isDestroyed()) return;
@@ -298,15 +317,33 @@ let quitting = false;
 /** A toast the shell cannot show yet — because it is reloading after a crash,
  *  or because it has not finished its first load during launch. Replayed from
  *  the shellReady handshake. */
-let deferredShellToast: { kind: "info" | "warning" | "error"; text: string } | undefined;
+let deferredShellToast: { kind: "info" | "warning" | "error"; text: string; action?: ToastAction } | undefined;
 /** Whether the shell page is up. `toast()` is a silent no-op before its first
  *  load and while it reloads after a crash, so anything sent then must wait. */
 let shellUp = false;
 
 /** Toasts now if the shell can show it, otherwise on its next shellReady. */
-function shellToast(kind: "info" | "warning" | "error", text: string): void {
-  if (shellUp) toast(kind, text);
-  else deferredShellToast = { kind, text };
+function shellToast(kind: "info" | "warning" | "error", text: string, action?: ToastAction): void {
+  if (shellUp) toast(kind, text, action);
+  else deferredShellToast = { kind, text, action };
+}
+
+/** Tells the user why a file will not open and where the supported formats are
+ *  listed. Several files at once (a multi-file launch) are summed up as one
+ *  toast naming the first. Undefined entries are ignored. */
+function reportUnsupported(...files: (string | undefined)[]): void {
+  const named = files.filter((file): file is string => !!file);
+  if (!named.length) return;
+  const name = path.basename(named[0]);
+  const suffix = unsupportedSuffix(named[0]);
+  let text = suffix
+    ? t("Can't open {0}: KKSS doesn't read \"{1}\" files.", {0: name, 1: suffix})
+    : t("Can't open {0}: it has no file extension, so its format can't be told.", {0: name});
+  if (named.length > 1) text += " " + t("{0} other files were also skipped.", {0: String(named.length - 1)});
+  shellToast("warning", text, {
+    label: t("Supported formats"),
+    run: () => void shell.openExternal(`${DOCS_URL}guide/file-formats#which-mode-opens-what`),
+  });
 }
 
 function onViewCrash(crash: ViewCrash): void {
@@ -397,7 +434,7 @@ function currentSession() {
 }
 
 const SESSION_SAVE_DEBOUNCE_MS = 1_000;
-/** How long `before-quit` may hold the quit open to finish uploads. */
+/** How long the quit hold may wait on cloud uploads (the shell has its own bounds: terminalShutdown.ts). */
 const CLOUD_DRAIN_TIMEOUT_MS = 10_000;
 /** Keeps the cache housekeeping off the launch critical path. */
 const CLOUD_STARTUP_DELAY_MS = 5_000;
@@ -442,9 +479,10 @@ function syncTabs(mode: Mode): void {
       // remote one are the same except where the OS forced a substitution.
       fileName: file ? path.basename(file) : null,
       cloud: origin ? { provider: origin.providerLabel, name: origin.name } : undefined,
-      // cad has no unsaved-changes concept (sidecars autosave); mesh 3.18.0
-      // gave its previews one, tracked per tab by MeshHost.isDirty().
-      dirty: mode === "mesh" ? (host as MeshHost | undefined)?.isDirty() : undefined,
+      // mesh 3.18.0 gave its previews unsaved-edit tracking (MeshHost.isDirty());
+      // a CAD tab is dirty while it holds an unbaked tail on a source that can
+      // take it back (CadHost.isDirty — the document chip's own predicate).
+      dirty: host?.isDirty(),
     };
   });
   sendShell({ type: "tabs", mode, tabs, activeTabId: main.activeTabId(mode) });
@@ -457,6 +495,22 @@ function syncTabs(mode: Mode): void {
 const cadHostHooks = {
   onOpenRequest: (fsPath: string) => { void openFile(fsPath); },
   onTitle: () => syncTabs("cad"),
+  // A CAD tab's unsaved state (an unbaked tail on a source that can take it
+  // back) drives the same tab dot a dirty mesh tab shows.
+  onDirtyChanged: () => syncTabs("cad"),
+  // The first bake of a session rewrites the user's file — ask, like the
+  // provider's modal "Save in place" / "Cancel".
+  confirmSaveInPlace: async (message: string) => {
+    if (!main || main.win.isDestroyed()) return false;
+    const { response } = await dialog.showMessageBox(main.win, {
+      type: "warning",
+      message,
+      buttons: [t("Save in place"), t("Cancel")],
+      defaultId: 1,
+      cancelId: 1,
+    });
+    return response === 0;
+  },
   // Pre → post sync: a mesh exported from CAD that post mode can display
   // (.mdpa, .vtk, …) refreshes a matching clean tab or opens a NEW mesh tab.
   // Unrelated documents and tabs with unsaved operations are preserved.
@@ -603,25 +657,37 @@ function newTab(mode: Mode): void {
 }
 
 /**
- * Save / Don't Save / Cancel for a dirty mesh tab, mirroring
- * EditorService.confirmClose's exact dialog shape. cad has no unsaved-changes
- * concept (sidecars autosave), so this is only ever asked of a MeshHost.
- * Resolves false ("Cancel") to abort whatever wanted to discard the tab.
+ * Save / Don't Save / Cancel for a dirty tab, mirroring
+ * EditorService.confirmClose's exact dialog shape. Mesh tabs have been dirty
+ * since mesh 3.18.0; a CAD tab is dirty while its unbaked edit tail has not
+ * been written into the source file (File ▸ Save). Don't Save is harmless for
+ * CAD — the edits stay in the sidecar either way — and the dialog says so.
+ * Resolves false ("Cancel", or a Save that was declined or failed) to abort
+ * whatever wanted to discard the tab.
  */
-async function confirmDiscardMeshTab(host: MeshHost): Promise<boolean> {
+async function confirmDiscardTab(host: CadHost | MeshHost): Promise<boolean> {
   if (!main || !host.isDirty()) return true;
-  const name = host.currentFile ? path.basename(host.currentFile) : "this mesh";
+  const name = host.currentFile ? path.basename(host.currentFile) : t("this document");
   const { response } = await dialog.showMessageBox(main.win, {
     type: "warning",
     message: t("Save changes to {0}?", {0: name}),
+    detail: host instanceof CadHost
+      ? t("Your edits are kept beside the file either way. Save also writes them into {0} itself.", {0: name})
+      : undefined,
     buttons: [t("Save"), t("Don't Save"), t("Cancel")],
     defaultId: 0,
     cancelId: 2,
   });
   if (response === 2) return false;
+  // "Your edits are kept beside the file either way" has to be true the moment
+  // the dialog is answered, not 500 ms later: disposing a CAD tab clears its
+  // autosave timers, so flush them before Don't Save lets the tab go.
+  if (response === 1 && host instanceof CadHost) await host.flushSidecars();
   if (response === 0) {
     try {
-      await host.saveDocument();
+      // CadHost resolves false when the user declined the in-place
+      // confirmation; MeshHost has no such second prompt and resolves void.
+      if ((await host.saveDocument()) === false) return false;
     } catch (err) {
       toast("error", err instanceof Error ? err.message : String(err));
       return false; // the write failed — keep the tab open, still dirty
@@ -630,15 +696,14 @@ async function confirmDiscardMeshTab(host: MeshHost): Promise<boolean> {
   return true;
 }
 
-/** ✕ on a tab. cad has no dirty-prompt — sidecars autosave, same as any other
- *  document replace/close in this app (see CLAUDE.md's tabs invariant). mesh
- *  3.18.0 gave its previews unsaved-edit tracking, so a dirty mesh tab prompts
- *  first (confirmDiscardMeshTab) — Cancel leaves the tab open, untouched. */
+/** ✕ on a tab. A dirty tab — mesh since 3.18.0, CAD while it holds an unbaked
+ *  edit tail — prompts first (confirmDiscardTab); Cancel leaves it open,
+ *  untouched. A clean CAD tab is a plain dispose: its sidecars autosave. */
 async function closeTab(mode: Mode, tabId: string): Promise<void> {
   if (!main) return;
   const hosts = mode === "cad" ? cadHosts : meshHosts;
   const host = hosts.get(tabId);
-  if (mode === "mesh" && host instanceof MeshHost && !(await confirmDiscardMeshTab(host))) return;
+  if (host && !(await confirmDiscardTab(host))) return;
   const closing = host?.currentFile;
   host?.dispose();
   hosts.delete(tabId);
@@ -840,7 +905,7 @@ function openFile(fsPath: string, forcedMode?: Mode, external = false): Promise<
   const resolved = path.resolve(fsPath);
   const mode = forcedMode ?? modeForFile(resolved, main.mode());
   if (!mode) {
-    toast("warning", t("Unsupported file type: {0}", {0: path.basename(resolved)}));
+    reportUnsupported(resolved);
     return Promise.resolve(false);
   }
   const tabId = ensureActiveTab(mode);
@@ -851,7 +916,7 @@ function openFile(fsPath: string, forcedMode?: Mode, external = false): Promise<
   pendingOpenHosts.add(host);
   return replaceDocument(
     () => !!main && !main.win.isDestroyed() && hosts.get(tabId) === host && host.currentFile === previous && (external || main.activeTabId(mode) === tabId),
-    () => host instanceof MeshHost ? confirmDiscardMeshTab(host) : Promise.resolve(true),
+    () => confirmDiscardTab(host),
     () => {
       beginOpen(resolved);
       host.openPath(resolved);
@@ -1150,9 +1215,9 @@ app.whenReady().then(() => {
   // Closing the window is the one destructive path for an unsaved buffer —
   // screen switches only hide the editor/mode views, so they need no guard.
   // mesh 3.18.0 gave its previews the same kind of unsaved-edit tracking the
-  // text editor already had; both are checked here rather than adding a
-  // second before-quit hold (which already carries a single-shot cloud-drain
-  // preventDefault it is best not to complicate further). Mesh tabs are
+  // text editor already had; both are checked here rather than in before-quit.
+  // The one before-quit hold waits for this prompt to resolve (`closeMayPrompt`),
+  // so a cancelled quit never finds its shell already shut down. Dirty tabs (CAD and mesh) are
   // confirmed first, one dialog per dirty tab, sequentially — a Cancel at any
   // point aborts the whole close before the editor is even asked. If the
   // editor is ALSO dirty, its own confirmClose() owns window.destroy() when
@@ -1160,12 +1225,12 @@ app.whenReady().then(() => {
   // itself once every mesh tab has resolved.
   main.win.on("close", (event) => {
     if (headlessStopping) return;
-    const dirtyMeshTabs = [...meshHosts.values()].filter((host) => host.isDirty());
-    if (!editor?.isDirty() && dirtyMeshTabs.length === 0) return;
+    const dirtyTabs = [...cadHosts.values(), ...meshHosts.values()].filter((host) => host.isDirty());
+    if (!closeMayPrompt()) return;
     event.preventDefault();
     void (async () => {
-      for (const host of dirtyMeshTabs) {
-        if (!(await confirmDiscardMeshTab(host))) return;
+      for (const host of dirtyTabs) {
+        if (!(await confirmDiscardTab(host))) return;
       }
       if (editor?.isDirty()) {
         void editor.confirmClose();
@@ -1509,7 +1574,7 @@ app.whenReady().then(() => {
         sendShell({ type: "zoom", factor: main.zoom() });
         pushProjectRoot();
         if (deferredShellToast) {
-          toast(deferredShellToast.kind, deferredShellToast.text);
+          toast(deferredShellToast.kind, deferredShellToast.text, deferredShellToast.action);
           deferredShellToast = undefined;
         }
         break;
@@ -1569,6 +1634,7 @@ app.whenReady().then(() => {
   checkForNewVersion();
 
   // Each external open gets an empty tab, preserving restored and active work.
+  reportUnsupported(...startupUnsupported);
   launchQueue.ready(file => {
     const mode = modeForFile(file, main!.mode());
     if (!mode) return;
@@ -1590,12 +1656,19 @@ async function stopHeadless(): Promise<void> {
     ...[...meshHosts.values()].filter(host => host.isDirty()).map(host => () => host.saveForShutdown(path.join(app.getPath("userData"), "recovery"))),
     () => editor?.saveForShutdown(path.join(app.getPath("userData"), "recovery")) ?? Promise.resolve(),
   ], async () => {
-    if (cloud?.hasPending()) await Promise.race([
-      cloud.flushPending(),
-      new Promise<void>((_, reject) => setTimeout(() => reject(new Error("Cloud upload drain timed out; pending uploads retained")), CLOUD_DRAIN_TIMEOUT_MS)),
-    ]);
+    // Awaited even when the cloud drain rejects: quit goes on to `will-quit`
+    // either way, and a shell still exiting must not outlive it.
+    const shell = terminal?.shutdown() ?? Promise.resolve();
+    try {
+      if (cloud?.hasPending()) await Promise.race([
+        cloud.flushPending(),
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error("Cloud upload drain timed out; pending uploads retained")), CLOUD_DRAIN_TIMEOUT_MS)),
+      ]);
+    } finally {
+      await shell;
+    }
   });
-  cloudDrainAttempted = true;
+  quitDrainAttempted = true;
   if (failures.length) { headlessExitCode = 1; console.error("Headless persistence failures:", failures); }
   if (app.isReady()) {
     if (main) saveSession(currentSession());
@@ -1633,24 +1706,35 @@ if (process.env.KKSS_HEADLESS === "1") {
 app.on("before-quit", (event) => {
   if (process.env.KKSS_HEADLESS === "1" && !headlessPrepared) { event.preventDefault(); void stopHeadless(); return; }
   quitting = true;
-  // `will-quit` cannot await and an HTTPS upload cannot finish synchronously,
-  // so this is the only window Electron gives an async task at shutdown. Held
-  // open exactly once — the flag makes a repeated preventDefault impossible, so
-  // a stuck upload can delay the quit by the cap and never block it.
-  if (!cloudDrainAttempted && cloud?.hasPending()) {
-    cloudDrainAttempted = true;
-    event.preventDefault();
-    const progress = progressToast(t("Finishing cloud uploads…"), false);
-    void Promise.race([
-      cloud.flushPending(),
+  // `will-quit` cannot await, so this is the only window Electron gives an async
+  // task at shutdown: an HTTPS upload draining, or the live shell's exit being
+  // delivered while the app can still take it (terminal.ts). Held open exactly
+  // once — the flag makes a repeated preventDefault impossible, so a stuck upload
+  // or shell can delay the quit by its cap and never block it. Taken only when no
+  // dirty prompt can still cancel the quit, so a cancelled quit keeps the shell
+  // running; once those prompts resolve, the window closes, `window-all-closed`
+  // quits again, and the hold runs then.
+  if (quitDrainAttempted || closeMayPrompt()) return;
+  const pendingCloud = cloud?.hasPending() === true ? cloud : null;
+  const liveShell = terminal?.hasLiveShell() === true ? terminal : null;
+  if (!pendingCloud && !liveShell) return;
+  quitDrainAttempted = true;
+  event.preventDefault();
+  const progress = pendingCloud ? progressToast(t("Finishing cloud uploads…"), false) : undefined;
+  void Promise.allSettled([
+    pendingCloud && Promise.race([
+      pendingCloud.flushPending(),
       new Promise((resolve) => setTimeout(resolve, CLOUD_DRAIN_TIMEOUT_MS)),
-    ]).finally(() => {
-      progress.done();
-      // Anything still unsent stays `dirty: true` in the manifest and is
-      // offered again on the next launch, rather than vanishing silently.
-      app.quit();
-    });
-  }
+    ]),
+    liveShell?.shutdown(),
+  ]).then((results) => {
+    for (const result of results) if (result.status === "rejected") console.error("Quit drain failed", result.reason);
+  }).finally(() => {
+    progress?.done();
+    // Anything still unsent stays `dirty: true` in the manifest and is
+    // offered again on the next launch, rather than vanishing silently.
+    app.quit();
+  });
 });
 
 app.on("will-quit", () => {

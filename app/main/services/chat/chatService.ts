@@ -191,7 +191,7 @@ mass, moments of inertia), inspect and measure (bounding-box facts), measure_exa
 edge length, radius), check_interference (clash detection between solids or Parts), compare_models (a \
 geometric diff of two models, optionally with rendered images), render_snapshot (headless multi-view PNGs), \
 and search_standard_parts / download_standard_part (fasteners and other standard parts from step.parts, \
-the one tool family that reaches the network). Mesh-format edit tails are replayed through the same mesh engine for generate_mesh, export_mesh and compare_models; save_model can bake STL/OBJ/PLY edits into the source with a backup. Mesh inspection, repair and promotion reports still describe raw source geometry.\
+the one tool family that reaches the network). Mesh-format edit tails are replayed through the same mesh engine for generate_mesh, export_mesh and compare_models; save_model can bake STL/OBJ/PLY edits into the source with a backup (the same write File ▸ Save does in CAD mode, after the user confirms). Mesh inspection, repair and promotion reports still describe raw source geometry.\
 It also reads .foam OpenFOAM cases and .msh/.inp/.unv/.su2/\
 .mesh/.post.msh as geometry-only boundary surfaces through meshio++ — these mostly open in post mode by \
 default (it reads them natively, fields and all), except .msh2, which only cad can open at all. Beyond geometry it \

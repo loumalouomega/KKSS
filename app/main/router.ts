@@ -37,6 +37,18 @@ export function modeForFile(fsPath: string, activeMode: Mode): Mode | undefined 
   return undefined;
 }
 
+/**
+ * The suffix an unroutable file is reported by, lowercased, using the same
+ * longest-suffix rule as `modeForFile` so `case.post.msh` is never reported as
+ * `.msh`. Empty when the name has no extension. `modeForFile` already sends
+ * every format either submodule claims to its owning mode, so a file that
+ * reaches the "cannot open" message is unknown to both — there is no
+ * "known, other mode" case to word separately.
+ */
+export function unsupportedSuffix(fsPath: string): string {
+  return meshExtname(fsPath).toLowerCase();
+}
+
 /** Mode implied by a VS Code viewType (the shim's "vscode.openWith" hook). */
 export function modeForViewType(viewType: string): Mode | undefined {
   if (viewType.startsWith("kratos.")) return "mesh";
