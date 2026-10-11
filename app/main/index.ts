@@ -10,7 +10,8 @@ import { managedConfig } from "./services/managedConfig";
 import { startHeadlessControl, prepareHeadlessShutdown } from "./services/headless";
 import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
-import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash } from "./windows";
+import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash, ViewRef } from "./windows";
+import { UnresponsiveGuard, type UnresponsiveAnswer } from "./unresponsiveGuard";
 import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
 import { rendererAssetsPresent } from "./mesh/rendererPage";
@@ -346,9 +347,65 @@ function reportUnsupported(...files: (string | undefined)[]): void {
   });
 }
 
+function viewKey(ref: ViewRef): string {
+  return ref.kind === "tab" ? `tab:${ref.mode}:${ref.tabId}` : ref.kind;
+}
+
+function viewLabel(ref: ViewRef): string {
+  return ref.kind === "tab" ? (ref.mode === "cad" ? "CAD viewer" : "Mesh viewer") : `${ref.kind} view`;
+}
+
+/**
+ * A view that stays unresponsive gets a Wait / Reload prompt — never an
+ * automatic reload (see `unresponsiveGuard.ts` and the `windows.ts` note: a
+ * large mesh parse trips `unresponsive` legitimately). Reload is the user's
+ * click, so it does not count against the crash-loop budget and reuses
+ * `recoverView`, the crash path's own replay.
+ */
+const unresponsiveGuard = new UnresponsiveGuard<ViewRef>({
+  setTimer: (run, ms) => {
+    const handle = setTimeout(run, ms);
+    handle.unref?.(); // a pending prompt must never hold the process open
+    return handle;
+  },
+  clearTimer: (handle) => clearTimeout(handle as NodeJS.Timeout),
+  prompt: promptUnresponsive,
+  reload: (ref) => recoverView({ ...ref, reason: "unresponsive" }, viewLabel(ref), true),
+});
+
+async function promptUnresponsive(ref: ViewRef, info: { attempt: number; signal: AbortSignal }): Promise<UnresponsiveAnswer> {
+  if (quitting || !main) return "gone";
+  let detail: string | undefined;
+  if (ref.kind === "tab") {
+    const hosts: Map<string, CadHost | MeshHost> = ref.mode === "cad" ? cadHosts : meshHosts;
+    const host = ref.tabId ? hosts.get(ref.tabId) : undefined;
+    if (!host) return "gone"; // the tab was closed on the way here
+    if (host.currentFile) {
+      const name = path.basename(host.currentFile);
+      detail = host instanceof CadHost
+        ? t("Reloading reopens {0}; your edits are kept beside the file.", {0: name})
+        : host.isDirty()
+          ? t("Reloading reopens {0} and discards its unsaved changes in this tab.", {0: name})
+          : t("Reloading reopens {0}.", {0: name});
+    }
+  } else if (ref.kind === "editor" && editor?.isDirty()) {
+    detail = t("Reloading discards unsaved text in the editor.");
+  }
+  const { response } = await dialog.showMessageBox(main.win, {
+    type: "warning",
+    message: t("The {0} is not responding.", {0: viewLabel(ref)}),
+    detail: [t("It may only be busy with a large file. Wait gives it more time; Reload restarts this view."), detail].filter(Boolean).join("\n\n"),
+    buttons: [t("Wait"), t("Reload")],
+    defaultId: 0,
+    cancelId: 0,
+    signal: info.signal,
+  });
+  return response === 1 ? "reload" : "wait";
+}
+
 function onViewCrash(crash: ViewCrash): void {
   if (quitting || !main) return;
-  const key = crash.kind === "tab" ? `tab:${crash.mode}:${crash.tabId}` : crash.kind;
+  const key = viewKey(crash);
   const now = Date.now();
   const prev = recoveries.get(key);
   const count = prev && now - prev.last < RECOVERY_WINDOW_MS ? prev.count + 1 : 1;
@@ -362,7 +419,7 @@ function onViewCrash(crash: ViewCrash): void {
   recoverView(crash, label);
 }
 
-function recoverView(crash: ViewCrash, label: string): void {
+function recoverView(crash: ViewCrash, label: string, userInitiated = false): void {
   if (!main) return;
   if (crash.kind === "tab") {
     const { mode, tabId } = crash;
@@ -375,10 +432,12 @@ function recoverView(crash: ViewCrash, label: string): void {
       // rejects the pending promises a crash would otherwise leak forever —
       // so never also call reloadView here, or the two reloads race.
       host.openPath(file);
-      toast("warning", t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}));
+      toast("warning", userInitiated
+        ? t("{0} reloaded — {1}.", {0: label, 1: path.basename(file)})
+        : t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}));
     } else {
       main.reloadView(crash);
-      toast("warning", t("{0} crashed — reloaded.", {0: label}));
+      toast("warning", userInitiated ? t("{0} reloaded.", {0: label}) : t("{0} crashed — reloaded.", {0: label}));
     }
     return;
   }
@@ -389,13 +448,15 @@ function recoverView(crash: ViewCrash, label: string): void {
       // The toast renderer *is* the shell, so hold the message until it is back
       // (replayed from the shellReady handshake below).
       shellUp = false;
-      deferredShellToast = { kind: "warning", text: t("Toolbar reloaded after a crash.") };
+      deferredShellToast = { kind: "warning", text: userInitiated ? t("{0} reloaded.", {0: label}) : t("Toolbar reloaded after a crash.") };
       break;
     case "editor":
       if (editor?.notifyRendererGone()) {
-        toast("warning", t("Text editor crashed — reloaded from disk; unsaved changes were lost."));
+        toast("warning", userInitiated
+          ? t("Text editor reloaded from disk; unsaved changes were lost.")
+          : t("Text editor crashed — reloaded from disk; unsaved changes were lost."));
       } else {
-        toast("warning", t("Text editor crashed — reloaded."));
+        toast("warning", userInitiated ? t("{0} reloaded.", {0: label}) : t("Text editor crashed — reloaded."));
       }
       break;
     case "terminal":
@@ -707,6 +768,7 @@ async function closeTab(mode: Mode, tabId: string): Promise<void> {
   const closing = host?.currentFile;
   host?.dispose();
   hosts.delete(tabId);
+  unresponsiveGuard.responsive(viewKey({ kind: "tab", mode, tabId })); // a closed tab has nothing to ask about
   main.closeTab(mode, tabId);
   // Stop watching the staging directory once no tab holds the document any
   // more. A pending upload still finishes — closing a tab must not discard a
@@ -1148,6 +1210,8 @@ app.whenReady().then(() => {
   configurePerformance();
   main = createMainWindow(__dirname, stateStore.get<number>(UI_ZOOM_KEY, DEFAULT_ZOOM) ?? DEFAULT_ZOOM, {
     onViewCrash,
+    onViewUnresponsive: (ref) => { if (!quitting) unresponsiveGuard.unresponsive(viewKey(ref), ref); },
+    onViewResponsive: (ref) => unresponsiveGuard.responsive(viewKey(ref)),
   });
   main.win.setBackgroundColor(windowBackground());
   configureNotifications(sendShell);
@@ -1739,6 +1803,7 @@ app.on("before-quit", (event) => {
 
 app.on("will-quit", () => {
   quitting = true;
+  unresponsiveGuard.dispose();
   // Capture the final session BEFORE flushSync(): that call marks the store
   // stopped, after which every queued write returns early — saving afterwards
   // would be silently dropped on every quit.

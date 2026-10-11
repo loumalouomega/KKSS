@@ -838,7 +838,12 @@ resubmitted automatically.
   crash cannot loop, honors the per-tab rule (recover one tab, never a whole
   mode), and **`unresponsive` is deliberately not wired to it** — that fires on
   any long synchronous parse, exactly what both viewers do on a large mesh, so
-  reloading on it would destroy a working session mid-load.
+  reloading on it would destroy a working session mid-load. It only feeds
+  `unresponsiveGuard.ts` (pure, effects injected): after 30 s unresponsive the
+  user is *asked* Wait / Reload; Wait doubles the next delay (cap 10 min), a
+  recovered/closed/reloaded view or quit cancels and aborts the dialog, and
+  **Reload is reachable only through the click** — through `recoverView`
+  flagged user-initiated (not counted against the crash-loop budget).
 - **The project folder is a default, never a fence.** `services/projectRoot.ts`
   seeds the terminal's cwd, file-dialog start folders, the chat context suffix
   and the shim's `workspaceFolders` — and refuses nothing. It is deliberately

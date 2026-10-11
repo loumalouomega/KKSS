@@ -359,6 +359,10 @@ Viewer actions (mesh quality, field visualization, find entity…) are *not* in 
 
 Each mode (Pre-Processing and Post-Processing) shows a row of tabs below the toolbar, one per open document. Click **+** at the end of the strip, or **File ▸ New CAD Tab** / **New Mesh Tab**, to open a second document alongside the first — each tab keeps its own camera position, edit history, and (in Post-Processing) its own Flowgraph session, completely independent of the others. Click a tab to switch to it; click its **×** to close it. Closing a CAD tab needs no confirmation, since the CAD viewer autosaves its sidecars; closing a mesh tab with unsaved operations prompts first (see below). A mesh exported from a Pre-Processing tab (**File ▸ Export…** to `.mdpa`/`.vtk`/…) opens in a *new* Post-Processing tab. Exporting again to the same path refreshes its existing tab if it has no unsaved mesh edits; unrelated and dirty tabs are preserved.
 
+## If a view stops responding
+
+Opening a very large mesh can freeze a viewer for a while — that is normal, and KKSS never reloads it behind your back. If a view (a CAD or mesh tab, the editor, or a panel) stays unresponsive for about 30 seconds, a dialog asks what to do: **Wait** gives it more time (it asks again only after twice as long, up to ten minutes), **Reload** restarts just that view. The dialog says what a reload discards — a mesh tab's unsaved changes, the editor's unsaved text; a CAD tab's edits are kept beside the file. If the view recovers on its own, the dialog closes by itself.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
