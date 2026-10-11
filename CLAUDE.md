@@ -1505,12 +1505,15 @@ four small ports; mesh 3.27.0 → 4.0.7 needed no code at all.**
   vtk.js 37, and `toWireModel`, which copies every field array on every model post
   to dodge a VS Code transport bug Electron does not have — pure overhead here,
   and not fixable without editing the submodule.
-- **Known, pre-existing gap (not from this bump):** `handleBRep`'s `geometry`
-  post carries only meshes/edges/points. The provider also sends `autoFit`,
-  `opOutcomes` (rebased by `bakedThrough`), `guideIds` and `opBuckets`, so in KKSS
-  the Edits panel never flags an op the kernel skipped and `guide: true`
-  construction geometry is not dimmed. It predates 2.3.0; porting it means
-  threading `bakedKinds` through the load path.
+- **`handleBRep`'s `geometry` post is the provider's full message.** It carries
+  `autoFit`, `opOutcomes`, `guideIds` and `opBuckets` beside meshes/edges/points,
+  so the Edits panel flags an op the kernel skipped and `guide: true` geometry is
+  dimmed. The kernel replays only the unbaked tail, so its op indices are
+  tail-relative; `cadOpOutcomes.ts`'s `rebaseOpOutcomes` pads the baked prefix as
+  applied and shifts outcomes and buckets by `bakedThrough` (identity at 0) — the
+  provider's inline rebase, extracted to be testable. `autoFit: false` forces a
+  re-frame: `ready`'s `loadModel(false)` is a genuine open, the edits handler's
+  default `loadModel()` is an edit-driven rebuild.
 - **Verified live** (Playwright-Electron, message capture on the cad view's
   `webContents.send`): plane-authored profile survives reopen; the four bundled
   starters list read-only, Apply writes `<model>.mesh.json` + `.geo`, and Delete

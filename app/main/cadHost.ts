@@ -123,6 +123,7 @@ import { DISPLAY_UNITS, UNIT_LABELS, unitScaleFactor, type DisplayUnit } from ".
 import { detectStepLengthUnit } from "../../cad/src/stepUnits";
 import { detectIgesLengthUnit } from "../../cad/src/igesUnits";
 import { resolveCadMeshInput } from "./cadMeshInput";
+import { rebaseOpOutcomes } from "./cadOpOutcomes";
 import { normalizeViewerDefaults } from "../../cad/src/viewerDefaults";
 import { validateEditOp, type EditOp } from "../../cad/src/editOps";
 import { resolvePlaneRefs } from "../../cad/src/planeRefs";
@@ -772,7 +773,7 @@ export class CadHost {
    * (Re)tessellates a B-rep source with the current edits, (re)loads a mesh, or
    * (re)converts a meshio-only source.
    */
-  private loadModel(): void {
+  private loadModel(autoFit = true): void {
     if (!this.doc?.route) return;
     if (this.doc.route.strategy === "three") {
       this.post({ type: "loadUrl", url: toKkssUrl(this.doc.path), format: this.doc.route.format });
@@ -790,7 +791,8 @@ export class CadHost {
         // cad 2.5.0: a profile op may be authored on a named plane and carry
         // no center/normal/up of its own — resolve against the current planes
         // before every replay, or the kernel skips it (provider.loadModel).
-        resolvePlaneRefs(replayTail(this.currentEdits, this.currentBakedThrough), this.currentPlanes).ops
+        resolvePlaneRefs(replayTail(this.currentEdits, this.currentBakedThrough), this.currentPlanes).ops,
+        autoFit
       );
     }
   }
@@ -925,7 +927,9 @@ export class CadHost {
       this.currentPlanes = planesInitial;
       this.currentLayers = layersInitial.layers;
       this.currentLayersNextId = layersInitial.nextId;
-      this.loadModel();
+      // A genuine open: the viewer must re-frame (`autoFit: false`), unlike an
+      // edit-driven rebuild (provider `loadModel(true)` vs `loadModel()`).
+      this.loadModel(false);
       this.postEdits();
       // The meshio route's own handleMeshio (in loadModel) owns the parts
       // round trip for that route — calling both would double-post "parts".
@@ -2521,7 +2525,8 @@ export class CadHost {
   private async handleBRep(
     modelPath: string,
     format: Extract<CadFormat, "step" | "iges" | "brep" | "csg" | "scad">,
-    ops: EditOp[]
+    ops: EditOp[],
+    autoFit = true
   ): Promise<void> {
     const epoch = this.epoch;
     try {
@@ -2541,7 +2546,7 @@ export class CadHost {
       const quality = normalizeTessellationQuality(
         stateStore.get(CAD_DEFAULT_KEYS.tessellationQuality, DEFAULT_TESSELLATION_QUALITY)
       );
-      const { groups, edges, points, tree, queryWarnings, warnings } =
+      const { groups, edges, points, tree, opOutcomes, opBuckets, guideIds, queryWarnings, warnings } =
         await cadCompute.loadBRepCachedInWorker(
           this.sessionId,
           this.runtimePath,
@@ -2558,8 +2563,20 @@ export class CadHost {
       for (const w of queryWarnings ?? []) this.post({ type: "status", text: w });
       for (const w of warnings ?? []) this.post({ type: "status", text: w });
       for (const w of scadWarnings) this.post({ type: "status", text: w });
+      // The kernel replayed only the unbaked tail, so its op indices are
+      // tail-relative — re-base them onto full-history rows (provider.handleBRep).
+      const rebased = rebaseOpOutcomes(
+        opOutcomes,
+        opBuckets,
+        this.currentBakedThrough,
+        this.currentEdits.slice(0, this.currentBakedThrough).map((o) => o.op)
+      );
       this.post({
         type: "geometry",
+        autoFit,
+        opOutcomes: rebased.opOutcomes,
+        guideIds,
+        opBuckets: rebased.opBuckets,
         meshes: groups.flatMap((g) =>
           g.faces.map((f) => ({
             positions: encodeBuffer(f.buffers.positions),
