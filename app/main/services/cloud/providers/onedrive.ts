@@ -35,6 +35,7 @@ import {
   parseGraphUser,
   parseUploadSession,
 } from "../providerCore/graphCore";
+import { ensureFolderVia } from "../providerCore/folderCore";
 import { byFolderThenName } from "./dropbox";
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
@@ -186,6 +187,33 @@ export class OneDriveProvider extends OAuthProviderBase {
       }
     );
     return this.finishSession(session, localPath, size, options);
+  }
+
+  async ensureFolder(parentId: string, name: string): Promise<CloudFile> {
+    return ensureFolderVia({
+      label: this.label,
+      name,
+      find: () => this.findChild(parentId, name),
+      make: async () => {
+        const response = await this.authed(
+          `${DRIVE}/items/${encodeURIComponent(parentId)}/children?$select=${SELECT}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            // "fail" so a concurrent creator surfaces as 409, never "name 1".
+            body: JSON.stringify({
+              name,
+              folder: {},
+              "@microsoft.graph.conflictBehavior": "fail",
+            }),
+          }
+        );
+        if (!response.ok) await this.fail(response, "create folder");
+        const folder = parseDriveItem(await response.json());
+        if (!folder) throw new CloudError("other", `OneDrive returned no folder for ${name}.`);
+        return folder;
+      },
+    });
   }
 
   private async finishSession(

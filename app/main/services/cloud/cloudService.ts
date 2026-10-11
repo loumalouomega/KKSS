@@ -74,13 +74,15 @@ export class CloudService {
       provider: (id) => (this.providers.get(id)?.isConnected() ? this.providers.get(id) : undefined),
       entry: (key) => this.cache.entry(key),
       saveEntry: (key, entry) => this.cache.saveEntry(key, entry),
-      watch: (dir, onChange) => {
+      watch: (dir, onChange, depth) => {
         // The bare `*` pattern exists for exactly this: any write into a staged
         // directory counts, because a mesh save happens inside the submodule.
-        const watcher = createFileSystemWatcher(dir, "*");
+        // `depth` is 0 except for a format with companion trees.
+        const watcher = createFileSystemWatcher(dir, "*", { depth });
+        const rel = (p: string) => path.relative(dir, p).split(path.sep).join("/");
         const subs = [
-          watcher.onDidChange((p) => onChange(path.basename(p))),
-          watcher.onDidCreate((p) => onChange(path.basename(p))),
+          watcher.onDidChange((p) => onChange(rel(p))),
+          watcher.onDidCreate((p) => onChange(rel(p))),
         ];
         return {
           dispose() {

@@ -7,6 +7,15 @@ full auto-generated compare links.
 
 ## Unreleased
 
+- feat(cloud): **companion files and trees now sync both ways.** A cloud
+  `.foam` case downloads its `constant/polyMesh/` mesh with the marker (it used
+  to open empty) and uploads changes to it, creating the remote folders through a
+  new idempotent `ensureFolder` on Google Drive, Dropbox and OneDrive; XDMF's
+  sibling `.h5` — documented as uploaded but never wired up — now travels too.
+  Companions follow the document's per-file revision/conflict-copy rule, a failed
+  companion download fails the open rather than staging a partial mesh, and an
+  upload pass that fails midway no longer re-uploads files that already landed
+  against their stale baseline.
 - feat: add **OpenCode Zen** (pay-as-you-go) and **OpenCode Go** ($10/$40
   subscription) as first-class **Settings ▸ LLM Assistant** providers, sharing
   one OpenCode API key and reusing the OpenAI-compatible `chat/completions`

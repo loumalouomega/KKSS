@@ -53,6 +53,19 @@ export function parseEntry(raw: unknown): CloudFile | undefined {
   };
 }
 
+/** `files/create_folder_v2` answers `{metadata}` WITHOUT the `.tag` that every
+ *  other metadata response carries, so `parseEntry` would reject it. */
+export function parseCreatedFolder(raw: unknown): CloudFile | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const meta = (raw as Record<string, unknown>).metadata;
+  if (!meta || typeof meta !== "object") return undefined;
+  const v = meta as Record<string, unknown>;
+  const path = typeof v.path_lower === "string" ? v.path_lower : undefined;
+  const name = typeof v.name === "string" ? v.name : undefined;
+  if (!path || !name) return undefined;
+  return { id: path, name, isFolder: true, parentId: dropboxParentOf(path) };
+}
+
 export interface DropboxListPage {
   files: CloudFile[];
   cursor?: string;

@@ -20,11 +20,11 @@
  *
  * Only a directory-scoped pattern needs chokidar's default depth:0 (root
  * only) raised — and only as far as that pattern's own directory prefix, so
- * the bare `*` case (and every other slash-free shape) stays at depth:0. That
- * matters beyond chokidar overhead: CLAUDE.md documents depth:0 as a
- * deliberate limit for the cloud-staging watcher — XDMF's sibling `.h5` is
- * uploaded, OpenFOAM's nested tree deliberately is not — so a blanket depth
- * increase would silently start uploading `constant/polyMesh/` trees.
+ * the bare `*` case (and every other slash-free shape) stays at depth:0. The
+ * cloud staging layer passes an explicit `depth` for a document whose format
+ * declares companion trees (`cachePathCore.companionsFor`), and its sync engine
+ * still filters every path against that allow-list — a deeper watch alone
+ * uploads nothing.
  */
 import * as chokidar from "chokidar";
 import * as path from "node:path";
@@ -89,13 +89,21 @@ export function matcherFor(pattern: string): (relPath: string) => boolean {
   return (relPath) => relPath === pattern;
 }
 
-export function createFileSystemWatcher(base: string, pattern: string): FileWatcher {
+export function createFileSystemWatcher(
+  base: string,
+  pattern: string,
+  options: { depth?: number } = {}
+): FileWatcher {
   const matches = matcherFor(pattern);
   // Only a directory-scoped pattern needs to see past chokidar's default
   // root-only depth — exactly as many levels as its own directory prefix has,
   // so "constant/polyMesh/*" (two directory segments) needs depth 2. Every
   // other pattern here has no "/" at all, so this stays 0 — unchanged.
-  const depth = pattern.includes("**") ? undefined : pattern.includes("/") ? pattern.split("/").length - 1 : 0;
+  // `options.depth` is for a caller that already knows its own bound (the cloud
+  // layer, for a document's companion trees); it is ignored by the shapes above.
+  const depth =
+    options.depth ??
+    (pattern.includes("**") ? undefined : pattern.includes("/") ? pattern.split("/").length - 1 : 0);
   const changeCbs: Array<(p: string) => void> = [];
   const createCbs: Array<(p: string) => void> = [];
   const deleteCbs: Array<(p: string) => void> = [];

@@ -789,9 +789,18 @@ resubmitted automatically.
   submodule and never reports the path back, so a save can be *observed* but
   never *intercepted* — hence one chokidar watch per staging directory (the bare
   `"*"` pattern added to `services/watcher.ts`), coalesced on a 3 s debounce that
-  swallows cadHost's 500 ms one. Its `depth: 0` is a real limit: XDMF's sibling
-  `.h5` is uploaded, OpenFOAM's nested `constant/polyMesh/` tree deliberately is
-  not. Conflicts are detected by stored remote revision — Drive
+  swallows cadHost's 500 ms one. The watch is `depth: 0` unless the format
+  declares **companions** (`cachePathCore.companionsFor`, the only allow-list:
+  XDMF/XMF → sibling `<stem>.h5`, `.foam` → `constant/polyMesh/`, ≤ 2 levels,
+  ≤ 200 files). "Every other file here is a sidecar" no longer holds, so a nested
+  path uploads only if `isCompanionPath` accepts it. A companion is document
+  content, not derived state: **download** (`companions.ts`, in `stage()`) fails
+  the open on any error — a half mesh is worse than none — and **upload** follows
+  the document's conflict rule per file (`CloudEntry.companions` baselines;
+  missing baseline ⇒ conflict copy beside it), creating remote folders through
+  the providers' idempotent `ensureFolder`. A pass records what landed, so a
+  retry never re-uploads a file against its own stale baseline. Local deletes are
+  never propagated. Conflicts are detected by stored remote revision — Drive
   `headRevisionId`, Dropbox `rev`, Graph **`cTag`, never `eTag`** (which also
   moves on metadata-only edits and would manufacture a conflict copy every time
   OneDrive touched the file) — with the wire-level precondition carried

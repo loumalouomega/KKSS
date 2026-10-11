@@ -7,6 +7,8 @@
  * carries that checklist.
  */
 import { describe, expect, it } from "vitest";
+import { CloudError } from "../app/main/services/cloud/cloudCore";
+import { ensureFolderVia } from "../app/main/services/cloud/providerCore/folderCore";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
@@ -14,12 +16,14 @@ import {
   dropboxParentOf,
   isConflictBody,
   parseAccountInfo,
+  parseCreatedFolder,
   parseEntry,
   parseListFolder,
 } from "../app/main/services/cloud/providerCore/dropboxCore";
 import {
   childrenQuery,
   escapeDriveQuery,
+  folderQuery,
   FOLDER_MIME,
   isGoogleNative,
   parseAboutUser,
@@ -247,5 +251,91 @@ describe("graph: identity and upload session", () => {
     );
     expect(parseUploadSession({})).toBeUndefined();
     expect(parseUploadSession(null)).toBeUndefined();
+  });
+});
+
+describe("folder creation", () => {
+  it("parses Dropbox's create_folder_v2 answer, which carries no .tag", () => {
+    expect(
+      parseCreatedFolder({ metadata: { name: "polyMesh", path_lower: "/kkss/constant/polymesh" } })
+    ).toEqual({
+      id: "/kkss/constant/polymesh",
+      name: "polyMesh",
+      isFolder: true,
+      parentId: "/kkss/constant",
+    });
+    expect(parseCreatedFolder({})).toBeUndefined();
+    expect(parseCreatedFolder(null)).toBeUndefined();
+  });
+
+  it("restricts Drive's name lookup to folders and keeps the quote escaping", () => {
+    const q = folderQuery("p'1", "O'Brien");
+    expect(q).toContain("'p\\'1' in parents");
+    expect(q).toContain("name = 'O\\'Brien'");
+    expect(q.endsWith(`mimeType = '${FOLDER_MIME}'`)).toBe(true);
+  });
+
+  describe("ensureFolderVia", () => {
+    const folder = { id: "f", name: "constant", isFolder: true };
+    const file = { id: "x", name: "constant", isFolder: false };
+
+    it("returns an existing folder without creating one", async () => {
+      let made = 0;
+      const got = await ensureFolderVia({
+        label: "Dropbox",
+        name: "constant",
+        find: async () => folder,
+        make: async () => (made++, folder),
+      });
+      expect(got).toBe(folder);
+      expect(made).toBe(0);
+    });
+
+    it("creates when absent", async () => {
+      const got = await ensureFolderVia({
+        label: "Dropbox",
+        name: "constant",
+        find: async () => undefined,
+        make: async () => folder,
+      });
+      expect(got).toBe(folder);
+    });
+
+    it("re-finds after losing a creation race", async () => {
+      let finds = 0;
+      const got = await ensureFolderVia({
+        label: "Dropbox",
+        name: "constant",
+        find: async () => (finds++ ? folder : undefined),
+        make: async () => {
+          throw new CloudError("conflict", "exists");
+        },
+      });
+      expect(got).toBe(folder);
+    });
+
+    it("never replaces a file with a folder", async () => {
+      await expect(
+        ensureFolderVia({
+          label: "Dropbox",
+          name: "constant",
+          find: async () => file,
+          make: async () => folder,
+        })
+      ).rejects.toMatchObject({ kind: "conflict" });
+    });
+
+    it("rethrows a creation failure that is not a race", async () => {
+      await expect(
+        ensureFolderVia({
+          label: "Dropbox",
+          name: "constant",
+          find: async () => undefined,
+          make: async () => {
+            throw new CloudError("quota", "full");
+          },
+        })
+      ).rejects.toMatchObject({ kind: "quota" });
+    });
   });
 });
