@@ -87,8 +87,44 @@ export class TerminalService {
     });
   }
 
+  /** Whether a shell process is alive. Quit holds until `drain()` has run. */
+  hasLiveShell(): boolean {
+    return this.proc !== null;
+  }
+
+  /**
+   * Kills the shell and resolves once its exit has been delivered. Quit waits
+   * for this because node-pty reports an exit from a native thread: if that
+   * report lands after Electron has begun tearing the JS environment down, the
+   * N-API call fails and an uncaught Napi::Error aborts the process (SIGABRT),
+   * which is what the accessibility acceptance scenario hit in CI. A shell that
+   * ignores SIGHUP is escalated to SIGKILL, so it cannot hold quit open.
+   */
+  async drain(timeoutMs = 1500): Promise<void> {
+    const proc = this.proc;
+    if (!proc) return;
+    const exited = new Promise<void>((resolve) => proc.onExit(() => resolve()));
+    proc.kill();
+    if (!(await settledWithin(exited, timeoutMs))) {
+      proc.kill("SIGKILL");
+      await settledWithin(exited, timeoutMs);
+    }
+    if (this.proc === proc) this.proc = null;
+  }
+
   dispose(): void {
     this.proc?.kill();
     this.proc = null;
   }
+}
+
+/** Resolves true if `promise` settles within `ms`, false on timeout. */
+function settledWithin(promise: Promise<void>, ms: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), ms);
+    void promise.then(() => {
+      clearTimeout(timer);
+      resolve(true);
+    });
+  });
 }

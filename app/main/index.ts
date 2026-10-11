@@ -157,6 +157,8 @@ let metaServer: MetaMcpServer | null = null;
 let cloud: CloudService | null = null;
 /** `before-quit` may hold the quit open exactly once to drain uploads. */
 let cloudDrainAttempted = false;
+/** ...and exactly once more to let the shell's exit be delivered (TerminalService.drain). */
+let shellDrainAttempted = false;
 
 function sendShell(message: unknown): void {
   if (!main || main.win.isDestroyed() || main.shell.webContents.isDestroyed()) return;
@@ -1650,6 +1652,12 @@ app.on("before-quit", (event) => {
       // offered again on the next launch, rather than vanishing silently.
       app.quit();
     });
+  } else if (!shellDrainAttempted && terminal?.hasLiveShell()) {
+    // The shell's exit must reach JS before Electron starts tearing the
+    // environment down (see TerminalService.drain). Once only, like the cloud hold.
+    shellDrainAttempted = true;
+    event.preventDefault();
+    void terminal.drain().finally(() => app.quit());
   }
 });
 
