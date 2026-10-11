@@ -78,7 +78,9 @@ export type ToolAccess = "read" | "write";
 /** `unknown` = this table has no row for it, which always means "ask". */
 export type ToolClass = ToolAccess | "unknown";
 export type ApprovalMode = "askOnWrite" | "askAlways" | "never";
-export type ApprovalDecision = "allow" | "allowAlways" | "deny";
+/** `allowScoped` = allow, and keep allowing this tool while its paths stay
+ *  inside the explicit project folder (see toolPaths.ts). */
+export type ApprovalDecision = "allow" | "allowAlways" | "allowScoped" | "deny";
 export type ToolGate = "auto" | "ask";
 
 /**
@@ -390,6 +392,13 @@ export interface GateOptions {
   mode: ApprovalMode;
   /** Tools the user chose "always allow" for, in this conversation. */
   allowed: ReadonlySet<string>;
+  /**
+   * "Always allow in the project folder" grants for this conversation, plus the
+   * check that *this* call's paths lie inside the explicit project root. The
+   * check is injected so this module stays free of `node:*`; it is only asked
+   * when the tool is a granted `write` tool.
+   */
+  scoped?: { granted: ReadonlySet<string>; inside(): boolean };
 }
 
 /**
@@ -402,10 +411,21 @@ export interface GateOptions {
  * 2. An "always allow" grant beats `askAlways`. A user who said *always allow
  *    this one, in this conversation* meant it, and re-asking would train them
  *    to stop reading the prompt.
+ * 3. A project-folder grant behaves the same way, but only for a `write` tool
+ *    and only while every path in the call is inside the project root; any
+ *    other call falls through to the normal rules and asks.
  */
 export function gateFor(namespaced: string, options: GateOptions): ToolGate {
   if (options.mode === "never") return "auto";
   if (options.allowed.has(namespaced)) return "auto";
+  if (
+    options.scoped &&
+    options.scoped.granted.has(namespaced) &&
+    classifyTool(namespaced) === "write" &&
+    options.scoped.inside()
+  ) {
+    return "auto";
+  }
   if (options.mode === "askAlways") return "ask";
   return classifyTool(namespaced) === "read" ? "auto" : "ask";
 }

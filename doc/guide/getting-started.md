@@ -214,6 +214,7 @@ The assistant's tools are not suggestions — they write files, overwrite meshes
 
 - **Allow** — run it this once.
 - **Always allow in this chat** — stop asking about *that* tool for the rest of this conversation. It is per tool and per conversation; it is never remembered after you start a new chat or restart KKSS.
+- **Always allow in project folder** — shown only when you have opened a project folder (**File ▸ Open Folder…**) and every path in this call is inside it. It stops asking about *that* tool for the rest of this conversation, but only while the paths it touches stay inside the folder; a call that points anywhere else (or uses a relative path) asks again. Tools that run scripts or solvers never get this option.
 - **Deny** — don't run it. Nothing on disk is touched, and the assistant is told you refused, so it explains what it wanted rather than trying again.
 
 Read-only tools — inspect, measure, mesh info, render — run without asking, so asking questions feels exactly as it did before. A tool KKSS has no policy for always asks. Kratos status, listing, validation and job-status tools run without asking; starting or cancelling a solve, scaffolding a case and writing result files ask, like any other write.

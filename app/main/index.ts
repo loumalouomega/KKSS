@@ -1263,6 +1263,7 @@ app.whenReady().then(() => {
   chat = new ChatService({
     hub: mcpHub,
     chatsDir: path.join(app.getPath("userData"), "chats"),
+    projectRoot: () => projectRoot.explicit(),
     currentFiles: () => ({
       workflowContext: workflows?.context(),
       cad: [...cadHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),

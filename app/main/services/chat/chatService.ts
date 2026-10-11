@@ -43,6 +43,7 @@ import {
   type ApprovalDecision,
   type ApprovalMode,
 } from "./toolPolicy";
+import { callInsideProject } from "./toolPaths";
 import { stateStore } from "../stateStore";
 import { getSecret } from "./secrets";
 import type { McpManager } from "./mcpManager";
@@ -404,6 +405,9 @@ export interface ChatDeps {
   chatsDir: string;
   /** Currently open files, appended as context to each request. */
   currentFiles(): OpenFilesInfo;
+  /** The explicit project folder, if one was chosen — never the inferred one.
+   *  Falls back to `currentFiles().projectRoot`. */
+  projectRoot?(): string | undefined;
   /** Opens the Settings page (noKey / auth error banner button). */
   openSettings(): void;
   /** Hide the sidebar (✕ button). */
@@ -463,6 +467,8 @@ export class ChatService {
    * history popover — which reads as the feature being broken.
    */
   private readonly alwaysAllow = new Map<string, Set<string>>();
+  /** "Always allow in project folder" grants, same lifetime and key as above. */
+  private readonly scopedAllow = new Map<string, Set<string>>();
   /**
    * Images from tool results, callId → blocks, for the **active conversation
    * only**. Never persisted: the transcript store holds what the model was
@@ -626,6 +632,7 @@ export class ChatService {
       // turn running in the one they are.
       this.store.remove(id);
       this.alwaysAllow.delete(id);
+      this.scopedAllow.delete(id);
       this.sendConversations();
       return;
     }
@@ -635,6 +642,7 @@ export class ChatService {
     this.active.alive = false;
     this.store.remove(id);
     this.alwaysAllow.delete(id);
+    this.scopedAllow.delete(id);
     await this.switchTo(this.store.restoreActive() ?? this.store.create());
   }
 
@@ -805,6 +813,16 @@ export class ChatService {
     this.sendTo(convo, { type: "approvalResolved", callId: entry.callId, approval });
   }
 
+  private explicitProjectRoot(): string | undefined {
+    return this.deps.projectRoot ? this.deps.projectRoot() : this.deps.currentFiles().projectRoot;
+  }
+
+  private rememberScoped(convo: LiveConversation, namespaced: string): void {
+    const set = this.scopedAllow.get(convo.id) ?? new Set<string>();
+    set.add(namespaced);
+    this.scopedAllow.set(convo.id, set);
+  }
+
   private rememberAlways(convo: LiveConversation, namespaced: string): void {
     const set = this.alwaysAllow.get(convo.id) ?? new Set<string>();
     set.add(namespaced);
@@ -890,8 +908,14 @@ export class ChatService {
     this.append(convo, entry);
 
     const allowed = this.alwaysAllow.get(convo.id) ?? EMPTY_ALLOW_SET;
-    if (gateFor(call.name, { mode: readApprovalMode(), allowed }) === "ask") {
+    // Re-read at every gate: clearing or changing the project folder
+    // invalidates scoped grants with no bookkeeping.
+    const root = this.explicitProjectRoot();
+    const inside = (): boolean => callInsideProject(call.name, call.argsJson, root);
+    const scoped = { granted: this.scopedAllow.get(convo.id) ?? EMPTY_ALLOW_SET, inside };
+    if (gateFor(call.name, { mode: readApprovalMode(), allowed, scoped }) === "ask") {
       const access = classifyTool(call.name) === "write" ? "write" : "unknown";
+      const scopable = access === "write" && !!root && inside();
       const decision = await this.awaitApproval(
         convo,
         {
@@ -901,6 +925,7 @@ export class ChatService {
           argsJson: call.argsJson,
           access,
           dryRunnable: dryRunArgs(call.name, call.argsJson) !== null,
+          ...(scopable ? { scopable: true, scopeRoot: root } : {}),
         },
         call.name,
         signal
@@ -916,6 +941,9 @@ export class ChatService {
         return { ok: false, text: DENIED_TEXT };
       }
       if (decision === "allowAlways") this.rememberAlways(convo, call.name);
+      // Honoured only for a prompt that offered it: a decision from a renderer
+      // that was never shown the button degrades to a plain, one-off allow.
+      if (decision === "allowScoped" && scopable) this.rememberScoped(convo, call.name);
       this.setApproval(convo, entry, "allowed");
     }
 

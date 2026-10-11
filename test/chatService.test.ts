@@ -690,6 +690,60 @@ describe("tool-call approval", () => {
     expect(mcp.calls).toHaveLength(2);
   });
 
+  describe("project-folder grant", () => {
+    const withRoot = (root: string | undefined) => makeService(() => ({ cad: [], mesh: [], projectRoot: root }));
+    const scopedWrite = (id: string, file: string) => ({ id, name: "mesh__mesh_transform", argsJson: JSON.stringify({ path: file }) });
+    let root: string;
+    beforeEach(() => {
+      root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "kkss-scope-")));
+    });
+    afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+
+    it("offers the grant only for an in-root call, and later in-root writes run unasked", async () => {
+      const { mcp, provider, messages, post } = withRoot(root);
+      await upToTool(scopedWrite("t1", path.join(root, "a.mdpa")), post, provider);
+      expect(requests(messages)[0].pending).toMatchObject({ scopable: true, scopeRoot: root });
+      post({ type: "approveTool", callId: "t1", decision: "allowScoped" });
+      await settle();
+      mcp.finish("done");
+      await settle();
+
+      provider.finish("again", scopedWrite("t2", path.join(root, "sub", "b.mdpa")));
+      await settle();
+      expect(requests(messages)).toHaveLength(1); // not asked again
+      expect(mcp.calls).toEqual(["mesh__mesh_transform", "mesh__mesh_transform"]);
+      mcp.finish("done");
+      await settle();
+
+      // Outside the folder: the same tool asks again, and does not offer the grant.
+      provider.finish("elsewhere", scopedWrite("t3", path.join(os.tmpdir(), "elsewhere.mdpa")));
+      await settle();
+      expect(requests(messages)).toHaveLength(2);
+      expect(requests(messages)[1].pending.scopable).toBeUndefined();
+      expect(mcp.calls).toHaveLength(2);
+    });
+
+    it("does not offer the grant without an explicit project folder", async () => {
+      const { messages, provider, post } = withRoot(undefined);
+      await upToTool(scopedWrite("t1", path.join(root, "a.mdpa")), post, provider);
+      expect(requests(messages)[0].pending.scopable).toBeUndefined();
+    });
+
+    it("degrades a scoped decision on an unscopable call to a one-off allow", async () => {
+      const { mcp, provider, messages, post } = withRoot(root);
+      // Relative path: cannot be checked, so the button was never offered.
+      await upToTool({ id: "t1", name: "mesh__mesh_transform", argsJson: '{"path":"a.mdpa"}' }, post, provider);
+      expect(requests(messages)[0].pending.scopable).toBeUndefined();
+      post({ type: "approveTool", callId: "t1", decision: "allowScoped" });
+      await settle();
+      mcp.finish("done");
+      await settle();
+      provider.finish("again", scopedWrite("t2", path.join(root, "b.mdpa")));
+      await settle();
+      expect(requests(messages)).toHaveLength(2); // no grant was recorded
+    });
+  });
+
   it("asks about a tool it has no policy for", async () => {
     // A tool the pinned kratos-mcp-server (or a newer one) advertises that the
     // table was never reviewed against.
