@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { modeForFile, modeForViewType } from "../app/main/router";
+import { modeForFile, modeForViewType, unsupportedSuffix } from "../app/main/router";
 import { routeFile } from "../cad/src/fileRouter";
 
 describe("modeForFile", () => {
@@ -146,5 +146,24 @@ describe("modeForViewType", () => {
     expect(modeForViewType("kratos.vtkPreview")).toBe("mesh");
     expect(modeForViewType("cad-preview.mesh")).toBe("cad");
     expect(modeForViewType("other.editor")).toBeUndefined();
+  });
+});
+
+describe("unsupportedSuffix", () => {
+  it("names the suffix an unroutable file is reported by", () => {
+    expect(unsupportedSuffix("notes.txt")).toBe(".txt");
+    expect(unsupportedSuffix("/tmp/Report.PDF")).toBe(".pdf");
+    expect(unsupportedSuffix("noextension")).toBe("");
+  });
+
+  it("uses the longest-suffix rule rather than the last dot", () => {
+    expect(unsupportedSuffix("case.post.msh")).toBe(".post.msh");
+  });
+
+  it("only reports files neither mode claims", () => {
+    for (const f of ["notes.txt", "noextension", "a.docx"]) {
+      expect(modeForFile(f, "cad")).toBeUndefined();
+      expect(modeForFile(f, "mesh")).toBeUndefined();
+    }
   });
 });

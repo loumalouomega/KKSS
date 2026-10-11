@@ -702,6 +702,18 @@ resubmitted automatically.
   SIGKILLs the tree between runs, so a leftover lock would make every later
   launch quit on startup. The lifecycle suite explicitly enables the lock with
   an isolated profile and verifies acquisition, forwarding and reacquisition.
+- **An unreadable file is always answered, never dropped.** `openFile()` and the
+  external-launch paths (argv, second-instance, `open-file`/`open-url`) share
+  `reportUnsupported` in `index.ts`: one warning toast naming the file and
+  `unsupportedSuffix()`'s longest-suffix extension (never the last dot), with a
+  **Supported formats** action to `guide/file-formats`. `launch.ts` keeps
+  `localLaunchFile` strict (only routable files enter the queue) and exposes
+  `unsupportedLaunchFile(s)` for the rest — an *existing* file only; missing
+  paths and non-open `kkss://` URLs stay silent. There is no "try the other
+  mode" wording on purpose: `modeForFile` already sends every claimed format to
+  its owning mode, so an unroutable file is unknown to both. `toast()` takes an
+  optional `ToastAction`; main retires such a toast on click or after 15 s
+  because the shell never auto-removes a toast that has buttons.
 - **`state.json` is written atomically, and never with a bare `writeFile`.**
   `app/main/services/jsonStore.ts` (the Electron-free half of `stateStore.ts`,
   split out to be testable — same shape as `chat/secretCodec.ts` under

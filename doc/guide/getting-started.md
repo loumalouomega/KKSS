@@ -164,7 +164,7 @@ The toolbar also has an **interface-scale** picker on the right (75 %–150 %) f
 
 **Help** on the home screen (or **Help ▸ About KKSS…**) shows the app version and checks GitHub for a newer release. **Include prerelease updates** in Settings controls whether stable-only or prerelease releases are selected. When an update exists, **Update now** downloads and installs it in place on Windows and on the Linux AppImage — restart when prompted. `.deb`, `.rpm` and unsigned macOS installs instead get a button to the releases page. No network? The dialog still shows your version and offers a Retry.
 
-Installing a supported file type (`.stp`, `.mdpa`, `.vtk`, `.post.msh` and the other formats shown in the Open dialog) opens it in KKSS when the file is double-clicked. The `kkss://open?file=…` link form accepts the same local files; links to application pages, relative paths and unsupported files are rejected.
+Installing a supported file type (`.stp`, `.mdpa`, `.vtk`, `.post.msh` and the other formats shown in the Open dialog) opens it in KKSS when the file is double-clicked. The `kkss://open?file=…` link form accepts the same local files; links to application pages and relative paths are rejected. An existing file KKSS cannot read gets a warning naming its suffix and linking [the supported formats](/guide/file-formats#if-a-file-won-t-open) rather than being ignored.
 
 After an update, the next launch automatically pops up a **What's New** window listing what changed since the version you last ran — no popup on a first install, and it only ever shows entries newer than what you'd already seen. Dismiss it with **Got it** (or Esc); reopen the full history any time from **Help ▸ What's New…**.
 

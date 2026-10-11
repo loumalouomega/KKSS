@@ -3,7 +3,7 @@ import { configureLocale } from "./services/locale";
 import { t } from "../shared/i18n";
 import { beginOpen, configurePerformance } from "./services/performance";
 /** KKSS Electron main entry. */
-import { app, clipboard, dialog, ipcMain, Menu } from "electron";
+import { app, clipboard, dialog, ipcMain, Menu, shell } from "electron";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
 import { managedConfig } from "./services/managedConfig";
@@ -18,8 +18,9 @@ import { FlowgraphController } from "../../mesh/src/flowgraphController";
 import { RunManager } from "../../mesh/src/runManager";
 import { RecentMeshStore } from "../../mesh/src/recentMeshes";
 import { installMenu } from "./menu";
-import { modeForFile, modeForViewType } from "./router";
-import { LaunchQueue, launchFiles, localLaunchFile } from "./launch";
+import { modeForFile, modeForViewType, unsupportedSuffix } from "./router";
+import { DOCS_URL } from "./urls";
+import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsupportedLaunchFiles } from "./launch";
 import { showOpenDialog } from "./services/dialogs";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
@@ -41,7 +42,7 @@ import { defaultPythonPath } from "../../mesh/src/problemtype/kratosEnv";
 import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
 import { META_ACCESS_MIGRATED_KEY, metaAccessMigration, normalizeAllowedWrites, readMetaAccess } from "./services/metaServer/accessPolicy";
-import { configureNotifications, handleToastButton, progressToast, toast } from "./services/notifications";
+import { configureNotifications, handleToastButton, progressToast, toast, type ToastAction } from "./services/notifications";
 import { stateStore } from "./services/stateStore";
 import { recentFiles } from "./services/recentFiles";
 import { CloudService } from "./services/cloud/cloudService";
@@ -95,25 +96,33 @@ if (!gotInstanceLock) {
 
 const launchQueue = new LaunchQueue();
 launchQueue.enqueue(launchFiles(process.argv, app.isPackaged, process.cwd()));
+const startupUnsupported = unsupportedLaunchFiles(process.argv, app.isPackaged, process.cwd());
 
 app.on("open-file", (event, value) => {
   event.preventDefault();
   const file = localLaunchFile(value, process.cwd());
   if (file) launchQueue.enqueue([file]);
-  else console.warn("Rejected unsupported external open request");
+  else {
+    console.warn("Rejected unsupported external open request");
+    reportUnsupported(unsupportedLaunchFile(value, process.cwd()));
+  }
   focusMainWindow();
 });
 app.on("open-url", (event, value) => {
   event.preventDefault();
   const file = localLaunchFile(value, process.cwd());
   if (file) launchQueue.enqueue([file]);
-  else console.warn("Rejected unsupported external open request");
+  else {
+    console.warn("Rejected unsupported external open request");
+    reportUnsupported(unsupportedLaunchFile(value, process.cwd()));
+  }
   focusMainWindow();
 });
 
 app.on("second-instance", (_event, argv, workingDirectory) => {
   focusMainWindow();
   launchQueue.enqueue(launchFiles(argv, app.isPackaged, workingDirectory));
+  reportUnsupported(...unsupportedLaunchFiles(argv, app.isPackaged, workingDirectory));
 });
 
 app.whenReady().then(() => {
@@ -298,15 +307,33 @@ let quitting = false;
 /** A toast the shell cannot show yet — because it is reloading after a crash,
  *  or because it has not finished its first load during launch. Replayed from
  *  the shellReady handshake. */
-let deferredShellToast: { kind: "info" | "warning" | "error"; text: string } | undefined;
+let deferredShellToast: { kind: "info" | "warning" | "error"; text: string; action?: ToastAction } | undefined;
 /** Whether the shell page is up. `toast()` is a silent no-op before its first
  *  load and while it reloads after a crash, so anything sent then must wait. */
 let shellUp = false;
 
 /** Toasts now if the shell can show it, otherwise on its next shellReady. */
-function shellToast(kind: "info" | "warning" | "error", text: string): void {
-  if (shellUp) toast(kind, text);
-  else deferredShellToast = { kind, text };
+function shellToast(kind: "info" | "warning" | "error", text: string, action?: ToastAction): void {
+  if (shellUp) toast(kind, text, action);
+  else deferredShellToast = { kind, text, action };
+}
+
+/** Tells the user why a file will not open and where the supported formats are
+ *  listed. Several files at once (a multi-file launch) are summed up as one
+ *  toast naming the first. Undefined entries are ignored. */
+function reportUnsupported(...files: (string | undefined)[]): void {
+  const named = files.filter((file): file is string => !!file);
+  if (!named.length) return;
+  const name = path.basename(named[0]);
+  const suffix = unsupportedSuffix(named[0]);
+  let text = suffix
+    ? t("Can't open {0}: KKSS doesn't read \"{1}\" files.", {0: name, 1: suffix})
+    : t("Can't open {0}: it has no file extension, so its format can't be told.", {0: name});
+  if (named.length > 1) text += " " + t("{0} other files were also skipped.", {0: String(named.length - 1)});
+  shellToast("warning", text, {
+    label: t("Supported formats"),
+    run: () => void shell.openExternal(`${DOCS_URL}guide/file-formats#which-mode-opens-what`),
+  });
 }
 
 function onViewCrash(crash: ViewCrash): void {
@@ -840,7 +867,7 @@ function openFile(fsPath: string, forcedMode?: Mode, external = false): Promise<
   const resolved = path.resolve(fsPath);
   const mode = forcedMode ?? modeForFile(resolved, main.mode());
   if (!mode) {
-    toast("warning", t("Unsupported file type: {0}", {0: path.basename(resolved)}));
+    reportUnsupported(resolved);
     return Promise.resolve(false);
   }
   const tabId = ensureActiveTab(mode);
@@ -1509,7 +1536,7 @@ app.whenReady().then(() => {
         sendShell({ type: "zoom", factor: main.zoom() });
         pushProjectRoot();
         if (deferredShellToast) {
-          toast(deferredShellToast.kind, deferredShellToast.text);
+          toast(deferredShellToast.kind, deferredShellToast.text, deferredShellToast.action);
           deferredShellToast = undefined;
         }
         break;
@@ -1569,6 +1596,7 @@ app.whenReady().then(() => {
   checkForNewVersion();
 
   // Each external open gets an empty tab, preserving restored and active work.
+  reportUnsupported(...startupUnsupported);
   launchQueue.ready(file => {
     const mode = modeForFile(file, main!.mode());
     if (!mode) return;

@@ -23,8 +23,34 @@ export function handleToastButton(id: number, button: string): void {
   }
 }
 
-export function toast(kind: "info" | "warning" | "error", text: string): void {
-  sendShell({ type: "toast", id: nextId++, kind, text });
+const ACTION_TOAST_MS = 15_000;
+
+/** A single button on a toast. Such a toast stays until dismissed or clicked. */
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
+export function toast(kind: "info" | "warning" | "error", text: string, action?: ToastAction): void {
+  const id = nextId++;
+  if (!action) {
+    sendShell({ type: "toast", id, kind, text });
+    return;
+  }
+  // The shell never auto-removes a toast that has buttons and removes nothing
+  // on click, so main retires it — on click, or after ACTION_TOAST_MS.
+  const retire = () => {
+    clearTimeout(timer);
+    buttonWaiters.delete(id);
+    sendShell({ type: "toastUpdate", id, done: true });
+  };
+  const timer = setTimeout(retire, ACTION_TOAST_MS);
+  timer.unref?.();
+  buttonWaiters.set(id, () => {
+    action.run();
+    retire();
+  });
+  sendShell({ type: "toast", id, kind, text, buttons: [action.label] });
 }
 
 export interface ProgressToast {
