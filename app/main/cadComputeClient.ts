@@ -239,6 +239,10 @@ export const cadCompute = {
   checkInterference: rpc<typeof entityFacts.checkInterference>("checkInterference"),
   checkInterferenceAll: rpc<typeof entityFacts.checkInterferenceAll>("checkInterferenceAll"),
   rebindPartsAcrossOps: rpc<typeof entityFacts.rebindPartsAcrossOps>("rebindPartsAcrossOps"),
+  // cad 2.1.0's save-time rebind (two byte buffers: pre-save vs freshly baked).
+  // Already spread by the worker with the rest of entityFacts; kernelActivity.ts
+  // maps it to OCCT, so cadKernelStatus.test.ts needs no alias.
+  rebindPartsAcrossSave: rpc<typeof entityFacts.rebindPartsAcrossSave>("rebindPartsAcrossSave"),
   // cad 1.9.0's selector synthesis — all three live in entityFacts.ts, which the
   // worker already spreads, so only these bindings were missing (they mirror
   // cad/src/kernelClient.ts's own additions).

@@ -59,6 +59,11 @@ export interface MainWindowHooks {
   /** A view's renderer died, or its main frame failed to load. windows.ts only
    *  reports — index.ts owns the hosts, so it decides what to replay. */
   onViewCrash?: (crash: ViewCrash) => void;
+  /** A view stopped responding / responds again. Reported, never acted on here:
+   *  it fires on any long synchronous task (a large mesh parse), so index.ts
+   *  only ever turns it into a user prompt after a generous delay. */
+  onViewUnresponsive?: (ref: ViewRef) => void;
+  onViewResponsive?: (ref: ViewRef) => void;
 }
 
 export interface MainWindow {
@@ -275,11 +280,21 @@ export function createMainWindow(
       if (!isMainFrame || errorCode === -3 || !url.startsWith("kkss://app/")) return;
       report(errorDescription || `load failed (${errorCode})`);
     });
-    // `unresponsive` is deliberately NOT wired to recovery — log only. It fires
-    // on any long synchronous parse, which is precisely what both viewers do on
-    // a large mesh, so reloading on it would destroy a working session
-    // mid-load.
-    wc.on("unresponsive", () => console.warn(`[kkss] ${ref.kind} renderer is busy (not reloading)`));
+    // `unresponsive` is deliberately NOT wired to recovery. It fires on any long
+    // synchronous parse, which is precisely what both viewers do on a large
+    // mesh, so reloading on it would destroy a working session mid-load. It is
+    // only reported: index.ts offers the user a Wait / Reload choice after a
+    // generous delay (unresponsiveGuard.ts) and never reloads without the click.
+    wc.on("unresponsive", () => {
+      console.warn(`[kkss] ${ref.kind} renderer is busy (not reloading)`);
+      if (closing.has(view) || wc.isDestroyed()) return;
+      hooks.onViewUnresponsive?.(ref);
+    });
+    wc.on("responsive", () => hooks.onViewResponsive?.(ref));
+    // A reload ends the episode (closing a tab is handled by index.ts's closeTab).
+    wc.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => {
+      if (isMainFrame) hooks.onViewResponsive?.(ref);
+    });
   };
 
   wireView(shell, { kind: "shell" });

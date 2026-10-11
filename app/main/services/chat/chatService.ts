@@ -18,6 +18,7 @@
  * to unwind first; deleting a background one leaves it running.
  */
 import * as path from "node:path";
+import { randomUUID } from "node:crypto";
 import { createCodexAgent } from "./agents/codex";
 import { createClaudeAgent } from "./agents/claude";
 import type { AgentSession, ToolOutcome } from "./agents/types";
@@ -26,6 +27,10 @@ import { app, ipcMain, WebContents } from "electron";
 import type {
   ChatConversationInfo,
   ChatUsage,
+  ChatAttachment,
+  ChatAttachmentInput,
+  ChatAttachmentKind,
+  ChatComposerState,
   ChatErrorKind,
   ChatImage,
   ChatPendingApproval,
@@ -43,6 +48,14 @@ import {
   type ApprovalDecision,
   type ApprovalMode,
 } from "./toolPolicy";
+import { callInsideProject } from "./toolPaths";
+import {
+  attachmentSupport,
+  enforceAttachmentBudget,
+  onlyNewestAttachments,
+  validateAttachments,
+  withoutUnsupported,
+} from "./chatAttachments";
 import { stateStore } from "../stateStore";
 import { getSecret } from "./secrets";
 import type { McpManager } from "./mcpManager";
@@ -57,8 +70,8 @@ import {
   type LiveConversation,
   type StoredUsage,
 } from "./transcriptStoreCore";
-import { Provider, ProviderError, type TurnResult, type TurnUsage } from "./providers/types";
-import { estimateCost, modelInfo } from "./modelInfo";
+import { Provider, ProviderError, THINKING_LEVELS, type ThinkingLevel, type TurnResult, type TurnUsage } from "./providers/types";
+import { estimateCost, knownModels, parseCustomPricing, resolvePricing, type CustomPricing } from "./modelInfo";
 import { applyCompaction, nextCount } from "./compaction";
 import { createAnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from "./providers/anthropic";
 import { createOpenAiCompatProvider, DEFAULT_GO_BASE_URL, DEFAULT_GO_MODEL, DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_MODEL, DEFAULT_ZEN_BASE_URL, DEFAULT_ZEN_MODEL } from "./providers/openaiCompat";
@@ -81,9 +94,65 @@ export const LLM_KEYS = {
   zenModel: "llmModelZen",
   goModel: "llmModelGo",
   toolApproval: "llmToolApproval", // ApprovalMode; see toolPolicy.ts
+  thinking: "llmThinking",
+  maxOutputTokens: "llmMaxOutputTokens",
+  customContextWindow: "llmCustomContextWindow",
+  customInputPrice: "llmCustomInputPrice",
+  customOutputPrice: "llmCustomOutputPrice",
+  customCacheReadPrice: "llmCustomCacheReadPrice",
+  customCacheWritePrice: "llmCustomCacheWritePrice",
+  imageInput: "llmImageInput", // opt-in: image attachments to OpenAI-compatible gateways
 } as const;
 
+/** Whether the user has said their OpenAI-compatible model can read images.
+ *  Read per use so flipping it applies to the next message. */
+export function readImageInput(): boolean {
+  return stateStore.get<unknown>(LLM_KEYS.imageInput) === true;
+}
+
+/** User-entered figures for models the reviewed table does not list. Read per
+ *  use (like the approval mode) so an edit applies to the next readout. */
+export function readCustomPricing(): CustomPricing {
+  return parseCustomPricing({
+    contextWindow: stateStore.get<unknown>(LLM_KEYS.customContextWindow),
+    inputPer1M: stateStore.get<unknown>(LLM_KEYS.customInputPrice),
+    outputPer1M: stateStore.get<unknown>(LLM_KEYS.customOutputPrice),
+    cacheReadPer1M: stateStore.get<unknown>(LLM_KEYS.customCacheReadPrice),
+    cacheWritePer1M: stateStore.get<unknown>(LLM_KEYS.customCacheWritePrice),
+  });
+}
+
 export type LlmProvider = "anthropic" | "openai" | "opencode-zen" | "opencode-go" | "codex" | "claude-code";
+
+/** Settings key holding the model for each provider, and what an empty value means. */
+export const MODEL_KEY: Record<LlmProvider, string> = {
+  anthropic: LLM_KEYS.anthropicModel,
+  openai: LLM_KEYS.openaiModel,
+  "opencode-zen": LLM_KEYS.zenModel,
+  "opencode-go": LLM_KEYS.goModel,
+  codex: LLM_KEYS.codexModel,
+  "claude-code": LLM_KEYS.claudeCodeModel,
+};
+export const DEFAULT_MODEL: Record<LlmProvider, string> = {
+  anthropic: DEFAULT_ANTHROPIC_MODEL,
+  openai: DEFAULT_OPENAI_MODEL,
+  "opencode-zen": DEFAULT_ZEN_MODEL,
+  "opencode-go": DEFAULT_GO_MODEL,
+  codex: "", // the runtime picks
+  "claude-code": "",
+};
+
+/** The sidebar's reasoning control. A hand-edited state.json degrades to `auto`. */
+export function readThinking(): ThinkingLevel {
+  const stored = stateStore.get<string>(LLM_KEYS.thinking);
+  return (THINKING_LEVELS as readonly string[]).includes(stored ?? "") ? (stored as ThinkingLevel) : "auto";
+}
+
+/** User-set reply cap, or undefined for the provider's built-in default. */
+export function readMaxOutputTokens(): number | undefined {
+  const stored = stateStore.get<unknown>(LLM_KEYS.maxOutputTokens);
+  return typeof stored === "number" && Number.isInteger(stored) && stored >= 256 && stored <= 128000 ? stored : undefined;
+}
 
 export interface LlmSettings {
   provider: LlmProvider;
@@ -91,6 +160,9 @@ export interface LlmSettings {
   model: string;
   baseUrl: string;
   apiKey?: string;
+  /** Present only when the user chose something other than `auto` / a custom cap. */
+  thinking?: ThinkingLevel;
+  maxOutputTokens?: number;
 }
 
 /**
@@ -105,6 +177,12 @@ export function readApprovalMode(): ApprovalMode {
 }
 
 export function readLlmSettings(): LlmSettings {
+  const thinking = readThinking();
+  const maxOutputTokens = readMaxOutputTokens();
+  return { ...readProviderSettings(), ...(thinking !== "auto" ? { thinking } : {}), ...(maxOutputTokens ? { maxOutputTokens } : {}) };
+}
+
+function readProviderSettings(): LlmSettings {
   const stored = stateStore.get<string>(LLM_KEYS.provider, "anthropic");
   const provider: LlmProvider =
     stored === "openai" || stored === "opencode-zen" || stored === "opencode-go" || stored === "codex" || stored === "claude-code"
@@ -190,7 +268,7 @@ mass, moments of inertia), inspect and measure (bounding-box facts), measure_exa
 edge length, radius), check_interference (clash detection between solids or Parts), compare_models (a \
 geometric diff of two models, optionally with rendered images), render_snapshot (headless multi-view PNGs), \
 and search_standard_parts / download_standard_part (fasteners and other standard parts from step.parts, \
-the one tool family that reaches the network). Mesh-format edit tails are replayed through the same mesh engine for generate_mesh, export_mesh and compare_models; save_model can bake STL/OBJ/PLY edits into the source with a backup. Mesh inspection, repair and promotion reports still describe raw source geometry.\
+the one tool family that reaches the network). Mesh-format edit tails are replayed through the same mesh engine for generate_mesh, export_mesh and compare_models; save_model can bake STL/OBJ/PLY edits into the source with a backup (the same write File ▸ Save does in CAD mode, after the user confirms). Mesh inspection, repair and promotion reports still describe raw source geometry.\
 It also reads .foam OpenFOAM cases and .msh/.inp/.unv/.su2/\
 .mesh/.post.msh as geometry-only boundary surfaces through meshio++ — these mostly open in post mode by \
 default (it reads them natively, fields and all), except .msh2, which only cad can open at all. Beyond geometry it \
@@ -360,6 +438,11 @@ export function evictImages(images: Map<string, ChatImage[]>, budget = IMAGE_BUD
   }
 }
 
+/** The displayable (image) attachments, in the shape the sidebar paints. */
+function imagesOf(attachments: readonly ChatAttachment[] | undefined): Array<{ id: string; mimeType: string; dataBase64: string }> {
+  return (attachments ?? []).filter((a) => a.kind === "image").map((a) => ({ id: a.id, mimeType: a.mimeType, dataBase64: a.dataBase64 }));
+}
+
 /** Shared empty set, so the common (no grants) path allocates nothing. */
 const EMPTY_ALLOW_SET: ReadonlySet<string> = new Set<string>();
 
@@ -404,6 +487,9 @@ export interface ChatDeps {
   chatsDir: string;
   /** Currently open files, appended as context to each request. */
   currentFiles(): OpenFilesInfo;
+  /** The explicit project folder, if one was chosen — never the inferred one.
+   *  Falls back to `currentFiles().projectRoot`. */
+  projectRoot?(): string | undefined;
   /** Opens the Settings page (noKey / auth error banner button). */
   openSettings(): void;
   /** Hide the sidebar (✕ button). */
@@ -463,6 +549,8 @@ export class ChatService {
    * history popover — which reads as the feature being broken.
    */
   private readonly alwaysAllow = new Map<string, Set<string>>();
+  /** "Always allow in project folder" grants, same lifetime and key as above. */
+  private readonly scopedAllow = new Map<string, Set<string>>();
   /**
    * Images from tool results, callId → blocks, for the **active conversation
    * only**. Never persisted: the transcript store holds what the model was
@@ -489,8 +577,14 @@ export class ChatService {
           this.ensureStarted();
           this.sendState();
           break;
+        case "setModel":
+          this.setModel(msg.model);
+          break;
+        case "setThinking":
+          this.setThinking(msg.level);
+          break;
         case "send":
-          this.turn = this.run(msg.text).finally(() => {
+          this.turn = this.run(typeof msg.text === "string" ? msg.text : "", msg.attachments).finally(() => {
             this.turn = null;
           });
           break;
@@ -545,7 +639,14 @@ export class ChatService {
     // we only mirror their status into the sidebar and abort the loop on quit.
     this.deps.hub.onStatus((servers) => this.send({ type: "servers", servers }));
     app.on("will-quit", () => this.abort?.abort());
+    // The picker, the Settings page and the native menu all write the same
+    // `llm*` keys; any of them changing must repaint the composer strip (and,
+    // with it, the header's provider label, which used to go stale).
+    this.settingsListener = stateStore.onDidChange((key) => {
+      if (key.startsWith("llm")) this.sendComposer();
+    });
   }
+  private settingsListener: { dispose(): void } | null = null;
 
   /** Points the service at the sidebar view's WebContents (idempotent). */
   attach(target: WebContents): void {
@@ -626,6 +727,7 @@ export class ChatService {
       // turn running in the one they are.
       this.store.remove(id);
       this.alwaysAllow.delete(id);
+      this.scopedAllow.delete(id);
       this.sendConversations();
       return;
     }
@@ -635,6 +737,7 @@ export class ChatService {
     this.active.alive = false;
     this.store.remove(id);
     this.alwaysAllow.delete(id);
+    this.scopedAllow.delete(id);
     await this.switchTo(this.store.restoreActive() ?? this.store.create());
   }
 
@@ -671,14 +774,63 @@ export class ChatService {
    */
   private usageFor(convo: LiveConversation, model: string): ChatUsage | undefined {
     if (!convo.usage) return undefined;
-    const info = modelInfo(model);
+    const pricing = resolvePricing(model, readCustomPricing());
+    const showWindow = pricing.contextWindow !== undefined && convo.usageBillingMode !== "subscription" && convo.usageBillingMode !== "mixed";
+    const showCost = pricing.rates !== undefined && (!convo.usageBillingMode || convo.usageBillingMode === "api");
     return {
       ...convo.usage,
       model,
-      ...(info && convo.usageBillingMode !== "subscription" && convo.usageBillingMode !== "mixed" ? { contextWindow: info.contextWindow } : {}),
+      ...(showWindow ? { contextWindow: pricing.contextWindow } : {}),
       billingMode: convo.usageBillingMode,
-      ...(info && (!convo.usageBillingMode || convo.usageBillingMode === "api") ? { costUsd: estimateCost(convo.usage, info) } : {}),
+      ...(showCost ? { costUsd: estimateCost(convo.usage, pricing.rates!) } : {}),
+      ...(pricing.userSupplied && (showWindow || showCost) ? { userSupplied: true } : {}),
     };
+  }
+
+  /**
+   * The composer strip's model picker. Writes the same setting as the Settings
+   * page and the native menu (one source of truth), for the provider in effect,
+   * and takes effect from the next message — `run()` reads settings once per
+   * turn, so a turn in flight is never changed under it. Refused for a managed
+   * key; untrusted input is trimmed, length-capped and stripped of control
+   * characters. Empty clears back to the provider default.
+   */
+  private setModel(raw: unknown): void {
+    if (typeof raw !== "string") return;
+    const key = MODEL_KEY[readLlmSettings().provider];
+    if (stateStore.isManaged(key)) return;
+    const value = raw.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+    if (value.length > 200) return;
+    void stateStore.update(key, value || undefined); // onDidChange re-sends the composer
+  }
+
+  private setThinking(level: unknown): void {
+    if (typeof level !== "string" || !(THINKING_LEVELS as readonly string[]).includes(level)) return;
+    void stateStore.update(LLM_KEYS.thinking, level === "auto" ? undefined : level);
+  }
+
+  private attachState(provider: LlmProvider): ChatComposerState["attach"] {
+    const on = readImageInput();
+    return { image: attachmentSupport(provider, "image", on), pdf: attachmentSupport(provider, "pdf", on) };
+  }
+
+  private sendComposer(): void {
+    if (!this.target) return;
+    const settings = readLlmSettings();
+    const key = MODEL_KEY[settings.provider];
+    this.send({
+      type: "composer",
+      composer: {
+        provider: settings.provider,
+        model: settings.model,
+        defaultModel: DEFAULT_MODEL[settings.provider],
+        choices: knownModels(settings.provider),
+        modelManaged: stateStore.isManaged(key),
+        thinking: readThinking(),
+        thinkingSupported: settings.provider !== "codex" && settings.provider !== "claude-code",
+        attach: this.attachState(settings.provider),
+      },
+    });
   }
 
   private sendState(): void {
@@ -700,12 +852,17 @@ export class ChatService {
       usage: this.usageFor(convo, settings.model),
       ...(convo.compactedResults ? { compactedResults: convo.compactedResults } : {}),
     });
+    this.sendComposer();
     // After the transcript, so the chips they attach to exist — and as separate
     // messages, so `state` itself stays small. sendState() fires on far more
     // than a reload (chatReady, an empty New chat, re-selecting the active
     // conversation, rename, every switch), and webContents.send structured-
     // clones synchronously on the main thread.
     for (const [callId, images] of this.toolImages) this.send({ type: "toolImages", callId, images, live: false });
+    // User attachments live in the stored entries (they are the model's input),
+    // so unlike tool images they survive a restart and are replayed from there.
+    const userImages = convo.entries.flatMap((e) => (e.kind === "user" ? imagesOf(e.attachments) : []));
+    if (userImages.length) this.send({ type: "userImages", images: userImages });
   }
 
   private sendConversations(): void {
@@ -805,6 +962,16 @@ export class ChatService {
     this.sendTo(convo, { type: "approvalResolved", callId: entry.callId, approval });
   }
 
+  private explicitProjectRoot(): string | undefined {
+    return this.deps.projectRoot ? this.deps.projectRoot() : this.deps.currentFiles().projectRoot;
+  }
+
+  private rememberScoped(convo: LiveConversation, namespaced: string): void {
+    const set = this.scopedAllow.get(convo.id) ?? new Set<string>();
+    set.add(namespaced);
+    this.scopedAllow.set(convo.id, set);
+  }
+
   private rememberAlways(convo: LiveConversation, namespaced: string): void {
     const set = this.alwaysAllow.get(convo.id) ?? new Set<string>();
     set.add(namespaced);
@@ -890,8 +1057,14 @@ export class ChatService {
     this.append(convo, entry);
 
     const allowed = this.alwaysAllow.get(convo.id) ?? EMPTY_ALLOW_SET;
-    if (gateFor(call.name, { mode: readApprovalMode(), allowed }) === "ask") {
+    // Re-read at every gate: clearing or changing the project folder
+    // invalidates scoped grants with no bookkeeping.
+    const root = this.explicitProjectRoot();
+    const inside = (): boolean => callInsideProject(call.name, call.argsJson, root);
+    const scoped = { granted: this.scopedAllow.get(convo.id) ?? EMPTY_ALLOW_SET, inside };
+    if (gateFor(call.name, { mode: readApprovalMode(), allowed, scoped }) === "ask") {
       const access = classifyTool(call.name) === "write" ? "write" : "unknown";
+      const scopable = access === "write" && !!root && inside();
       const decision = await this.awaitApproval(
         convo,
         {
@@ -901,6 +1074,7 @@ export class ChatService {
           argsJson: call.argsJson,
           access,
           dryRunnable: dryRunArgs(call.name, call.argsJson) !== null,
+          ...(scopable ? { scopable: true, scopeRoot: root } : {}),
         },
         call.name,
         signal
@@ -916,6 +1090,9 @@ export class ChatService {
         return { ok: false, text: DENIED_TEXT };
       }
       if (decision === "allowAlways") this.rememberAlways(convo, call.name);
+      // Honoured only for a prompt that offered it: a decision from a renderer
+      // that was never shown the button degrades to a plain, one-off allow.
+      if (decision === "allowScoped" && scopable) this.rememberScoped(convo, call.name);
       this.setApproval(convo, entry, "allowed");
     }
 
@@ -1017,9 +1194,28 @@ export class ChatService {
     return entry;
   }
 
-  async run(text: string): Promise<void> {
+  async run(text: string, rawAttachments?: ChatAttachmentInput[]): Promise<void> {
     const trimmed = text.trim();
-    if (!trimmed || this.busy) return;
+    const validated = validateAttachments(rawAttachments);
+    const hasFiles = validated.ok ? validated.attachments.length > 0 : Array.isArray(rawAttachments) && rawAttachments.length > 0;
+    if ((!trimmed && !hasFiles) || this.busy) return;
+
+    // Refused before anything is appended: the sidebar clears its draft on
+    // submit, so this hands the text back with the reason. The composer disables
+    // attaching up front; this is the gate for a stale or hostile renderer.
+    if (!validated.ok) {
+      this.send({ type: "sendRefused", reason: "invalid", text, detail: validated.detail });
+      return;
+    }
+    const imageOn = readImageInput();
+    const providerNow = readLlmSettings().provider;
+    for (const file of validated.attachments) {
+      const refusal = attachmentSupport(providerNow, file.kind, imageOn);
+      if (refusal) {
+        this.send({ type: "sendRefused", reason: refusal, text });
+        return;
+      }
+    }
 
     // Bound once, here: everything below appends to and paints into this
     // conversation, even if the user moves to another one mid-turn.
@@ -1028,7 +1224,14 @@ export class ChatService {
     // Recorded before the provider is resolved: the composer has already
     // cleared, so a message dropped here (no API key) would simply vanish —
     // and would leave a stored conversation holding nothing but an error.
-    this.append(convo, { kind: "user", text: trimmed });
+    const attachments: ChatAttachment[] = validated.attachments.map((a) => ({ id: randomUUID(), ...a }));
+    this.append(convo, { kind: "user", text: trimmed, ...(attachments.length ? { attachments } : {}) });
+    if (attachments.length) {
+      this.sendTo(convo, { type: "userImages", images: imagesOf(attachments) });
+      // Over the stored budget: the oldest messages' files go, marked on their
+      // bubbles, so the sidebar is repainted from the entries that now say so.
+      if (enforceAttachmentBudget(convo.entries) > 0 && convo.alive) this.sendState();
+    }
     // Undebounced: a user message is a checkpoint worth keeping even if the
     // turn never comes back, and it is what puts a brand-new conversation into
     // the history list — the first one also names it.
@@ -1059,10 +1262,16 @@ export class ChatService {
 
     // The context suffix rides on a copy of the transcript so it never
     // accumulates in the stored history.
+    let trimOldFiles = false;
     const requestEntries = (): ChatEntry[] => {
       // Compaction first: it allocates its own array, and the suffix has to land
       // on an entry that survived it.
-      const copy = applyCompaction(convo.entries, convo.compactedResults ?? 0);
+      // A provider/model switched since a file was attached must not receive it:
+      // a text-only gateway would answer with an opaque error. Request copy only.
+      const supported = (kind: ChatAttachmentKind): boolean => attachmentSupport(settings.provider, kind, imageOn) === null;
+      let base = withoutUnsupported(convo.entries, supported, "was left out: the current provider cannot receive it");
+      if (trimOldFiles) base = onlyNewestAttachments(base);
+      const copy = applyCompaction(base, convo.compactedResults ?? 0);
       for (let i = copy.length - 1; i >= 0; i--) {
         const entry = copy[i];
         if (entry.kind === "user") {
@@ -1085,7 +1294,8 @@ export class ChatService {
           this.sendTo(convo, { type: "assistantDone", entry: toWire(entry) });
           this.partial = ""; opened = false;
         };
-        const entries = [...convo.entries];
+        // The runtimes take text only; the files are replaced by a note.
+        const entries = withoutUnsupported(convo.entries, () => false, "was left out: this runtime cannot receive files");
         const last = entries[entries.length - 1];
         if (last?.kind === "user") entries[entries.length - 1] = { ...last, text: last.text + this.contextSuffix() };
         try {
@@ -1114,6 +1324,8 @@ export class ChatService {
           system: SYSTEM_PROMPT,
           tools,
           model: settings.model,
+          thinking: settings.thinking,
+          maxOutputTokens: settings.maxOutputTokens,
           signal,
           // Stable per-conversation id for providers that route/cache on it
           // (OpenCode Go). Other gateways never see it.
@@ -1135,7 +1347,13 @@ export class ChatService {
           // returns no TurnResult, so no usage can be counted twice.
           if (signal.aborted) throw error;
           if (!(error instanceof ProviderError) || error.kind !== "context") throw error;
-          if (!this.advanceCompaction(convo)) throw error;
+          if (!this.advanceCompaction(convo)) {
+            // Nothing left to clear. Files are the other thing that can fill a
+            // window, so retry once with only the newest message's files.
+            const older = convo.entries.filter((e) => e.kind === "user" && e.attachments?.length).length > 1;
+            if (trimOldFiles || !older) throw error;
+            trimOldFiles = true;
+          }
           result = await provider!.streamTurn({ ...turnOptions, entries: requestEntries() });
         }
 
@@ -1145,7 +1363,7 @@ export class ChatService {
           // folded here, and one turn can run 25 iterations and overflow without
           // ever finishing. Known windows only — an unrecognised model has no
           // figure to compare against, and relies on the reactive path above.
-          const window = modelInfo(settings.model)?.contextWindow;
+          const window = resolvePricing(settings.model, readCustomPricing()).contextWindow;
           if (window && convo.usage!.lastInput > COMPACT_AT * window) this.advanceCompaction(convo);
         }
 
@@ -1195,6 +1413,7 @@ export class ChatService {
 
   /** Aborts any in-flight turn; the servers themselves are owned by the hub. */
   dispose(): void {
+    this.settingsListener?.dispose();
     this.abort?.abort();
   }
 }

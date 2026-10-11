@@ -10,6 +10,7 @@ import * as os from "node:os";
 import * as pty from "node-pty";
 import type { TermToHost, TermToWebview } from "../ipc";
 import { stateStore } from "./stateStore";
+import { endShell } from "./terminalShutdown";
 
 /** Settings ▸ Terminal Shell override, else the platform default. */
 function configuredShell(): string {
@@ -24,6 +25,8 @@ export class TerminalService {
   private target: WebContents | null = null;
   private lastCols = 80;
   private lastRows = 24;
+  /** Settles when the current shell's exit has been observed (set in `spawn`). */
+  private exited: Promise<void> | null = null;
 
   /**
    * @param cwdProvider Directory for new shells (current file's dir, or home).
@@ -80,13 +83,43 @@ export class TerminalService {
       env: process.env as Record<string, string>,
     });
     this.proc = proc;
+    let markExited = (): void => undefined;
+    this.exited = new Promise<void>((resolve) => {
+      markExited = () => resolve();
+    });
     proc.onData((data) => this.send({ type: "data", data }));
+    // node-pty calls this from a native callback with no exception guard, so
+    // nothing may throw out of it: an escape aborts the whole app. Resolving
+    // first lets `shutdown()` finish even if the notice below fails.
     proc.onExit(({ exitCode }) => {
+      markExited();
       if (this.proc === proc) this.proc = null;
-      this.send({ type: "exit", code: exitCode });
+      try {
+        this.send({ type: "exit", code: exitCode });
+      } catch (error) {
+        console.error("Terminal exit notice failed", error);
+      }
     });
   }
 
+  /** Whether a shell process is running (its exit has not been observed yet). */
+  hasLiveShell(): boolean {
+    return this.proc !== null;
+  }
+
+  /**
+   * Ends the shell and resolves once its exit has been observed, or the bounded
+   * waits in `endShell` gave up. Quit awaits this in `before-quit`, so node-pty's
+   * exit callback is delivered while the app is still alive to take it.
+   */
+  async shutdown(): Promise<void> {
+    const proc = this.proc;
+    const exited = this.exited;
+    if (!proc || !exited) return;
+    await endShell({ kill: (signal) => proc.kill(signal), exited }, process.platform);
+  }
+
+  /** Last-resort kill for `will-quit`, for a shell `shutdown()` did not reap. */
   dispose(): void {
     this.proc?.kill();
     this.proc = null;

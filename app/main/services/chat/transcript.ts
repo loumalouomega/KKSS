@@ -16,13 +16,14 @@
  * of the *request* — so the transcript the model reads and the one the user
  * reads can now legitimately differ. Neither touches the stored conversation.
  */
-import type { ChatErrorKind, ChatToolApproval, ChatWireEntry } from "../../ipc";
+import type { ChatAttachment, ChatErrorKind, ChatToolApproval, ChatWireEntry } from "../../ipc";
 
 export type ChatEntry =
-  | { kind: "user"; text: string }
+  | { kind: "user"; text: string; attachments?: ChatAttachment[]; attachmentsEvicted?: number }
   | { kind: "assistant"; text: string; stopped?: boolean }
   // Kept field-identical to ChatWireEntry's toolCall: toWire() passes this kind
-  // through by identity, and that is only sound while the two agree.
+  // through by identity, and that is only sound while the two agree. (The user
+  // kind is NOT passed through: its attachments carry bytes, which toWire strips.)
   | {
       kind: "toolCall";
       callId: string;
@@ -47,12 +48,25 @@ export function toWire(entry: ChatEntry): ChatWireEntry {
   if (entry.kind === "toolResult") {
     return { kind: "toolResult", callId: entry.callId, ok: entry.ok, preview: truncate(entry.text, PREVIEW_CHARS) };
   }
+  if (entry.kind === "user" && (entry.attachments || entry.attachmentsEvicted)) {
+    const { attachments, ...rest } = entry;
+    return {
+      ...rest,
+      ...(attachments?.length
+        ? { attachments: attachments.map((a) => ({ id: a.id, kind: a.kind, mimeType: a.mimeType, ...(a.name ? { name: a.name } : {}) })) }
+        : {}),
+    };
+  }
   return entry;
 }
 
+interface UserPart {
+  text: string;
+  attachments?: ChatAttachment[];
+}
 interface UserTurn {
   role: "user";
-  texts: string[];
+  parts: UserPart[];
 }
 interface AssistantTurn {
   role: "assistant";
@@ -74,8 +88,9 @@ function groupTurns(entries: ChatEntry[], toolName: (server: string, tool: strin
     switch (entry.kind) {
       case "user": {
         const turn = last();
-        if (turn && turn.role === "user") turn.texts.push(entry.text);
-        else turns.push({ role: "user", texts: [entry.text] });
+        const part: UserPart = entry.attachments?.length ? { text: entry.text, attachments: entry.attachments } : { text: entry.text };
+        if (turn && turn.role === "user") turn.parts.push(part);
+        else turns.push({ role: "user", parts: [part] });
         break;
       }
       case "assistant":
@@ -121,6 +136,8 @@ function parseArgs(argsJson: string): Record<string, unknown> {
 
 type AnthropicBlock =
   | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: "image/png" | "image/jpeg" | "image/webp" | "image/gif"; data: string } }
+  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string }; title?: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
 
@@ -151,10 +168,20 @@ export function toAnthropicMessages(
 
   for (const turn of groupTurns(entries, toolName)) {
     if (turn.role === "user") {
-      push(
-        "user",
-        turn.texts.map((text) => ({ type: "text" as const, text }))
-      );
+      const blocks: AnthropicBlock[] = [];
+      for (const part of turn.parts) {
+        // Files lead their message's text, the order the API's own guidance uses.
+        for (const a of part.attachments ?? []) {
+          blocks.push(
+            a.kind === "pdf"
+              ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: a.dataBase64 }, ...(a.name ? { title: a.name } : {}) }
+              : { type: "image", source: { type: "base64", media_type: a.mimeType as "image/png" | "image/jpeg" | "image/webp" | "image/gif", data: a.dataBase64 } }
+          );
+        }
+        // Anthropic rejects an empty text block — an attachment-only message has one.
+        if (part.text) blocks.push({ type: "text", text: part.text });
+      }
+      push("user", blocks);
       continue;
     }
     // Drop tool calls that never got a result (aborted run) — Anthropic
@@ -206,8 +233,13 @@ export function toAnthropicMessages(
 
 // ---- OpenAI-compatible chat/completions ------------------------------------
 
+export type OpenAiContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 export type OpenAiMessage =
-  | { role: "user" | "system"; content: string }
+  | { role: "system"; content: string }
+  | { role: "user"; content: string | OpenAiContentPart[] }
   | {
       role: "assistant";
       content: string | null;
@@ -222,7 +254,21 @@ export function toOpenAiMessages(
   const messages: OpenAiMessage[] = [];
   for (const turn of groupTurns(entries, toolName)) {
     if (turn.role === "user") {
-      messages.push({ role: "user", content: turn.texts.join("\n\n") });
+      if (!turn.parts.some((p) => p.attachments?.some((a) => a.kind === "image"))) {
+        // Text-only requests stay byte-identical to before attachments existed.
+        messages.push({ role: "user", content: turn.parts.map((p) => p.text).join("\n\n") });
+        continue;
+      }
+      // chat/completions has no portable PDF form: PDFs never get this far (the
+      // provider gate strips them), so only images are emitted here.
+      const content: OpenAiContentPart[] = [];
+      for (const part of turn.parts) {
+        for (const a of part.attachments ?? []) {
+          if (a.kind === "image") content.push({ type: "image_url", image_url: { url: `data:${a.mimeType};base64,${a.dataBase64}` } });
+        }
+        if (part.text) content.push({ type: "text", text: part.text });
+      }
+      messages.push({ role: "user", content });
       continue;
     }
     const answered = turn.calls.filter((c) => turn.results.has(c.callId));

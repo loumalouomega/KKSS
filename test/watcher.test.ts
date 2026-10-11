@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { matcherFor } from "../app/main/services/watcher";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { createFileSystemWatcher, matcherFor } from "../app/main/services/watcher";
 
 describe("matcherFor", () => {
   it("matches recursive output trees and ordinary files (queued run discovery)", () => {
@@ -50,5 +53,30 @@ describe("matcherFor", () => {
     expect(m("a.foam")).toBe(false);
     expect(m("constant/other/points")).toBe(false);
     expect(m("constant/polyMesh")).toBe(false);
+  });
+});
+
+describe("createFileSystemWatcher depth", () => {
+  it("sees a nested write only when the caller raises the depth", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-watch-"));
+    const seen = async (depth?: number) => {
+      const got: string[] = [];
+      const w = createFileSystemWatcher(root, "*", depth === undefined ? {} : { depth });
+      w.onDidCreate((p) => got.push(path.relative(root, p)));
+      w.onDidChange((p) => got.push(path.relative(root, p)));
+      await new Promise((r) => setTimeout(r, 300));
+      const nested = path.join(root, "a", "b");
+      fs.mkdirSync(nested, { recursive: true });
+      fs.writeFileSync(path.join(nested, `f${depth ?? "d"}.txt`), "x");
+      await new Promise((r) => setTimeout(r, 400));
+      w.dispose();
+      return got;
+    };
+    try {
+      expect(await seen()).toEqual([]);
+      expect(await seen(3)).toContain(path.join("a", "b", "f3.txt"));
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

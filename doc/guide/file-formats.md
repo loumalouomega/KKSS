@@ -19,6 +19,10 @@ Pre-Processing can *also* read `.vtk` `.vtu` `.med` `.cgns` `.exo` `.e` `.xdmf` 
 
 `.msh2` (Gmsh 2.2) goes the other way and opens in **Pre-Processing** whatever the active mode — the mesh engine never registered it at all, so cad mode is the only one that can open it.
 
+## If a file won't open
+
+Opening a file no mode can read — from **Open…**, a drag-and-drop, a recent entry, or a launch from the operating system or command line — shows a warning naming the file and the suffix KKSS does not read (`.post.msh` is reported as a compound suffix, never as `.msh`), with a **Supported formats** button that opens this page. A file with no extension is reported as such, since its format cannot be told from the name. When several unsupported files arrive at once, one warning names the first and counts the rest. Every format either mode reads is already routed to the mode that owns it (see the table above), so a message never means "try the other mode".
+
 ## Export targets
 
 **Pre-Processing** (depends on the source pipeline):

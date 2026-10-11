@@ -10,6 +10,9 @@ import { describe, expect, it } from "vitest";
 import {
   cacheDirRelPath,
   cacheRelPath,
+  companionsFor,
+  companionWatchDepth,
+  isCompanionPath,
   isSidecarOf,
   isStagingArtifact,
   opaqueId,
@@ -152,5 +155,46 @@ describe("sidecarNamesFor", () => {
     expect(names).not.toContain("cad-preview-mesh-presets.json");
     // Everything it names must be recognised on the way back in.
     for (const name of names) expect(isSidecarOf("bull.stp", name)).toBe(true);
+  });
+});
+
+describe("companions", () => {
+  it("names XDMF's sibling .h5 and OpenFOAM's polyMesh tree, nothing else", () => {
+    expect(companionsFor("run.xdmf")).toEqual({ siblings: ["run.h5"], trees: [] });
+    expect(companionsFor("run.XMF")).toEqual({ siblings: ["run.h5"], trees: [] });
+    expect(companionsFor("case.foam")).toEqual({ siblings: [], trees: ["constant/polyMesh"] });
+    expect(companionsFor("bull.stp")).toEqual({ siblings: [], trees: [] });
+    expect(companionsFor("case.post.msh")).toEqual({ siblings: [], trees: [] });
+  });
+
+  it("accepts the sibling and files under the tree, up to two levels", () => {
+    expect(isCompanionPath("run.xdmf", "run.h5")).toBe(true);
+    expect(isCompanionPath("run.xdmf", "other.h5")).toBe(false);
+    expect(isCompanionPath("case.foam", "constant/polyMesh/points")).toBe(true);
+    expect(isCompanionPath("case.foam", "constant/polyMesh/sets/inlet")).toBe(true);
+    expect(isCompanionPath("case.foam", "constant/polyMesh/sets/deep/inlet")).toBe(false);
+    expect(isCompanionPath("case.foam", "constant/polyMeshExtra/points")).toBe(false);
+    expect(isCompanionPath("case.foam", "system/controlDict")).toBe(false);
+    expect(isCompanionPath("case.foam", "constant/polyMesh")).toBe(false);
+    expect(isCompanionPath("bull.stp", "constant/polyMesh/points")).toBe(false);
+  });
+
+  it("refuses traversal and staging artifacts at any segment", () => {
+    expect(isCompanionPath("case.foam", "constant/polyMesh/../../x")).toBe(false);
+    expect(isCompanionPath("case.foam", "constant/polyMesh/.hidden")).toBe(false);
+    expect(isCompanionPath("case.foam", "constant/polyMesh/points.1.tmp")).toBe(false);
+    expect(isCompanionPath("case.foam", "constant/polyMesh/points.download")).toBe(false);
+    expect(isCompanionPath("case.foam", "constant//polyMesh/points")).toBe(false);
+  });
+
+  it("watches deep only for a format that declares a tree", () => {
+    expect(companionWatchDepth("bull.stp")).toBe(0);
+    expect(companionWatchDepth("run.xdmf")).toBe(0);
+    expect(companionWatchDepth("case.foam")).toBe(4);
+  });
+
+  it("never lets a companion be mistaken for a sidecar", () => {
+    expect(isSidecarOf("run.xdmf", "run.h5")).toBe(false);
+    expect(sidecarNamesFor("run.xdmf")).not.toContain("run.h5");
   });
 });

@@ -7,8 +7,9 @@ import {
   namespaceTool,
   splitToolName,
 } from "../app/main/services/chat/mcpManager";
+import { PDF_MCP_PACKAGE, PDF_MCP_VERSION } from "../app/main/services/chat/pdfMcpVersion";
 
-const KEYS = ["cad", "mesh", "kratos"];
+const KEYS = ["cad", "mesh", "kratos", "pdf"];
 
 describe("tool namespacing", () => {
   it("round-trips a namespaced tool name", () => {
@@ -101,14 +102,16 @@ describe("extractImages", () => {
 describe("buildServerSpecs", () => {
   const specs = buildServerSpecs("/app/out");
 
-  it("defines the three servers with the expected commands", () => {
-    expect(specs.map((s) => s.key)).toEqual(["cad", "mesh", "kratos"]);
-    const [cad, mesh, kratos] = specs;
+  it("defines the four servers with the expected commands", () => {
+    expect(specs.map((s) => s.key)).toEqual(["cad", "mesh", "kratos", "pdf"]);
+    const [cad, mesh, kratos, pdf] = specs;
     expect(cad.command).toBe(process.execPath);
     expect(cad.args[0].replace(/\\/g, "/")).toBe("/app/out/cad-runtime/dist/mcp-server.js");
     expect(mesh.args[0].replace(/\\/g, "/")).toBe("/app/out/mcpServer.js");
     expect(kratos.command).toBe("uvx");
     expect(kratos.args).toEqual(["--with", "mcp<2", `kratos-mcp-server@${KRATOS_MCP_VERSION}`]);
+    expect(pdf.command).toBe("uvx");
+    expect(pdf.args).toEqual(["--with", "mcp<2", `${PDF_MCP_PACKAGE}@${PDF_MCP_VERSION}`]);
   });
 
   it("runs the node bundles under Electron's own binary and keeps PATH", () => {
@@ -122,5 +125,6 @@ describe("buildServerSpecs", () => {
     }
     // kratos inherits the parent env untouched (uvx spawns Python, not Node).
     expect(specs[2].env.ELECTRON_RUN_AS_NODE).toBe(process.env.ELECTRON_RUN_AS_NODE);
+    expect(specs[3].env.ELECTRON_RUN_AS_NODE).toBe(process.env.ELECTRON_RUN_AS_NODE);
   });
 });

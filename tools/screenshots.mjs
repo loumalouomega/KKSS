@@ -16,6 +16,7 @@
  * Run (after a full `npm run build` at least once):
  *   env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots
  *   npm run docs:screenshots -- --mesh-only  # mesh viewer/panels/timeline only
+ *   npm run docs:screenshots -- --animations-only  # fluid-tutorial timeline GIFs only
  */
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -25,6 +26,7 @@ import { launchApp, waitForMarkers, appWindow, closeApp, sleep, root } from "./e
 import { jobsScenario } from "./jobs.e2e.mjs";
 import { kratosStartupScenario } from "./kratosStartup.e2e.mjs";
 import { manualTutorials } from "./tutorials/manual.mjs";
+import { captureAnimations } from "./tutorials/animations.mjs";
 import { scriptedCapture } from "./tutorials/assistant.mjs";
 import { mesh423Scenario } from "./e2e/mesh-423.mjs";
 import { meshPlotsScenario } from "./e2e/mesh-plots.mjs";
@@ -327,6 +329,11 @@ if (process.argv.includes("--home-workflow-only")) {
   finally { fs.rmSync(profileDir, { recursive: true, force: true }); }
   process.exit(0);
 }
+if (process.argv.includes("--animations-only")) {
+  try { await captureAnimations(OUT); }
+  finally { fs.rmSync(profileDir, { recursive: true, force: true }); }
+  process.exit(0);
+}
 const meshOnly = process.argv.includes("--mesh-only");
 if (process.argv.includes("--plots-only")) {
   try { await meshPlotsScenario(OUT); }
@@ -350,6 +357,8 @@ if (!meshOnly) {
   // interpreter and actual solver-produced tutorial results. The companion uses
   // a local OpenAI-compatible fixture but routes every tool call through KKSS.
   await manualTutorials(OUT);
+  // Timeline GIFs from the committed fluid solver output (no solver run).
+  await captureAnimations(OUT);
   await scriptedCapture(OUT);
 }
 
