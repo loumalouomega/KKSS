@@ -65,6 +65,8 @@ export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDa
       KKSS_E2E: "1",
       KKSS_ALLOW_MULTIPLE_INSTANCES: singleInstance ? undefined : "1",
       KKSS_E2E_RESTORE: restore ? "1" : undefined,
+      // Chromium's own stderr, so a native abort leaves its FATAL line in the captured output.
+      ELECTRON_ENABLE_LOGGING: "1",
       ...env,
       ELECTRON_RUN_AS_NODE: undefined,
     },
