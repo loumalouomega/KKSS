@@ -162,12 +162,13 @@ and immutable run snapshots.
 
 ## Embedded terminal (node-pty + xterm.js)
 
-The Terminal toolbar button / ``Ctrl+` `` toggles a bottom panel `WebContentsView` (lazily created in `app/main/windows.ts`; `layout()` shrinks the mode views by `TERMINAL_HEIGHT` while it's shown). The renderer (`app/renderer/terminal/`, `@xterm/xterm` + fit addon) talks to `app/main/services/terminal.ts` over `term:toHost` / `term:toWebview` (`app/preload/terminalPreload.ts`): one node-pty session shared by both modes, spawned on first show in the current file's directory — PowerShell on Windows, `$SHELL` elsewhere, overridable via **Settings ▸ Terminal Shell** (`stateStore` key `terminalShell`) — kept alive while hidden, killed on quit; the renderer offers an Enter-to-restart when the shell exits.
+The Terminal toolbar button / ``Ctrl+` `` toggles a bottom panel `WebContentsView` (lazily created in `app/main/windows.ts`; `layout()` shrinks the mode views by `TERMINAL_HEIGHT` while it's shown). The renderer (`app/renderer/terminal/`, `@xterm/xterm` + fit addon) talks to `app/main/services/terminal.ts` over `term:toHost` / `term:toWebview` (`app/preload/terminalPreload.ts`): one node-pty session shared by both modes, spawned on first show in the current file's directory — PowerShell on Windows, `$SHELL` elsewhere, overridable via **Settings ▸ Terminal Shell** (`stateStore` key `terminalShell`) — kept alive while hidden, and ended on quit: `before-quit` waits for the shell's exit (SIGHUP, then SIGKILL after 1.5 s, in `app/main/services/terminalShutdown.ts`) before Electron tears down. The renderer offers an Enter-to-restart when the shell exits.
 
-**node-pty is the app's only native module**, and the only `node_modules` entry that ships in the package (see the `files` rules in `electron-builder.yml`; `asar: false` means the `.node` binaries load directly). It is N-API, so **no Electron-ABI rebuild step exists or is needed** — Windows/macOS use the prebuilt binaries shipped in the npm package, Linux compiles once during `npm ci` (GitHub runners and typical dev boxes have the toolchain). Two consequences to keep in mind:
+**node-pty is the app's only native module**, and the only `node_modules` entry that ships in the package (see the `files` rules in `electron-builder.yml`; `asar: false` means the `.node` binaries load directly). It is N-API, so **no Electron-ABI rebuild step exists or is needed** — Windows/macOS use the prebuilt binaries shipped in the npm package, Linux compiles once during `npm ci` (GitHub runners and typical dev boxes have the toolchain). Three consequences to keep in mind:
 
 - `package.json`'s `allowScripts` must keep the `node-pty@…` entry — without it the install scripts are skipped and the binaries never materialize.
 - The release workflow builds on **one runner per OS/arch** (`ubuntu-24.04-arm`, `windows-11-arm` for the arm64 targets): Linux needs a native compile and Windows assembles arch-specific ConPTY binaries at install time, so cross-arch packaging from a single runner is no longer possible.
+- A live shell's exit must be observed before `will-quit`. node-pty delivers exits through a native callback with no exception guard, so an exit that lands during teardown aborts the whole process. `before-quit` therefore awaits `TerminalService.shutdown()`, which is bounded, and the exit listener never throws. The quit hold waits only once no dirty prompt can still cancel the quit, so a cancelled quit keeps the shell running.
 
 **CSP note:** xterm.js injects `<style>` elements at runtime, so `app/renderer/terminal/index.html` allows `'unsafe-inline'` styles — this page only; every other page keeps the strict `style-src kkss:`.
 
@@ -351,8 +352,9 @@ Decisions worth knowing before changing any of it:
 - **`cad-preview-macros.json` and `cad-preview-mesh-presets.json` are never synced** — both are
   per-*folder* libraries while the cache is per-*file*, so uploading either would let two models
   from one remote folder overwrite each other's.
-- **Quit.** `will-quit` cannot await an HTTPS upload, so `before-quit` calls `preventDefault()`
-  **once** (guarded by a flag, so it can never loop), drains for up to 10 s, then re-quits.
+- **Quit.** `will-quit` cannot await an HTTPS upload or a shell's exit, so `before-quit` calls `preventDefault()`
+  **once** (guarded by a flag, so it can never loop) for whichever is pending, drains for up to 10 s, then re-quits.
+  The hold waits until no dirty prompt can still cancel the quit, so a cancelled quit neither drains uploads early nor shuts the shell down.
   Anything still unsent stays `dirty: true` in the manifest and is reported on the next launch.
   `will-quit` only calls `cloud.flushSync()`, the manifest `JsonStore`'s last synchronous write.
 - **OAuth is bring-your-own-client.** No KKSS client id is baked in. `oauth.ts` reuses

@@ -598,8 +598,9 @@ resubmitted automatically.
   `host.saveDocument()`, and Don't Save on a CAD tab flushes its sidecars first
   so a not-yet-debounced edit survives the dispose), and quitting with any dirty tab open does the same, ahead of the
   text editor's own equivalent guard — both live on `main.win.on("close")`
-  rather than adding a second `before-quit` hold, since that hook already
-  carries a single-shot cloud-drain `preventDefault`. Replace-in-place opens also await this guard through `openFile` and
+  rather than adding a before-quit hold of their own. The one single-shot
+  before-quit hold (uploads and the live shell, see the node-pty bullet) waits until
+  those prompts can no longer cancel the quit, so a cancelled quit never finds its shell shut down. Replace-in-place opens also await this guard through `openFile` and
   `documentReplacementQueue`: menu, toolbar, recents and the first OS dropped
   file all preserve the document on Cancel or failed Save. Queued replacements
   capture the host/document and recheck it after consent; external launch opens
@@ -647,7 +648,10 @@ resubmitted automatically.
   electron-builder.yml; linux/mac tolerate it, which is also what
   `USE_HARD_LINKS=false` in release.yml is about). Pages that need
   runtime-injected styles (terminal's xterm.js) may relax CSP to
-  `style-src kkss: 'unsafe-inline'` — that page only.
+  `style-src kkss: 'unsafe-inline'` — that page only. node-pty's exit callback has
+  no exception guard, so quit must observe a live shell's exit before `will-quit`:
+  `before-quit` awaits `TerminalService.shutdown()` (bounded SIGHUP → SIGKILL in
+  `services/terminalShutdown.ts`), and the exit listener must never throw.
 - **Docker web deployment streams the unmodified desktop app.** `docker/`
   (Dockerfile + `entrypoint.sh`) + root `docker-compose.yml` (build) /
   `docker-compose.ghcr.yml` (pull) run the app headless (Xvfb + openbox +
@@ -800,7 +804,7 @@ resubmitted automatically.
   `cad-preview-macros.json` is deliberately **not** synced: per-*folder* library,
   per-*file* cache, so uploading it would let two models from one remote folder
   overwrite each other's macros. `before-quit` gets one flag-guarded
-  `preventDefault()` to drain in-flight uploads (10 s cap) because `will-quit`
+  `preventDefault()` (shared with the live shell) to drain in-flight uploads (10 s cap) because `will-quit`
   cannot await an HTTPS upload; anything still pending stays `dirty: true` in the
   manifest and is reported on the next launch. Recents carrying a `cloud` ref are
   **exempt from the existence prune** and re-download on click; **session restore

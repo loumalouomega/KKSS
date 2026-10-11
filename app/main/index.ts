@@ -164,8 +164,18 @@ let jobs: JobsService | null = null;
 let workflows: WorkflowService | undefined;
 let metaServer: MetaMcpServer | null = null;
 let cloud: CloudService | null = null;
-/** `before-quit` may hold the quit open exactly once to drain uploads. */
-let cloudDrainAttempted = false;
+/** `before-quit` holds the quit open exactly once: for cloud uploads and/or the live shell. */
+let quitDrainAttempted = false;
+
+/**
+ * True while the close handler could still cancel the quit: a live window with a
+ * dirty editor or CAD/mesh tab. Once the window is destroyed no prompt can run,
+ * even though Don't Save leaves its edits (so `isDirty()`) in place.
+ */
+function closeMayPrompt(): boolean {
+  if (!main || main.win.isDestroyed()) return false;
+  return editor?.isDirty() === true || [...cadHosts.values(), ...meshHosts.values()].some((host) => host.isDirty());
+}
 
 function sendShell(message: unknown): void {
   if (!main || main.win.isDestroyed() || main.shell.webContents.isDestroyed()) return;
@@ -424,7 +434,7 @@ function currentSession() {
 }
 
 const SESSION_SAVE_DEBOUNCE_MS = 1_000;
-/** How long `before-quit` may hold the quit open to finish uploads. */
+/** How long the quit hold may wait on cloud uploads (the shell has its own bounds: terminalShutdown.ts). */
 const CLOUD_DRAIN_TIMEOUT_MS = 10_000;
 /** Keeps the cache housekeeping off the launch critical path. */
 const CLOUD_STARTUP_DELAY_MS = 5_000;
@@ -1205,9 +1215,9 @@ app.whenReady().then(() => {
   // Closing the window is the one destructive path for an unsaved buffer —
   // screen switches only hide the editor/mode views, so they need no guard.
   // mesh 3.18.0 gave its previews the same kind of unsaved-edit tracking the
-  // text editor already had; both are checked here rather than adding a
-  // second before-quit hold (which already carries a single-shot cloud-drain
-  // preventDefault it is best not to complicate further). Dirty tabs (CAD and mesh) are
+  // text editor already had; both are checked here rather than in before-quit.
+  // The one before-quit hold waits for this prompt to resolve (`closeMayPrompt`),
+  // so a cancelled quit never finds its shell already shut down. Dirty tabs (CAD and mesh) are
   // confirmed first, one dialog per dirty tab, sequentially — a Cancel at any
   // point aborts the whole close before the editor is even asked. If the
   // editor is ALSO dirty, its own confirmClose() owns window.destroy() when
@@ -1216,7 +1226,7 @@ app.whenReady().then(() => {
   main.win.on("close", (event) => {
     if (headlessStopping) return;
     const dirtyTabs = [...cadHosts.values(), ...meshHosts.values()].filter((host) => host.isDirty());
-    if (!editor?.isDirty() && dirtyTabs.length === 0) return;
+    if (!closeMayPrompt()) return;
     event.preventDefault();
     void (async () => {
       for (const host of dirtyTabs) {
@@ -1646,12 +1656,19 @@ async function stopHeadless(): Promise<void> {
     ...[...meshHosts.values()].filter(host => host.isDirty()).map(host => () => host.saveForShutdown(path.join(app.getPath("userData"), "recovery"))),
     () => editor?.saveForShutdown(path.join(app.getPath("userData"), "recovery")) ?? Promise.resolve(),
   ], async () => {
-    if (cloud?.hasPending()) await Promise.race([
-      cloud.flushPending(),
-      new Promise<void>((_, reject) => setTimeout(() => reject(new Error("Cloud upload drain timed out; pending uploads retained")), CLOUD_DRAIN_TIMEOUT_MS)),
-    ]);
+    // Awaited even when the cloud drain rejects: quit goes on to `will-quit`
+    // either way, and a shell still exiting must not outlive it.
+    const shell = terminal?.shutdown() ?? Promise.resolve();
+    try {
+      if (cloud?.hasPending()) await Promise.race([
+        cloud.flushPending(),
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error("Cloud upload drain timed out; pending uploads retained")), CLOUD_DRAIN_TIMEOUT_MS)),
+      ]);
+    } finally {
+      await shell;
+    }
   });
-  cloudDrainAttempted = true;
+  quitDrainAttempted = true;
   if (failures.length) { headlessExitCode = 1; console.error("Headless persistence failures:", failures); }
   if (app.isReady()) {
     if (main) saveSession(currentSession());
@@ -1689,24 +1706,35 @@ if (process.env.KKSS_HEADLESS === "1") {
 app.on("before-quit", (event) => {
   if (process.env.KKSS_HEADLESS === "1" && !headlessPrepared) { event.preventDefault(); void stopHeadless(); return; }
   quitting = true;
-  // `will-quit` cannot await and an HTTPS upload cannot finish synchronously,
-  // so this is the only window Electron gives an async task at shutdown. Held
-  // open exactly once — the flag makes a repeated preventDefault impossible, so
-  // a stuck upload can delay the quit by the cap and never block it.
-  if (!cloudDrainAttempted && cloud?.hasPending()) {
-    cloudDrainAttempted = true;
-    event.preventDefault();
-    const progress = progressToast(t("Finishing cloud uploads…"), false);
-    void Promise.race([
-      cloud.flushPending(),
+  // `will-quit` cannot await, so this is the only window Electron gives an async
+  // task at shutdown: an HTTPS upload draining, or the live shell's exit being
+  // delivered while the app can still take it (terminal.ts). Held open exactly
+  // once — the flag makes a repeated preventDefault impossible, so a stuck upload
+  // or shell can delay the quit by its cap and never block it. Taken only when no
+  // dirty prompt can still cancel the quit, so a cancelled quit keeps the shell
+  // running; once those prompts resolve, the window closes, `window-all-closed`
+  // quits again, and the hold runs then.
+  if (quitDrainAttempted || closeMayPrompt()) return;
+  const pendingCloud = cloud?.hasPending() === true ? cloud : null;
+  const liveShell = terminal?.hasLiveShell() === true ? terminal : null;
+  if (!pendingCloud && !liveShell) return;
+  quitDrainAttempted = true;
+  event.preventDefault();
+  const progress = pendingCloud ? progressToast(t("Finishing cloud uploads…"), false) : undefined;
+  void Promise.allSettled([
+    pendingCloud && Promise.race([
+      pendingCloud.flushPending(),
       new Promise((resolve) => setTimeout(resolve, CLOUD_DRAIN_TIMEOUT_MS)),
-    ]).finally(() => {
-      progress.done();
-      // Anything still unsent stays `dirty: true` in the manifest and is
-      // offered again on the next launch, rather than vanishing silently.
-      app.quit();
-    });
-  }
+    ]),
+    liveShell?.shutdown(),
+  ]).then((results) => {
+    for (const result of results) if (result.status === "rejected") console.error("Quit drain failed", result.reason);
+  }).finally(() => {
+    progress?.done();
+    // Anything still unsent stays `dirty: true` in the manifest and is
+    // offered again on the next launch, rather than vanishing silently.
+    app.quit();
+  });
 });
 
 app.on("will-quit", () => {
