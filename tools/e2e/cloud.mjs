@@ -47,3 +47,46 @@ for (const mode of ['success', 'fail', 'stall']) await scenario(`cloud-${mode}`,
     await quitApp(recovered);
   }
 });
+
+// Session restore re-downloads a cloud document the staging cache has evicted:
+// open from the cloud, quit, wipe the cache (what an eviction or "Clear Cloud
+// Cache" leaves behind — the file *and* its manifest entry), relaunch with
+// restore, and expect the document to come back into its saved tab.
+await scenario('cloud-restore-evicted', async c => {
+  c.copy('mesh/example/MDPA/double_arch.mdpa', 'source.mdpa'); fs.writeFileSync(path.join(c.dir, 'mode'), 'success');
+  const env = { KKSS_E2E_CLOUD_DIR: c.dir };
+  const cacheDir = path.join(c.profile, 'cloud-cache');
+  const manifestPath = path.join(cacheDir, 'manifest.json');
+  const statePath = path.join(c.profile, 'state.json');
+  const app = await c.launch(undefined, { env });
+  await menu(app, 'Open from Cloud…');
+  const picker = await c.page(app, 'picker');
+  await clickPickerOption(picker.getByRole('option', { name: 'cloud.mdpa', exact: true }));
+  const shell = await c.page(app, 'shell');
+  await until(async () => (await shell.locator('.tab.active').textContent()).includes('cloud.mdpa'));
+  await until(() => fs.existsSync(manifestPath));
+  const key = Object.keys(JSON.parse(fs.readFileSync(manifestPath, 'utf8')).entries)[0];
+  const staged = path.join(cacheDir, key);
+  // The session must carry the cloud origin: once the cache evicts the document
+  // its manifest entry goes with it and nothing else can say where it came from.
+  const session = () => JSON.parse(fs.readFileSync(statePath, 'utf8')).session;
+  await until(() => { try { return !!session()?.mesh?.cloud?.[staged]; } catch { return false; } }, 'session records the cloud ref');
+  // Same quit routine as the upload scenarios: park on Home so SwiftShader cannot wedge shutdown.
+  await shell.locator('#home-btn').click();
+  await until(async () => await shell.locator('#tab-strip').isHidden(), 'hide the mesh renderer before quit');
+  await quitApp(app, 20_000);
+  assert.ok(session().mesh.cloud[staged], 'the ref survives the quit');
+
+  fs.rmSync(cacheDir, { recursive: true, force: true }); // evicted: file and manifest entry both gone
+  assert.equal(fs.existsSync(staged), false);
+
+  const relaunched = await c.launch(undefined, { env, restore: true });
+  // Restore itself is synchronous; the download follows in the background.
+  await until(() => fs.existsSync(staged), 'the evicted document is downloaded again');
+  await until(() => fs.existsSync(manifestPath) && Object.keys(JSON.parse(fs.readFileSync(manifestPath, 'utf8')).entries).includes(key), 'the manifest entry is rebuilt');
+  assert.ok(session().mesh.files.includes(staged), 'the document is back in its saved tab');
+  const shell2 = await c.page(relaunched, 'shell');
+  await shell2.locator('#home-btn').click();
+  await until(async () => await shell2.locator('#tab-strip').isHidden(), 'hide the mesh renderer before quit');
+  await quitApp(relaunched, 20_000);
+});

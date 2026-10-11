@@ -26,11 +26,26 @@ vi.mock("electron", async () => {
  *  reset in beforeEach, so an unset key still yields the real default. */
 const stateValues: Record<string, unknown> = {};
 
+/** Keys the (mock) environment locks, and the live change listeners. */
+const managedKeys = new Set<string>();
+const changeListeners = new Set<(key: string, value: unknown) => void>();
+
 vi.mock("../app/main/services/stateStore", () => ({
   stateStore: {
     get: <T,>(key: string, defaultValue?: T) =>
       key in stateValues ? (stateValues[key] as T) : defaultValue,
-    update: async () => undefined,
+    // Records the write and notifies, like the real store (a managed key is refused).
+    update: async (key: string, value: unknown) => {
+      if (managedKeys.has(key)) return;
+      if (value === undefined) delete stateValues[key];
+      else stateValues[key] = value;
+      changeListeners.forEach((listener) => listener(key, value));
+    },
+    isManaged: (key: string) => managedKeys.has(key),
+    onDidChange: (listener: (key: string, value: unknown) => void) => {
+      changeListeners.add(listener);
+      return { dispose: () => void changeListeners.delete(listener) };
+    },
     flush: async () => undefined,
     flushSync: () => undefined,
   },
@@ -146,6 +161,8 @@ let dir: string;
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-chat-"));
   for (const key of Object.keys(stateValues)) delete stateValues[key];
+  managedKeys.clear();
+  changeListeners.clear();
 });
 
 afterEach(async () => {
@@ -587,7 +604,7 @@ describe("workspace context suffix", () => {
 describe("tool-call approval", () => {
   const READ = { id: "t1", name: "cad__inspect", argsJson: "{}" };
   const WRITE = { id: "t1", name: "mesh__mesh_transform", argsJson: '{"path":"/a.mdpa"}' };
-  const UNKNOWN = { id: "t1", name: "kratos__run_simulation", argsJson: "{}" };
+  const UNKNOWN = { id: "t1", name: "kratos__not_in_the_pinned_server", argsJson: "{}" };
 
   const requests = (messages: ChatToWebview[]) =>
     messages.filter((m): m is Extract<ChatToWebview, { type: "approvalRequest" }> => m.type === "approvalRequest");
@@ -690,9 +707,63 @@ describe("tool-call approval", () => {
     expect(mcp.calls).toHaveLength(2);
   });
 
+  describe("project-folder grant", () => {
+    const withRoot = (root: string | undefined) => makeService(() => ({ cad: [], mesh: [], projectRoot: root }));
+    const scopedWrite = (id: string, file: string) => ({ id, name: "mesh__mesh_transform", argsJson: JSON.stringify({ path: file }) });
+    let root: string;
+    beforeEach(() => {
+      root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "kkss-scope-")));
+    });
+    afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+
+    it("offers the grant only for an in-root call, and later in-root writes run unasked", async () => {
+      const { mcp, provider, messages, post } = withRoot(root);
+      await upToTool(scopedWrite("t1", path.join(root, "a.mdpa")), post, provider);
+      expect(requests(messages)[0].pending).toMatchObject({ scopable: true, scopeRoot: root });
+      post({ type: "approveTool", callId: "t1", decision: "allowScoped" });
+      await settle();
+      mcp.finish("done");
+      await settle();
+
+      provider.finish("again", scopedWrite("t2", path.join(root, "sub", "b.mdpa")));
+      await settle();
+      expect(requests(messages)).toHaveLength(1); // not asked again
+      expect(mcp.calls).toEqual(["mesh__mesh_transform", "mesh__mesh_transform"]);
+      mcp.finish("done");
+      await settle();
+
+      // Outside the folder: the same tool asks again, and does not offer the grant.
+      provider.finish("elsewhere", scopedWrite("t3", path.join(os.tmpdir(), "elsewhere.mdpa")));
+      await settle();
+      expect(requests(messages)).toHaveLength(2);
+      expect(requests(messages)[1].pending.scopable).toBeUndefined();
+      expect(mcp.calls).toHaveLength(2);
+    });
+
+    it("does not offer the grant without an explicit project folder", async () => {
+      const { messages, provider, post } = withRoot(undefined);
+      await upToTool(scopedWrite("t1", path.join(root, "a.mdpa")), post, provider);
+      expect(requests(messages)[0].pending.scopable).toBeUndefined();
+    });
+
+    it("degrades a scoped decision on an unscopable call to a one-off allow", async () => {
+      const { mcp, provider, messages, post } = withRoot(root);
+      // Relative path: cannot be checked, so the button was never offered.
+      await upToTool({ id: "t1", name: "mesh__mesh_transform", argsJson: '{"path":"a.mdpa"}' }, post, provider);
+      expect(requests(messages)[0].pending.scopable).toBeUndefined();
+      post({ type: "approveTool", callId: "t1", decision: "allowScoped" });
+      await settle();
+      mcp.finish("done");
+      await settle();
+      provider.finish("again", scopedWrite("t2", path.join(root, "b.mdpa")));
+      await settle();
+      expect(requests(messages)).toHaveLength(2); // no grant was recorded
+    });
+  });
+
   it("asks about a tool it has no policy for", async () => {
-    // Every kratos tool, today: that server is resolved at runtime and is not
-    // in this tree, so it cannot be honestly classified.
+    // A tool the pinned kratos-mcp-server (or a newer one) advertises that the
+    // table was never reviewed against.
     const { provider, mcp, messages, post } = makeService();
     await upToTool(UNKNOWN, post, provider);
     expect(requests(messages)[0].pending.access).toBe("unknown");
@@ -1124,6 +1195,172 @@ describe("token, cost and context accounting", () => {
     expect(latest.contextWindow).toBeUndefined();
   });
 
+  it("prices an unlisted model from user-entered figures and says so", async () => {
+    stateValues.llmProvider = "openai";
+    stateValues.llmModelOpenai = "llama3.1:70b";
+    stateValues.llmCustomInputPrice = 2;
+    stateValues.llmCustomOutputPrice = 8;
+    stateValues.llmCustomContextWindow = 128_000;
+    const { provider, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("done", undefined, usage(1_000_000, 500_000));
+    await settle();
+    const latest = latestUsage(messages);
+    expect(latest.costUsd).toBeCloseTo(6, 6); // $2 in + $4 out
+    expect(latest.contextWindow).toBe(128_000);
+    expect(latest.userSupplied).toBe(true);
+  });
+
+  it("does not flag a reviewed model as user-supplied, even with custom values set", async () => {
+    stateValues.llmModelAnthropic = "claude-opus-4-8";
+    stateValues.llmCustomInputPrice = 99;
+    stateValues.llmCustomOutputPrice = 99;
+    const { provider, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("done", undefined, usage(1_000_000, 0));
+    await settle();
+    const latest = latestUsage(messages);
+    expect(latest.costUsd).toBeCloseTo(5, 6);
+    expect(latest.userSupplied).toBeUndefined();
+  });
+
+  describe("composer strip (model picker + thinking level)", () => {
+    const composers = (messages: ChatToWebview[]) =>
+      messages.filter((m): m is Extract<ChatToWebview, { type: "composer" }> => m.type === "composer").map((m) => m.composer);
+    const lastComposer = (messages: ChatToWebview[]) => {
+      const all = composers(messages);
+      return all[all.length - 1];
+    };
+
+    it("describes the active provider on chatReady", () => {
+      stateValues.llmModelAnthropic = "claude-sonnet-4-6";
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      expect(lastComposer(messages)).toMatchObject({
+        provider: "anthropic",
+        model: "claude-sonnet-4-6",
+        defaultModel: "claude-opus-4-8",
+        modelManaged: false,
+        thinking: "auto",
+        thinkingSupported: true,
+      });
+      expect(lastComposer(messages).choices).toContain("claude-haiku-4-5");
+      expect(lastComposer(messages).choices.every((id) => id.startsWith("claude-"))).toBe(true);
+    });
+
+    it("offers no suggestions for an OpenAI-compatible gateway, and locks thinking for runtimes", () => {
+      stateValues.llmProvider = "openai";
+      const first = makeService();
+      first.post({ type: "chatReady" });
+      expect(lastComposer(first.messages)).toMatchObject({ provider: "openai", choices: [], defaultModel: "gpt-4o" });
+
+      stateValues.llmProvider = "claude-code";
+      const second = makeService();
+      second.post({ type: "chatReady" });
+      expect(lastComposer(second.messages)).toMatchObject({ provider: "claude-code", thinkingSupported: false, defaultModel: "" });
+    });
+
+    it("setModel writes the active provider's own key and repaints", async () => {
+      stateValues.llmProvider = "opencode-go";
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      post({ type: "setModel", model: "  kimi-k2.6  " });
+      await settle();
+      expect(stateValues.llmModelGo).toBe("kimi-k2.6");
+      expect(stateValues.llmModelAnthropic).toBeUndefined();
+      expect(lastComposer(messages).model).toBe("kimi-k2.6");
+    });
+
+    it("setModel with an empty value clears back to the default", async () => {
+      stateValues.llmModelAnthropic = "claude-haiku-4-5";
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      post({ type: "setModel", model: "   " });
+      await settle();
+      expect("llmModelAnthropic" in stateValues).toBe(false);
+      expect(lastComposer(messages).model).toBe("claude-opus-4-8");
+    });
+
+    it("refuses a managed model, an oversized id and a non-string", async () => {
+      managedKeys.add("llmModelAnthropic");
+      stateValues.llmModelAnthropic = "claude-opus-4-8";
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      expect(lastComposer(messages).modelManaged).toBe(true);
+      post({ type: "setModel", model: "claude-haiku-4-5" });
+      await settle();
+      expect(stateValues.llmModelAnthropic).toBe("claude-opus-4-8");
+
+      managedKeys.clear();
+      post({ type: "setModel", model: "x".repeat(201) });
+      post({ type: "setModel", model: 42 });
+      await settle();
+      expect(stateValues.llmModelAnthropic).toBe("claude-opus-4-8");
+    });
+
+    it("strips control characters from a typed model id", async () => {
+      const { post } = makeService();
+      post({ type: "chatReady" });
+      post({ type: "setModel", model: "my-model\n\u0000x" });
+      await settle();
+      expect(stateValues.llmModelAnthropic).toBe("my-modelx");
+    });
+
+    it("setThinking stores a valid level, clears on auto, ignores junk", async () => {
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      post({ type: "setThinking", level: "high" });
+      await settle();
+      expect(stateValues.llmThinking).toBe("high");
+      expect(lastComposer(messages).thinking).toBe("high");
+      post({ type: "setThinking", level: "turbo" });
+      await settle();
+      expect(stateValues.llmThinking).toBe("high");
+      post({ type: "setThinking", level: "auto" });
+      await settle();
+      expect("llmThinking" in stateValues).toBe(false);
+    });
+
+    it("repaints when a setting changes elsewhere (Settings page, menu)", async () => {
+      const { messages, post } = makeService();
+      post({ type: "chatReady" });
+      const before = composers(messages).length;
+      stateValues.llmModelAnthropic = "claude-haiku-4-5";
+      const { stateStore } = await import("../app/main/services/stateStore");
+      await stateStore.update("llmModelAnthropic", "claude-haiku-4-5");
+      expect(composers(messages).length).toBeGreaterThan(before);
+      expect(lastComposer(messages).model).toBe("claude-haiku-4-5");
+      // Unrelated keys do not cause traffic.
+      const count = composers(messages).length;
+      await stateStore.update("uiZoom", 1.2);
+      expect(composers(messages).length).toBe(count);
+    });
+
+    it("passes the chosen thinking level and output cap to the provider", async () => {
+      stateValues.llmThinking = "low";
+      stateValues.llmMaxOutputTokens = 4000;
+      const { provider, post } = makeService();
+      post({ type: "chatReady" });
+      await send(post, "go");
+      provider.finish("done");
+      await settle();
+      expect(provider.requests[0]).toMatchObject({ thinking: "low", maxOutputTokens: 4000 });
+    });
+
+    it("leaves both undefined by default, and ignores an out-of-range cap", async () => {
+      stateValues.llmMaxOutputTokens = 5; // below the floor
+      const { provider, post } = makeService();
+      post({ type: "chatReady" });
+      await send(post, "go");
+      provider.finish("done");
+      await settle();
+      expect(provider.requests[0].thinking).toBeUndefined();
+      expect(provider.requests[0].maxOutputTokens).toBeUndefined();
+    });
+  });
+
   it("leaves the total untouched when a provider reports nothing", async () => {
     const { provider, messages, post } = makeService();
     post({ type: "chatReady" });
@@ -1316,6 +1553,22 @@ describe("transcript compaction", () => {
     expect(compactionMsgs(messages)).toHaveLength(0);
   });
 
+  it("compacts proactively against a user-entered window", async () => {
+    stateValues.llmProvider = "openai";
+    stateValues.llmModelOpenai = "llama3.1:70b";
+    stateValues.llmCustomContextWindow = 100_000;
+    const { provider, mcp, messages, post } = makeService();
+    post({ type: "chatReady" });
+    await send(post, "go");
+    provider.finish("calling", { id: "t1", name: "cad__inspect", argsJson: "{}" }, usage(50_000));
+    await settle(4);
+    mcp.finish("output");
+    await settle(4);
+    provider.finish("done", undefined, usage(90_000)); // past 70% of 100k
+    await settle();
+    expect(compactionMsgs(messages).length).toBeGreaterThan(0);
+  });
+
   it("keeps the boundary across a conversation switch away and back", async () => {
     const { provider, mcp, messages, post } = makeService();
     await withOneToolResult(post, provider, mcp);
@@ -1393,4 +1646,111 @@ it('does not apply API pricing to mixed subscription and API usage', async () =>
   const usage = h.messages.filter((m: any) => m.type === 'usage').pop() as any;
   expect(usage.usage.billingMode).toBe('mixed'); expect(usage.usage.costUsd).toBeUndefined();
   h.service.flushSync(); h.service.dispose();
+});
+
+describe("user attachments", () => {
+  const PNG = "iVBORw0KGgo=";
+  const PDF = Buffer.from("%PDF-1.4\n%%EOF").toString("base64");
+  const image = { mimeType: "image/png", dataBase64: PNG };
+  const doc = { mimeType: "application/pdf", dataBase64: PDF, name: "spec.pdf" };
+  const msgs = <T extends ChatToWebview["type"]>(messages: ChatToWebview[], type: T) =>
+    messages.filter((m): m is Extract<ChatToWebview, { type: T }> => m.type === type);
+
+  it("stores the files, keeps bytes off the wire entry, and sends them to the provider", async () => {
+    const { provider, messages, post, service } = makeService();
+    post({ type: "chatReady" });
+    post({ type: "send", text: "what is this?", attachments: [image, doc] });
+    await settle(8);
+    const entry = msgs(messages, "entry").find((m) => m.entry.kind === "user")!.entry as any;
+    expect(entry.attachments).toHaveLength(2);
+    expect(JSON.stringify(entry)).not.toContain(PNG);
+    const painted = msgs(messages, "userImages");
+    expect(painted).toHaveLength(1);
+    expect(painted[0].images).toEqual([{ id: entry.attachments[0].id, ...image }]);
+    expect(provider.lastEntries[0].attachments).toHaveLength(2);
+    provider.finish("a mesh");
+    await settle(4);
+    service.flushSync();
+    const saved = stored(lastState(messages).conversationId)!;
+    expect((saved.entries[0] as any).attachments).toHaveLength(2);
+    // A reload repaints the images from the stored entries, not from a session cache.
+    messages.length = 0;
+    post({ type: "chatReady" });
+    expect(msgs(messages, "userImages")[0].images).toHaveLength(1);
+  });
+
+  it("sends an attachment-only message", async () => {
+    const { provider, post } = makeService();
+    post({ type: "send", text: "", attachments: [image] });
+    await settle(8);
+    expect(provider.turns).toBe(1);
+  });
+
+  it("refuses images for a gateway until the setting is on, before appending anything", async () => {
+    stateValues.llmProvider = "openai";
+    const { provider, messages, post } = makeService();
+    post({ type: "send", text: "look", attachments: [image] });
+    await settle(8);
+    expect(msgs(messages, "sendRefused")).toEqual([{ type: "sendRefused", reason: "gatewayOptIn", text: "look" }]);
+    expect(msgs(messages, "entry")).toHaveLength(0);
+    expect(provider.turns).toBe(0);
+
+    stateValues.llmImageInput = true;
+    post({ type: "send", text: "look", attachments: [image] });
+    await settle(8);
+    expect(provider.turns).toBe(1);
+  });
+
+  it("refuses a PDF on a gateway (it points at the PDF tools) and anything on a subscription runtime", async () => {
+    stateValues.llmProvider = "openai";
+    stateValues.llmImageInput = true;
+    const first = makeService();
+    first.post({ type: "send", text: "read", attachments: [doc] });
+    await settle(8);
+    expect(msgs(first.messages, "sendRefused")[0]).toMatchObject({ reason: "pdfNeedsMcp" });
+
+    stateValues.llmProvider = "codex";
+    const second = makeService();
+    second.post({ type: "send", text: "read", attachments: [image] });
+    await settle(8);
+    expect(msgs(second.messages, "sendRefused")[0]).toMatchObject({ reason: "subscription" });
+  });
+
+  it("refuses malformed attachments from a hostile renderer", async () => {
+    const { provider, messages, post } = makeService();
+    post({ type: "send", text: "x", attachments: [{ mimeType: "image/svg+xml", dataBase64: PNG }] });
+    post({ type: "send", text: 42, attachments: "nope" });
+    await settle(8);
+    expect(msgs(messages, "sendRefused").map((m) => m.reason)).toEqual(["invalid"]);
+    expect(provider.turns).toBe(0);
+  });
+
+  it("strips files from the request when the provider can no longer take them", async () => {
+    const { provider, post } = makeService();
+    post({ type: "send", text: "look", attachments: [image] });
+    await settle(8);
+    provider.finish("ok");
+    await settle(6);
+    stateValues.llmProvider = "openai"; // gateway, image input off
+    post({ type: "send", text: "and now?" });
+    await settle(8);
+    const sent = provider.lastEntries.filter((e: any) => e.kind === "user");
+    expect(sent[0].attachments).toBeUndefined();
+    expect(sent[0].text).toContain("1 image attached here was left out");
+  });
+
+  it("reports what the composer may attach", async () => {
+    const { messages, post } = makeService();
+    post({ type: "chatReady" });
+    const composer = () => msgs(messages, "composer").pop()!.composer;
+    expect(composer().attach).toEqual({ image: null, pdf: null });
+    stateValues.llmProvider = "openai";
+    changeListeners.forEach((l) => l("llmProvider", "openai"));
+    await settle(4);
+    expect(composer().attach).toEqual({ image: "gatewayOptIn", pdf: "pdfNeedsMcp" });
+    stateValues.llmImageInput = true;
+    changeListeners.forEach((l) => l("llmImageInput", true));
+    await settle(4);
+    expect(composer().attach).toEqual({ image: null, pdf: "pdfNeedsMcp" });
+  });
 });

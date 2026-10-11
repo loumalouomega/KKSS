@@ -52,6 +52,12 @@ export class ProviderError extends Error {
   }
 }
 
+/** Reasoning effort the user picked in the chat sidebar. `auto` = send nothing
+ *  new (the provider's own default behaviour, byte-identical to before the
+ *  control existed); `off` asks for no thinking where the API allows it. */
+export type ThinkingLevel = "auto" | "off" | "low" | "high";
+export const THINKING_LEVELS: readonly ThinkingLevel[] = ["auto", "off", "low", "high"];
+
 export interface StreamTurnOptions {
   system: string;
   entries: ChatEntry[];
@@ -65,6 +71,10 @@ export interface StreamTurnOptions {
    *  that ask for it (OpenCode Go uses it for routing and prompt caching);
    *  never sent to generic gateways. */
   sessionId?: string;
+  /** Optional, user-chosen. Absent/`auto` leaves the request exactly as it was. */
+  thinking?: ThinkingLevel;
+  /** User-chosen output-token cap; absent = the provider's built-in default. */
+  maxOutputTokens?: number;
 }
 
 export interface Provider {

@@ -33,9 +33,11 @@ import {
   dropboxParentOf,
   isConflictBody,
   parseAccountInfo,
+  parseCreatedFolder,
   parseEntry,
   parseListFolder,
 } from "../providerCore/dropboxCore";
+import { ensureFolderVia } from "../providerCore/folderCore";
 
 const API = "https://api.dropboxapi.com/2";
 const CONTENT = "https://content.dropboxapi.com/2";
@@ -142,6 +144,24 @@ export class DropboxProvider extends OAuthProviderBase {
   ): Promise<CloudFile> {
     const path = `${parentId}/${name}`.replace(/\/+/g, "/");
     return this.put(path, localPath, { ".tag": "add" }, options);
+  }
+
+  async ensureFolder(parentId: string, name: string): Promise<CloudFile> {
+    const path = `${parentId}/${name}`.replace(/\/+/g, "/");
+    return ensureFolderVia({
+      label: this.label,
+      name,
+      find: () => this.findChild(parentId, name),
+      make: async () => {
+        // A concurrent creator answers 409 "path/conflict/folder", which
+        // `fail()` maps to a conflict — ensureFolderVia re-finds it.
+        const folder = parseCreatedFolder(
+          await this.rpc("files/create_folder_v2", { path, autorename: false })
+        );
+        if (!folder) throw new CloudError("other", `Dropbox returned no metadata for ${path}.`);
+        return folder;
+      },
+    });
   }
 
   private async put(

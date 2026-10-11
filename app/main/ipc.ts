@@ -76,7 +76,7 @@ export type ChatErrorKind = "auth" | "network" | "noKey" | "context" | "rateLimi
 
 /** Startup/health state of one MCP server backing the chat agent. */
 export interface ChatServerStatus {
-  key: "cad" | "mesh" | "kratos";
+  key: "cad" | "mesh" | "kratos" | "pdf";
   /** MCP server display name (e.g. "cad-preview"). */
   name: string;
   state: "starting" | "ready" | "unavailable";
@@ -115,6 +115,12 @@ export interface ChatPendingApproval {
    *  Computed by the main process: the renderer must not carry toolPolicy's
    *  table, and a client-side guess would offer a button that cannot work. */
   dryRunnable: boolean;
+  /** Offer "Always allow in project folder": an explicit project root is set,
+   *  the tool is a scopable write tool, and every path in *this* call is
+   *  inside that root. Computed by main — the renderer carries no policy. */
+  scopable?: boolean;
+  /** The project folder the grant would be scoped to (shown on the button). */
+  scopeRoot?: string;
   /** A validation already run for this call. Replayed alongside the prompt for
    *  the same reason the prompt itself is: a renderer reload must not silently
    *  discard the answer the user is still looking at. Text only — images would
@@ -136,13 +142,53 @@ export interface ChatImage {
   dataBase64: string;
 }
 
+export type ChatAttachmentKind = "image" | "pdf";
+
+/**
+ * A file the *user* attached to a message. Unlike `ChatImage` (a tool result the
+ * model never sees), these are the model's input, so they are stored with the
+ * conversation and sent in the request. The bytes never ride `ChatWireEntry`:
+ * the wire entry carries `ChatAttachmentRef`s and the images arrive on their own
+ * `userImages` message, for the same reason `toolImages` does.
+ */
+export interface ChatAttachment {
+  /** Stable for the life of the entry, so the sidebar can pair bytes to a bubble. */
+  id: string;
+  kind: ChatAttachmentKind;
+  mimeType: string;
+  /** Original file name, when the file had one (a pasted screenshot has none). */
+  name?: string;
+  dataBase64: string;
+}
+
+/** What the renderer sends: main assigns the id and derives the kind. */
+export interface ChatAttachmentInput {
+  mimeType: string;
+  name?: string;
+  dataBase64: string;
+}
+
+/** The bytes-free form of a `ChatAttachment`. */
+export interface ChatAttachmentRef {
+  id: string;
+  kind: ChatAttachmentKind;
+  mimeType: string;
+  name?: string;
+}
+
+/** Why an attachment kind is unavailable right now. A code, not a sentence: the
+ *  renderer maps it through `t()`, which main-process English literals would bypass. */
+export type ChatAttachmentRefusal = "subscription" | "gatewayOptIn" | "pdfNeedsMcp";
+
 /**
  * What a conversation has spent, and how much of the window its last request
  * filled. Measured locally and shown to the user; never transmitted anywhere.
  *
  * `contextWindow` and `costUsd` are resolved in the main process from
  * `modelInfo.ts` and are **absent for a model KKSS has no reviewed figures
- * for** — the sidebar then shows token counts alone rather than a wrong number.
+ * for** — the sidebar then shows token counts alone rather than a wrong number —
+ * unless the user entered prices/a window themselves, in which case
+ * `userSupplied` is set so the readout can say whose figures they are.
  */
 export interface ChatUsage {
   billingMode?: "api" | "subscription" | "mixed";
@@ -158,10 +204,12 @@ export interface ChatUsage {
   model: string;
   contextWindow?: number;
   costUsd?: number;
+  /** `contextWindow`/`costUsd` came from Settings ▸ LLM Assistant, not the reviewed table. */
+  userSupplied?: boolean;
 }
 
 export type ChatWireEntry =
-  | { kind: "user"; text: string }
+  | { kind: "user"; text: string; attachments?: ChatAttachmentRef[]; attachmentsEvicted?: number }
   | { kind: "assistant"; text: string; stopped?: boolean }
   | {
       kind: "toolCall";
@@ -191,9 +239,9 @@ export type ChatToHost =
   | { type: "chatReady" }
   | { type: "installKratosRuntime" }
   | { type: "retryKratos" }
-  | { type: "send"; text: string }
+  | { type: "send"; text: string; attachments?: ChatAttachmentInput[] }
   | { type: "stop" }
-  | { type: "approveTool"; callId: string; decision: "allow" | "allowAlways" | "deny" }
+  | { type: "approveTool"; callId: string; decision: "allow" | "allowAlways" | "allowScoped" | "deny" }
   /** Re-runs the blocked call in validate-only mode. Deliberately NOT an
    *  `approveTool` decision: it leaves the gate open so the user answers it
    *  with the report in front of them. */
@@ -206,7 +254,35 @@ export type ChatToHost =
   | { type: "renameConversation"; id: string; title: string }
   | { type: "deleteConversation"; id: string }
   | { type: "openSettings" }
+  /** The composer strip's model picker. Writes the same setting as Settings ▸
+   *  LLM Assistant, for the active provider; applies from the next message.
+   *  Empty clears it back to the provider default. */
+  | { type: "setModel"; model: string }
+  | { type: "setThinking"; level: ChatThinking }
   | { type: "hide" };
+
+/** Reasoning effort chosen in the sidebar. `auto` sends nothing new. */
+export type ChatThinking = "auto" | "off" | "low" | "high";
+
+/** The composer strip's controls, resolved in main (the renderer carries no model list). */
+export interface ChatComposerState {
+  provider: "anthropic" | "openai" | "opencode-zen" | "opencode-go" | "codex" | "claude-code";
+  /** The model in effect — the stored one, else `defaultModel`; "" for a runtime default. */
+  model: string;
+  /** The provider's built-in default ("" when the runtime picks). */
+  defaultModel: string;
+  /** Suggested ids; the renderer adds Default / the current custom value / Other…. */
+  choices: string[];
+  /** Locked by the environment (managed deployment): shown, not editable. */
+  modelManaged: boolean;
+  thinking: ChatThinking;
+  /** False for the subscription runtimes, which expose no such control to KKSS. */
+  thinkingSupported: boolean;
+  /** Per kind: `null` = the composer may attach it, otherwise why not. Resolved
+   *  in main (provider + model + the image-input setting) — the renderer carries
+   *  no policy. */
+  attach: { image: ChatAttachmentRefusal | null; pdf: ChatAttachmentRefusal | null };
+}
 
 /** Messages sent to the chat-sidebar renderer. */
 export type ChatToWebview =
@@ -233,6 +309,9 @@ export type ChatToWebview =
       compactedResults?: number;
     }
   | { type: "entry"; entry: ChatWireEntry }
+  /** The composer strip's state. Sent after `state` and again whenever an
+   *  `llm*` setting changes elsewhere (Settings page, native menu). */
+  | { type: "composer"; composer: ChatComposerState }
   | { type: "approvalRequest"; pending: ChatPendingApproval }
   | { type: "approvalResolved"; callId: string; approval: ChatToolApproval }
   /** Images from a tool result, sent right after its entry (and replayed after
@@ -241,6 +320,12 @@ export type ChatToWebview =
    *  a replay must stay collapsed or a long transcript decodes everything at
    *  once. Main knows which this is — the renderer must not infer it. */
   | { type: "toolImages"; callId: string; images: ChatImage[]; live: boolean }
+  /** Image bytes of user attachments, keyed by `ChatAttachmentRef.id`. Sent after
+   *  the entry and replayed after `state` — never inside `ChatWireEntry`. */
+  | { type: "userImages"; images: Array<{ id: string; mimeType: string; dataBase64: string }> }
+  /** A send main refused before appending anything. The renderer clears its
+   *  draft on submit, so this hands the text and the reason back. */
+  | { type: "sendRefused"; reason: ChatAttachmentRefusal | "invalid"; text: string; detail?: string }
   | { type: "dryRunResult"; callId: string; ok: boolean; text: string }
   /** Pushed after each model turn; `state` carries the same figures for replay. */
   | { type: "usage"; usage: ChatUsage }

@@ -8,10 +8,13 @@ import {
   captureSession,
   isEmptySession,
   parseSession,
+  planRestore,
+  isEmptyPlan,
   pruneSession,
   sessionFileCount,
   SESSION_TAB_CAP,
   SESSION_VERSION,
+  type SessionCloudRef,
   type SessionState,
 } from "../app/main/services/sessionCore";
 
@@ -189,5 +192,110 @@ describe("isEmptySession", () => {
         captureSession({ cad: snapshot(["/a.stp"], "/a.stp"), mesh: snapshot([], undefined), screen: "cad", ...base })
       )
     ).toBe(false);
+  });
+});
+
+describe("cloud refs in the session", () => {
+  const ref = (itemId: string): SessionCloudRef => ({ provider: "dropbox", accountId: "acc", itemId, name: `${itemId}.mdpa`, parentId: "root" });
+  const cache = "/cache/dropbox";
+
+  it("captures refs only for open documents, and only when there are any", () => {
+    const state = captureSession({
+      cad: snapshot([]),
+      mesh: { files: [`${cache}/a/a.mdpa`, "/plain.mdpa"], activeFile: undefined, cloud: { [`${cache}/a/a.mdpa`]: ref("a"), "/not-open.mdpa": ref("z") } },
+      screen: "mesh",
+      ...base,
+    });
+    expect(state.mesh.cloud).toEqual({ [`${cache}/a/a.mdpa`]: ref("a") });
+    expect(state.cad).toEqual({ files: [], activeFile: null }); // no `cloud` key at all
+    expect("cloud" in state.cad).toBe(false);
+  });
+
+  it("round-trips through parseSession", () => {
+    const state = captureSession({ cad: snapshot([]), mesh: { files: [`${cache}/a/a.mdpa`], activeFile: `${cache}/a/a.mdpa`, cloud: { [`${cache}/a/a.mdpa`]: ref("a") } }, screen: "mesh", ...base });
+    expect(parseSession(JSON.parse(JSON.stringify(state)))).toEqual(state);
+  });
+
+  it("parses an older session that has no cloud field, unchanged", () => {
+    const old = { version: SESSION_VERSION, cad: { files: ["/a.stp"], activeFile: "/a.stp" }, mesh: { files: [], activeFile: null }, screen: "cad", terminal: false, chat: false };
+    expect(parseSession(old)?.cad).toEqual({ files: ["/a.stp"], activeFile: "/a.stp" });
+  });
+
+  it("drops malformed, unknown-provider and orphaned refs", () => {
+    const parsed = parseSession({
+      version: SESSION_VERSION,
+      cad: {
+        files: ["/a", "/b", "/c"],
+        activeFile: null,
+        cloud: {
+          "/a": { provider: "dropbox", accountId: "x", itemId: "i", name: "a" },
+          "/b": { provider: "ftp", accountId: "x", itemId: "i", name: "b" }, // not a provider we know
+          "/c": { provider: "dropbox", accountId: "x", name: "c" }, // no itemId
+          "/gone": { provider: "dropbox", accountId: "x", itemId: "i", name: "g" }, // not an open file
+        },
+      },
+      mesh: { files: [], activeFile: null },
+      screen: "cad",
+      terminal: false,
+      chat: false,
+    });
+    expect(Object.keys(parsed!.cad.cloud ?? {})).toEqual(["/a"]);
+  });
+
+  it("ignores a cloud field that is not an object", () => {
+    for (const cloud of ["x", 3, null, [], true]) {
+      const parsed = parseSession({ version: SESSION_VERSION, cad: { files: ["/a"], activeFile: null, cloud }, mesh: {}, screen: "home", terminal: false, chat: false });
+      expect(parsed?.cad.cloud).toBeUndefined();
+    }
+  });
+});
+
+describe("planRestore", () => {
+  const ref = (itemId: string): SessionCloudRef => ({ provider: "gdrive", accountId: "acc", itemId, name: `${itemId}.vtk` });
+  const state = (over: Partial<SessionState["mesh"]>, screen: SessionState["screen"] = "mesh"): SessionState => ({
+    version: SESSION_VERSION,
+    cad: { files: [], activeFile: null },
+    mesh: { files: [], activeFile: null, ...over },
+    screen,
+    ...base,
+  });
+
+  it("keeps present files, pends evicted cloud ones in their saved slot, drops the rest", () => {
+    const plan = planRestore(
+      state({ files: ["/here.vtk", "/cache/a.vtk", "/lost.vtk", "/cache/b.vtk"], activeFile: "/cache/b.vtk", cloud: { "/cache/a.vtk": ref("a"), "/cache/b.vtk": ref("b") } }),
+      (p) => p === "/here.vtk"
+    );
+    expect(plan.mesh.slots).toEqual([{ path: "/here.vtk" }, { path: "/cache/a.vtk", ref: ref("a") }, { path: "/cache/b.vtk", ref: ref("b") }]);
+    expect(plan.mesh.activeFile).toBe("/cache/b.vtk"); // a pending slot can be the focused one
+    expect(plan.missing).toBe(1); // only /lost.vtk — pending cloud slots are expected to come back
+  });
+
+  it("a cloud file that is still cached is an ordinary slot, not a pending one", () => {
+    const plan = planRestore(state({ files: ["/cache/a.vtk"], cloud: { "/cache/a.vtk": ref("a") } }), () => true);
+    expect(plan.mesh.slots).toEqual([{ path: "/cache/a.vtk" }]);
+  });
+
+  it("stays on the mode screen when only pending slots remain", () => {
+    const plan = planRestore(state({ files: ["/cache/a.vtk"], cloud: { "/cache/a.vtk": ref("a") } }), () => false);
+    expect(plan.screen).toBe("mesh");
+    expect(isEmptyPlan(plan)).toBe(false);
+  });
+
+  it("falls back to home when nothing in the screen's mode survives, as pruneSession does", () => {
+    const plan = planRestore(state({ files: ["/lost.vtk"] }), () => false);
+    expect(plan.screen).toBe("home");
+    expect(plan.missing).toBe(1);
+    expect(isEmptyPlan(plan)).toBe(true);
+  });
+
+  it("drops the focused path when it is dropped", () => {
+    const plan = planRestore(state({ files: ["/keep.vtk", "/lost.vtk"], activeFile: "/lost.vtk" }), (p) => p === "/keep.vtk");
+    expect(plan.mesh.activeFile).toBeNull();
+  });
+
+  it("agrees with pruneSession on a session with no cloud refs", () => {
+    const s = state({ files: ["/a", "/b"], activeFile: "/b" });
+    const exists = (p: string) => p === "/b";
+    expect(planRestore(s, exists).mesh.slots.map((x) => x.path)).toEqual(pruneSession(s, exists).mesh.files);
   });
 });

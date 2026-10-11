@@ -42,6 +42,12 @@ export function childrenQuery(parentId: string, name?: string): string {
   return clauses.join(" and ");
 }
 
+/** Like `childrenQuery(parent, name)` but folders only: Drive allows a file and
+ *  a folder to share a name, and `ensureFolder` must never pick the file. */
+export function folderQuery(parentId: string, name: string): string {
+  return `${childrenQuery(parentId, name)} and mimeType = '${FOLDER_MIME}'`;
+}
+
 export function parseFileMeta(raw: unknown): CloudFile | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const v = raw as Record<string, unknown>;

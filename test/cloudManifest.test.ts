@@ -124,3 +124,35 @@ describe("evictionCandidates", () => {
     expect(doomed).toEqual(["spare"]);
   });
 });
+
+describe("companion baselines", () => {
+  const base = {
+    provider: "dropbox",
+    accountId: "a",
+    itemId: "i",
+    name: "case.foam",
+    bytes: 1,
+    syncedAt: 1,
+    lastOpenedAt: 1,
+  };
+
+  it("round-trips per-file revisions and tolerates an older manifest without them", () => {
+    const parsed = parseManifest({
+      new: { ...base, companions: { "constant/polyMesh/points": { rev: "r", precondition: "p" } } },
+      old: base,
+    });
+    expect(parsed.new.companions).toEqual({
+      "constant/polyMesh/points": { rev: "r", precondition: "p" },
+    });
+    expect(parsed.old.companions).toBeUndefined();
+  });
+
+  it("drops malformed companion rows instead of the whole entry", () => {
+    const parsed = parseManifest({
+      e: { ...base, companions: { good: { rev: "r" }, bad: 5, worse: null } },
+      f: { ...base, companions: [1, 2] },
+    });
+    expect(Object.keys(parsed.e.companions ?? {})).toEqual(["good"]);
+    expect(parsed.f.companions).toBeUndefined();
+  });
+});

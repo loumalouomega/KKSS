@@ -74,13 +74,15 @@ export class CloudService {
       provider: (id) => (this.providers.get(id)?.isConnected() ? this.providers.get(id) : undefined),
       entry: (key) => this.cache.entry(key),
       saveEntry: (key, entry) => this.cache.saveEntry(key, entry),
-      watch: (dir, onChange) => {
+      watch: (dir, onChange, depth) => {
         // The bare `*` pattern exists for exactly this: any write into a staged
         // directory counts, because a mesh save happens inside the submodule.
-        const watcher = createFileSystemWatcher(dir, "*");
+        // `depth` is 0 except for a format with companion trees.
+        const watcher = createFileSystemWatcher(dir, "*", { depth });
+        const rel = (p: string) => path.relative(dir, p).split(path.sep).join("/");
         const subs = [
-          watcher.onDidChange((p) => onChange(path.basename(p))),
-          watcher.onDidCreate((p) => onChange(path.basename(p))),
+          watcher.onDidChange((p) => onChange(rel(p))),
+          watcher.onDidCreate((p) => onChange(rel(p))),
         ];
         return {
           dispose() {
@@ -316,6 +318,19 @@ export class CloudService {
       accountId: found.entry.accountId,
       itemId: found.entry.itemId,
     };
+  }
+
+  /**
+   * Everything needed to re-fetch `localPath` later, or undefined for an ordinary
+   * file. Unlike `describe` (what to *show*), this is what session restore
+   * persists so an evicted document can be brought back: eviction removes the
+   * manifest entry along with the file, so it must be captured while it exists.
+   */
+  refFor(localPath: string): CloudRef | undefined {
+    const found = this.entryForPath(localPath);
+    if (!found) return undefined;
+    const { provider, accountId, itemId, name, parentId } = found.entry;
+    return { provider, accountId, itemId, name, ...(parentId ? { parentId } : {}) };
   }
 
   describeAll(paths: string[]): Record<string, CloudOrigin> {

@@ -7,6 +7,7 @@
  * that vanished — are vitest-testable. `session.ts` is the stateStore glue.
  */
 import type { Mode, Screen } from "../ipc";
+import { PROVIDER_IDS } from "./cloud/cloudCore";
 
 export const SESSION_KEY = "session";
 
@@ -17,12 +18,31 @@ export const SESSION_VERSION = 1;
 /** Never reopen an unbounded number of documents at launch. */
 export const SESSION_TAB_CAP = 8;
 
+/**
+ * What a later launch needs to re-fetch a cloud document the staging cache has
+ * since evicted. It lives **in the session** because nothing else can supply
+ * it: eviction deletes the manifest entry together with the file, the staging
+ * path is a one-way hash of account + item (`cachePathCore.opaqueId`), and
+ * recents is capped and loses a ref whenever a path is re-recorded without one.
+ */
+export interface SessionCloudRef {
+  provider: string;
+  accountId: string;
+  itemId: string;
+  name: string;
+  parentId?: string;
+}
+
 /** One mode's open documents, in tab order. */
 export interface ModeSession {
   files: string[];
   /** Which one was focused. A *path*, not an index: an index silently shifts
    *  when pruning drops an earlier file. */
   activeFile: string | null;
+  /** Cloud-backed files among `files`, by path. Optional (and absent when there
+   *  are none) so an older stored session still parses and `SESSION_VERSION`
+   *  stays 1. */
+  cloud?: Record<string, SessionCloudRef>;
 }
 
 /** The screens worth restoring. "editor" is deliberately not among them. */
@@ -41,13 +61,31 @@ export interface ModeSnapshot {
   /** Each open tab's document, in tab order; `undefined` for a blank tab. */
   files: (string | undefined)[];
   activeFile: string | undefined;
+  /** The cloud origin of any open document that is a staged copy, by path. */
+  cloud?: Record<string, SessionCloudRef>;
 }
 
-function captureMode({ files, activeFile }: ModeSnapshot): ModeSession {
+function captureMode({ files, activeFile, cloud }: ModeSnapshot): ModeSession {
   // Blank tabs carry no state worth restoring, and reopening them would just
   // accumulate empty tabs across launches.
   const open = files.filter((f): f is string => !!f).slice(0, SESSION_TAB_CAP);
-  return { files: open, activeFile: activeFile && open.includes(activeFile) ? activeFile : null };
+  const mode: ModeSession = { files: open, activeFile: activeFile && open.includes(activeFile) ? activeFile : null };
+  // Only refs for documents that are actually kept, and only when there are any.
+  const refs = Object.fromEntries(open.flatMap((f) => (cloud?.[f] ? [[f, cloud[f]] as const] : [])));
+  if (Object.keys(refs).length) mode.cloud = refs;
+  return mode;
+}
+
+/** A stored cloud ref, or undefined when any required part is missing or the
+ *  provider is not one we know — a hand-edited state.json must not become a
+ *  request to an arbitrary provider. */
+function parseCloudRef(raw: unknown): SessionCloudRef | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const v = raw as Record<string, unknown>;
+  const text = (x: unknown): x is string => typeof x === "string" && x.length > 0;
+  if (!text(v.provider) || !(PROVIDER_IDS as readonly string[]).includes(v.provider)) return undefined;
+  if (!text(v.accountId) || !text(v.itemId) || !text(v.name)) return undefined;
+  return { provider: v.provider, accountId: v.accountId, itemId: v.itemId, name: v.name, ...(text(v.parentId) ? { parentId: v.parentId } : {}) };
 }
 
 export function captureSession(input: {
@@ -77,7 +115,11 @@ const parseMode = (raw: unknown): ModeSession => {
     ? value.files.filter((f): f is string => typeof f === "string" && f.length > 0).slice(0, SESSION_TAB_CAP)
     : [];
   const active = value.activeFile;
-  return { files, activeFile: typeof active === "string" && files.includes(active) ? active : null };
+  const mode: ModeSession = { files, activeFile: typeof active === "string" && files.includes(active) ? active : null };
+  const rawRefs = value.cloud && typeof value.cloud === "object" && !Array.isArray(value.cloud) ? (value.cloud as Record<string, unknown>) : {};
+  const refs = Object.fromEntries(files.flatMap((f) => { const ref = parseCloudRef(rawRefs[f]); return ref ? [[f, ref] as const] : []; }));
+  if (Object.keys(refs).length) mode.cloud = refs;
+  return mode;
 };
 
 /** Reads a stored session, or `undefined` if it is missing, damaged, or from a
@@ -123,9 +165,65 @@ export function pruneSession(
   return { ...state, cad, mesh, screen };
 }
 
+/** One tab to recreate. A slot with a `ref` is a cloud document that is no longer
+ *  on disk: restore makes its tab immediately (so order and focus are right) and
+ *  fills it from the cloud in the background. */
+export interface RestoreSlot {
+  path: string;
+  ref?: SessionCloudRef;
+}
+
+export interface ModePlan {
+  slots: RestoreSlot[];
+  activeFile: string | null;
+}
+
+export interface RestorePlan {
+  cad: ModePlan;
+  mesh: ModePlan;
+  screen: SessionScreen;
+  terminal: boolean;
+  chat: boolean;
+  /** Documents dropped for good: gone from disk and not re-fetchable. A pending
+   *  cloud slot is *not* counted — it is expected to come back. */
+  missing: number;
+}
+
+/**
+ * `pruneSession`, extended for evicted cloud documents: a file that has vanished
+ * is dropped **unless** the session knows where it came from, in which case it
+ * stays in its saved slot as a pending download. Still synchronous and still
+ * decided before anything opens — the download itself happens afterwards.
+ */
+export function planRestore(state: SessionState, exists: (fsPath: string) => boolean): RestorePlan {
+  let missing = 0;
+  const plan = (mode: ModeSession): ModePlan => {
+    const slots: RestoreSlot[] = [];
+    for (const path of mode.files) {
+      if (exists(path)) slots.push({ path });
+      else if (mode.cloud?.[path]) slots.push({ path, ref: mode.cloud[path] });
+      else missing += 1;
+    }
+    const active = mode.activeFile;
+    return { slots, activeFile: active && slots.some((s) => s.path === active) ? active : null };
+  };
+  const cad = plan(state.cad);
+  const mesh = plan(state.mesh);
+  const screen =
+    (state.screen === "cad" && cad.slots.length === 0) || (state.screen === "mesh" && mesh.slots.length === 0)
+      ? "home"
+      : state.screen;
+  return { cad, mesh, screen, terminal: state.terminal, chat: state.chat, missing };
+}
+
 /** Nothing worth restoring — no documents in either mode. */
 export function isEmptySession(state: SessionState): boolean {
   return state.cad.files.length === 0 && state.mesh.files.length === 0;
+}
+
+/** True when a plan has no tab to recreate in either mode. */
+export function isEmptyPlan(plan: RestorePlan): boolean {
+  return plan.cad.slots.length === 0 && plan.mesh.slots.length === 0;
 }
 
 /** How many documents a state would reopen. */

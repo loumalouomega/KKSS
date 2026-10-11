@@ -27,6 +27,7 @@ import {
   sanitizeFileName,
   sidecarNamesFor,
 } from "./cachePathCore";
+import { downloadCompanions, type DownloadedCompanions } from "./companions";
 import { CloudError, DEFAULT_CACHE_LIMIT_MB, type CloudRef } from "./cloudCore";
 import type { CloudProvider, TransferOptions } from "./cloudProvider";
 import {
@@ -94,8 +95,9 @@ export class StagingCache {
   }
 
   /**
-   * Downloads the document and every sidecar that exists beside it remotely,
-   * then records the baseline revision the conflict check compares against.
+   * Downloads the document, every sidecar that exists beside it remotely and
+   * its companions (`companionsFor`), then records the baseline revision the
+   * conflict check compares against.
    *
    * Pulling the sidecars is not optional: without them cad opens a cloud model
    * with an empty edit history and no parts, which looks like data loss.
@@ -115,6 +117,11 @@ export class StagingCache {
 
     const parentId = ref.parentId ?? remote.parentId;
     if (parentId) await this.stageSidecars(provider, parentId, doc, options.signal);
+    // Unlike a sidecar, a companion is document content, so a failure here
+    // fails the open: a `.foam` without its mesh would show as an empty case.
+    const companions: DownloadedCompanions | undefined = parentId
+      ? await downloadCompanions(provider, parentId, doc.fileName, doc.dir, options)
+      : undefined;
 
     const now = Date.now();
     this.saveEntry(doc.key, {
@@ -126,9 +133,12 @@ export class StagingCache {
       remoteRev: remote.rev,
       remotePrecondition: remote.precondition,
       remoteHash: remote.hash,
-      bytes: remote.size ?? 0,
+      // Companions count toward the cache budget too, or a polyMesh tree would
+      // be invisible to eviction.
+      bytes: (remote.size ?? 0) + (companions?.bytes ?? 0),
       syncedAt: now,
       lastOpenedAt: now,
+      companions: companions && Object.keys(companions.baselines).length ? companions.baselines : undefined,
     });
     return doc;
   }

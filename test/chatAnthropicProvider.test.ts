@@ -8,7 +8,8 @@
  * at all.
  */
 import { describe, expect, it } from "vitest";
-import { isContextOverflow, mapAnthropicUsage } from "../app/main/services/chat/providers/anthropic";
+import { buildAnthropicParams, isContextOverflow, mapAnthropicUsage } from "../app/main/services/chat/providers/anthropic";
+import type { StreamTurnOptions } from "../app/main/services/chat/providers/types";
 
 describe("mapAnthropicUsage", () => {
   it("keeps the cache figures separate from input", () => {
@@ -57,5 +58,54 @@ describe("isContextOverflow", () => {
     expect(isContextOverflow("thinking.type: Input tag 'adaptive' found using 'type'")).toBe(false);
     expect(isContextOverflow("max_tokens: 16000 > 8192, which is the maximum")).toBe(false);
     expect(isContextOverflow("")).toBe(false);
+  });
+});
+
+describe("buildAnthropicParams", () => {
+  const base = (extra: Partial<StreamTurnOptions> = {}): StreamTurnOptions => ({
+    system: "sys",
+    entries: [{ kind: "user", text: "hi" }],
+    tools: [],
+    model: "claude-opus-4-8",
+    signal: new AbortController().signal,
+    onTextDelta: () => undefined,
+    toolName: (s, t) => `${s}__${t}`,
+    ...extra,
+  });
+
+  it("is byte-identical to the pre-picker request by default", () => {
+    const params = buildAnthropicParams(base(), false);
+    expect(params.max_tokens).toBe(16000);
+    expect(params.thinking).toEqual({ type: "adaptive" });
+    expect("output_config" in params).toBe(false);
+    expect((params.system as any)[0].cache_control).toEqual({ type: "ephemeral" });
+    expect(buildAnthropicParams(base({ thinking: "auto" }), false)).toEqual(params);
+  });
+
+  it("adds effort on top of adaptive thinking for low and high", () => {
+    for (const level of ["low", "high"] as const) {
+      const params = buildAnthropicParams(base({ thinking: level }), false);
+      expect(params.thinking).toEqual({ type: "adaptive" });
+      expect(params.output_config).toEqual({ effort: level });
+    }
+  });
+
+  it("omits thinking for off — never the disabled form newer models reject", () => {
+    const params = buildAnthropicParams(base({ thinking: "off" }), false);
+    expect("thinking" in params).toBe(false);
+    expect("output_config" in params).toBe(false);
+  });
+
+  it("uses the user's output cap, ignoring a non-positive one", () => {
+    expect(buildAnthropicParams(base({ maxOutputTokens: 32000 }), false).max_tokens).toBe(32000);
+    expect(buildAnthropicParams(base({ maxOutputTokens: 0 }), false).max_tokens).toBe(16000);
+  });
+
+  it("makes the conservative retry maximally plain, whatever was chosen", () => {
+    const params = buildAnthropicParams(base({ thinking: "high", maxOutputTokens: 64000 }), true);
+    expect(params.max_tokens).toBe(4096);
+    expect("thinking" in params).toBe(false);
+    expect("output_config" in params).toBe(false);
+    expect(params.system).toBe("sys"); // plain string: no cache breakpoint
   });
 });

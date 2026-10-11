@@ -11,9 +11,11 @@
  * a mesh export aimed back into the directory, and `EditorService` saving a
  * staged text file — none of which share a code path.
  *
- * Its `depth: 0` is a real limit, not an oversight: mesh's XDMF `.h5` companion
- * is a *sibling* and is covered, but OpenFOAM's nested `constant/polyMesh/`
- * tree is not, and is deliberately not uploaded rather than half-uploaded.
+ * The watch is root-only (depth 0) except for a document whose format declares
+ * companion trees (`cachePathCore.companionsFor`): XDMF's sibling `.h5` and
+ * OpenFOAM's `constant/polyMesh/` tree are uploaded with the document's own
+ * conflict rule, anything else nested is not (an explicit allow-list, not "every
+ * other file is a sidecar"). Local deletes are never propagated.
  *
  * Everything is injected — provider lookup, manifest access, the watcher
  * factory, the clock, the toast sink — so this module imports no Electron and
@@ -23,10 +25,17 @@
 import * as path from "node:path";
 import { t } from "../../../shared/i18n";
 import { CLOUD_UPLOAD_DEBOUNCE_MS, CloudError, type ProviderId } from "./cloudCore";
+import type { CloudFile } from "./cloudCore";
 import type { CloudProvider } from "./cloudProvider";
 import { conflictName, decideUpload } from "./conflictCore";
-import { isSidecarOf, isStagingArtifact } from "./cachePathCore";
-import type { CloudEntry } from "./manifestCore";
+import {
+  companionWatchDepth,
+  isCompanionPath,
+  isSidecarOf,
+  isStagingArtifact,
+} from "./cachePathCore";
+import { RemoteFolders } from "./companions";
+import type { CloudEntry, CompanionBaseline } from "./manifestCore";
 
 /** One staged document plus the directory that holds it and its sidecars. */
 export interface SyncTarget {
@@ -47,8 +56,9 @@ export interface CloudSyncDeps {
   entry(key: string): CloudEntry | undefined;
   /** Persists an updated entry (the manifest JsonStore, atomically). */
   saveEntry(key: string, entry: CloudEntry): void;
-  /** Watches one directory, non-recursively, reporting changed basenames. */
-  watch(dir: string, onChange: (name: string) => void): WatchHandle;
+  /** Watches one directory down to `depth` levels (0 = the directory only),
+   *  reporting each changed file as a "/"-relative path (a bare name at depth 0). */
+  watch(dir: string, onChange: (relPath: string) => void, depth: number): WatchHandle;
   toast(kind: "info" | "warning" | "error", text: string): void;
   now?(): number;
   debounceMs?: number;
@@ -56,7 +66,7 @@ export interface CloudSyncDeps {
 
 interface Tracked extends SyncTarget {
   watcher: WatchHandle;
-  /** Basenames changed since the last pass. */
+  /** Relative paths changed since the last pass. */
   pending: Set<string>;
   timer: ReturnType<typeof setTimeout> | undefined;
   /** Serializes passes for this directory; never rejects. */
@@ -85,7 +95,11 @@ export class CloudSync {
       timer: undefined,
       chain: Promise.resolve(),
       inFlight: 0,
-      watcher: this.deps.watch(target.dir, (name) => this.onChanged(target.key, name)),
+      watcher: this.deps.watch(
+        target.dir,
+        (name) => this.onChanged(target.key, name),
+        companionWatchDepth(target.fileName)
+      ),
     };
     this.tracked.set(target.key, state);
   }
@@ -144,8 +158,14 @@ export class CloudSync {
   private onChanged(key: string, name: string): void {
     const state = this.tracked.get(key);
     // Our own atomic-write temps and in-flight downloads are not user edits.
-    if (!state || isStagingArtifact(name)) return;
-    if (name !== state.fileName && !isSidecarOf(state.fileName, name)) return;
+    if (!state || isStagingArtifact(path.posix.basename(name))) return;
+    if (
+      name !== state.fileName &&
+      !isSidecarOf(state.fileName, name) &&
+      !isCompanionPath(state.fileName, name)
+    ) {
+      return;
+    }
     state.pending.add(name);
     this.markDirty(key);
     if (state.timer) clearTimeout(state.timer);
@@ -191,21 +211,34 @@ export class CloudSync {
       return;
     }
 
+    let updated = entry;
+    // Names that fully landed this pass. A retry must not repeat them: the
+    // document's baseline moved when we uploaded it, so uploading it again with
+    // the old baseline would read our own write as someone else's edit.
+    const done = new Set<string>();
     try {
-      let updated = entry;
       if (names.includes(state.fileName)) {
         updated = await this.uploadDocument(provider, state, updated);
+        done.add(state.fileName);
       }
+      const folders = entry.parentId ? new RemoteFolders(provider, entry.parentId) : undefined;
       for (const name of names) {
         if (name === state.fileName) continue;
-        await this.uploadSidecar(provider, state, updated, name);
+        if (isCompanionPath(state.fileName, name)) {
+          if (folders) updated = await this.uploadCompanion(provider, state, updated, name, folders);
+        } else {
+          await this.uploadSidecar(provider, state, updated, name);
+        }
+        done.add(name);
       }
       this.deps.saveEntry(state.key, { ...updated, dirty: false, syncedAt: this.now() });
     } catch (err) {
-      // Re-queue everything this pass drained, not just the document: a sidecar
+      // Re-queue what did not land, not just the file that threw: a sidecar
       // dropped here would never be retried while the entry stayed dirty
       // forever — which also pins it against eviction.
-      for (const name of names) state.pending.add(name);
+      for (const name of names) if (!done.has(name)) state.pending.add(name);
+      // ...but keep the baselines of what did land.
+      if (updated !== entry) this.deps.saveEntry(state.key, { ...updated, dirty: true });
       const detail = err instanceof CloudError ? err.message : String(err);
       this.deps.toast("error", t("Could not upload {0}: {1}", {0: entry.name, 1: detail}));
     }
@@ -267,6 +300,49 @@ export class CloudSync {
     // Sidecars are derived state, so a remote change to one is not worth a
     // conflict copy — the local viewer's version is the authoritative one.
     await provider.upload(existing.id, localPath, { precondition: existing.precondition });
+  }
+
+  /**
+   * A companion is document content, so it follows the document's conflict
+   * rule, per file: create when absent remotely; overwrite only when the remote
+   * is still at the revision we last saw; otherwise keep the local file and
+   * upload it beside the remote one under a `(conflict …)` name. A missing
+   * baseline counts as a conflict, exactly as for the document.
+   */
+  private async uploadCompanion(
+    provider: CloudProvider,
+    state: Tracked,
+    entry: CloudEntry,
+    rel: string,
+    folders: RemoteFolders
+  ): Promise<CloudEntry> {
+    const cut = rel.lastIndexOf("/");
+    const name = rel.slice(cut + 1);
+    const localPath = path.join(state.dir, ...rel.split("/"));
+    const parent = await folders.resolve(cut < 0 ? "" : rel.slice(0, cut));
+    const existing = await provider.findChild(parent, name);
+    const baseline = entry.companions?.[rel];
+
+    let landed: CloudFile;
+    if (!existing) {
+      landed = await provider.create(parent, name, localPath);
+    } else if (decideUpload({ storedRev: baseline?.rev, remoteRev: existing.rev }) === "upload") {
+      landed = await provider.upload(existing.id, localPath, {
+        precondition: baseline?.precondition ?? existing.precondition,
+      });
+    } else {
+      const copy = conflictName(name, new Date(this.now()));
+      await provider.create(parent, copy, localPath);
+      this.deps.toast(
+        "warning",
+        t("{0} changed on {1} since KKSS last synced it. Your copy was kept and uploaded as \"{2}\".",
+          {0: rel, 1: provider.label, 2: copy})
+      );
+      // Adopt the remote's revision, or every tick would conflict forever.
+      landed = existing;
+    }
+    const next: CompanionBaseline = { rev: landed.rev, precondition: landed.precondition };
+    return { ...entry, companions: { ...entry.companions, [rel]: next } };
   }
 }
 
