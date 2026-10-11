@@ -151,9 +151,13 @@ timelines together with required companion revisions; queue review, imported
 runs, result opening and quantity evaluation use the same discovery. Missing,
 unreadable, unsafe or unknown configured outputs are findings, not solver
 success. Keep the documented VTK fallback only for legacy cases with no output
-settings. Live VTK and GiD acceptance passed; Kratos 10.4.3's XDMF/HDF5 writer
-fails before producing its XDMF index, so live XDMF acceptance remains open in
-`doc/roadmap.md`.
+settings. Live VTK and GiD acceptance passed. For XDMF/HDF5, Kratos 10.4.2–10.4.4's
+`single_mesh_xdmf_output_process` fails by default (its XDMF step ignores
+`mock_hdf5_file_io`, and `TimeLabel()` drops the time label of any file stem ending
+in `e`); `tools/workflows/outputs.mjs` documents the settings that avoid both and
+live-verifies solver + discovery. The read-back is still open: meshio++ (16.31.0 and
+16.32.0) rejects Kratos's multi-file temporal XDMF, so the harness records an explicit
+`read-back` failure rather than claiming acceptance (`doc/roadmap.md`).
 
 Mesh-sensitivity metadata is revision-bound and records characteristic size,
 unit, dimension, sizing method and justification. Count-derived effective sizes
