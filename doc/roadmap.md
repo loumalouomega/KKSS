@@ -37,6 +37,8 @@ Read the parent app at `0d4a0d9` (2.5.0): `app/main/` (hosts, window/tab orchest
 
 ## Queued
 
+*Numbers 5, 6 and 16 are not used. 5 and 6 were the SSH and macOS items before the composer and robustness items were inserted, and they now sit at 15 and 17; 16 was a duplicate of 15. Numbers are kept rather than closed up, so the references in Tiers 10 and 11 and in the dependencies stay valid.*
+
 ### Tier 0 — Defects
 
 *Admission: behavior that is wrong today, whatever the effort. Fix before anything below.*
@@ -88,7 +90,6 @@ Read the parent app at `0d4a0d9` (2.5.0): `app/main/` (hosts, window/tab orchest
 *Admission: lets the app reach a machine other than the one it runs on, without breaking the invariant that everything below the staging layer sees ordinary local files.*
 
 15. **Connect to a remote host over SSH** (**L**). Pre-process on a laptop, but open meshes and results that live on a workstation or cluster login node, and run Kratos there, from the same window. The shape follows two things the app already does, so the rest of the app stays unaware of the remote:
-16. **Connect to a remote host over SSH** (**L**). Pre-process on a laptop, but open meshes and results that live on a workstation or cluster login node, and run Kratos there, from the same window. The shape follows two things the app already does, so the rest of the app stays unaware of the remote:
     - **Files** are staged exactly like cloud documents (`services/cloud/`): download into `<userData>/remote-cache/<host>/<opaque-id>/<original filename>`, hand *that* path to `openFile()`, and write back from the staging watcher with a remote-mtime/size conflict check and a side-by-side conflict copy. Routing, `allowRoot()`, both hosts and the submodules' MCP servers need no change. A **File ▸ Open Remote…** browser lists the remote directory; recents carry a `remote` ref like the cloud ones.
     - **Terminal, runs and the Kratos MCP server** go through the **system `ssh` binary** (OpenSSH ships on Windows 10+, macOS and Linux): the terminal panel spawns `ssh -t <host>` through the existing node-pty; `McpManager` can spawn the Kratos server as `ssh <host> uvx … kratos-mcp-server@<pin>` over the same `StdioClientTransport`, so the assistant's solver tools and the Jobs panel run on the remote with no protocol change; the queue's solve runner launches and reconciles remotely through a receipt in the remote run directory.
     - Using the system client keeps the user's `~/.ssh/config`, agent, keys, `ProxyJump` and known-hosts handling authoritative, and adds **no dependency** — a JS SSH library would bring its own key handling and an optional native crypto module, which the "second native module" Non-goal rules out. KKSS never stores a password or passphrase; connection reuse is ssh's own `ControlMaster` where the platform supports it.
@@ -169,8 +170,7 @@ Read the parent app at `0d4a0d9` (2.5.0): `app/main/` (hosts, window/tab orchest
 - **Duplicating viewer actions in the native menu** — the menu bar holds app-level items only. Quality metrics, field visualization, find-entity and the rest live in the submodules' own toolbars; mirroring them would create two surfaces to keep in sync and one to forget.
 - **Merging the two modes into one viewer or one document** — the asymmetric reuse (a 1:1 *port* for CAD because its provider imports OCCT directly, a verbatim *shim* for mesh) and two independent WebGL renderers mean this is a rewrite of the thing that makes the app cheap to maintain, not a feature.
 - **Bundling Kratos or a Python runtime in the installer** — the package is already large (OCCT alone is ~63 MB of WASM, and `asar: false` means it ships unpacked); `uvx` sources the Kratos server on demand. The app-local uv bootstrap improves that path rather than replacing it. The `-kratos` image is a separate tag of a separate distribution, and the installer stays lean.
-- **Operating a hosted KKSS service** — the repo ships the unit of deployment (the image), the authenticated web front end and a reference per-user orchestrator so that *someone else* can run one. User accounts beyond what an OIDC provider supplies, billing, quotas, backups of user volumes and an SLA are the operator's concern, not this project's; the single-container image stays the default, and item 17 keeps its one-session scope explicit rather than implied.
-- **Operating a hosted KKSS service** — the repo ships the unit of deployment (the image), the authenticated web front end and a reference per-user orchestrator so that *someone else* can run one. User accounts beyond what an OIDC provider supplies, billing, quotas, backups of user volumes and an SLA are the operator's concern, not this project's; the single-container image stays the default, and item 7 keeps its one-session scope explicit rather than implied.
+- **Operating a hosted KKSS service** — the repo ships the unit of deployment (the image), the authenticated web front end and a reference per-user orchestrator so that *someone else* can run one. User accounts beyond what an OIDC provider supplies, billing, quotas, backups of user volumes and an SLA are the operator's concern, not this project's; the single-container image stays the default, and item 18 keeps its one-session scope explicit rather than implied.
 - **Hand-editing generated artifacts** — `out/renderer/*/index.html`, `app/renderer/shell/shellIcons.ts`, the doc screenshots and the icon SVG/PNGs are all pipeline output. Edit the source and re-run the pipeline.
 - **Telemetry or usage analytics** — not planned, recorded here so it isn't re-proposed. The chat sidebar's token and cost readout is not an exception to this: it is computed in the main process from what the provider returned, shown only to the user whose key paid for it, and transmitted nowhere. Crash *diagnostics* the user can read and send by hand are a different thing and are not excluded; the renderer-crash toasts are the seed of one.
 - **A second native module** — node-pty is deliberately the only one, and the only `node_modules` entry that ships. It is N-API, so it needs no electron-rebuild; anything requiring a rebuild step would change the release matrix for every platform at once.
@@ -181,12 +181,9 @@ Read the parent app at `0d4a0d9` (2.5.0): `app/main/` (hosts, window/tab orchest
 
 A few items must land in order, and getting it wrong means rework:
 
-- **4 → 5.** Rebasing `opOutcomes` by `bakedThrough` is the load-path threading an interactive bake depends on; baking first would leave the Edits panel mislabelling ops after every save.
 - **9 → 7, 8.** The meta server's allow-list and path scoping both classify through `toolPolicy.ts`; without Kratos rows every Kratos tool would be refused (7) or always prompt (8).
 - **13 → 15.** Remote staging reuses the cloud layer's watcher and write-back; an export tree (a results directory, an OpenFOAM case) is the normal remote case, so nested-tree write-back must exist first.
-- **2 → 15.** Remote solves only become reviewable if result discovery has live acceptance for generated-case output settings rather than assuming a local `vtk_output/`.
-- **17 → 19.** The remaining sharing and resize validation must be settled before the container and hardware acceptance checks can close.
-- **3 → 5.** Remote solves only become reviewable if result discovery has live acceptance for generated-case output settings rather than assuming a local `vtk_output/`.
-- **7 → 9.** The remaining sharing and resize validation must be settled before the container and hardware acceptance checks can close.
+- **3 → 15.** Remote solves only become reviewable if result discovery has live acceptance for generated-case output settings rather than assuming a local `vtk_output/`.
+- **18 → 20.** The remaining sharing and resize validation must be settled before the container and hardware acceptance checks can close.
 - **7 → 23.** User-server tools must stay out of the HTTP meta server until its allow-list exists, because its raw call path is un-gated.
 - **23 → 24, 25.** Project-folder instructions, skills and hooks all need the folder-trust record that item 23 introduces.
