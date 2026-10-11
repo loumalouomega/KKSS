@@ -558,6 +558,8 @@ env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots   # headless Li
 
 PNGs land in `doc/public/screenshots/` (committed, kebab-case) and the two README heroes are refreshed in `images/`. Any change to the shell toolbar, the generated webview pages, or visible viewer behavior means re-running this — don't hand-edit the PNGs.
 
+`npm run docs:screenshots -- --animations-only` (or the full run) also writes the timeline GIFs for the fluid tutorial. `tools/tutorials/animations.mjs` opens a temp copy of the committed `fluid/vtk_output` series in the real app (no solver run), pins the Field panel's Range so colours are comparable across frames, steps `#tl-scrub` every third frame (ending on the last), hides the floating chrome and screenshots the canvas. Frames are decoded and resized by Electron's `nativeImage` in the main process and encoded by `tools/lib/gif.mjs`, a dependency-free GIF89a encoder (median-cut global palette, no dithering, deterministic; `test/gifEncoder.test.ts` round-trips it through an independent decoder). Each GIF is capped at 1.5 MB, and the script fails if the first and last frames are identical. Shallow water is intentionally not animated: it is a still basin, so every frame is the same. Pressure starts at step 5 because the impulsive start would dominate a fixed colour scale.
+
 ## Icons
 
 `icons/` holds TikZ-drawn icon sources, mirroring the submodules' pipeline (`pdflatex` + `pdftocairo` required — see `icons/README.md`):

@@ -1899,6 +1899,17 @@ reproducible. screenshots.mjs shares **one** temp profile across its four base
 sessions *in order* — that is what makes the home shot deterministic, since the
 first three sessions are what populate its recents list.
 
+**Timeline GIFs follow the same rule.** `tools/tutorials/animations.mjs`
+(`npm run docs:screenshots -- --animations-only`, also part of the full run)
+captures the fluid tutorial's committed `vtk_output` series — no solver run —
+with the Field panel's Range pinned, via a dependency-free GIF89a encoder
+(`tools/lib/gif.mjs`; node-pty stays the only native module). Budget 1.5 MB per
+GIF, asserted; first/last frames must differ. Shallow water is deliberately not
+animated (a still basin: every frame identical) and fluid pressure starts at
+step 5 because the impulsive start would flatten a fixed colour scale. If the
+tutorial figures change, update both `doc/guide/tutorial-fluid.md` and
+`tools/tutorials/writeDocs.mjs`, which regenerates them.
+
 ## Icons — TikZ pipeline (never hand-edit generated files)
 
 `icons/` mirrors the submodules' icon pipeline (see `icons/README.md`):
