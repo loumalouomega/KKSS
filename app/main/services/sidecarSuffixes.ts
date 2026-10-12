@@ -51,3 +51,13 @@ export const MESH_RUN_SIDECAR = ".kratosrun.json";
  * sidecar so cloud round-trips don't silently drop them.
  */
 export const MESH_VIEW_SIDECAR = ".kratosview.json";
+
+/**
+ * mesh 5.5.0's saved post-run monitors in `<stem>.kratosmonitors.json` (see
+ * mesh/src/problemtype/caseFile.ts monitorsFilePath). Named quantities over
+ * the case's saved frames — user data like the view layers, so staged/synced
+ * the same way. The cooperative-stop sentinel (`<stem>.kratosstop`) is
+ * deliberately NOT here: it is transient (written, then removed after the
+ * stop) and must never be uploaded.
+ */
+export const MESH_MONITORS_SIDECAR = ".kratosmonitors.json";

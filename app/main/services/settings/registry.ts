@@ -482,6 +482,17 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       description: t("Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot."),
     },
     {
+      id: "kratos.recipes.extraPaths",
+      label: t("Batch Recipe Folders"),
+      category: "Kratos",
+      type: "stringList",
+      storeKey: "kratos.recipes.extraPaths",
+      default: [".kratos/recipes"],
+      applies: "nextOpen",
+      vscode: { section: "kratos", key: "recipes.extraPaths" },
+      description: t("Folders (relative to the project folder) scanned for batch recipe presets. The batch command and mesh_batch_transform resolve named presets against these directories."),
+    },
+    {
       id: "kratos.run.stopOnWindowClose",
       label: t("Stop Runs on Quit"),
       category: "Kratos",

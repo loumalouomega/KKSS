@@ -246,6 +246,12 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__mesh_find_entity: "read",
   mesh__case_validate: "read",
   mesh__case_status: "read",
+  // mesh 5.5.0 convergence history is read-only except its optional .csv
+  // export — like mesh_select/mesh_probe, the conservative class wins.
+  mesh__case_convergence: "write",
+  // mesh 5.5.0 saved monitors: list/evaluate read, but set/remove write the
+  // sidecar and evaluate can write a .csv — same conservative rule.
+  mesh__case_monitors: "write",
   mesh__case_evaluate_quantity: "read",
   mesh__case_estimate_timestep: "read",
   mesh__mesh_select: "write",

@@ -9,7 +9,10 @@ import { finishOpen } from "../services/performance";
  *
  * MMG wiring mirrors mesh/src/extension.ts activate(): worker runner +
  * wasmBinary handed to the loader (mmgWorker.js/mmg-core.wasm sit next to
- * out/main.js — the __dirname contract in mmgWorkerClient.ts).
+ * out/main.js — the __dirname contract in mmgWorkerClient.ts). mesh 5.5.0
+ * adds the oracle + meshio-write runners (same contract) and the linked-
+ * preview peer picker (modal quick pick); both mirrored here since KKSS never
+ * calls activate().
  *
  * The Flowgraph problemtype's shared FlowgraphController (also mirroring
  * extension.ts activate()) forks flowgraphServer.js — it too sits next to
@@ -73,11 +76,17 @@ import type { RecentMeshStore } from "../../../mesh/src/recentMeshes";
 import type { MenuMessage } from "../../../mesh/src/meshExport";
 import type { MeshPreviewDocument } from "../../../mesh/src/meshDocument";
 import { configureMmg } from "../../../mesh/src/parser/remesh";
-import { configureMmgRunner } from "../../../mesh/src/parser/operations";
+import { configureMmgRunner, configureOracleRunner } from "../../../mesh/src/parser/operations";
 import { runMmgInWorker } from "../../../mesh/src/mmgWorkerClient";
+import { runOracleInWorker } from "../../../mesh/src/oracleOpWorkerClient";
+import { configureMeshioWriteRunner } from "../../../mesh/src/parser/writers/meshWriter";
+import { runMeshioWriteInWorker } from "../../../mesh/src/meshioWriteWorkerClient";
 import { packSeries } from "../../../mesh/src/sequenceExport";
 import { Uri } from "../vscodeShim";
 import { stateStore } from "../services/stateStore";
+import { showQuickPick } from "../services/quickPick";
+import { t } from "../../shared/i18n";
+import { previewLinks } from "../../../mesh/src/parser/previewLinkHub";
 
 /**
  * The fake ExtensionContext the submodule's host-side classes take. Exported
@@ -240,7 +249,30 @@ export class MeshHost {
     recents: RecentMeshStore
   ) {
     // MMG wiring, mirroring mesh/src/extension.ts activate().
+    // mesh 5.5.0 also runs the meshio++ oracle ops and the meshio++ writes in
+    // their own cancellable workers (oracleOpWorker.js / meshioWriteWorker.js
+    // beside out/main.js, same __dirname contract); without these two lines
+    // those paths run in-process with no Cancel.
     configureMmgRunner(runMmgInWorker);
+    configureOracleRunner(runOracleInWorker);
+    configureMeshioWriteRunner(runMeshioWriteInWorker);
+    // Linked previews (mesh 5.5.0): the hub relays view state between open
+    // previews; the only vscode piece is the peer choice. Mirror
+    // extension.ts's pickPeer wiring with the modal picker (idempotent — the
+    // hub is a module singleton shared by every tab's providers).
+    if (!previewLinks.pickPeer) {
+      previewLinks.pickPeer = async (_requester, candidates) => {
+        const pick = await showQuickPick(
+          candidates.map((member, index) => ({
+            label: member.fileName ?? "preview",
+            description: member.fsPath,
+            index,
+          })),
+          { placeHolder: t("Link this preview with…") }
+        );
+        return pick === undefined ? undefined : candidates[pick.index];
+      };
+    }
     try {
       configureMmg({ wasmBinary: fs.readFileSync(path.join(outDir, "mmg-core.wasm")) });
     } catch {

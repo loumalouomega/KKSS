@@ -75,6 +75,8 @@ export const SCOPED_TOOL_PATH_ARGS: Readonly<Record<string, readonly string[]>> 
   cad__transform_mesh: ["path", "outputPath"],
   // ---- kratos-mdpa ------------------------------------------------------
   mesh__case_generate: ["meshPath", "casePath"],
+  mesh__case_convergence: ["meshPath", "outputPath"],
+  mesh__case_monitors: ["meshPath", "outputPath", "resultPath", "run.recordPath"],
   mesh__case_material_assign: ["meshPath", "smpPath", "casePath"],
   mesh__case_write_state: ["meshPath"],
   mesh__material_preset_import: ["path"],

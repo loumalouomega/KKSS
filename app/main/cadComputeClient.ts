@@ -29,6 +29,7 @@ import type * as stepPartsService from "../../cad/src/stepPartsService";
 import type * as brepHealth from "../../cad/src/brepHealth";
 import type * as passageAnalysis from "../../cad/src/passageAnalysisHost";
 import type * as meshDeviation from "../../cad/src/meshDeviationHost";
+import type * as gltfDecode from "../../cad/src/gltfDecode";
 import type * as brepCache from "./cadBRepCache";
 import { createKernelTracker } from "./cadKernelStatus";
 
@@ -220,6 +221,11 @@ export const cadCompute = {
   // RPC — see app/main/cadBRepCache.ts.
   loadBRepCachedInWorker: rpc<typeof brepCache.loadBRepCachedInWorker>("loadBRepCachedInWorker"),
   releaseBRepCache: rpc<typeof brepCache.releaseBRepCache>("releaseBRepCache"),
+  // cad 3.14.0 deferred XCAF assembly read: the second `tree{upgrade:true}`
+  // post after geometry (provider.ts's assemblyPending branch).
+  resolveAssemblyTreeForDocument: rpc<typeof brepCache.resolveAssemblyTreeForDocument>("resolveAssemblyTreeForDocument"),
+  // cad 3.14.0 compressed glTF: Draco/meshopt expansion in the worker.
+  decodeGltfGeometry: rpc<typeof gltfDecode.decodeGltfGeometry>("decodeGltfGeometry"),
 
   // ---- Gmsh ------------------------------------------------------------
   generateMesh: rpc<typeof gmsh.generateMesh>("generateMesh"),

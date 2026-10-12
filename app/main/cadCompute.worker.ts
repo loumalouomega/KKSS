@@ -30,6 +30,9 @@ import * as stepPartsService from "../../cad/src/stepPartsService";
 import * as brepHealth from "../../cad/src/brepHealth";
 import * as passageAnalysis from "../../cad/src/passageAnalysisHost";
 import * as meshDeviation from "../../cad/src/meshDeviationHost";
+// cad 3.14.0 compressed glTF: Draco/meshopt geometry expansion runs in the
+// kernel worker (WASM decoders never run in the host process).
+import * as gltfDecode from "../../cad/src/gltfDecode";
 // The parsed-B-rep cache holds live OCCT handles, so it lives here rather than
 // in the host (see the module's own doc comment).
 import * as brepCache from "./cadBRepCache";
@@ -62,6 +65,7 @@ const modules: Array<[string, object]> = [
   ["brepHealth", brepHealth],
   ["passageAnalysisHost", passageAnalysis],
   ["meshDeviationHost", meshDeviation],
+  ["gltfDecode", gltfDecode],
   ["cadBRepCache", brepCache],
 ];
 
