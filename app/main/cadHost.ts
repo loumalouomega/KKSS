@@ -2732,6 +2732,10 @@ export class CadHost {
    * provider's `resolveGltfBuffersFor`). Returns undefined for every other
    * format, and skips a buffer that cannot be read — the parser reports the
    * gap far better than a failed open would.
+   *
+   * cad 3.14.0: a Draco/meshopt-compressed file additionally gets its decoded
+   * geometry via the kernel worker (WASM decoders never run here) into the
+   * reserved `decoded:` entries the synchronous parser consumes.
    */
   private async gltfBuffers(
     format: MeshParseFormat,
@@ -2739,13 +2743,17 @@ export class CadHost {
   ): Promise<GltfExternalBuffers | undefined> {
     if (!this.doc || format !== "gltf") return undefined;
     const dir = path.dirname(this.doc.path);
-    return resolveExternalBuffers(bytes, async (relative) => {
-      try {
-        return new Uint8Array(await fs.readFile(path.join(dir, relative)));
-      } catch {
-        return undefined;
-      }
-    });
+    return resolveExternalBuffers(
+      bytes,
+      async (relative) => {
+        try {
+          return new Uint8Array(await fs.readFile(path.join(dir, relative)));
+        } catch {
+          return undefined;
+        }
+      },
+      (raw, external) => cadCompute.decodeGltfGeometry(this.runtimePath, raw, external)
+    );
   }
 
   private async handleBRep(
@@ -2772,14 +2780,19 @@ export class CadHost {
       const quality = normalizeTessellationQuality(
         stateStore.get(CAD_DEFAULT_KEYS.tessellationQuality, DEFAULT_TESSELLATION_QUALITY)
       );
-      const { groups, edges, points, tree, opOutcomes, opBuckets, guideIds, queryWarnings, warnings } =
+      const { groups, edges, points, tree, opOutcomes, opBuckets, guideIds, queryWarnings, warnings, assemblyPending } =
         await cadCompute.loadBRepCachedInWorker(
           this.sessionId,
           this.runtimePath,
           bytes,
           effectiveFormat,
           ops,
-          tessellationParamsFor(quality)
+          tessellationParamsFor(quality),
+          // cad 3.14.0's deferred STEP assembly read crashes the kernel (SIGSEGV)
+          // on the reload after a second File > Save, so the read is synchronous
+          // until that is fixed upstream. The `assemblyPending` upgrade below
+          // stays wired and is dormant while this is false.
+          { deferAssemblyTree: false }
         );
       if (epoch !== this.epoch) return; // document changed while tessellating
       // A frozen operand query replays on its cached ids — the user has to know
@@ -2836,6 +2849,24 @@ export class CadHost {
             ? detectIgesLengthUnit(text!)
             : undefined;
       this.post({ type: "tree", root: tree, sourceUnit });
+      // cad 3.14.0 "Post geometry before the XCAF assembly tree": the kernel
+      // deferred the STEP assembly read so the geometry above went out first.
+      // Upgrade the flat tree in a second message once it finishes. Non-fatal
+      // by design — any failure or supersede leaves the flat tree (exactly
+      // what a failed correlation shows today). Generation-guarded via epoch,
+      // the provider's genHolder.current equivalent.
+      if (assemblyPending) {
+        void cadCompute
+          .resolveAssemblyTreeForDocument(this.sessionId, this.runtimePath)
+          .then((nested) => {
+            if (nested && epoch === this.epoch) {
+              this.post({ type: "tree", root: nested, sourceUnit, upgrade: true });
+            }
+          })
+          .catch(() => {
+            /* flat tree stays */
+          });
+      }
     } catch (err) {
       if (epoch !== this.epoch) return;
       this.post({ type: "error", message: `${format.toUpperCase()} error: ${(err as Error).message}` });

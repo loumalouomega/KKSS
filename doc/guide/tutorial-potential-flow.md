@@ -32,6 +32,10 @@ In **Advanced**, add a **Regression** analysis to inspect the approximately **10
 
 ![Uniform-flow potential versus distance in KKSS](/screenshots/tutorial-potential-flow-profile.png)
 
+## Post-run checks and batch
+
+Before generating, the Problemtype sidebar preflights the setup as structured error/warning/info findings (`mesh__case_validate`); a clean report means the case generates. Stopping a run uses **File ▸ Stop Kratos Run**: a cooperative stop file the generated case watches between steps first (graceful Finalize on every platform), then SIGINT → SIGTERM → SIGKILL, reporting which rung worked. Finished runs carry a saved convergence history (`mesh__case_convergence` reads `kkss-convergence-v2.jsonl` with a conservative verdict; older archives report `status:"none"` as unavailable, not as failure) and named post-run monitors over their saved frames (`mesh__case_monitors` list/set/remove/evaluate; older archives list empty until set). Queued edits save/load as JSON recipes, and named presets from `.kratos/recipes/` (plus **Settings ▸ Kratos ▸ Batch Recipe Folders**) feed both the viewer batch and `mesh__mesh_batch_transform` (`dryRun` plans without writing; `<outputDir>/kkss-batch.json` records per-file reports). **Advanced ▸ Link previews…** ties two open meshes/runs so camera, field, range, clip and physical time follow each other.
+
 ## Verified result
 
 The imposed free-stream speed is 10.2 m/s. The maximum elementwise error in the gradient of `VELOCITY_POTENTIAL` compared with [10.2, 0] m/s is 0.000033 m/s.

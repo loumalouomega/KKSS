@@ -24,6 +24,16 @@ const required = [
   ["mesh/dist/mmgWorker.js", "npm run package --prefix mesh"],
   ["mesh/dist/streamlineWorker.js", "npm run package --prefix mesh"],
   ["mesh/dist/plotWorker.js", "npm run package --prefix mesh"],
+  // mesh 5.4.0/5.5.0's cancellable worker fleet (each loads dist/meshio/ like
+  // plotWorker): analysisWorker (probe/watertight/integrals/LOD/quality/
+  // Hausdorff/periodic/feature/flow), seriesScanWorker (Plot-over-time +
+  // Flow-balance All-steps), oracleOpWorker (smooth/reorder/gradient/repair…),
+  // meshioWriteWorker (meshio++ saves/exports). Same __dirname-beside-main.js
+  // contract as the MMG/streamline workers.
+  ["mesh/dist/analysisWorker.js", "npm run package --prefix mesh"],
+  ["mesh/dist/seriesScanWorker.js", "npm run package --prefix mesh"],
+  ["mesh/dist/oracleOpWorker.js", "npm run package --prefix mesh"],
+  ["mesh/dist/meshioWriteWorker.js", "npm run package --prefix mesh"],
   ["mesh/media/plots.js", "npm run package --prefix mesh"],
   ["mesh/media/plots.css", "npm run package --prefix mesh"],
   ["mesh/media/plotly/plotly.min.js", "npm run package --prefix mesh"],
@@ -31,6 +41,13 @@ const required = [
   ["mesh/dist/mmg-core.wasm", "npm run package --prefix mesh"],
   ["cad/dist/opencascade.wasm.wasm", "npm run build --prefix cad"],
   ["cad/dist/gmsh-core.wasm", "npm run build --prefix cad"],
+  // cad 3.14.0's Draco decoders for compressed glTF (copyDracoDecoders):
+  // the web pair three's DRACOLoader fetches, the Node wasm the kernel
+  // worker hands to draco3d as wasmBinary, and the licence text.
+  ["cad/dist/draco/draco_wasm_wrapper.js", "npm run build --prefix cad"],
+  ["cad/dist/draco/draco_decoder.wasm", "npm run build --prefix cad"],
+  ["cad/dist/draco/node/draco_decoder.wasm", "npm run build --prefix cad"],
+  ["cad/dist/draco/LICENSE", "npm run build --prefix cad"],
   // cad 3.11.0's MMG remeshing kernel (mmgService.ts getMmg joins
   // extensionPath/dist/mmg-core.wasm) — built by cad's own esbuild copy.
   ["cad/dist/mmg-core.wasm", "npm run build --prefix cad"],
@@ -280,6 +297,12 @@ function copyArtifacts() {
     // mesh 4.21.0 traces streamlines off the host thread. Its client resolves
     // this entry beside the main bundle, exactly like the MMG worker.
     ["mesh/dist/streamlineWorker.js", out("streamlineWorker.js")],
+    // mesh 5.4.0/5.5.0's cancellable worker fleet — same beside-main.js
+    // contract (see the preflight entries above).
+    ["mesh/dist/analysisWorker.js", out("analysisWorker.js")],
+    ["mesh/dist/seriesScanWorker.js", out("seriesScanWorker.js")],
+    ["mesh/dist/oracleOpWorker.js", out("oracleOpWorker.js")],
+    ["mesh/dist/meshioWriteWorker.js", out("meshioWriteWorker.js")],
     ["mesh/dist/mmg-core.wasm", out("mmg-core.wasm")],
     // OCCT + Gmsh WASM in the dist/-shaped layout the cad services expect
     // (extensionPath = out/cad-runtime).
@@ -374,6 +397,22 @@ function copyArtifacts() {
   fs.cpSync(path.join(__dirname, "cad/node_modules/@loumalouomega/mmg-wasm/dist"), out("mmg/dist"), {
     recursive: true,
   });
+  // cad 3.14.0's Draco decoders for compressed glTF (copyDracoDecoders).
+  // `dist/draco/` holds the web pair three's DRACOLoader fetches plus the
+  // Node wasm gltfDecode.ts hands to draco3d as wasmBinary. Staged twice:
+  // out/cad-runtime/dist/draco/ serves the MCP kernel worker (extensionPath
+  // = out/cad-runtime) and the headless render_snapshot webview at
+  // out/cad-runtime/media/viewer.js (../dist/draco/ from media/); the web
+  // pair is also staged at out/renderer/dist/draco/ for the interactive
+  // viewer at out/renderer/cad/viewer.js (../dist/draco/ from cad/).
+  fs.cpSync(path.join(__dirname, "cad/dist/draco"), out("cad-runtime/dist/draco"), { recursive: true });
+  fs.mkdirSync(out("renderer/dist/draco"), { recursive: true });
+  for (const name of ["draco_wasm_wrapper.js", "draco_decoder.wasm"]) {
+    fs.copyFileSync(
+      path.join(__dirname, "cad/dist/draco", name),
+      out("renderer/dist/draco", name)
+    );
+  }
   // mesh 4.8.0's experimental VTK-wasm renderer runtime (roadmap item 18):
   // the hash-verified, eval-free patched glue, its .wasm and both licence
   // notices, staged by mesh's production build. Served from beside the mesh

@@ -85,3 +85,20 @@ The case inputs are from `kratos-mcp-server` 0.3.0; its MIT license and
 attribution are included in `doc/public/examples/kratos/`. The reported results
 are generated output, not analytical references or a claim of formal solver
 validation.
+
+## Batch recipes, preflight and post-run review
+
+These archives predate the review sidecars, which makes them good probes for
+the new unavailable-instead-of-invented behaviour. `mesh__case_validate` on
+the cantilever mesh reports its structured findings (a fresh case with physical
+density is clean); `mesh__case_convergence` answers `status:"none"` because no
+`kkss-convergence-v2.jsonl` was written by those runs; `mesh__case_monitors`
+with `action:"list"` reports an empty list until a monitor is set. None of
+these is a failure — each says explicitly what is missing.
+
+To try batch work without touching the archives, call
+`mesh__mesh_batch_transform` with `paths` pointing at a copy of one mesh,
+`ops:[{op:"info"}]`, an empty `outputDir` and `dryRun:true`. The returned plan
+names the output and manifest path and writes nothing. Named presets live in
+`.kratos/recipes/` (plus **Settings ▸ Kratos ▸ Batch Recipe Folders**) and are
+addressed with `recipePreset` instead of inline `ops`.

@@ -79,7 +79,11 @@ const CAD_CSP = [
   `default-src 'none'`,
   `img-src kkss: blob: data:`,
   `style-src kkss: 'unsafe-inline'`,
-  `script-src kkss:`,
+  // cad 3.14.0 compressed glTF: 'wasm-unsafe-eval' lets the Draco/meshopt
+  // decoders compile their WASM; worker-src blob: is for DRACOLoader's Blob
+  // worker. Neither opens string-eval (no eval(), no 'unsafe-eval').
+  `script-src kkss: 'wasm-unsafe-eval'`,
+  `worker-src blob:`,
   `connect-src kkss: kkss-file: blob: data:`,
 ].join("; ");
 

@@ -7,6 +7,27 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.11.0] - 2026-10-12
+
+- feat: integrate **CAD Preview 3.14.0** and **Mesh Preview 5.5.0**, sharing
+  meshio++ 16.32.0. CAD mode gains Draco/meshopt-compressed glTF, OBJ `.mtl`
+  materials and PLY vertex colours, `point-N` picked-point curve references, a
+  typed command bar with Tab completion, and the STEP assembly tree read
+  synchronously (cad 3.14's deferred read crashed the kernel on a post-save
+  reload, so it is off until upstream fixes it); post
+  mode gains the cancellable analysis/series-scan/oracle/meshio-write worker
+  fleet, batch op queues with named `.kratos/recipes/` presets and
+  companion-aware manifests, structured case preflight, saved convergence
+  history and post-run monitors, linked previews, a flat SubModelPart list,
+  and a cooperative stop file ahead of SIGINT → SIGTERM → SIGKILL.
+- feat: classify the two new mesh MCP tools for approval
+  (`mesh__case_convergence` and `mesh__case_monitors`, both write by the
+  conservative `outputPath`/sidecar rule) and describe the cooperative stop,
+  preflight, convergence/monitors, batch presets and coupled problemtypes to
+  the assistant.
+- feat(settings): one line-glyph per category in the Settings page nav menu
+  and section headers, with a refreshed `settings.png` captured from the live
+  app.
 - feat(cloud): **companion files and trees now sync both ways.** A cloud
   `.foam` case downloads its `constant/polyMesh/` mesh with the marker (it used
   to open empty) and uploads changes to it, creating the remote folders through a
@@ -24,6 +45,10 @@ full auto-generated compare links.
   reviewed `modelInfo.ts` prices cover the Zen/Go ids with identical rates on
   both gateways, and per-model `/responses` and `/messages` endpoints remain a
   roadmap follow-up.
+- docs: post-run checks and batch sections in all five physics tutorials,
+  AI-walkthrough follow-ups for the new review tools, batch/preflight coverage
+  in the worked-cases guide, preflight capture in the tutorial generation
+  pipeline, and Draco fixture pointers in the CAD guide.
 
 ## [2.10.0] - 2026-10-09
 
@@ -58,6 +83,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.11.0]: https://github.com/loumalouomega/KKSS/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/loumalouomega/KKSS/compare/v2.9.0...v2.10.0
 
 ## [2.9.0] - 2026-10-05

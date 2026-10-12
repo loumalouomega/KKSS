@@ -71,9 +71,18 @@ try {
       state.materials = c.materials;
       await mcp.call('mesh__case_write_state', { meshPath, state });
       await mcp.call('mesh__case_generate', { meshPath });
+      // mesh 5.5.0 structured preflight: record the finding set beside the
+      // recipe so publish/writeDocs can document it. A refusing report is a
+      // finding, not a generation failure — the solver run below still decides.
+      let preflight = null;
+      try {
+        preflight = await mcp.call('mesh__case_validate', { meshPath });
+      } catch (e) {
+        preflight = { ok: false, error: String(e.message ?? e).slice(0, 500) };
+      }
       await fs.writeFile(path.join(dir, 'recipe.json'), JSON.stringify({ ...c, parts, ops: c.planarGeometry === 'obstacle'
         ? [...c.ops, { op: 'addSurfaceFromLines', edges: Array.from({ length: 4 + c.obstacle.sides }, (_, n) => `edge-${n}`) }]
-        : c.ops, exportUnit: 'm', inventory, exported }, null, 2));
+        : c.ops, exportUnit: 'm', inventory, exported, preflight }, null, 2));
       console.log(`${c.id}: generated; solving`);
       const { stdout, stderr } = await exec(python, ['MainKratos.py'], { cwd: dir, env: { ...process.env, OMP_NUM_THREADS: '2' }, timeout: 180000, maxBuffer: 16 * 1024 * 1024 });
       await fs.writeFile(path.join(dir, 'solver.log'), stdout + stderr);

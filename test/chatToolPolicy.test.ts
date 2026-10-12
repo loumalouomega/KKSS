@@ -102,6 +102,11 @@ describe("classifyTool", () => {
     expect(classifyTool("mesh__mesh_resample")).toBe("write");
     expect(classifyTool("mesh__material_preset_list")).toBe("read");
     expect(classifyTool("mesh__material_preset_import")).toBe("write");
+    // mesh 5.5.0 convergence history and saved monitors: both can write a
+    // .csv via outputPath (monitors also writes the sidecar on set/remove),
+    // so both are write by the conservative outputPath rule.
+    expect(classifyTool("mesh__case_convergence")).toBe("write");
+    expect(classifyTool("mesh__case_monitors")).toBe("write");
   });
 
   it("treats anything the table does not name as unknown", () => {
@@ -211,18 +216,18 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 74 cad + 44 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
+    // 74 cad + 46 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
     // + 52 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(217);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(219);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
     expect(cad).toHaveLength(74);
-    expect(mesh).toHaveLength(44);
+    expect(mesh).toHaveLength(46);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
@@ -387,8 +392,10 @@ describe("the table itself", () => {
       "cad__set_plane",
       "cad__set_variables",
       "cad__transform_mesh",
+      "mesh__case_convergence",
       "mesh__case_generate",
       "mesh__case_material_assign",
+      "mesh__case_monitors",
       "mesh__case_run",
       "mesh__case_stop",
       "mesh__case_write_state",

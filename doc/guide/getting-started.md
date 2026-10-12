@@ -355,7 +355,7 @@ The **Edit** toolbar button opens the file currently loaded in the active mode (
 
 ## Settings
 
-**Settings ▸ Open Settings…** (`Ctrl+,`) opens the Settings page. The home screen's Settings button and the chat sidebar's gear open it too. It is KKSS's equivalent of VS Code's settings editor: everything the two embedded extensions would read from VS Code's settings, and everything KKSS adds on top, on one searchable page. Each row shows its id (for example `kratos.pythonPath`), when a change takes effect, and a reset icon once it differs from the default. A value locked by a `KKSS_*` environment variable (see [Web deployment](/guide/web-deployment)) shows as *Set by the environment* and cannot be edited.
+**Settings ▸ Open Settings…** (`Ctrl+,`) opens the Settings page. The home screen's Settings button and the chat sidebar's gear open it too. It is KKSS's equivalent of VS Code's settings editor: everything the two embedded extensions would read from VS Code's settings, and everything KKSS adds on top, on one searchable page with an icon per category in the left menu and above each section. Each row shows its id (for example `kratos.pythonPath`), when a change takes effect, and a reset icon once it differs from the default. A value locked by a `KKSS_*` environment variable (see [Web deployment](/guide/web-deployment)) shows as *Set by the environment* and cannot be edited.
 
 ![Settings page](/screenshots/settings.png)
 

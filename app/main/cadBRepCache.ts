@@ -14,6 +14,7 @@
 import {
   loadBRepCached,
   disposeBRepCache,
+  resolveAssemblyTree,
   type BRepCacheEntry,
   type BRepResult,
 } from "../../cad/src/occtService";
@@ -32,7 +33,11 @@ export async function loadBRepCachedInWorker(
   // it host-side before ever reaching here) — see cadHost.ts's OcctSourceFormat.
   format: Extract<CadFormat, "step" | "iges" | "brep" | "csg">,
   ops: EditOp[],
-  quality: TessellationParams
+  quality: TessellationParams,
+  // cad 3.14.0 defers the STEP assembly read so geometry posts first; the
+  // host follows up with resolveAssemblyTreeForDocument (the provider's
+  // `deferAssemblyTree: true` + second `tree{upgrade:true}` post).
+  options?: { deferAssemblyTree?: boolean }
 ): Promise<BRepResult> {
   try {
     const { result, cache } = await loadBRepCached(
@@ -41,7 +46,8 @@ export async function loadBRepCachedInWorker(
       format,
       ops,
       entries.get(sessionId),
-      quality
+      quality,
+      options ?? {}
     );
     entries.set(sessionId, cache);
     return result;
@@ -60,4 +66,21 @@ export function releaseBRepCache(sessionId: string): void {
   const entry = entries.get(sessionId);
   if (entry) disposeBRepCache(entry);
   entries.delete(sessionId);
+}
+
+/**
+ * cad 3.14.0's deferred XCAF assembly read (roadmap "Post geometry before the
+ * XCAF assembly tree"): completes the deferred read for this tab's session
+ * and returns the nested tree, or null when there is no entry or the tree
+ * does not correlate — the caller keeps the flat tree either way. Pure JS
+ * correlation against the stored solid signatures; never touches live handles
+ * from a later job. Mirrors kernelWorker.resolveAssemblyTreeForDocument.
+ */
+export async function resolveAssemblyTreeForDocument(
+  sessionId: string,
+  extensionPath: string
+): Promise<import("../../cad/src/protocol").TreeNode | null> {
+  const entry = entries.get(sessionId);
+  if (!entry) return null;
+  return resolveAssemblyTree(extensionPath, entry);
 }

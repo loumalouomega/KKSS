@@ -1426,7 +1426,7 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 74 CAD + 44 mesh + 4 aggregation + 31 app-owned
+discovery (current sets: 74 CAD + 46 mesh + 4 aggregation + 31 app-owned
 workflow tools).
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
@@ -1809,6 +1809,43 @@ more rows (`list_layers` read, `set_layer`/`assign_layer` write: 74 CAD, 153
 total). mesh 5.3.0 also refuses non-positive material densities at generation,
 which forced the structural tutorial's `DENSITY: 0` to physical 7850 kg/m³
 (`tools/tutorials/cases.mjs`).
+
+**The cad 3.13.0 → 3.14.0 + mesh 5.3.0 → 5.5.0 jump added compressed-glTF
+fidelity on the CAD side and cancellable workers, batch recipes, preflight,
+convergence/monitors and linked previews on the mesh side.** (cad 3.14.0 =
+point-N curve refs, typed command bar, OBJ `.mtl` + PLY vertex colours,
+Draco/meshopt glTF, XCAF tree (read synchronously, see below); mesh 5.4.0 = batch op queues + named
+recipes + companion-aware manifests, ~65 material presets, grouped
+problemtypes + generic CoSimulation; mesh 5.5.0 = cooperative solver stop,
+flat SubModelPart list, reopenable view state, case preflight, convergence
+history + saved monitors, cancellable analysis/series-scan/oracle/meshio-write
+workers, linked previews. meshio++ 16.31.0 → 16.32.0 is audit-clean: same
+four WASM files, no routing/timeline change.)
+`cadHost.ts` threads a worker-side `decodeGltfGeometry` decode into
+`gltfBuffers` (WASM decoders never run host-side), passes
+`deferAssemblyTree: false` to `loadBRepCachedInWorker`. The deferred read crashed the kernel with SIGSEGV on the reload after a second File > Save in CI (`cad-save`), so the STEP assembly is read synchronously until CAD-Preview fixes it. The `assemblyPending` upgrade path (`resolveAssemblyTreeForDocument` → a second `tree{upgrade:true}` post, epoch-guarded; a flat tree stays on any failure) stays wired and dormant: setting the flag back to `true` re-enables it. New worker surface in
+`cadCompute.worker.ts`/`cadComputeClient.ts` (`gltfDecode`,
+`resolveAssemblyTreeForDocument`; both match their pipeline keys, so
+`cadKernelStatus.test.ts` needs no alias change) and in
+`cadBRepCache.ts` (options passthrough + worker-side resolve). `esbuild.mjs`
+preflights and stages `cad/dist/draco/` twice (`out/cad-runtime/dist/draco/`
+for the kernel workers + headless render webview, `out/renderer/dist/draco/`
+web pair for the interactive viewer, whose `../dist/draco/` lookup resolves
+under `out/renderer/`) and mesh's four new workers beside `out/main.js`;
+the CAD page CSP gains `'wasm-unsafe-eval'` + `worker-src blob:` for the
+decoders. `meshHost.ts` mirrors `activate()`'s `configureOracleRunner` /
+`configureMeshioWriteRunner` and the linked-preview `pickPeer` (modal
+quick pick). New setting `kratos.recipes.extraPaths` (registry row +
+`vscode` mapping, en/es strings). Policy grows two `write` rows
+(`mesh__case_convergence`, `mesh__case_monitors`: 46 mesh, 219 total) with
+`toolPaths.ts` scope rows; the chat system prompt gains the cooperative-stop
+rung, preflight/convergence/monitors, batch presets and coupled problemtypes.
+`<stem>.kratosmonitors.json` joins the cloud sidecar set (`sidecarSuffixes.ts`
++ `cachePathCore.ts` + `cloudCachePath.test.ts`); the transient
+`<stem>.kratosstop` sentinel deliberately does not. Point-N writeback stays
+MCP-only (matching the provider, which never writes back interactively), and
+`meshBody()` needs no edit (it imports the SIDEBAR/VIEW/ADVANCED fragments,
+so the new buttons arrive with the bump).
 
 ## Localization, focus and performance checks
 

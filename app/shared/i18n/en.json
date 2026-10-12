@@ -743,6 +743,8 @@
   "Embed provenance in supported native comments and meshio++ headers. Sidecar also writes a .kratosexport.json report (one per series); problem archives keep their record inside the ZIP. None adds no new provenance; reports remain available.": "Embed provenance in supported native comments and meshio++ headers. Sidecar also writes a .kratosexport.json report (one per series); problem archives keep their record inside the ZIP. None adds no new provenance; reports remain available.",
   "Material Library Folders": "Material Library Folders",
   "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.": "Folders (relative to the project folder) scanned for user material presets. Imported values are copied into a case as a snapshot.",
+  "Batch Recipe Folders": "Batch Recipe Folders",
+  "Folders (relative to the project folder) scanned for batch recipe presets. The batch command and mesh_batch_transform resolve named presets against these directories.": "Folders (relative to the project folder) scanned for batch recipe presets. The batch command and mesh_batch_transform resolve named presets against these directories.",
   "OpenSCAD Backend": "OpenSCAD Backend",
   "Auto (no flag)": "Auto (no flag)",
   "CGAL": "CGAL",
@@ -776,5 +778,6 @@
   "{0} is too large, even after resizing.": "{0} is too large, even after resizing.",
   "1 attached file is no longer kept in this conversation.": "1 attached file is no longer kept in this conversation.",
   "{0} attached files are no longer kept in this conversation.": "{0} attached files are no longer kept in this conversation.",
-  "Pasted image": "Pasted image"
+  "Pasted image": "Pasted image",
+  "Link this preview with…": "Link this preview with…"
 }

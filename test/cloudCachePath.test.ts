@@ -130,6 +130,8 @@ describe("isSidecarOf", () => {
     // mesh's RunManager and view-layers sidecars are keyed by the STEM, not the full name.
     expect(isSidecarOf("case.post.msh", "case.kratosrun.json")).toBe(true);
     expect(isSidecarOf("case.post.msh", "case.kratosview.json")).toBe(true);
+    // mesh 5.5.0's saved post-run monitors ride the same stem-keyed rule.
+    expect(isSidecarOf("case.post.msh", "case.kratosmonitors.json")).toBe(true);
   });
 
   it("rejects the document itself, a neighbour, and the macro library", () => {
@@ -151,6 +153,7 @@ describe("sidecarNamesFor", () => {
     expect(names).toContain("bull.stp.geo");
     expect(names).toContain("bull.kratosrun.json");
     expect(names).toContain("bull.kratosview.json");
+    expect(names).toContain("bull.kratosmonitors.json");
     expect(names).not.toContain("cad-preview-macros.json");
     expect(names).not.toContain("cad-preview-mesh-presets.json");
     // Everything it names must be recognised on the way back in.
