@@ -41,7 +41,7 @@ const CATEGORY_GLYPHS: Record<SettingCategory, KkssGlyphId> = {
   Appearance: "eye",
   General: "sliders",
   "CAD Viewer": "cube",
-  "Mesh Viewer": "box",
+  "Mesh Viewer": "layers",
   Kratos: "activity",
   "Text Editor": "pencil",
   Terminal: "terminal",
