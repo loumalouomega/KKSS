@@ -269,6 +269,7 @@ export function createMainWindow(
       hooks.onViewCrash?.({ ...ref, reason });
     };
     wc.on("render-process-gone", (_event, details) => {
+      console.error(`[debug] render-process-gone kind=${ref.kind} reason=${details.reason} exitCode=${details.exitCode}`);
       // "clean-exit" is an orderly shutdown, not a crash.
       if (details.reason === "clean-exit") return;
       report(details.reason);
@@ -286,6 +287,7 @@ export function createMainWindow(
     // only reported: index.ts offers the user a Wait / Reload choice after a
     // generous delay (unresponsiveGuard.ts) and never reloads without the click.
     wc.on("unresponsive", () => {
+      console.error(`[debug] unresponsive kind=${ref.kind}`);
       console.warn(`[kkss] ${ref.kind} renderer is busy (not reloading)`);
       if (closing.has(view) || wc.isDestroyed()) return;
       hooks.onViewUnresponsive?.(ref);

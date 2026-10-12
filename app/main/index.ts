@@ -5,6 +5,7 @@ import { beginOpen, configurePerformance } from "./services/performance";
 /** KKSS Electron main entry. */
 import { app, clipboard, dialog, ipcMain, Menu, shell } from "electron";
 import * as fsSync from "node:fs";
+import * as nodeOs from "node:os";
 import * as path from "node:path";
 import { managedConfig } from "./services/managedConfig";
 import { startHeadlessControl, prepareHeadlessShutdown } from "./services/headless";
@@ -89,6 +90,28 @@ managedConfig(); // Validate operator configuration before opening any documents
  * Lifecycle acceptance opts back into the real lock in an isolated profile.
  * Every harness profile is separate from the developer's ~/.config/kkss.
  */
+// [debug] temporary CI diagnostics for the cad-save shutdown. Not for merge.
+const debugOn = process.env.KKSS_E2E === "1";
+const debugLog = (...parts: unknown[]) => { if (debugOn) console.error("[debug]", ...parts); };
+if (debugOn) {
+  const quitApp = app.quit.bind(app);
+  app.quit = () => { debugLog("app.quit()", new Error("app.quit caller").stack); quitApp(); };
+  const exitApp = app.exit.bind(app);
+  app.exit = (code?: number) => { debugLog("app.exit()", code, new Error("app.exit caller").stack); exitApp(code); };
+  process.on("exit", (code) => debugLog("process exit", code));
+  process.on("uncaughtExceptionMonitor", (error, origin) => debugLog("uncaught", origin, error.stack));
+  app.on("child-process-gone", (_event, details) => debugLog("child-process-gone", JSON.stringify(details)));
+  app.on("before-quit", () => debugLog("before-quit"));
+  app.on("will-quit", () => debugLog("will-quit"));
+  setInterval(() => {
+    const mem = process.memoryUsage();
+    const mb = (n: number) => Math.round(n / 1048576);
+    let cgroup = "n/a";
+    try { cgroup = fsSync.readFileSync("/sys/fs/cgroup/memory.max", "utf8").trim(); } catch { /* not cgroup v2 */ }
+    debugLog(`mem rss=${mb(mem.rss)}MB heap=${mb(mem.heapUsed)}MB buffers=${mb(mem.arrayBuffers)}MB sysFree=${mb(nodeOs.freemem())}MB cgroupMax=${cgroup}`);
+  }, 500);
+}
+
 const gotInstanceLock =
   process.env.KKSS_ALLOW_MULTIPLE_INSTANCES === "1" || app.requestSingleInstanceLock();
 if (!gotInstanceLock) {
@@ -1395,6 +1418,7 @@ app.whenReady().then(() => {
   // it finishes (the pendingClose flag); otherwise this destroys the window
   // itself once every mesh tab has resolved.
   main.win.on("close", (event) => {
+    debugLog("main window close", new Error("close caller").stack);
     if (headlessStopping) return;
     const dirtyTabs = [...cadHosts.values(), ...meshHosts.values()].filter((host) => host.isDirty());
     if (!closeMayPrompt()) return;

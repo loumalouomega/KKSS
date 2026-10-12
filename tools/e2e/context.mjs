@@ -21,6 +21,8 @@ export async function scenario(name, run) {
   catch (error) {
     console.error(`FAIL ${name}:`, error);
     for (const [i, l] of launches.entries()) {
+      const alive = (() => { try { process.kill(l.process.pid, 0); return true; } catch { return false; } })();
+      console.error(`[debug] app ${i} pid=${l.process.pid} exitCode=${l.process.exitCode} signal=${l.process.signalCode} alive=${alive}`);
       await diagnostics(l.app, l.output, `${name}-${i}`).catch(() => {});
       // The app's own stderr is only captured, never printed, so a native abort
       // (e.g. SIGABRT during quit) left no trace in the CI job log. Print its tail.

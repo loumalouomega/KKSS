@@ -78,9 +78,11 @@ function ensureWorker(): Worker {
   });
   instance.on("error", (err) => {
     const error = err instanceof Error ? err : new Error(String(err));
+    if (process.env.KKSS_E2E === "1") console.error("[debug] compute worker error", error.stack);
     failWorker(instance, error);
   });
-  instance.on("exit", () => {
+  instance.on("exit", (code) => {
+    if (process.env.KKSS_E2E === "1") console.error("[debug] compute worker exit", code);
     failWorker(instance, new Error("cadCompute worker exited"));
   });
   return instance;
