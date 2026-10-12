@@ -268,6 +268,7 @@ export function createMainWindow(
       if (closing.has(view) || wc.isDestroyed()) return;
       hooks.onViewCrash?.({ ...ref, reason });
     };
+    wc.on("destroyed", () => console.error(`[debug] view destroyed kind=${ref.kind}`));
     wc.on("render-process-gone", (_event, details) => {
       console.error(`[debug] render-process-gone kind=${ref.kind} reason=${details.reason} exitCode=${details.exitCode}`);
       // "clean-exit" is an orderly shutdown, not a crash.

@@ -3,7 +3,7 @@ import { configureLocale } from "./services/locale";
 import { t } from "../shared/i18n";
 import { beginOpen, configurePerformance } from "./services/performance";
 /** KKSS Electron main entry. */
-import { app, clipboard, dialog, ipcMain, Menu, shell } from "electron";
+import { app, clipboard, dialog, ipcMain, Menu, shell, BaseWindow, webContents } from "electron";
 import * as fsSync from "node:fs";
 import * as nodeOs from "node:os";
 import * as path from "node:path";
@@ -92,7 +92,7 @@ managedConfig(); // Validate operator configuration before opening any documents
  */
 // [debug] temporary CI diagnostics for the cad-save shutdown. Not for merge.
 const debugOn = process.env.KKSS_E2E === "1";
-const debugLog = (...parts: unknown[]) => { if (debugOn) console.error("[debug]", ...parts); };
+const debugLog = (...parts: unknown[]) => { if (debugOn) console.error("[debug]", new Date().toISOString(), ...parts); };
 if (debugOn) {
   const quitApp = app.quit.bind(app);
   app.quit = () => { debugLog("app.quit()", new Error("app.quit caller").stack); quitApp(); };
@@ -109,6 +109,12 @@ if (debugOn) {
     let cgroup = "n/a";
     try { cgroup = fsSync.readFileSync("/sys/fs/cgroup/memory.max", "utf8").trim(); } catch { /* not cgroup v2 */ }
     debugLog(`mem rss=${mb(mem.rss)}MB heap=${mb(mem.heapUsed)}MB buffers=${mb(mem.arrayBuffers)}MB sysFree=${mb(nodeOs.freemem())}MB cgroupMax=${cgroup}`);
+    try {
+      const live = webContents.getAllWebContents().filter((w) => !w.isDestroyed()).map((w) => `${w.id}:${w.getURL().replace(/^kkss:\/\/app\/renderer\//, "").slice(0, 24)}`);
+      debugLog(`views windows=${BaseWindow.getAllWindows().length} mainDestroyed=${main ? main.win.isDestroyed() : "none"} live=${live.join(",")}`);
+    } catch (error) {
+      debugLog("inventory unavailable", String(error));
+    }
   }, 500);
 }
 
@@ -429,6 +435,7 @@ async function promptUnresponsive(ref: ViewRef, info: { attempt: number; signal:
 }
 
 function onViewCrash(crash: ViewCrash): void {
+  debugLog("view crash", crash.kind, crash.reason);
   if (quitting || !main) return;
   const key = viewKey(crash);
   const now = Date.now();
@@ -1394,6 +1401,12 @@ app.whenReady().then(() => {
     });
   }
 
+  // [debug] destroy() skips 'close', so trace it explicitly.
+  if (debugOn) {
+    const destroyMain = main.win.destroy.bind(main.win);
+    main.win.destroy = () => { debugLog("main.win.destroy()", new Error("destroy caller").stack); destroyMain(); };
+    main.win.on("closed", () => debugLog("main window closed"));
+  }
   // One starter tab per mode, mirroring the pre-tabs behavior of both mode
   // views existing (and loading their bundle) from app launch.
   createTab("cad");

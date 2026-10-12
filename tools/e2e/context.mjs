@@ -15,7 +15,11 @@ export async function scenario(name, run) {
       const launched = await launchApp(file, { userDataDir: ctx.profile, extraArgs: softwareGL, ...opts });
       launched.process = launched.app.process(); launches.push(launched); return launched.app;
     },
-    page(app, name) { return appWindow(app, `/renderer/${name}/`, Date.now() + 60_000); },
+    async page(app, name) {
+      const p = await appWindow(app, `/renderer/${name}/`, Date.now() + 60_000);
+      p.on('close', () => console.error(`[debug] playwright page closed: ${name} ${new Date().toISOString()}`));
+      return p;
+    },
   };
   try { await run(ctx); console.log(`PASS ${name}`); }
   catch (error) {
