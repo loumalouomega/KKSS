@@ -34,6 +34,10 @@ The X axis is **static-analysis pseudo-time**, reconstructed from the fixed 0.12
 
 ![Solver-derived cantilever displacement history in KKSS](/screenshots/tutorial-structural-displacement-plot.png)
 
+## Post-run checks and batch
+
+Before generating, the Problemtype sidebar preflights the setup as structured error/warning/info findings (`mesh__case_validate`); a clean report means the case generates. Stopping a run uses **File ▸ Stop Kratos Run**: a cooperative stop file the generated case watches between steps first (graceful Finalize on every platform), then SIGINT → SIGTERM → SIGKILL, reporting which rung worked. Finished runs carry a saved convergence history (`mesh__case_convergence` reads `kkss-convergence-v2.jsonl` with a conservative verdict; older archives report `status:"none"` as unavailable, not as failure) and named post-run monitors over their saved frames (`mesh__case_monitors` list/set/remove/evaluate; older archives list empty until set). Queued edits save/load as JSON recipes, and named presets from `.kratos/recipes/` (plus **Settings ▸ Kratos ▸ Batch Recipe Folders**) feed both the viewer batch and `mesh__mesh_batch_transform` (`dryRun` plans without writing; `<outputDir>/kkss-batch.json` records per-file reports). **Advanced ▸ Link previews…** ties two open meshes/runs so camera, field, range, clip and physical time follow each other.
+
 ## Verified result
 
 DISPLACEMENT z is +0.000589 mm at the free corner; the Euler–Bernoulli reference magnitude is 0.000600 mm. The displacement-magnitude relative error is 1.79%, within the 25% coarse-mesh tutorial tolerance. Select `VON_MISES_STRESS` to see the stress field.

@@ -8,7 +8,7 @@ import { t, translate } from "../../shared/i18n";
  */
 import type { SettingsRowState, SettingsToWebview } from "../../main/ipc";
 import type { SettingCategory, SettingEntry } from "../../main/services/settings/registry";
-import { glyph } from "../glyphs";
+import { glyph, type KkssGlyphId } from "../glyphs";
 
 declare global {
   interface Window {
@@ -34,6 +34,21 @@ const APPLIES: Record<string, string> = {
   nextRun: t("Applies on the next run or load"),
   nextShell: t("Applies to the next terminal session"),
   nextStart: t("Applies on the next start"),
+};
+
+/** One line-glyph per settings category, for the nav menu and section headers. */
+const CATEGORY_GLYPHS: Record<SettingCategory, KkssGlyphId> = {
+  Appearance: "eye",
+  General: "sliders",
+  "CAD Viewer": "cube",
+  "Mesh Viewer": "box",
+  Kratos: "activity",
+  "Text Editor": "pencil",
+  Terminal: "terminal",
+  "LLM Assistant": "messageSquare",
+  "MCP Server": "package",
+  "Cloud Accounts": "download",
+  Advanced: "braces",
 };
 
 interface Row {
@@ -400,7 +415,9 @@ function render(categories: readonly SettingCategory[]): void {
     const inCategory = entries.filter((e) => e.category === category);
     if (inCategory.length === 0) continue;
     const section = el("div", "category");
-    section.append(el("h2", "eyebrow", translate(category)));
+    const heading = el("h2", "eyebrow");
+    heading.innerHTML = `${glyph(CATEGORY_GLYPHS[category], "sm")}<span>${translate(category)}</span>`;
+    section.append(heading);
     for (const entry of inCategory) {
       const row = buildRow(entry);
       rows.set(entry.id, row);
@@ -411,7 +428,7 @@ function render(categories: readonly SettingCategory[]): void {
     rowsEl.append(section);
     sections.set(category, section);
 
-    const b = button(translate(category), "nav-item");
+    const b = button(`${glyph(CATEGORY_GLYPHS[category], "sm")}<span>${translate(category)}</span>`, "nav-item");
     b.addEventListener("click", () => {
       section.scrollIntoView({ block: "start" });
       setActiveNav(category);

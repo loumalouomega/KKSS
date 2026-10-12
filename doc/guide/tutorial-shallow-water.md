@@ -32,6 +32,10 @@ The recipe explicitly reconstructs **0.015625…0.125 s** from the fixed-step se
 
 ![Eight-frame still-water depth history in KKSS](/screenshots/tutorial-shallow-water-depth-plot.png)
 
+## Post-run checks and batch
+
+Before generating, the Problemtype sidebar preflights the setup as structured error/warning/info findings (`mesh__case_validate`); a clean report means the case generates. Stopping a run uses **File ▸ Stop Kratos Run**: a cooperative stop file the generated case watches between steps first (graceful Finalize on every platform), then SIGINT → SIGTERM → SIGKILL, reporting which rung worked. Finished runs carry a saved convergence history (`mesh__case_convergence` reads `kkss-convergence-v2.jsonl` with a conservative verdict; older archives report `status:"none"` as unavailable, not as failure) and named post-run monitors over their saved frames (`mesh__case_monitors` list/set/remove/evaluate; older archives list empty until set). Queued edits save/load as JSON recipes, and named presets from `.kratos/recipes/` (plus **Settings ▸ Kratos ▸ Batch Recipe Folders**) feed both the viewer batch and `mesh__mesh_batch_transform` (`dryRun` plans without writing; `<outputDir>/kkss-batch.json` records per-file reports). **Advanced ▸ Link previews…** ties two open meshes/runs so camera, field, range, clip and physical time follow each other.
+
 ## Verified result
 
 At t = 0.125 s, the basin retains 1 m depth. Momentum is below 3 × 10⁻¹⁵ m²/s, and the computed water volume is 4.000000 m³ (error below 10⁻¹⁵ m³).
