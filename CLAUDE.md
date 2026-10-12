@@ -1814,7 +1814,7 @@ which forced the structural tutorial's `DENSITY: 0` to physical 7850 kg/m³
 fidelity on the CAD side and cancellable workers, batch recipes, preflight,
 convergence/monitors and linked previews on the mesh side.** (cad 3.14.0 =
 point-N curve refs, typed command bar, OBJ `.mtl` + PLY vertex colours,
-Draco/meshopt glTF, deferred XCAF tree; mesh 5.4.0 = batch op queues + named
+Draco/meshopt glTF, XCAF tree (read synchronously, see below); mesh 5.4.0 = batch op queues + named
 recipes + companion-aware manifests, ~65 material presets, grouped
 problemtypes + generic CoSimulation; mesh 5.5.0 = cooperative solver stop,
 flat SubModelPart list, reopenable view state, case preflight, convergence
@@ -1823,10 +1823,7 @@ workers, linked previews. meshio++ 16.31.0 → 16.32.0 is audit-clean: same
 four WASM files, no routing/timeline change.)
 `cadHost.ts` threads a worker-side `decodeGltfGeometry` decode into
 `gltfBuffers` (WASM decoders never run host-side), passes
-`deferAssemblyTree: true` to `loadBRepCachedInWorker` and follows an
-`assemblyPending` result with `resolveAssemblyTreeForDocument` → a second
-`tree{upgrade:true}` post (epoch-guarded; flat tree stays on any failure) —
-the provider's exact shape. New worker surface in
+`deferAssemblyTree: false` to `loadBRepCachedInWorker`. The deferred read crashed the kernel with SIGSEGV on the reload after a second File > Save in CI (`cad-save`), so the STEP assembly is read synchronously until CAD-Preview fixes it. The `assemblyPending` upgrade path (`resolveAssemblyTreeForDocument` → a second `tree{upgrade:true}` post, epoch-guarded; a flat tree stays on any failure) stays wired and dormant: setting the flag back to `true` re-enables it. New worker surface in
 `cadCompute.worker.ts`/`cadComputeClient.ts` (`gltfDecode`,
 `resolveAssemblyTreeForDocument`; both match their pipeline keys, so
 `cadKernelStatus.test.ts` needs no alias change) and in

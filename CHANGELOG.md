@@ -12,8 +12,9 @@ full auto-generated compare links.
 - feat: integrate **CAD Preview 3.14.0** and **Mesh Preview 5.5.0**, sharing
   meshio++ 16.32.0. CAD mode gains Draco/meshopt-compressed glTF, OBJ `.mtl`
   materials and PLY vertex colours, `point-N` picked-point curve references, a
-  typed command bar with Tab completion, and a deferred XCAF assembly tree
-  (geometry posts first, the nested tree upgrades it a moment later); post
+  typed command bar with Tab completion, and the STEP assembly tree read
+  synchronously (cad 3.14's deferred read crashed the kernel on a post-save
+  reload, so it is off until upstream fixes it); post
   mode gains the cancellable analysis/series-scan/oracle/meshio-write worker
   fleet, batch op queues with named `.kratos/recipes/` presets and
   companion-aware manifests, structured case preflight, saved convergence

@@ -2788,9 +2788,11 @@ export class CadHost {
           effectiveFormat,
           ops,
           tessellationParamsFor(quality),
-          // cad 3.14.0 defers the STEP assembly read so geometry posts first;
-          // the nested tree follows in a second `tree{upgrade:true}` below.
-          { deferAssemblyTree: true }
+          // cad 3.14.0's deferred STEP assembly read crashes the kernel (SIGSEGV)
+          // on the reload after a second File > Save, so the read is synchronous
+          // until that is fixed upstream. The `assemblyPending` upgrade below
+          // stays wired and is dormant while this is false.
+          { deferAssemblyTree: false }
         );
       if (epoch !== this.epoch) return; // document changed while tessellating
       // A frozen operand query replays on its cached ids — the user has to know
