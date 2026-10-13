@@ -60,7 +60,7 @@ try {
       if (format !== 'xdmf' && Math.abs(quantity.quantity.value - 400) > 0.001) throw new Error(`${format}: incorrect quantity ${JSON.stringify(quantity)}`);
     } catch (error) {
       if (format !== 'xdmf') throw error;
-      // The solver and discovery passed; the read-back is the open part of roadmap item 2 (meshio++'s XDMF reader).
+      // The solver and discovery passed; the read-back is the open part of roadmap item 3 (meshio++'s XDMF reader).
       const detail = { result, status, discovery, liveAcceptance: 'failed', stage: 'read-back', reason: String(error instanceof Error ? error.message : error).replace(/\s+/g, ' ') };
       await fs.writeFile(path.join(cwd, 'acceptance.json'), JSON.stringify(detail, null, 2));
       console.error(`xdmf: solver and discovery passed (${discovery.companions.length} companions); read-back failed: ${detail.reason}`);

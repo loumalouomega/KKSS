@@ -989,11 +989,11 @@ resubmitted automatically.
   newly ready tools join the next user turn's snapshot. Failure categories are
   conservative, with bounded stderr; unfamiliar errors remain unknown.
   Kratos connect/listTools each get five minutes; tool-call timeouts are unchanged.
-  **Live finding:** server 0.3.0 — and still the pinned 0.5.0 — needs `mcp<2`, since MCP Python 2.x removed its
+  **Live finding:** server 0.3.0 — and still the pinned 0.9.0 — needs `mcp<2`, since MCP Python 2.x removed its
   `mcp.server.fastmcp` import. Keep that constraint when resolving the pinned
   server unless a newer server has been verified compatible.
-  Linux: real official installer + MCP handshake (40 tools at 0.3.0; the published 0.5.0 advertises 52 tools,
-  13 resources and five prompts), and live Electron
+  Linux: real official installer + MCP handshake (40 tools at 0.3.0; the published 0.9.0 advertises 110 tools,
+  19 resources and eight prompts), and live Electron
   missing-runtime → recovery checked in an isolated profile. Windows/macOS:
   mocked command coverage only; real installation remains unverified.
   `test/kratosRuntime.test.ts`, `test/kratosStartup.test.ts`, the chat IPC tests,
@@ -1082,7 +1082,7 @@ resubmitted automatically.
   what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 217-name key set, including the 52 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
+  `test/chatToolPolicy.test.ts` pins the exact 277-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1984,7 +1984,7 @@ check GPL/AGPL compatibility first (same rule as cad's CLAUDE.md).
 ## Kratos MCP jobs panel
 
 `JobsService` (`app/main/services/jobs.ts`) is one app-wide observer sharing
-`McpHub` with chat and the HTTP server. It discovers the pinned 0.5.0 server's
+`McpHub` with chat and the HTTP server. It discovers the pinned 0.9.0 server's
 persistent jobs via `job_list`, polls active `job_status`, retrieves 100-line
 `job_logs`, and exposes explicit user cancellation through `job_cancel`.
 It never owns or signals a solver process and has no duplicate persistent

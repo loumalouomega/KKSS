@@ -18,7 +18,7 @@ import { stateStore } from "../services/stateStore";
  * rewrite that carries it into the webview.
  *
  * mesh picks the backend in `mesh/src/previewHtml.ts` while it *builds* each
- * preview's HTML (mesh 4.8.0, roadmap item 18). KKSS cannot use that seam: its
+ * preview's HTML (mesh 4.8.0, mesh roadmap item 12). KKSS cannot use that seam: its
  * mesh page is a build artifact (`tools/gen-webview-html.mjs` writes
  * `out/renderer/mesh/index.html` from `webviewChrome`'s own fragments), and the
  * `FakeWebviewPanel`'s `html` setter is inert by design (see meshHost.ts's

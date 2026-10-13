@@ -114,8 +114,11 @@ describe("scope table", () => {
       .map(([name]) => name.slice("kratos__".length))
       .sort();
     expect(kratosUnscoped).toEqual([
-      "job_cancel", "job_rerun", "job_resume", "kratos_install", "results_compare", "results_time_history",
-      "run_simulation", "study_cancel", "study_resume", "study_start",
+      "create_cosim_project", "create_fsi_project", "job_cancel", "job_rerun", "job_resume", "kratos_install",
+      "project_add_process", "project_set_setting", "project_update_process", "project_update_solver",
+      "results_compare", "results_time_history", "run_simulation",
+      "session_advance", "session_close", "session_exec_python", "session_set_nodal_values", "session_start",
+      "study_cancel", "study_resume", "study_start",
     ]);
   });
 });
