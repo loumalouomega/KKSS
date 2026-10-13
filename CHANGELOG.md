@@ -7,6 +7,8 @@ full auto-generated compare links.
 
 ## Unreleased
 
+- feat: update **Kratos MCP Server 0.5.0 → 0.9.0** across desktop launch, approval classification, Docker requirements and docs. The server grows 52 → 110 tools (MDPA mesh building/editing, geometry interchange, live `session_*` driving, `results_*` post-processing, `create_cosim/fsi_project` scaffolding), 13 → 19 resources and 5 → 8 prompts; all 58 new tools classified read/write with path-scoped approval where paths are determinate. `run_simulation` gains MPI launch (`mpi_ranks`/`omp_threads`, launcher discovery with a pre-creation MPI probe, process-group cancel, per-rank logs), supplying the upstream half of the MPI runner contract. The `mcp<2` constraint stays: the new server still imports `mcp.server.fastmcp`.
+
 ## [2.11.0] - 2026-10-12
 
 - feat: integrate **CAD Preview 3.14.0** and **Mesh Preview 5.5.0**, sharing

@@ -88,7 +88,7 @@ export type ToolGate = "auto" | "ask";
  * reviewed against. `test/chatToolPolicy.test.ts` fails when the pin moves
  * without this (and the rows) being re-reviewed.
  */
-export const KRATOS_TOOLS_REVIEWED_VERSION = "0.5.0";
+export const KRATOS_TOOLS_REVIEWED_VERSION = "0.9.0";
 
 /** Same contract for the `pdf__*` rows and `PDF_MCP_VERSION`. */
 export const PDF_TOOLS_REVIEWED_VERSION = "0.2.1";
@@ -299,8 +299,8 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   pdf__get_pdf_text_stats: "read",
   pdf__compare_pdf_pages: "read",
 
-  // ---- kratos-mcp-server (52), reviewed at KRATOS_TOOLS_REVIEWED_VERSION ---
-  // Read: inspection, listing, validation and job/study status only.
+  // ---- kratos-mcp-server (110), reviewed at KRATOS_TOOLS_REVIEWED_VERSION ---
+  // Read: inspection, listing, validation and job/study/session status only.
   kratos__kratos_check_installation: "read",
   kratos__kratos_list_applications: "read",
   kratos__kratos_list_elements: "read",
@@ -311,10 +311,19 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   kratos__kratos_list_processes: "read",
   kratos__kratos_get_process_defaults: "read",
   kratos__kratos_get_solver_defaults: "read",
+  kratos__kratos_get_variable_info: "read",
   kratos__explain_project_parameters: "read",
   kratos__mdpa_inspect: "read",
   kratos__mdpa_validate: "read",
   kratos__mdpa_get_nodes: "read",
+  kratos__mdpa_get_entities: "read",
+  kratos__mdpa_get_data_blocks: "read",
+  kratos__mdpa_select_nodes: "read",
+  kratos__mdpa_quality: "read",
+  kratos__materials_check: "read",
+  kratos__materials_get: "read",
+  kratos__project_get_setting: "read",
+  kratos__project_list_processes: "read",
   kratos__results_list: "read",
   kratos__results_summary: "read",
   kratos__results_probe: "read",
@@ -330,10 +339,19 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   kratos__job_checkpoints: "read",
   kratos__study_status: "read",
   kratos__study_list: "read",
-  // Write: scaffolding, solver/job control, pip install, and every tool that
+  kratos__session_list: "read",
+  kratos__session_status: "read",
+  kratos__session_field_summary: "read",
+  kratos__session_get_parameters: "read",
+  kratos__session_inspect_element: "read",
+  kratos__session_inspect_node: "read",
+  kratos__session_model_info: "read",
+  // Write: scaffolding, solver/job/session control, pip install, and every tool that
   // writes an output file (rendering and animation always; the time-history,
   // compare and study-result tools when `csv_file` is given — the table cannot
-  // see arguments, so the conservative class wins).
+  // see arguments, so the conservative class wins). The mdpa_* editors and the
+  // materials/project setters write in place or to `output`, so they are write
+  // even when the write is optional.
   kratos__kratos_install: "write",
   kratos__run_simulation: "write",
   kratos__job_cancel: "write",
@@ -345,11 +363,53 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   kratos__study_resume: "write",
   kratos__create_project: "write",
   kratos__create_multistage_project: "write",
+  kratos__create_cosim_project: "write",
+  kratos__create_fsi_project: "write",
   kratos__create_project_parameters: "write",
   kratos__create_materials: "write",
+  kratos__materials_set_property: "write",
+  kratos__materials_remove_property: "write",
   kratos__add_boundary_condition: "write",
   kratos__add_output_process: "write",
+  kratos__add_remeshing_process: "write",
+  kratos__project_add_process: "write",
+  kratos__project_set_setting: "write",
+  kratos__project_delete_setting: "write",
+  kratos__project_remove_process: "write",
+  kratos__project_update_process: "write",
+  kratos__project_update_solver: "write",
   kratos__mdpa_create_structured_mesh: "write",
+  kratos__mdpa_create_geometry_mesh: "write",
+  kratos__mdpa_add_nodes: "write",
+  kratos__mdpa_move_nodes: "write",
+  kratos__mdpa_delete_nodes: "write",
+  kratos__mdpa_add_entities: "write",
+  kratos__mdpa_delete_entities: "write",
+  kratos__mdpa_set_entity_properties: "write",
+  kratos__mdpa_create_sub_model_part: "write",
+  kratos__mdpa_edit_sub_model_part: "write",
+  kratos__mdpa_set_sub_model_part_data: "write",
+  kratos__mdpa_transform: "write",
+  kratos__mdpa_merge: "write",
+  kratos__mdpa_renumber: "write",
+  kratos__mdpa_extract: "write",
+  kratos__mdpa_extrude: "write",
+  kratos__mdpa_convert_cells: "write",
+  kratos__mdpa_extract_boundary: "write",
+  kratos__mdpa_set_properties: "write",
+  kratos__mdpa_set_nodal_data: "write",
+  kratos__mdpa_set_elemental_data: "write",
+  kratos__mdpa_set_table: "write",
+  kratos__mdpa_delete_table: "write",
+  kratos__mesh_import: "write",
+  kratos__mesh_export: "write",
+  kratos__mesh_generate_gmsh: "write",
+  kratos__mesh_remesh: "write",
+  kratos__session_start: "write",
+  kratos__session_advance: "write",
+  kratos__session_close: "write",
+  kratos__session_exec_python: "write",
+  kratos__session_set_nodal_values: "write",
   kratos__export_case_to_flowgraph: "write",
   kratos__import_flowgraph_to_case: "write",
   kratos__results_render: "write",

@@ -217,11 +217,11 @@ describe("unclassifiedTools", () => {
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
     // 74 cad + 46 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
-    // + 52 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
+    // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(219);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(277);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
@@ -231,7 +231,7 @@ describe("the table itself", () => {
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
-    expect(kratos).toHaveLength(52);
+    expect(kratos).toHaveLength(110);
     const pdf = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("pdf__"));
     expect(pdf).toHaveLength(12);
     expect(cad.length + mesh.length + meta.length + app.length + kratos.length + pdf.length).toBe(Object.keys(TOOL_ACCESS).length);
@@ -278,6 +278,7 @@ describe("the table itself", () => {
       "kratos_check_installation",
       "kratos_get_process_defaults",
       "kratos_get_solver_defaults",
+      "kratos_get_variable_info",
       "kratos_list_applications",
       "kratos_list_conditions",
       "kratos_list_constitutive_laws",
@@ -288,13 +289,28 @@ describe("the table itself", () => {
       "list_linear_solver_presets",
       "list_material_presets",
       "list_templates",
+      "materials_check",
+      "materials_get",
+      "mdpa_get_data_blocks",
+      "mdpa_get_entities",
       "mdpa_get_nodes",
       "mdpa_inspect",
+      "mdpa_quality",
+      "mdpa_select_nodes",
       "mdpa_validate",
+      "project_get_setting",
+      "project_list_processes",
       "results_convergence",
       "results_list",
       "results_probe",
       "results_summary",
+      "session_field_summary",
+      "session_get_parameters",
+      "session_inspect_element",
+      "session_inspect_node",
+      "session_list",
+      "session_model_info",
+      "session_status",
       "study_list",
       "study_status",
       "validate_case",
@@ -303,7 +319,10 @@ describe("the table itself", () => {
     expect(kratos("write")).toEqual([
       "add_boundary_condition",
       "add_output_process",
+      "add_remeshing_process",
       "configure_checkpoints",
+      "create_cosim_project",
+      "create_fsi_project",
       "create_materials",
       "create_multistage_project",
       "create_project",
@@ -314,12 +333,51 @@ describe("the table itself", () => {
       "job_rerun",
       "job_resume",
       "kratos_install",
+      "materials_remove_property",
+      "materials_set_property",
+      "mdpa_add_entities",
+      "mdpa_add_nodes",
+      "mdpa_convert_cells",
+      "mdpa_create_geometry_mesh",
       "mdpa_create_structured_mesh",
+      "mdpa_create_sub_model_part",
+      "mdpa_delete_entities",
+      "mdpa_delete_nodes",
+      "mdpa_delete_table",
+      "mdpa_edit_sub_model_part",
+      "mdpa_extract",
+      "mdpa_extract_boundary",
+      "mdpa_extrude",
+      "mdpa_merge",
+      "mdpa_move_nodes",
+      "mdpa_renumber",
+      "mdpa_set_elemental_data",
+      "mdpa_set_entity_properties",
+      "mdpa_set_nodal_data",
+      "mdpa_set_properties",
+      "mdpa_set_sub_model_part_data",
+      "mdpa_set_table",
+      "mdpa_transform",
+      "mesh_export",
+      "mesh_generate_gmsh",
+      "mesh_import",
+      "mesh_remesh",
+      "project_add_process",
+      "project_delete_setting",
+      "project_remove_process",
+      "project_set_setting",
+      "project_update_process",
+      "project_update_solver",
       "results_animate",
       "results_compare",
       "results_render",
       "results_time_history",
       "run_simulation",
+      "session_advance",
+      "session_close",
+      "session_exec_python",
+      "session_set_nodal_values",
+      "session_start",
       "study_cancel",
       "study_results",
       "study_resume",
