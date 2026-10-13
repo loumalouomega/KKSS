@@ -7,6 +7,8 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.12.0] - 2026-10-13
+
 - feat: update **Kratos MCP Server 0.5.0 → 0.9.0** across desktop launch, approval classification, Docker requirements and docs. The server grows 52 → 110 tools (MDPA mesh building/editing, geometry interchange, live `session_*` driving, `results_*` post-processing, `create_cosim/fsi_project` scaffolding), 13 → 19 resources and 5 → 8 prompts; all 58 new tools classified read/write with path-scoped approval where paths are determinate. `run_simulation` gains MPI launch (`mpi_ranks`/`omp_threads`, launcher discovery with a pre-creation MPI probe, process-group cancel, per-rank logs), supplying the upstream half of the MPI runner contract. The `mcp<2` constraint stays: the new server still imports `mcp.server.fastmcp`.
 
 ## [2.11.0] - 2026-10-12
@@ -119,6 +121,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.12.0]: https://github.com/loumalouomega/KKSS/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/loumalouomega/KKSS/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/loumalouomega/KKSS/compare/v2.9.0...v2.10.0
 
