@@ -37,6 +37,40 @@ full auto-generated compare links.
   companion download fails the open rather than staging a partial mesh, and an
   upload pass that fails midway no longer re-uploads files that already landed
   against their stale baseline.
+- feat(mcp): gate the HTTP meta server with a **Settings ▸ MCP Server ▸ Allowed
+  Tools** choice (read-only default for newly enabled servers, read + listed
+  writes, or everything; existing configurations keep "everything"), classified
+  through the same `toolPolicy.ts` table — refused calls return a clear MCP
+  error rather than running un-gated on the bearer token alone.
+- feat(chat): add path-scoped **"Always allow writes inside the project folder"**
+  approval, keyed on the explicit project root with a fail-closed per-tool table
+  of path arguments, and classify the pinned Kratos server's 52 tools into
+  read/write rows reviewed against `KRATOS_MCP_VERSION` (a test fails when the
+  pin moves without re-review, the same discipline the cad/mesh key set has).
+- feat(chat): let the user enter input/output (and optional cache) prices and a
+  context window for models the reviewed table doesn't list (`llm.custom*`
+  Settings rows, labelled user-supplied in the readout), and put composer
+  controls in the sidebar itself: paste/drop image attachments (persisted with
+  the conversation, refused up front where the provider cannot take them), an
+  in-chat model picker, and a thinking-level/output-budget selector. A
+  preconfigured PDF reader MCP server (pinned `pdf-insight-mcp`) backs PDF
+  attachments.
+- docs: animated timeline GIFs for the fluid tutorial
+  (`tools/tutorials/animations.mjs` with a dependency-free encoder, 1.5 MB
+  budget per GIF, embedded beside — not instead of — the PNGs); shallow water
+  stays a still capture by decision, since every frame is identical.
+- feat(windows): offer a **Wait / Reload** choice when a view stays
+  unresponsive. `unresponsive` still never triggers an automatic reload (a large
+  mesh parse trips it legitimately); a pure `unresponsiveGuard` policy now asks
+  after a generous 30 s delay, re-arming with a doubled delay on Wait (cap
+  10 min) and reloading only through the click via the crash path's recovery
+  replay. A view that recovers, reloads, closes or quits cancels the episode.
+- feat(session): **re-download evicted cloud documents on session restore.**
+  Restore stays synchronous, but a saved cloud document whose staging copy was
+  evicted now keeps its tab as a placeholder (order and focus preserved) and is
+  fetched in the background, one download at a time and only into a still-blank
+  tab; one "not signed in" notice per provider, and a failure closes just that
+  placeholder without blocking the rest.
 - feat: add **OpenCode Zen** (pay-as-you-go) and **OpenCode Go** ($10/$40
   subscription) as first-class **Settings ▸ LLM Assistant** providers, sharing
   one OpenCode API key and reusing the OpenAI-compatible `chat/completions`
