@@ -64,6 +64,10 @@ fileAssociations:
     name: KKSS glTF document
   - ext: glb
     name: KKSS glTF document
+  - ext: 3mf
+    name: KKSS 3MF document
+  - ext: dae
+    name: KKSS Collada document
   - ext: med
     name: KKSS MED document
     mimeType: application/x-kkss-med

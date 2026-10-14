@@ -737,6 +737,8 @@
   "Invalid input": "Entrada no válida",
   "OK": "Aceptar",
   "Mesh Export Provenance": "Procedencia de exportación de malla",
+  "Plot Extraction Cache": "Caché de extracciones de gráficos",
+  "Keep a bounded on-disk cache of disk-backed plot extractions under the app's mesh storage, so reopening a plot after a restart does not reread its files. An entry is reused only while the source, its companions and its timeline are unchanged. Live-mesh snapshots are never cached. Off by default.": "Mantiene una caché en disco de tamaño acotado con las extracciones de gráficos basados en archivo, en el almacenamiento de malla de la aplicación, para que reabrir un gráfico tras reiniciar no vuelva a leer sus archivos. Una entrada solo se reutiliza mientras el origen, sus archivos acompañantes y su línea temporal no cambien. Las instantáneas de malla viva nunca se guardan en caché. Desactivada por defecto.",
   "Automatic": "Automático",
   "Write a full sidecar report": "Escribir un informe lateral completo",
   "Do not record provenance": "No registrar procedencia",

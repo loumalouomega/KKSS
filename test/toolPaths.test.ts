@@ -106,6 +106,9 @@ describe("scope table", () => {
       "mesh__case_run",
       "mesh__case_stop",
       "mesh__plot_dataset",
+      // mesh 5.10.0: its `params` is opaque (a tableRelationship preset carries
+      // a table path inside it), so no row can account for every path.
+      "mesh__plot_preset",
       "mesh__problemtype_describe",
       "mesh__problemtype_list",
     ]);

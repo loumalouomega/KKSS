@@ -24,6 +24,13 @@ export const CAD_SIDECAR = {
   meshOptions: ".mesh.json",
   /** Gmsh script regenerated from the mesh options on every change. */
   geoScript: ".geo",
+  /**
+   * cad 3.16.0's OpenSCAD Customizer overrides (scadOverridesStore.ts): the
+   * `-D` defines the panel's Apply persists, replayed on every `.scad`
+   * conversion. Per-model, and carried inside the preprocess archive beside
+   * the other six, so it syncs with its document like any other sidecar.
+   */
+  scadOverrides: ".scad-params.json",
 } as const;
 
 export const CAD_SIDECAR_SUFFIXES: readonly string[] = Object.values(CAD_SIDECAR);

@@ -737,6 +737,8 @@
   "Invalid input": "Invalid input",
   "OK": "OK",
   "Mesh Export Provenance": "Mesh Export Provenance",
+  "Plot Extraction Cache": "Plot Extraction Cache",
+  "Keep a bounded on-disk cache of disk-backed plot extractions under the app's mesh storage, so reopening a plot after a restart does not reread its files. An entry is reused only while the source, its companions and its timeline are unchanged. Live-mesh snapshots are never cached. Off by default.": "Keep a bounded on-disk cache of disk-backed plot extractions under the app's mesh storage, so reopening a plot after a restart does not reread its files. An entry is reused only while the source, its companions and its timeline are unchanged. Live-mesh snapshots are never cached. Off by default.",
   "Automatic": "Automatic",
   "Write a full sidecar report": "Write a full sidecar report",
   "Do not record provenance": "Do not record provenance",

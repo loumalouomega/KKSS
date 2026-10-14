@@ -49,6 +49,33 @@ import { finishOpen } from "./services/performance";
  * the ordering owned by `cadSaveInPlace.ts`), which advances `bakedThrough`.
  * That is accurate by cad's own definition — the source file does not yet
  * contain what is on screen.
+ *
+ * cad 3.16.0 (v3.14.0 → v3.16.0) ported, message for message against
+ * provider.ts:
+ *   - The OpenSCAD Customizer (`scadParams`/`scadOverrides` on ready, the
+ *     `scadApplyOverrides` handler, the `<model>.scad-params.json` sidecar as the
+ *     eighth `*Store.ts` re-implementation, and the defines replayed by
+ *     `readOcctSource` on every conversion so opening, edits, BOM/hole-table/
+ *     clash/health/measure, meshing and export all see the applied values).
+ *     The preprocess archive carries the sidecar both ways. NOT ported: the
+ *     source-file and sidecar watchers that re-post on an external change, for
+ *     the same reason the include-tracking watchers are absent — KKSS has no
+ *     source watcher (the conversions' own caching/depfile work comes free
+ *     through `resolveEffectiveSource`).
+ *   - Clash clearance (`minClearance` on both requests, including the same
+ *     numeric guard, so an unusable value never reaches OCCT).
+ *   - `color()` → Parts: `handleBRep` now returns the base shape's colour
+ *     groups and `loadModel` chains them into `autoCreateCsgColorParts`, with
+ *     the provider's own guards (edit-free tail, no existing Parts).
+ *   - `documentInfo.relativePath` for Copy reference — relative to the EXPLICIT
+ *     project root only (see `relativePath`), never an invented path.
+ *   - `.3mf` and `.dae` join the router as display-only mesh formats, so every
+ *     operation that needs triangles refuses them by name through cad's own
+ *     `displayOnlyMeshMessage` (see `requireComparableMesh`) instead of the
+ *     generic STL/OBJ/PLY/glTF sentence.
+ * NOT ported from cad 3.16.0: `edits.externalFrom` (the badge marking an append
+ * another writer made) — it is only ever set by the edits watcher, which KKSS
+ * does not have, and the field is optional for exactly that reason.
  */
 import { ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs/promises";
@@ -63,6 +90,17 @@ import {
   type MeshParseFormat,
 } from "../../cad/src/fileRouter";
 import { resolveEffectiveSource } from "../../cad/src/scadService";
+import { parseScadParameters, validateScadOverrides, type ScadValue } from "../../cad/src/scadParams";
+import {
+  parseScadOverridesJson,
+  serializeScadOverridesJson,
+} from "../../cad/src/scadOverridesSidecar";
+import {
+  buildPartsFromCsgColors,
+  csgColorPartsNote,
+  type CsgColorGroup,
+} from "../../cad/src/csgColorParts";
+import { displayOnlyMeshMessage } from "../../cad/src/fileRouter";
 import { SVG_VIEWS } from "../../cad/src/svgSilhouette";
 import type { CompareSource } from "../../cad/src/modelDiffHost";
 import { resolveExternalBuffers, type GltfExternalBuffers } from "../../cad/src/gltfParser";
@@ -241,7 +279,7 @@ const CAD_OPEN_FILTER = {
   // CAD-mode importer. Electron matches the final dot-segment only, so GiD's
   // compound `post.msh` is covered by the plain `msh` entry.
   extensions: [
-    "stl", "obj", "ply", "gltf", "glb", "step", "stp", "iges", "igs", "brep", "csg", "scad",
+    "stl", "obj", "ply", "gltf", "glb", "3mf", "dae", "step", "stp", "iges", "igs", "brep", "csg", "scad",
     "vtk", "vtu", "med", "cgns", "exo", "e", "xdmf", "mdpa", "foam",
     "msh", "msh2", "inp", "unv", "su2", "mesh",
   ],
@@ -369,6 +407,27 @@ const writePlanes = (modelPath: string, planes: ConstructionPlane[]): Promise<vo
   );
 
 /**
+ * cad 3.16.0's OpenSCAD Customizer overrides (scadOverridesStore.ts, the eighth
+ * sidecar): the `-D` defines the panel's Apply persists, replayed by
+ * `readOcctSource` on every `.scad` conversion. The model file itself is never
+ * written. Same node:fs re-implementation shape as the six above — cad's own
+ * store is vscode-coupled (`assertNotDirty` guards the interactive save path,
+ * which has no counterpart here).
+ */
+const readScadOverrides = async (modelPath: string): Promise<Record<string, ScadValue>> => {
+  try {
+    return parseScadOverridesJson(await fs.readFile(`${modelPath}${CAD_SIDECAR.scadOverrides}`, "utf8"));
+  } catch {
+    return {};
+  }
+};
+const writeScadOverrides = (modelPath: string, overrides: Record<string, ScadValue>): Promise<void> =>
+  writeFileAtomic(
+    `${modelPath}${CAD_SIDECAR.scadOverrides}`,
+    serializeScadOverridesJson(path.basename(modelPath), overrides)
+  );
+
+/**
  * cad 1.7.0's macro library — per folder, not per model, which is why two tabs
  * on models in one directory write the same path. writeFileAtomic serializes
  * them; a bare writeFile would have let them interleave.
@@ -491,6 +550,13 @@ export class CadHost {
   private currentAnnotations: Annotation[] = [];
   private currentViewState: ViewState | undefined;
   private currentMeshOptions: MeshOptions | undefined;
+  /**
+   * cad 3.16.0's OpenSCAD Customizer overrides, as last applied. Session state
+   * only — the sidecar beside the `.scad` file is the source of truth, and
+   * `readOcctSource` re-reads it, so this exists to answer the panel with what
+   * the geometry on screen was actually built from.
+   */
+  private currentScadOverrides: Record<string, ScadValue> = {};
   /** The latest Standard-Parts search page, so a thumbnails request can be
    *  validated against it (stale pages ignored) and mapped id → image URL. */
   private lastPartsSearch: { requestId: string; pngById: Map<string, string> } | null = null;
@@ -656,6 +722,7 @@ export class CadHost {
       type: "documentInfo" as const,
       name: path.basename(this.doc.path),
       path: this.doc.path,
+      relativePath: this.relativePath(),
       format: this.doc.route?.format ?? null,
       dirty,
       unsavedEdits: dirty ? this.currentEdits.length - this.currentBakedThrough : 0,
@@ -671,6 +738,24 @@ export class CadHost {
     if (serialized === this.lastDocumentInfo) return;
     this.lastDocumentInfo = serialized;
     this.post(info);
+  }
+
+  /**
+   * cad 3.16.0's Copy-reference path — what a copied entity reference quotes
+   * (`examples/STP/bull.stp#face-12`). The provider gets it from
+   * `vscode.workspace.asRelativePath`; KKSS has no workspace folders, so this is
+   * the *explicit* project root only (the one value CLAUDE.md's project-folder
+   * invariant allows to be displayed or handed to a submodule), and only while
+   * the document really sits inside it. Undefined otherwise, which the field is
+   * explicitly optional for — a quote then carries the absolute path, never a
+   * made-up relative one.
+   */
+  private relativePath(): string | undefined {
+    const root = projectRoot.explicit();
+    if (!root) return undefined;
+    const relative = path.relative(root, this.doc!.path);
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return undefined;
+    return relative.split(path.sep).join("/");
   }
 
   /** Unsaved edits that File ▸ Save would write into the source file. */
@@ -976,6 +1061,7 @@ export class CadHost {
     this.currentLayersNextId = 0;
     this.currentAnnotations = [];
     this.currentPlanes = [];
+    this.currentScadOverrides = {};
     this.currentViewState = undefined;
     this.currentMeshOptions = undefined;
     this.lastPartsSearch = null;
@@ -1017,7 +1103,37 @@ export class CadHost {
         // before every replay, or the kernel skips it (provider.loadModel).
         resolvePlaneRefs(replayTail(this.currentEdits, this.currentBakedThrough), this.currentPlanes).ops,
         autoFit
-      );
+      ).then((csgColors) => this.autoCreateCsgColorParts(csgColors));
+    }
+  }
+
+  /**
+   * cad 3.16.0's `color()` → Parts (provider.autoCreateCsgColorParts): a
+   * `.csg`/`.scad` source can carry named colours per solid, and the viewer
+   * turns them into Parts so the colour groups are addressable for meshing and
+   * selection. Deliberately narrow, every guard load-bearing:
+   *
+   * - Only when the document has an edit-free *replay tail*: with ops applied,
+   *   the colours describe a base the user has since reshaped, and inventing
+   *   Parts from it would silently claim membership the geometry no longer has.
+   * - Only when there are no Parts yet — an authored Part list always wins,
+   *   because a user's grouping is more specific than `color()`.
+   * - Failures post a status line; they never fail the load.
+   */
+  private async autoCreateCsgColorParts(groups: readonly CsgColorGroup[] | undefined): Promise<void> {
+    const doc = this.doc;
+    if (!groups || groups.length === 0 || !doc) return;
+    try {
+      if (replayTail(this.currentEdits, this.currentBakedThrough).length > 0) return;
+      if (this.currentParts.length > 0 || (await readParts(doc.path)).length > 0) return;
+      const parts = buildPartsFromCsgColors(groups);
+      if (parts.length === 0) return;
+      this.currentParts = parts;
+      await writeParts(doc.path, parts);
+      this.post({ type: "parts", parts });
+      this.post({ type: "status", text: csgColorPartsNote(parts.length) });
+    } catch (err) {
+      this.post({ type: "status", text: `Could not create Parts from color(): ${(err as Error).message}` });
     }
   }
 
@@ -1179,6 +1295,27 @@ export class CadHost {
         this.post({ type: "viewState", view });
       });
       this.post({ type: "planes", planes: this.currentPlanes });
+      // cad 3.16.0's OpenSCAD Customizer (provider.ready): the panel's fields
+      // come from the source text (the same parseScadParameters the
+      // `list_scad_parameters` tool uses — no openscad binary needed) and its
+      // values from the sidecar. Posted for a `.scad` document ONLY, so any
+      // other format leaves the panel hidden with nothing to hydrate.
+      if (this.doc.route.format === "scad") {
+        void fs
+          .readFile(this.doc.path, "utf8")
+          .then(
+            (text) => {
+              this.post({ type: "scadParams", params: parseScadParameters(text) });
+            },
+            () => {
+              this.post({ type: "scadParams", params: [] });
+            }
+          );
+        void readScadOverrides(this.doc.path).then((overrides) => {
+          this.currentScadOverrides = overrides;
+          this.post({ type: "scadOverrides", overrides: this.currentScadOverrides });
+        });
+      }
       void this.sendMacros();
       void this.sendMeshPresets();
       // A view opened while linking is on must learn about it (provider.ready).
@@ -1212,6 +1349,52 @@ export class CadHost {
           this.post({ type: "error", message: `Could not save layers: ${(err as Error).message}` })
         );
       }, PARTS_SAVE_DEBOUNCE_MS);
+      return;
+    }
+
+    // cad 3.16.0's OpenSCAD Customizer Apply (provider.ts): validate the form's
+    // values against the LIVE source text (unknown names and wrong types are
+    // dropped with a warning, the `convert_scad` rule), persist the validated
+    // set, and reload the geometry with the values as `-D` overrides. The
+    // source file itself is never written. The provider's own warning at the
+    // end is load-bearing here too: an override that changes a dimension can
+    // renumber edge-N/face-N ids authored against the defaults, and a changed
+    // *base* is outside what the entity rebind repairs — so we warn rather than
+    // claim verified highlights. KKSS has no source watcher, so there is no
+    // sidecar watcher to reconcile either (the same reason `edits.externalFrom`
+    // is not ported).
+    if (msg.type === "scadApplyOverrides") {
+      if (!doc.route || doc.route.format !== "scad") return;
+      void (async () => {
+        try {
+          const text = await fs.readFile(doc.path, "utf8");
+          const { defines, warnings } = validateScadOverrides(parseScadParameters(text), msg.overrides);
+          this.currentScadOverrides = defines;
+          try {
+            await writeScadOverrides(doc.path, this.currentScadOverrides);
+          } catch (err) {
+            this.post({
+              type: "error",
+              message: `Could not save Customizer overrides: ${(err as Error).message}`,
+            });
+            return;
+          }
+          this.post({ type: "scadOverrides", overrides: this.currentScadOverrides });
+          for (const w of warnings) this.post({ type: "status", text: w });
+          if (this.currentParts.length > 0 || this.currentAnnotations.length > 0) {
+            this.post({
+              type: "status",
+              text: "Customizer overrides changed the base shape — Part and annotation ids may have shifted; check highlights before meshing.",
+            });
+          }
+          this.loadModel(true);
+        } catch (err) {
+          this.post({
+            type: "error",
+            message: `Could not apply Customizer overrides: ${(err as Error).message}`,
+          });
+        }
+      })();
       return;
     }
 
@@ -1778,6 +1961,12 @@ export class CadHost {
             "Clash detection needs a B-rep source; mesh sources have no exact boolean geometry to intersect."
           );
         }
+        // cad 3.16.0's clearance (provider.ts's own guard): a distance query
+        // beside the intersection, in mm. Refused up front so an unusable value
+        // never reaches the kernel as NaN.
+        if (msg.minClearance !== undefined && !(Number.isFinite(msg.minClearance) && msg.minClearance >= 0)) {
+          throw new Error("Clearance must be a number >= 0 (mm).");
+        }
         // Mirror checkInterferenceTool's resolveOperand: volumes only
         // (interference is a solid-only concept); unknown/empty degrades to
         // a warning, never a throw.
@@ -1816,7 +2005,8 @@ export class CadHost {
           src.format as OcctSourceFormat,
           replayTail(this.currentEdits, this.currentBakedThrough),
           idsA,
-          idsB
+          idsB,
+          ...(msg.minClearance !== undefined ? [msg.minClearance] : [])
         );
         for (const w of warnings) this.post({ type: "status", text: w });
         if (result.unresolvedA.length > 0) {
@@ -1843,6 +2033,10 @@ export class CadHost {
             "Clash detection needs a B-rep source; mesh sources have no exact boolean geometry to intersect."
           );
         }
+        // cad 3.16.0's clearance — same guard as the single-pair handler above.
+        if (msg.minClearance !== undefined && !(Number.isFinite(msg.minClearance) && msg.minClearance >= 0)) {
+          throw new Error("Clearance must be a number >= 0 (mm).");
+        }
         const parts = await readParts(doc.path);
         const usable = parts.filter((p) => p.volumes.length > 0);
         if (usable.length < 2) {
@@ -1863,9 +2057,14 @@ export class CadHost {
           usable.map((p) => p.volumes),
           // cad 2.5.0's bounded run: pairs past the budget come back as
           // `unchecked` placeholders (still one row per pair, so the count
-          // check below holds) and are never reported as clash-free.
-          msg.maxPairs !== undefined || msg.maxBooleans !== undefined
-            ? { maxPairs: msg.maxPairs, maxBooleans: msg.maxBooleans }
+          // check below holds) and are never reported as clash-free. cad
+          // 3.16.0's clearance rides the same options object.
+          msg.maxPairs !== undefined || msg.maxBooleans !== undefined || msg.minClearance !== undefined
+            ? {
+                maxPairs: msg.maxPairs,
+                maxBooleans: msg.maxBooleans,
+                ...(msg.minClearance !== undefined ? { minClearance: msg.minClearance } : {}),
+              }
             : undefined
         );
         const expected = (usable.length * (usable.length - 1)) / 2;
@@ -2080,7 +2279,10 @@ export class CadHost {
 
     if (msg.type === "meshHealRequest") {
       try {
-        const format = this.requireMesh("Mesh healability check requires an STL/OBJ/PLY/glTF source.");
+        const format = this.requireComparableMesh(
+          "a mesh healability check",
+          "Mesh healability check requires an STL/OBJ/PLY/glTF source."
+        );
         const bytes = await fs.readFile(doc.path);
         const external = await this.gltfBuffers(format, bytes);
         try {
@@ -2112,7 +2314,10 @@ export class CadHost {
 
     if (msg.type === "fitRegionRequest") {
       try {
-        const format = this.requireMesh("Region fitting requires an STL/OBJ/PLY/glTF source.");
+        const format = this.requireComparableMesh(
+          "region fitting",
+          "Region fitting requires an STL/OBJ/PLY/glTF source."
+        );
         const bytes = await fs.readFile(doc.path);
         const fit = await cadCompute.fitMeshRegion(
           bytes,
@@ -2690,6 +2895,14 @@ export class CadHost {
    * Conversion chatter accumulates into `warnings`; each caller status-posts
    * them. A missing binary throws `ScadUnavailableError`, whose message IS the
    * install hint, so every caller's existing catch already reports it properly.
+   *
+   * cad 3.16.0 also replays the persisted Customizer overrides here (the
+   * provider's own readOcctSource): a `.scad` source converts with its
+   * `<model>.scad-params.json` defines, so opening, every edit's
+   * re-tessellation, BOM/hole-table/clash/health/measure, meshing and export
+   * all see the applied values. Read from disk rather than from a session field
+   * so this stays stateless like every other caller — the Apply handler awaits
+   * the sidecar write before reloading, so a read here sees the new values.
    */
   private async readOcctSource(
     fsPath: string,
@@ -2701,6 +2914,29 @@ export class CadHost {
     // (no flag, OpenSCAD default + OPENSCAD_BACKEND fallback); an empty
     // library list means no OPENSCADPATH prepend.
     const libraryPaths = stateStore.get<string[]>(CAD_DEFAULT_KEYS.openscadLibraryPaths);
+    // Unknown names and wrong types are dropped with a warning (the
+    // `convert_scad` rule); out-of-range values apply with a note, because
+    // OpenSCAD itself does not clamp.
+    let defines: Record<string, ScadValue> | undefined;
+    if (format === "scad") {
+      try {
+        const [sourceText, stored] = await Promise.all([
+          fs.readFile(fsPath, "utf8").catch(() => ""),
+          readScadOverrides(fsPath),
+        ]);
+        if (sourceText !== "" && Object.keys(stored).length > 0) {
+          const { defines: validated, warnings: overrideWarnings } = validateScadOverrides(
+            parseScadParameters(sourceText),
+            stored
+          );
+          defines = validated;
+          warnings.push(...overrideWarnings);
+        }
+      } catch {
+        // A failed sidecar/source read degrades to the authored defaults — the
+        // conversion itself still runs, never blocked by the overrides.
+      }
+    }
     return resolveEffectiveSource({
       modelPath: fsPath,
       format,
@@ -2709,6 +2945,7 @@ export class CadHost {
       binary: stateStore.get<string>(CAD_DEFAULT_KEYS.openscadBinary) || undefined,
       backend: stateStore.get<string>(CAD_DEFAULT_KEYS.openscadBackend) || undefined,
       libraryPaths: Array.isArray(libraryPaths) ? libraryPaths : undefined,
+      ...(defines && Object.keys(defines).length > 0 ? { defines } : {}),
     });
   }
 
@@ -2723,6 +2960,25 @@ export class CadHost {
   private requireMesh(why: string): MeshParseFormat {
     const route = this.doc?.route;
     if (!route || route.strategy !== "three") throw new Error(why);
+    return route.format as MeshParseFormat;
+  }
+
+  /**
+   * The mesh-source gate for an operation the kernel needs triangles for
+   * (cad 3.16.0). `.3mf` and `.dae` route here too, but cad classifies them as
+   * display-only: three's loaders live in the webview and the host has no
+   * triangle parser for them, so the provider refuses them *by name* through
+   * cad's own `displayOnlyMeshMessage` builder (one accurate sentence that says
+   * to export to STL/OBJ/PLY/glTF first) instead of the generic "requires an
+   * STL/OBJ/PLY/glTF source". `what` is the operation, in the provider's own
+   * phrasing; `fallback` is the message for every other non-three route.
+   */
+  private requireComparableMesh(what: string, fallback: string): MeshParseFormat {
+    const route = this.doc?.route;
+    if (!route || route.strategy !== "three") throw new Error(fallback);
+    if (!COMPARABLE_MESH_FORMATS.has(route.format)) {
+      throw new Error(displayOnlyMeshMessage(route.format, what));
+    }
     return route.format as MeshParseFormat;
   }
 
@@ -2761,7 +3017,7 @@ export class CadHost {
     format: Extract<CadFormat, "step" | "iges" | "brep" | "csg" | "scad">,
     ops: EditOp[],
     autoFit = true
-  ): Promise<void> {
+  ): Promise<CsgColorGroup[] | undefined> {
     const epoch = this.epoch;
     try {
       this.post({ type: "status", text: `Loading ${format.toUpperCase()} kernel…` });
@@ -2780,7 +3036,7 @@ export class CadHost {
       const quality = normalizeTessellationQuality(
         stateStore.get(CAD_DEFAULT_KEYS.tessellationQuality, DEFAULT_TESSELLATION_QUALITY)
       );
-      const { groups, edges, points, tree, opOutcomes, opBuckets, guideIds, queryWarnings, warnings, assemblyPending } =
+      const { groups, edges, points, tree, opOutcomes, opBuckets, guideIds, queryWarnings, warnings, assemblyPending, csgColors } =
         await cadCompute.loadBRepCachedInWorker(
           this.sessionId,
           this.runtimePath,
@@ -2867,9 +3123,15 @@ export class CadHost {
             /* flat tree stays */
           });
       }
+      // `.csg`/`.scad` colour groups for the BASE shape (undefined for every
+      // other source): the caller decides whether they become Parts —
+      // provider.handleBRep's return value, which loadModel chains into
+      // autoCreateCsgColorParts.
+      return csgColors;
     } catch (err) {
-      if (epoch !== this.epoch) return;
+      if (epoch !== this.epoch) return undefined; // superseded — the catch posts nothing
       this.post({ type: "error", message: `${format.toUpperCase()} error: ${(err as Error).message}` });
+      return undefined;
     }
   }
 
@@ -3267,15 +3529,28 @@ export class CadHost {
           return undefined;
         }
       };
-      const [source, parts, layers, annotations, edits, meshOptions] = await Promise.all([
+      const [source, parts, layers, annotations, edits, meshOptions, scadOverrides] = await Promise.all([
         fs.readFile(modelPath),
         readOptional(CAD_SIDECAR.parts),
         readOptional(CAD_SIDECAR.layers),
         readOptional(CAD_SIDECAR.annotations),
         readOptional(CAD_SIDECAR.edits),
         readOptional(CAD_SIDECAR.meshOptions),
+        // cad 3.16.0: the Customizer's defines travel with the archive, so a
+        // restored `.scad` opens with the same geometry rather than reverting to
+        // the authored defaults.
+        readOptional(CAD_SIDECAR.scadOverrides),
       ]);
-      const zipBytes = buildPreprocessZip({ sourceName, source, parts, layers, annotations, edits, meshOptions });
+      const zipBytes = buildPreprocessZip({
+        sourceName,
+        source,
+        parts,
+        layers,
+        annotations,
+        edits,
+        meshOptions,
+        scadOverrides,
+      });
       await fs.writeFile(savePath, zipBytes);
       this.post({ type: "status", text: `Saved preprocess archive to ${savePath}` });
     } catch (err) {
@@ -3341,6 +3616,12 @@ export class CadHost {
         const options = parseMeshJson(contents.meshOptions);
         await writeMeshOptions(destPath, options);
         await writeGeoScript(destPath, options);
+      }
+      // cad 3.16.0: rehydrate the Customizer defines, parsed through the
+      // sidecar's own validator so a hand-edited archive cannot inject a
+      // non-ScadValue or an unknown parameter name.
+      if (contents.scadOverrides !== undefined) {
+        await writeScadOverrides(destPath, parseScadOverridesJson(contents.scadOverrides));
       }
       this.hooks.onOpenRequest(destPath);
     } catch (err) {
@@ -3412,7 +3693,10 @@ export class CadHost {
     if (route.strategy !== "occt" && !COMPARABLE_MESH_FORMATS.has(route.format)) {
       this.post({
         type: "error",
-        message: `Silhouette ${format.toUpperCase()} export requires a STEP/IGES/BREP/CSG/SCAD or STL/OBJ/PLY/glTF source.`,
+        message:
+          route.strategy === "three"
+            ? displayOnlyMeshMessage(route.format, `a ${format.toUpperCase()} silhouette export`)
+            : `Silhouette ${format.toUpperCase()} export requires a STEP/IGES/BREP/CSG/SCAD or STL/OBJ/PLY/glTF source.`,
       });
       return;
     }
@@ -3497,7 +3781,10 @@ export class CadHost {
     if (route.strategy !== "occt" && !COMPARABLE_MESH_FORMATS.has(route.format)) {
       this.post({
         type: "error",
-        message: "Drawing sheet export requires a STEP/IGES/BREP/CSG/SCAD or STL/OBJ/PLY/glTF source.",
+        message:
+          route.strategy === "three"
+            ? displayOnlyMeshMessage(route.format, "a drawing sheet export")
+            : "Drawing sheet export requires a STEP/IGES/BREP/CSG/SCAD or STL/OBJ/PLY/glTF source.",
       });
       return;
     }
@@ -3573,8 +3860,14 @@ export class CadHost {
   private async handlePromoteToBrep(): Promise<void> {
     const doc = this.doc;
     if (!doc?.route) return;
-    if (doc.route.strategy !== "three") {
-      this.post({ type: "error", message: "Promote to B-rep requires an STL/OBJ/PLY/glTF source." });
+    if (!COMPARABLE_MESH_FORMATS.has(doc.route.format)) {
+      this.post({
+        type: "error",
+        message:
+          doc.route.strategy === "three"
+            ? displayOnlyMeshMessage(doc.route.format, "Promote to B-rep")
+            : "Promote to B-rep requires an STL/OBJ/PLY/glTF source.",
+      });
       return;
     }
     const meshFormat = doc.route.format as MeshParseFormat;
@@ -3619,8 +3912,14 @@ export class CadHost {
   private async handleRepairMesh(): Promise<void> {
     const doc = this.doc;
     if (!doc?.route) return;
-    if (doc.route.strategy !== "three") {
-      this.post({ type: "error", message: "Repair (robust) requires an STL/OBJ/PLY/glTF source." });
+    if (!COMPARABLE_MESH_FORMATS.has(doc.route.format)) {
+      this.post({
+        type: "error",
+        message:
+          doc.route.strategy === "three"
+            ? displayOnlyMeshMessage(doc.route.format, "Repair (robust)")
+            : "Repair (robust) requires an STL/OBJ/PLY/glTF source.",
+      });
       return;
     }
     const meshFormat = doc.route.format as MeshParseFormat;

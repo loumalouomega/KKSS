@@ -16,6 +16,7 @@
  * Run (after a full `npm run build` at least once):
  *   env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots
  *   npm run docs:screenshots -- --mesh-only  # mesh viewer/panels/timeline only
+ *   npm run docs:screenshots -- --cad-only   # CAD viewer/panels/menus only
  *   npm run docs:screenshots -- --animations-only  # fluid-tutorial timeline GIFs only
  */
 import * as fs from "node:fs";
@@ -33,6 +34,20 @@ import { meshPlotsScenario } from "./e2e/mesh-plots.mjs";
 
 const OUT = path.join(root, "doc", "public", "screenshots");
 const IMAGES = path.join(root, "images");
+
+/**
+ * Every fixture is COPIED into the run's own temp tree before it is opened.
+ * mesh 5.10.0 persists the open panels in `<stem>.kratosview.json`, so opening
+ * a submodule's own example file leaves an artifact in the submodule working
+ * tree — which would show up as an untracked file in the next submodule diff.
+ */
+const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-shots-"));
+/** Copies a submodule fixture (or anything else, relative to the repo) and returns its temp path. */
+const fixture = relative => {
+  const dest = path.join(fixtureDir, path.basename(relative));
+  fs.cpSync(path.join(root, relative), dest, { recursive: true });
+  return dest;
+};
 // 2x pixel density, matching cad's deviceScaleFactor: 2 retina PNGs.
 const EXTRA_ARGS = ["--force-device-scale-factor=2"];
 
@@ -48,6 +63,10 @@ const EXTRA_ARGS = ["--force-device-scale-factor=2"];
  * Main_0_6.vtk, so the home screen then shows exactly those three.
  */
 const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-docs-profile-"));
+// The copied fixtures go in the profile's own temp tree, so one cleanup covers both.
+const cleanupDirs = () => {
+  for (const dir of [profileDir, fixtureDir]) fs.rmSync(dir, { recursive: true, force: true });
+};
 
 fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(IMAGES, { recursive: true });
@@ -154,7 +173,7 @@ async function restoreWindow(prepared) {
 // ---- Session A: CAD mode on bull.stp ----------------------------------------
 
 async function sessionCad() {
-  const { app, output } = await launchApp("cad/examples/STP/bull.stp", { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
+  const { app, output } = await launchApp(fixture("cad/examples/STP/bull.stp"), { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
   const deadline = Date.now() + 120_000;
   let prepared;
   try {
@@ -189,7 +208,7 @@ async function sessionCad() {
 // ---- Session B: mesh mode on an MDPA model ----------------------------------
 
 async function sessionMdpa() {
-  const { app, output } = await launchApp("mesh/example/MDPA/double_arch.mdpa", { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
+  const { app, output } = await launchApp(fixture("mesh/example/MDPA/double_arch.mdpa"), { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
   const deadline = Date.now() + 90_000;
   let prepared;
   try {
@@ -223,7 +242,7 @@ async function sessionMdpa() {
 
 // A property-bearing frame makes the authoring controls visible in the guide.
 async function sessionProperties() {
-  const { app, output } = await launchApp("mesh/example/MDPA/portal_frame.mdpa", { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
+  const { app, output } = await launchApp(fixture("mesh/example/MDPA/portal_frame.mdpa"), { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
   const deadline = Date.now() + 90_000;
   let prepared;
   try {
@@ -242,7 +261,7 @@ async function sessionProperties() {
 // ---- Session C: mesh mode on a VTK time series --------------------------------
 
 async function sessionVtk() {
-  const { app, output } = await launchApp("mesh/example/VTK/Main_0_6.vtk", { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
+  const { app, output } = await launchApp(fixture("mesh/example/VTK/Main_0_6.vtk"), { extraArgs: EXTRA_ARGS, userDataDir: profileDir });
   const deadline = Date.now() + 90_000;
   let prepared;
   try {
@@ -326,18 +345,30 @@ async function sessionHomeWorkflow() {
 
 if (process.argv.includes("--home-workflow-only")) {
   try { await sessionHomeWorkflow(); }
-  finally { fs.rmSync(profileDir, { recursive: true, force: true }); }
+  finally { cleanupDirs(); }
   process.exit(0);
 }
 if (process.argv.includes("--animations-only")) {
   try { await captureAnimations(OUT); }
-  finally { fs.rmSync(profileDir, { recursive: true, force: true }); }
+  finally { cleanupDirs(); }
   process.exit(0);
 }
 const meshOnly = process.argv.includes("--mesh-only");
+// `--cad-only`: the CAD session alone, symmetric with `--mesh-only`. A cad bump
+// moves the viewer's chrome (panels, menus, overlays), so the pre-processing
+// captures and the `pre_processing.png` hero have to be regenerated without
+// paying for the tutorial/solver half of the pipeline.
+if (process.argv.includes("--cad-only")) {
+  try { await sessionCad(); }
+  finally { cleanupDirs(); }
+  fs.copyFileSync(path.join(OUT, "cad-viewer.png"), path.join(IMAGES, "pre_processing.png"));
+  console.log("hero pre_processing.png ← cad-viewer.png");
+  console.log("done");
+  process.exit(0);
+}
 if (process.argv.includes("--plots-only")) {
   try { await meshPlotsScenario(OUT); }
-  finally { fs.rmSync(profileDir, { recursive: true, force: true }); }
+  finally { cleanupDirs(); }
   process.exit(0);
 }
 if (!meshOnly) await sessionCad();
@@ -373,7 +404,7 @@ for (const [src, dst] of [
   console.log(`hero ${dst} ← ${src}`);
 }
 
-fs.rmSync(profileDir, { recursive: true, force: true });
+cleanupDirs();
 
 if (warnings.length) {
   console.log(`\n${warnings.length} warning(s):\n  ${warnings.join("\n  ")}`);

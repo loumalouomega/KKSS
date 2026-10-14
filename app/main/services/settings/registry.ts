@@ -388,6 +388,19 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       ),
     },
     {
+      id: "kratos.plots.persistentCache",
+      label: t("Plot Extraction Cache"),
+      category: "Mesh Viewer",
+      type: "boolean",
+      storeKey: "kratos.plots.persistentCache",
+      default: false,
+      applies: "live",
+      vscode: { section: "kratos.plots", key: "persistentCache" },
+      description: t(
+        "Keep a bounded on-disk cache of disk-backed plot extractions under the app's mesh storage, so reopening a plot after a restart does not reread its files. An entry is reused only while the source, its companions and its timeline are unchanged. Live-mesh snapshots are never cached. Off by default."
+      ),
+    },
+    {
       id: "kratos.export.provenance",
       label: t("Mesh Export Provenance"),
       category: "Mesh Viewer",

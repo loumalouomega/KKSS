@@ -61,6 +61,7 @@ describe("classifyTool", () => {
     expect(classifyTool("mesh__mesh_export_table")).toBe("write");
     expect(classifyTool("mesh__mesh_field_series")).toBe("write");
     expect(classifyTool("mesh__plot_dataset")).toBe("write");
+    expect(classifyTool("mesh__plot_preset")).toBe("write");
     for (const name of ["plot_table_read", "plot_runs", "plot_run_bind", "plot_time_cursor", "plot_run_target"]) {
       expect(classifyTool(`mesh__${name}`)).toBe("read");
     }
@@ -221,13 +222,13 @@ describe("the table itself", () => {
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(277);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(278);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
     expect(cad).toHaveLength(74);
-    expect(mesh).toHaveLength(46);
+    expect(mesh).toHaveLength(47);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
@@ -475,6 +476,7 @@ describe("the table itself", () => {
       "mesh__mesh_split",
       "mesh__mesh_transform",
       "mesh__plot_dataset",
+      "mesh__plot_preset",
       "mesh__problem_pack",
       "mesh__problem_unpack",
       "mesh__problemtype_describe",

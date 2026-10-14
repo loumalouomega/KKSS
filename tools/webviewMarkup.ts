@@ -18,6 +18,7 @@ import * as path from "path";
 import { viewerBodyHtml } from "../cad/src/viewerDom";
 import {
   ADVANCED_MENU_HTML,
+  COMMANDLINE_HTML,
   CUT_PANEL_HTML,
   FLOWGRAPH_PANE_HTML,
   LOADING_HTML,
@@ -135,7 +136,10 @@ const MESH_CSP = [
  * `#theme-select`, which the shared `sceneTheme` setting drives through
  * `initialState`, so dropping them would leave those lookups null.
  * `STATUSBAR_HTML` is the last child of `#app`, after `#main`, exactly as in
- * `buildPreviewHtml`.
+ * `buildPreviewHtml`, with mesh 5.10.0's `COMMANDLINE_HTML` between them — the
+ * bottom command bar that runs every operation and UI action as text. It is
+ * purely webview-side (its own View-menu button and `/` focus shortcut), so
+ * like the panes it arrives with the markup rather than through host plumbing.
  *
  * Deliberately NOT mirrored: `buildPreviewHtml`'s `startEmpty` branch (the
  * `data-start-empty` body attribute and the `#empty-hint` overlay, added in
@@ -176,6 +180,7 @@ function meshBody(): string {
       ${PLOT_PANE_HTML}
     </div>
     </div>
+    ${COMMANDLINE_HTML}
     ${STATUSBAR_HTML}
   </div>`;
 }
