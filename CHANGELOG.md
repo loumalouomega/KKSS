@@ -7,6 +7,49 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.13.0] - 2026-10-14
+
+- feat: integrate **CAD Preview 3.16.0** and **Mesh Preview 5.10.0**. Pre-Processing
+  opens and exports **3MF**, reads **Collada** (import-only, no writer), and gains a
+  **clash clearance** (a minimum distance in mm beside the intersection), a
+  `unifySameDomain` edit op, snapshot display modes with section clip, `tessellationQuality`
+  on hit-testing and model comparison, opt-in **deterministic exports**, an optimistic
+  revision guard on MCP sidecar writes, a Hausdorff cross-check on deviation maps, and
+  inconsistent-winding reporting in mesh health. Both new formats are **display-only on
+  the host** (Three.js loads them in the viewer; the kernel has no triangle parser), so
+  every triangle-dependent operation refuses them by name instead of silently misreading
+  them, and both are registered as native file associations.
+- feat: an **OpenSCAD Customizer panel** in the CAD viewer: it parses a `.scad` source's
+  parameters from text alone, validates the entered values against the live source,
+  persists them in a new `<model>.scad-params.json` sidecar, and replays them as `-D`
+  defines on every later conversion. The sidecar travels in the preprocess archive both
+  ways and syncs with the document like every other CAD sidecar. The `.scad` source file
+  itself is never written.
+- feat: `color()` in an OpenSCAD source becomes real **Parts**, so colour groups are
+  addressable for meshing and selection. It only happens when the document has an
+  edit-free replay tail and no Parts yet — a user's own grouping always wins.
+- feat: a **command line** in the mesh viewer (`/` to focus, `?` for help) runs every
+  operation and UI action as text, with the same undo history as clicking, chaining with
+  `;`, and an in-place explanation when it rejects an operation.
+- feat: **OpenFOAM cases save in place**, writing back into the case rather than the
+  0-byte marker — only the files it can own (just `points` for a coordinate change,
+  the six polyMesh files for a topology change) and refusing by file name when anything
+  else is keyed to the old numbering. Multi-region, decomposed and zone-bearing cases are
+  now read as well, and the preview names the files it will write before it does.
+- feat: **cancellable mesh reads.** Opening an extended-format file, moving through a
+  timeline or probing metadata now runs in a dedicated worker (the **Cancel** button on
+  the loading card appears), as do parsing and derived exports.
+- feat: five **plot presets** — section comparison, volume total, tensor components,
+  heat-flux balance and table relationship — plus a threshold check, a series diff and an
+  exterior-boundary option for region operations, all reachable from the new
+  `mesh__plot_preset` tool (classified `write`, like its `plot_dataset` twin).
+- feat(settings): **Settings ▸ Mesh Viewer ▸ Plot Extraction Cache** keeps a bounded
+  on-disk cache of disk-backed plot extractions, so reopening a plot after a restart does
+  not reread its files.
+- chore: bump meshio++ to **16.41**. mesh now locks a minor ahead of CAD's `^16.31.0`;
+  KKSS stages one shared tree that both engines resolve, and the bundled CAD and mesh MCP
+  runtime tests are what verify that pairing (both pass).
+
 ## [2.12.0] - 2026-10-13
 
 - feat: update **Kratos MCP Server 0.5.0 → 0.9.0** across desktop launch, approval classification, Docker requirements and docs. The server grows 52 → 110 tools (MDPA mesh building/editing, geometry interchange, live `session_*` driving, `results_*` post-processing, `create_cosim/fsi_project` scaffolding), 13 → 19 resources and 5 → 8 prompts; all 58 new tools classified read/write with path-scoped approval where paths are determinate. `run_simulation` gains MPI launch (`mpi_ranks`/`omp_threads`, launcher discovery with a pre-creation MPI probe, process-group cancel, per-rank logs), supplying the upstream half of the MPI runner contract. The `mcp<2` constraint stays: the new server still imports `mcp.server.fastmcp`.
@@ -121,6 +164,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.13.0]: https://github.com/loumalouomega/KKSS/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/loumalouomega/KKSS/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/loumalouomega/KKSS/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/loumalouomega/KKSS/compare/v2.9.0...v2.10.0

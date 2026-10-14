@@ -223,13 +223,21 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
 
-  // ---- kratos-mdpa (44) ---------------------------------------------------
+  // ---- kratos-mdpa (47) ---------------------------------------------------
   mesh__mesh_resample: "write",
   mesh__mesh_periodic: "write",
   mesh__mesh_info: "read",
   mesh__mesh_capabilities: "read",
   mesh__plot_table_read: "read",
   mesh__plot_dataset: "write", // Optional CSV/provenance export.
+  // mesh 5.10.0: a named preset (sectionComparison/volumeTotal/
+  // tensorComponents/heatFluxBalance/tableRelationship). Read-shaped until
+  // it is given evaluate/threshold/differences, and outputPath writes a CSV —
+  // the same call shape as plot_dataset above, so the same conservative class.
+  // No row in toolPaths.ts: `params` is opaque (tableRelationship carries a
+  // table path in it), so a project-folder grant could not account for every
+  // path. Unlisted ⇒ it asks, exactly like plot_dataset.
+  mesh__plot_preset: "write",
   mesh__plot_runs: "read",
   mesh__plot_run_bind: "read",
   mesh__plot_time_cursor: "read",

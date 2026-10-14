@@ -7,7 +7,13 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { scenario, assert, menu, selectFile, until, sleep, root } from './context.mjs';
 
 export const meshPlotsScenario = screenshotDir => scenario('mesh-plots', async c => {
-  const base = path.join(root, 'doc/public/examples/tutorials');
+  // The published tutorials are copied into the scenario's temp dir rather than
+  // opened in place: mesh 5.10.0 persists the open panels in
+  // `<stem>.kratosview.json`, so opening a repo fixture would leave an artifact
+  // behind (and a repeat run would reopen with the Field panel already up).
+  // Recipe paths are relative to the recipe, so a straight copy is enough.
+  const base = path.join(c.dir, 'tutorials');
+  fs.cpSync(path.join(root, 'doc/public/examples/tutorials'), base, { recursive: true });
   const file = path.join(base, 'fluid/vtk_output/FluidModelPart_0_1.vtk');
   const app = await c.launch(file);
   if (screenshotDir) await app.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows()[0].setSize(1800, 1200));
@@ -38,8 +44,15 @@ export const meshPlotsScenario = screenshotDir => scenario('mesh-plots', async c
   // panel is the switch for the whole feature (closing it clears the overlays),
   // so it stays open in the capture — chart on one side, colormap on the other.
   const showField = async (p, field) => {
-    await p.locator('#toolbar button[data-action="field"]').click();
+    // The Field button is a TOGGLE, and mesh 5.10.0 persists which panels are
+    // open in `<stem>.kratosview.json` — a sidecar this scenario writes beside
+    // the published fixture. A repeat run therefore reopens with the panel
+    // already up, and a blind click would close it. Ask for the state the
+    // capture needs instead.
     const selector = p.locator('#field-panel select').first();
+    if (!await selector.isVisible().catch(() => false)) {
+      await p.locator('#toolbar button[data-action="field"]').click();
+    }
     await selector.waitFor();
     const options = await selector.locator('option').evaluateAll(els => els.map(el => ({ text: el.textContent, value: el.value })));
     const choice = options.find(o => o.text.startsWith(field + ' '));

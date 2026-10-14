@@ -34,6 +34,13 @@ const required = [
   ["mesh/dist/seriesScanWorker.js", "npm run package --prefix mesh"],
   ["mesh/dist/oracleOpWorker.js", "npm run package --prefix mesh"],
   ["mesh/dist/meshioWriteWorker.js", "npm run package --prefix mesh"],
+  // mesh 5.10.0's meshio++ READ worker (meshioReadWorkerClient resolves it
+  // beside main.js). configureMeshioReadRunner is what moves every extended
+  // format's read — opening, timeline frames, metadata probes — off the main
+  // process and into this worker, which is what makes mesh's new
+  // parse-stage cancellation observable. Without it in out/, the reads are
+  // still correct but synchronous on the UI thread.
+  ["mesh/dist/meshioReadWorker.js", "npm run package --prefix mesh"],
   ["mesh/media/plots.js", "npm run package --prefix mesh"],
   ["mesh/media/plots.css", "npm run package --prefix mesh"],
   ["mesh/media/plotly/plotly.min.js", "npm run package --prefix mesh"],
@@ -303,6 +310,9 @@ function copyArtifacts() {
     ["mesh/dist/seriesScanWorker.js", out("seriesScanWorker.js")],
     ["mesh/dist/oracleOpWorker.js", out("oracleOpWorker.js")],
     ["mesh/dist/meshioWriteWorker.js", out("meshioWriteWorker.js")],
+    // mesh 5.10.0's meshio++ read worker — same beside-main.js contract, and
+    // the client only picks the runner up when this file is present.
+    ["mesh/dist/meshioReadWorker.js", out("meshioReadWorker.js")],
     ["mesh/dist/mmg-core.wasm", out("mmg-core.wasm")],
     // OCCT + Gmsh WASM in the dist/-shaped layout the cad services expect
     // (extensionPath = out/cad-runtime).

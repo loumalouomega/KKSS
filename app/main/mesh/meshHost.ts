@@ -81,6 +81,8 @@ import { runMmgInWorker } from "../../../mesh/src/mmgWorkerClient";
 import { runOracleInWorker } from "../../../mesh/src/oracleOpWorkerClient";
 import { configureMeshioWriteRunner } from "../../../mesh/src/parser/writers/meshWriter";
 import { runMeshioWriteInWorker } from "../../../mesh/src/meshioWriteWorkerClient";
+import { configureMeshioReadRunner } from "../../../mesh/src/parser/meshio";
+import { runMeshioReadInWorker } from "../../../mesh/src/meshioReadWorkerClient";
 import { packSeries } from "../../../mesh/src/sequenceExport";
 import { Uri } from "../vscodeShim";
 import { stateStore } from "../services/stateStore";
@@ -252,10 +254,15 @@ export class MeshHost {
     // mesh 5.5.0 also runs the meshio++ oracle ops and the meshio++ writes in
     // their own cancellable workers (oracleOpWorker.js / meshioWriteWorker.js
     // beside out/main.js, same __dirname contract); without these two lines
-    // those paths run in-process with no Cancel.
+    // those paths run in-process with no Cancel. mesh 5.10.0 added the matching
+    // READ worker, so every extended-format read — opening a `.msh`/`.xdmf`/
+    // `.foam`, any timeline frame, any metadata probe — is what left the UI
+    // thread, along with the parse-stage cancellation mesh 5.10.0 added on top
+    // (AbortSignal, not the vscode shim, so nothing new is needed there).
     configureMmgRunner(runMmgInWorker);
     configureOracleRunner(runOracleInWorker);
     configureMeshioWriteRunner(runMeshioWriteInWorker);
+    configureMeshioReadRunner(runMeshioReadInWorker);
     // Linked previews (mesh 5.5.0): the hub relays view state between open
     // previews; the only vscode piece is the peer choice. Mirror
     // extension.ts's pickPeer wiring with the modal picker (idempotent — the

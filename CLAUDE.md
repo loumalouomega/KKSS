@@ -282,7 +282,16 @@ resubmitted automatically.
   `out/main.js`** (`__dirname` resolution in `mesh/src/mmgWorkerClient.ts`),
   as must `out/streamlineWorker.js` for mesh 4.21+'s off-thread traces,
   per-seed progress and partial cancellation. Both workers are required build
-  artifacts; `test/meshMcpRuntime.test.ts` executes the staged files. CAD-side MMG remeshing (`remesh_mesh`, cad 3.11.0) resolves
+  artifacts; `test/meshMcpRuntime.test.ts` executes the staged files. The same
+  beside-`main.js` contract covers mesh's cancellable fleet
+  (`out/analysisWorker.js`, `seriesScanWorker.js`, `oracleOpWorker.js`,
+  `meshioWriteWorker.js`) and mesh 5.10.0's **`out/meshioReadWorker.js`**,
+  which `meshHost.ts` wires with `configureMeshioReadRunner(runMeshioReadInWorker)`
+  — the one line that moves every extended-format read (open, timeline frame,
+  metadata probe) off the main process, and therefore the reason mesh's new
+  parse-stage cancellation is observable at all. Its absence is a silent
+  freeze, not a build failure, so it is a `required` preflight entry.
+  CAD-side MMG remeshing (`remesh_mesh`, cad 3.11.0) resolves
   `@loumalouomega/mmg-wasm` through cad's own `runtimePackage.ts`, so `out/mmg/dist/mmg.cjs`
   (+ `package.json`) is staged as a tree and `out/cad-runtime/dist/mmg-core.wasm`
   as the binary `mmgService.getMmg` reads explicitly — one `out/mmg/` tree serves the
@@ -294,8 +303,12 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**16.31.0**, the version BOTH submodules now
-  lock; since 10.20 the package has the field-only `.dex`/`.ip`/`.mff` formats —
+  `@meshioplusplus/wasm` package (**16.41**, the version mesh locks and the one
+  KKSS stages; CAD declares `^16.31.0` and resolves that same staged tree, so the
+  pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
+  rather than by the pins agreeing — re-run both after either bump, and prefer
+  re-aligning CAD over letting the skew grow;
+  since 10.20 the package has the field-only `.dex`/`.ip`/`.mff` formats —
   point fields, no geometry — the write-only SVG/TikZ figure formats exposed in
   the export menu's "Figures" group, and, since it statically links HDF5/netCDF,
   the Exodus/CGNS/H5M/HMF/MED family plus `timeStep`/`timeValues` for the
@@ -325,9 +338,11 @@ resubmitted automatically.
   `out/cadCompute.worker.js` finds `out/meshio/` and
   `out/cad-runtime/dist/kernel-worker.js` finds it at
   `out/cad-runtime/dist/../../meshio`. That is why KKSS's
-  `cadMeshioLoader.ts` shim and its esbuild alias are gone, and why one version
-  must serve both consumers: both submodules lock 16.31.0 rather than
-  leaving the two a major apart. It loads the `.wasm` via meshio++'s
+  `cadMeshioLoader.ts` shim and its esbuild alias are gone, and why ONE version
+  serves both consumers: the staged tree wins at runtime regardless of what
+  either `package.json` declares. mesh 5.10.0 moved to 16.41 while cad still
+  declares `^16.31.0`, so the two pins now differ — the runtime parity tests
+  are the gate, not the pins. It loads the `.wasm` via meshio++'s
   `locateFile` hook (the `wasmBinary` buffer hook MMG uses is pruned from this
   build), so the tree must exist on disk — another reason for `asar: false`.
   `@meshioplusplus/wasm` (and `@meshioplusplus/wasm/*`) is in `mainConfig.external`
@@ -536,7 +551,16 @@ resubmitted automatically.
   mesh 3.17.0 taught the staging to hold that tree, so `.foam` now opens in
   **mesh** mode like every other meshio-strategy format both sides claim —
   `router.ts` needed no code change, since the `cadOk && meshOk` branch already
-  existed for exactly this shape.
+  existed for exactly this shape. **cad 3.16.0's `.3mf` and `.dae` are the mirror
+  case**: both route `three`-strategy to CAD and are claimed by neither mesh
+  side, so `router.ts` needed no change and `check:packaging` supplied the two
+  missing `fileAssociations`. They are **display-only on the host** — three's
+  loaders run in the webview and the kernel has no triangle parser — so every
+  triangle-dependent operation (meshing, measure, region fit, Mesh Health,
+  promote, silhouette/drawing exports) must refuse them *by name* through cad's
+  `displayOnlyMeshMessage`, which is why `cadHost.ts` grew
+  `requireComparableMesh`. A generic "requires an STL/OBJ/PLY/glTF" would read
+  as a bug rather than as a designed boundary.
 - **Tabs: one `WebContentsView` + one `CadHost`/`MeshHost` instance per open
   document, per mode.** Opening a document into a tab disposes only *that
   tab's* session (`CadHost.dispose()`/`MeshHost.dispose()`) and reloads only
@@ -1426,8 +1450,77 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 74 CAD + 46 mesh + 4 aggregation + 31 app-owned
+discovery (current sets: 74 CAD + 47 mesh + 4 aggregation + 31 app-owned
 workflow tools).
+
+**The cad 3.14.0 → 3.16.0 + mesh 5.5.0 → 5.10.0 jump needed five host ports,
+one new worker, two settings and three policy/packaging rows.**
+
+- **cad: the OpenSCAD Customizer, ported message-for-message.** `provider.ts`
+  grew `scadParams`/`scadOverrides` (posted on `ready` for a `.scad` document
+  only) plus a `scadApplyOverrides` handler, an eighth sidecar
+  (`<model>.scad-params.json`, `scadOverridesStore.ts` — the node:fs twin of
+  the other seven, with `ScadValue` parsed through cad's pure
+  `parseScadOverridesJson`), and `resolveEffectiveSource`'s new `defines`.
+  `cadHost.ts` ports all four: the two posts, the handler, the store, and the
+  `defines` injection inside `readOcctSource` — **the choke point every `.scad`
+  call site already goes through**, which is why one edit there covers open,
+  every edit's re-tessellation, BOM/hole-table/clash/health/measure, meshing and
+  export at once. The preprocess archive carries the sidecar both ways. NOT
+  ported: the source/sidecar watchers that re-post on an external change, for
+  the same reason `edits.externalFrom` is not (KKSS has no source watcher), so
+  the field stays optional exactly as `protocol.ts` documents.
+- **cad: clash clearance.** Both `clashCheck*Request` handlers take
+  `minClearance`, with the provider's own guard (finite, `>= 0`) so an unusable
+  value never reaches OCCT, and the all-pairs variant folds it into the same
+  options object the budget already used.
+- **cad: `color()` → Parts.** `handleBRep` now returns the base shape's colour
+  groups (the worker carries them on `BRepResult`; nothing to bind) and
+  `loadModel` chains them into `autoCreateCsgColorParts`, which keeps the
+  provider's two real guards: only with an **edit-free replay tail** (with ops
+  applied the colours describe a base the user has since reshaped) and only
+  with **no Parts yet** (an authored grouping always wins). Neither guard is
+  cosmetic — dropping either invents membership the geometry does not have.
+- **cad: `documentInfo.relativePath`** for Copy reference, relative to the
+  **explicit** project root only and only while the document really sits inside
+  it (the `workspaceFolders` safety invariant means there is no other root to
+  use, and an invented relative path would be quoted into a copied reference).
+- **cad: `.3mf`/`.dae` refusals** via `requireComparableMesh` — see the routing
+  bullet above for why "by name" is the requirement.
+- **mesh: a new worker, not a new feature.** `meshioReadWorker.js` needs a
+  preflight entry and a `copyArtifacts()` line, plus
+  `configureMeshioReadRunner(runMeshioReadInWorker)` in `meshHost.ts`. Nothing
+  else in the parent changes: the providers run verbatim, and the whole
+  cancellation surface (mesh 5.10.0 extended it to parsing and derived
+  exports) is built on Node's `AbortController`, so the **shim needed no
+  change at all** — every new `vscode.*` call (`showOpenDialog` for
+  Compare-in-split, `withProgress` + `onCancellationRequested`, a modal
+  `showWarningMessage`, one `getConfiguration` read) is already covered.
+- **The generated mesh page gained one fragment.** mesh 5.10.0's command line
+  is a new `COMMANDLINE_HTML` in `buildPreviewHtml`, between `#main` and the
+  status bar; `webviewMarkup.ts` imports and inserts it, and the new View/Advanced
+  menu buttons arrive with the imported fragments. Nothing else changed the
+  markup, no new `--vscode-*` or `--ds-*` variable, and the theme guard passes
+  untouched. The command line is **purely webview-side** (its own menu button
+  and `/` shortcut), so it needs no native menu entry — the same rule as every
+  other action reachable from a menu KKSS leaves visible.
+- **Settings and policy.** `kratos.plots.persistentCache` is a registry row
+  (boolean, default off) with the `kratos.plots` section mapping; the plot
+  cache lives under the app's mesh storage, not beside a document, so no
+  sidecar/cloud change. `mesh__plot_preset` joins the table as `write` (its
+  twin's rule: read-shaped until `evaluate`/`threshold`/`differences`, and
+  `outputPath` writes a CSV) with **no** `toolPaths.ts` row — its `params` is
+  opaque and can carry a table path, so a project-folder grant could not
+  account for every path. cad's 74 tool **names are byte-identical** across the
+  bump: no new rows, and no read→write flip (the 11 revision-guarded write
+  tools were already `write`).
+- **Verified:** `typecheck`, the full unit suite (919 passed, 1 pre-existing
+  skip), `check:packaging` (which had been **failing** on the two missing
+  associations until this change), the generated pages carrying
+  `#commandline`/`#scad-panel` in upstream's order, all four meshio++ WASM
+  variants staged at 16.41 with `out/meshioReadWorker.js` beside `main.js`,
+  and **both** bundled-runtime MCP tests green against the one shared tree —
+  the last being the gate on meshio++ 16.41 vs cad's `^16.31.0`.
 
 **The cad 1.13.0 → 2.3.0 jump (five upstream releases at once) needed a real
 port, not just a gitlink bump.** Two classes of change, both in
@@ -2072,8 +2165,8 @@ extended-format time-series readers.
 
 `tools/format-registry.mjs` shares the packaging source parse and derives separate
 counts from unique values in `MESHIO_READ_CANDIDATES` and `MESHIO_WRITE_FORMAT`.
-At the current gitlinks: 42 readable and 38 writable extended formats, with 56
-read and 45 write suffixes. Native formats remain separate; field-only formats
+At the current gitlinks: 60 readable and 46 writable extended formats, with 80
+read and 54 write suffixes. Native formats remain separate; field-only formats
 are included, and writable figures SVG/TikZ count only on write. Packaging CI
 rejects mismatched or ambiguous counts in the landing page and format/start guides.
 Regenerate the Home form capture with
