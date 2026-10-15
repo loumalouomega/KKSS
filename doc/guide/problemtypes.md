@@ -150,15 +150,11 @@ The figures below come from a **real run**: OptimizationApplication's own 3D-hoo
 
 ![Optimization progress panel over the finished real run: the formulation, the objective history and the iteration table beside the hook mesh](/screenshots/problemtype-optimization-progress.png)
 
-**Design fields** opens the per-iteration output in a new Post-Processing tab with a timeline — one step per iteration. The captures land with the next screenshot run.
+**Design fields** opens the per-iteration output in a new Post-Processing tab with a timeline — the initial design first, then one step per iteration, beside the fields the optimizer writes (displacement, reactions, the control and strain-energy fields, the search direction).
 
-<!-- resolves when the run captures regenerate
 ![The hook's design-fields timeline: the morphing shape per iteration, with the incident fields the optimizer writes](/screenshots/problemtype-optimization-design-fields.png)
 
-![The shape evolving across the five iterations](/screenshots/problemtype-optimization-evolution.gif)
--->
-
-![Optimization progress panel over the 3D hook: the formulation the hook's own optimization_parameters.json declares, the objective history, two constraint histories and the iteration table](/screenshots/problemtype-optimization-progress.png)
+![The shape morphing from the initial design through the five iterations](/screenshots/problemtype-optimization-evolution.gif)
 
 ![ROM · Structural Mechanics over the 3D hook: the Reduced-order model stages, projection, POD basis, HROM and Sampling cards beside the hook mesh](/screenshots/problemtype-rom.png)
 

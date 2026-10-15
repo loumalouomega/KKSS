@@ -27,12 +27,16 @@
  *   problemtype-optimization-evolution.gif       — the shape morphing per iteration
  *
  *   env -u ELECTRON_RUN_AS_NODE npm run docs:screenshots -- --optimization-run-only
+ *
+ * Capture iterations must not pay the ~35-minute solve again: point
+ * `KKSS_OPTIMIZATION_RUN_REUSE` at a previous run's staged `case` directory and
+ * the scenario replays only the panel/design-fields/GIF captures over it.
  */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { launchApp, appWindow, waitForMarkers, closeApp, sleep, root, until } from "../e2eShared.mjs";
+import { launchApp, appWindow, waitForMarkers, closeApp, diagnostics, sleep, root, until } from "../e2eShared.mjs";
 import { encodeGif } from "../lib/gif.mjs";
 
 /** Every GIF must stay under this, so doc/public does not balloon (shared budget). */
@@ -44,17 +48,21 @@ const optimizationPython = process.env.KKSS_OPTIMIZATION_PYTHON
   ?? path.join(root, "node_modules", ".cache", "kkss-optimization", "runtime", "bin", "python");
 const hookSource = path.join(os.homedir(), "src", "Examples", "optimization_application", "use_cases", "3d_hook");
 
-/** Waits for the mesh page whose document chip matches, trying every page. */
-async function meshPage(app, deadline, wanted) {
+/** The design-fields viewer: the mesh window that is NOT the hook window that
+ *  opened it. Its document chip is the `.vtm` series, and only the series
+ *  viewer builds the timeline — a chip match on the case name would return the
+ *  original window (chip "hook.mdpa"), which has neither. */
+async function designFieldsPage(app, deadline, excluded) {
   for (;;) {
-    if (Date.now() > deadline) throw new Error(`No mesh page matched "${wanted}"`);
+    if (Date.now() > deadline) throw new Error("No design-fields viewer appeared");
     for (const page of app.windows().filter((p) => p.url().includes(MESH_URL))) {
+      if (page === excluded) continue;
       try {
-        const chip = await page.evaluate(() => document.querySelector("#doc-chip")?.textContent ?? "");
-        if (!wanted || chip.includes(wanted)) return page;
+        const chip = await page.evaluate(() => document.querySelector("#doc-chip-name")?.textContent ?? "");
+        if (chip.includes(".vtm") && await page.locator("#tl-scrub").count()) return page;
       } catch { /* page mid-navigation */ }
     }
-    await sleep(400);
+    await sleep(500);
   }
 }
 
@@ -79,7 +87,7 @@ async function waitForRun(stage, deadline) {
     if (Date.now() > deadline) throw new Error("The optimization run did not finish in time");
     try {
       const run = JSON.parse(fs.readFileSync(sidecar, "utf8"));
-      if (typeof run.status === "string" && DEAD_SIDECAK_STATUSES.includes(run.status) && run.exitCode === null) {
+      if (typeof run.status === "string" && DEAD_SIDECAR_STATUSES.includes(run.status) && run.exitCode === null) {
         throw new Error(
           `The optimization run was marked ${run.status} before finishing`
           + (run.message ? `: ${run.message}` : " — the mesh view closed or reloaded while it ran."));
@@ -94,7 +102,10 @@ async function waitForRun(stage, deadline) {
         return run;
       }
     } catch (err) {
-      if (err.code !== "ENOENT" && err instanceof SyntaxError === false && String(err).startsWith("The optimization run")) throw err;
+      // Retry only while the sidecar is absent or being (re)written.  Anything
+      // else — including a typo inside the try — must surface, not spin until
+      // the deadline.
+      if (err.code !== "ENOENT" && !(err instanceof SyntaxError)) throw err;
     }
     await sleep(5_000);
   }
@@ -119,10 +130,19 @@ export async function optimizationRunScenario(out) {
     return;
   }
 
-  const stageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-opt-run-"));
-  const stage = path.join(stageRoot, "case");
-  fs.mkdirSync(stage);
-  fs.cpSync(path.join(hookSource, "hook.mdpa"), path.join(stage, "hook.mdpa"));
+  // Capture iterations replay over an existing staged run instead of paying the
+  // ~35-minute solve again: KKSS_OPTIMIZATION_RUN_REUSE names a previous run's
+  // `case` directory (its finished sidecar and Optimization_Results are reused).
+  const reuse = process.env.KKSS_OPTIMIZATION_RUN_REUSE;
+  const stageRoot = reuse ? path.dirname(path.resolve(reuse)) : fs.mkdtempSync(path.join(os.tmpdir(), "kkss-opt-run-"));
+  const stage = reuse ? path.resolve(reuse) : path.join(stageRoot, "case");
+  if (reuse && !fs.existsSync(path.join(stage, "hook.kratosrun.json"))) {
+    throw new Error(`KKSS_OPTIMIZATION_RUN_REUSE=${stage} does not hold a staged run`);
+  }
+  if (!reuse) {
+    fs.mkdirSync(stage);
+    fs.cpSync(path.join(hookSource, "hook.mdpa"), path.join(stage, "hook.mdpa"));
+  }
   // The seeded case: the hook's own shape study, as the built-in problemtype
   // expresses it (see the file's header for the upstream mapping).
   const caseState = {
@@ -173,7 +193,7 @@ export async function optimizationRunScenario(out) {
   // Dedicated profile: Kratos interpreter pinned to the venv, OMP threads
   // bounded like the tutorials; everything else factory defaults.
   const profile = path.join(stageRoot, "profile");
-  fs.mkdirSync(profile);
+  fs.mkdirSync(profile, { recursive: true });
   fs.writeFileSync(path.join(profile, "state.json"), JSON.stringify({
     uiTheme: "dark",
     "kratos.pythonPath": optimizationPython,
@@ -203,21 +223,30 @@ export async function optimizationRunScenario(out) {
     await sleep(1_000);
 
     // ---- The user flow: generate, then run --------------------------------
-    await page.selectOption("#pt-select", "optimization");
-    await page.waitForFunction(() => document.querySelectorAll("#pt-collections .pt-card, #pt-forms .pt-card").length > 0, null, { timeout: 30_000 });
-    await sleep(1_500);
-    await page.locator("#pt-generate").click();
-    await waitForGenerated(stage, Date.now() + 300_000);
-    await page.locator("#pt-run:enabled").click({ timeout: 120_000 });
-    // Each iteration is a primal solve plus a gradient pass — ~5–6 minutes
-    // each on the streaming host (measured), so the full five-iteration run
-    // takes ~half an hour. Wait it out; the sidecar's terminal state is what
-    // says the optimizer finalized (and that its summary holds every row).
-    await waitForRun(stage, deadline);
+    if (!reuse) {
+      await page.selectOption("#pt-select", "optimization");
+      await page.waitForFunction(() => document.querySelectorAll("#pt-collections .pt-card, #pt-forms .pt-card").length > 0, null, { timeout: 30_000 });
+      await sleep(1_500);
+      await page.locator("#pt-generate").click();
+      await waitForGenerated(stage, Date.now() + 300_000);
+      await page.locator("#pt-run:enabled").click({ timeout: 120_000 });
+      // Each iteration is a primal solve plus a gradient pass — ~5–6 minutes
+      // each on the streaming host (measured), so the full five-iteration run
+      // takes ~half an hour. Wait it out; the sidecar's terminal state is what
+      // says the optimizer finalized (and that its summary holds every row).
+      await waitForRun(stage, deadline);
+    }
 
     // ---- Progress panel over the REAL completed run -------------------------
     await page.locator('[data-action="advanced"]').click();
     await page.locator('[data-action="optimizationProgress"]').click();
+    // The action toggles. A reused profile can restore the panel open (view
+    // state is saved per document), in which case the click above closed it —
+    // so make opening idempotent instead of assuming it was hidden.
+    if (!await page.locator("#optimization-panel").isVisible()) {
+      await page.locator('[data-action="advanced"]').click();
+      await page.locator('[data-action="optimizationProgress"]').click();
+    }
     await page.waitForSelector("#optimization-panel", { state: "visible", timeout: 30_000 });
     await page.locator("#optimization-panel button.panel-btn", { hasText: "Refresh" }).click();
     await until(async () => (await page.locator(".opt-verdict").textContent()).includes("finished"), "the panel reads the finished run", 60_000);
@@ -230,23 +259,31 @@ export async function optimizationRunScenario(out) {
     await page.locator("#optimization-panel button.panel-btn", { hasText: "Design fields" }).click();
     await until(async () => output().includes("[mesh] host → webview: vtkGroup"), "the design-fields timeline posts", 240_000);
     await sleep(4_000);
-    const dfPage = await meshPage(app, Date.now() + 90_000, "hook");
+    // The series viewer is a NEW mesh window (document chip `Structure_0_N.vtm`),
+    // not the hook window that opened it; and it must finish parsing the ~160 MB
+    // series before it can paint — the timeline appears only once that load is
+    // done, so wait for it instead of queueing the first screenshot behind it.
+    const dfPage = await designFieldsPage(app, Date.now() + 600_000, page);
     await dfPage.waitForFunction(() => {
       const appEl = document.querySelector("#app");
-      return appEl && getComputedStyle(appEl).display !== "none";
-    }, null, { timeout: 120_000 });
+      if (!appEl || getComputedStyle(appEl).display === "none") return false;
+      const scrub = document.querySelector("#tl-scrub");
+      const label = document.querySelector("#tl-label")?.textContent ?? "";
+      return !!scrub && scrub.getAttribute("max") !== null && /\d+\s*\/\s*\d+/.test(label);
+    }, null, { timeout: 600_000 });
+    await nextPaint(dfPage);
     await sleep(1_500);
     await dfPage.locator("#nav-fit").click();
     await dfPage.keyboard.press("i"); // isometric corner view
     await sleep(1_000);
     await dfPage.mouse.move(0, 0); await sleep(300);
-    await dfPage.screenshot({ path: path.join(out, "problemtype-optimization-design-fields.png"), timeout: 180_000 });
+    await dfPage.screenshot({ path: path.join(out, "problemtype-optimization-design-fields.png"), timeout: 600_000 });
 
     // ---- GIF: the shape morphing iteration by iteration --------------------
     const total = Number(await dfPage.locator("#tl-scrub").getAttribute("max")) + 1;
     assert.ok(total >= 4, `the design-fields timeline holds ${total} steps — expected the per-iteration frames`);
     const grab = async (clip) => {
-      const png = await dfPage.screenshot({ clip, timeout: 120_000 });
+      const png = await dfPage.screenshot({ clip, timeout: 300_000 });
       const img = await app.evaluate(({ nativeImage }, { b64, width }) => {
         const resized = nativeImage.createFromBuffer(Buffer.from(b64, "base64")).resize({ width, quality: "best" });
         const size = resized.getSize();
@@ -266,7 +303,7 @@ export async function optimizationRunScenario(out) {
         scrub.value = String(i);
         scrub.dispatchEvent(new Event("input", { bubbles: true }));
       }, index);
-      await until(async () => (await dfPage.locator("#tl-label").textContent()).includes(`(${index + 1}/${total})`), `timeline at frame ${index + 1}`, 45_000);
+      await until(async () => (await dfPage.locator("#tl-label").textContent()).includes(`(${index + 1}/${total})`), `timeline at frame ${index + 1}`, 120_000);
       await setChrome(dfPage, true);
       await nextPaint(dfPage); await sleep(250); await nextPaint(dfPage);
       frames.push(await grab(clip));
@@ -279,6 +316,11 @@ export async function optimizationRunScenario(out) {
     assert.ok(gif.length <= GIF_BUDGET_BYTES, `the design-fields GIF is ${gif.length} bytes, over the ${GIF_BUDGET_BYTES}-byte budget`);
     fs.writeFileSync(path.join(out, "problemtype-optimization-evolution.gif"), gif);
     console.log(`optimization-run: done — summary rows from the finished run; GIF ${gif.length} bytes`);
+  } catch (error) {
+    // The open risk is the app exiting mid-run: leave the full app output and
+    // page state behind for the post-mortem instead of just the thrown message.
+    await diagnostics(app, output, "optimization-run").catch(() => {});
+    throw error;
   } finally {
     await closeApp(app);
   }

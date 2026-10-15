@@ -8,12 +8,14 @@ import { cases } from './cases.mjs';
 import { root, python } from './mcp.mjs';
 import { publishTutorialPlots } from './plots.mjs';
 
-const sources = process.argv.slice(2).map(p => path.resolve(p));
-if (!sources.length) throw Error('Usage: node tools/tutorials/publish.mjs <generation-directory> [...]');
+const args = process.argv.slice(2);
+const only = new Set(args.filter(a => a.startsWith('--only=')).flatMap(a => a.slice('--only='.length).split(',')));
+const sources = args.filter(a => !a.startsWith('--')).map(p => path.resolve(p));
+if (!sources.length) throw Error('Usage: node tools/tutorials/publish.mjs <generation-directory> [...] [--only=<case>[,<case>]]');
 const exec = promisify(execFile);
 const output = path.join(root, 'doc/public/examples/tutorials');
 await fs.mkdir(output, { recursive: true });
-for (const c of cases) {
+for (const c of cases.filter(c => !only.size || only.has(c.id))) {
   let source;
   for (const candidate of sources) {
     try { await fs.access(path.join(candidate, c.id, 'verification.json')); source = path.join(candidate, c.id); } catch { /* another generation */ }
@@ -22,6 +24,7 @@ for (const c of cases) {
   const verified = await exec(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, source], { encoding: 'utf8' });
   const verification = JSON.parse(verified.stdout);
   const dest = path.join(output, c.id);
+  if (path.resolve(source) === path.resolve(dest)) throw Error(`${c.id}: the generation directory is the published directory`);
   await fs.rm(dest, { recursive: true, force: true });
   await fs.mkdir(dest);
   await fs.copyFile(path.join(root, 'LICENSE'), path.join(dest, 'LICENSE'));

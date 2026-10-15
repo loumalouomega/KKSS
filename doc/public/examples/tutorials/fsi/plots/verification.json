@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "case": "fsi",
+  "source": "Published Kratos solver output; no solver rerun or synthetic values",
+  "coordinates": {
+    "interface": {
+      "id": 89,
+      "xyz": [
+        1.0499999523162842,
+        0,
+        0.05000000074505806
+      ]
+    },
+    "pressure": {
+      "id": 121,
+      "xyz": [
+        1.0499999523162842,
+        0,
+        0.05000000074505806
+      ]
+    },
+    "tip": {
+      "id": 89,
+      "xyz": [
+        1.0499999523162842,
+        0,
+        0.05000000074505806
+      ]
+    }
+  },
+  "inputs": {
+    "ProjectParameters.json": "caf2d60c82ad4823b78080148c3bc8bbfc3dfe60d4b192b36116b8f9f816f20e",
+    "recipe.json": "e22270c1691c5b1b30529e92e71341025f99b56da584718ac000df1cd6908d17",
+    "vtk_output/FluidModelPart_0_1.vtk": "f36d2615b770d44ed1709bb2d539845a5766f658157650f7ee7870e6428f58b5",
+    "vtk_output/FluidModelPart_0_2.vtk": "47747bbd3e06ae761648484a66ed5a04ffc740c3f279e3df7335ce46bd8b7566",
+    "vtk_output/FluidModelPart_0_3.vtk": "08bea0215256038d909222454034317d44cb0f859a116b63fb5378117ed8f055",
+    "vtk_output/Structure_0_1.vtk": "68a0c0751bfd20b29e5235d7a977cd3c211a94038d27d485d9a6a3c574dc757c",
+    "vtk_output/Structure_0_2.vtk": "d7ecf84317835135e8c2ada7962415be97e3a68af07505658b3d957b7ceebf97",
+    "vtk_output/Structure_0_3.vtk": "76a7e8a5da2a4dfac0aa1c7e8cc1e75f62deedae12aaced2be4ed9af0301e213"
+  },
+  "timeMapping": {
+    "basis": "Single stationary solution; no time history"
+  },
+  "units": "Explicitly supplied from the tutorial SI setup using recipe convert transforms; original VTK field units remain unknown",
+  "ownership": "No isolated-run receipt is invented; these are relocatable disk-source recipes, not verified saved-run bindings",
+  "recipes": {
+    "pressure-history": [
+      {
+        "id": "pressure",
+        "count": 3,
+        "first": {
+          "x": "1",
+          "y": 573.35944,
+          "origin": {
+            "source": "pressure",
+            "frameIndex": 0,
+            "entityKind": "Nodes",
+            "entityId": 121
+          }
+        },
+        "last": {
+          "x": "3",
+          "y": 1274.5168,
+          "origin": {
+            "source": "pressure",
+            "frameIndex": 2,
+            "entityKind": "Nodes",
+            "entityId": 121
+          }
+        },
+        "statistics": {
+          "count": 3,
+          "missing": 0,
+          "min": 573.35944,
+          "max": 1705.7612,
+          "mean": 1184.5458133333334,
+          "std": 466.65799064132926,
+          "q1": 923.93812,
+          "median": 1274.5168,
+          "q3": 1490.1390000000001
+        }
+      }
+    ],
+    "interface-displacement-history": [
+      {
+        "id": "tip",
+        "count": 3,
+        "first": {
+          "x": "1",
+          "y": -0.99629536,
+          "origin": {
+            "source": "tip",
+            "frameIndex": 0,
+            "entityKind": "Nodes",
+            "entityId": 89
+          }
+        },
+        "last": {
+          "x": "3",
+          "y": -1.6700613,
+          "origin": {
+            "source": "tip",
+            "frameIndex": 2,
+            "entityKind": "Nodes",
+            "entityId": 89
+          }
+        },
+        "statistics": {
+          "count": 3,
+          "missing": 0,
+          "min": -2.2737542,
+          "max": -0.99629536,
+          "mean": -1.64670362,
+          "std": 0.5217818560054723,
+          "q1": -1.97190775,
+          "median": -1.6700613,
+          "q3": -1.33317833
+        }
+      }
+    ]
+  }
+}

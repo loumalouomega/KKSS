@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "source": "coupled-channel.brep",
+  "ops": [
+    {
+      "op": "addBox",
+      "center": [
+        1000,
+        300,
+        50
+      ],
+      "size": [
+        2000,
+        600,
+        100
+      ]
+    },
+    {
+      "op": "addBox",
+      "center": [
+        1000,
+        -25,
+        50
+      ],
+      "size": [
+        2000,
+        50,
+        100
+      ]
+    }
+  ]
+}

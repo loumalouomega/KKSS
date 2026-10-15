@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "tip",
+      "type": "history",
+      "path": "../vtk_output/Structure_0_1.vtk",
+      "kind": "Nodal",
+      "entityId": 89,
+      "variable": "DISPLACEMENT"
+    }
+  ],
+  "series": [
+    {
+      "id": "tip",
+      "source": "tip",
+      "name": "Interface node 89: Y",
+      "x": "time",
+      "y": "v1",
+      "transforms": [
+        {
+          "op": "convert",
+          "factor": 1000,
+          "unit": "mm"
+        }
+      ]
+    }
+  ],
+  "presentation": {
+    "family": "line",
+    "title": "Interface displacement over coupled steps",
+    "lineMode": "lines+markers",
+    "xLabel": "Reconstructed solver time [s]",
+    "yLabel": "Displacement Y [mm]"
+  }
+}

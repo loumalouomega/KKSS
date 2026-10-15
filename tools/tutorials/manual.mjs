@@ -19,6 +19,27 @@ async function values(container, values) {
   }
 }
 
+/** The case's latest file of one participant family, opened through the shell
+ *  window's Post-Processing mode and Open… — the user's own path for a result
+ *  file the Problemtype sidebar's single `Open results` did not pick. */
+async function openParticipant(app, dir, family, deadline) {
+  const files = fs.readdirSync(path.join(dir, 'vtk_output')).filter((n) => n.startsWith(family) && n.endsWith('.vtk'));
+  assert.ok(files.length, `no ${family} output in ${dir}/vtk_output`);
+  const latest = files.sort((a, b) => Number(a.match(/_(\d+)\.vtk$/)[1]) - Number(b.match(/_(\d+)\.vtk$/)[1])).at(-1);
+  const shell = await appWindow(app, '/renderer/shell/', deadline);
+  await shell.locator('#mode-mesh').click();
+  await selectFile(app, path.join(dir, 'vtk_output', latest));
+  await shell.locator('#open-btn').click();
+  let found;
+  await until(async () => {
+    for (const page of app.windows().filter(p => p.url().includes('/renderer/mesh/'))) {
+      if (await page.locator('#doc-chip-name').textContent().catch(() => '') === latest) { found = page; return true; }
+    }
+    return false;
+  }, `${latest} opens in a viewer`, 120000);
+  return found;
+}
+
 export async function manualTutorials(out, selected = []) {
   for (const c of cases.filter(c => !selected.length || selected.includes(c.id))) {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kkss-tutorial-'));
@@ -55,14 +76,33 @@ export async function manualTutorials(out, selected = []) {
         const expanded = mesh.locator(`.sb-section[data-section="${section}"]:not(.collapsed) > .sb-section-header .panel-chevron`);
         if (await expanded.count()) await expanded.click();
       }
+      // Coupled problemtypes carry one card per section (coupling, fluid,
+      // structure) and all but the first start collapsed; every field must be
+      // visible before the form can be filled by data-field.  Click through the
+      // app's own toggles so its persisted collapse state stays consistent.
+      while (await mesh.locator('#pt-forms .pt-card.collapsed > .edit-form-title').count() > 0) {
+        await mesh.locator('#pt-forms .pt-card.collapsed > .edit-form-title').first().click();
+      }
+      while (await mesh.locator('#pt-forms .pt-group.collapsed > .pt-group-header').count() > 0) {
+        await mesh.locator('#pt-forms .pt-group.collapsed > .pt-group-header').first().click();
+      }
       // Coupled cases keep section-keyed values; the sidebar form is flat.
       const formValues = c.values ? Object.assign({}, ...Object.values(c.values)) : c.problem;
       await values(mesh.locator('#pt-forms'), formValues);
       for (const a of c.assignments) {
-        await mesh.selectOption('#pt-assignments .pt-add-what', a.conditionId);
-        await mesh.selectOption('#pt-assignments .pt-add-where', a.smpPath);
-        await mesh.locator('#pt-assignments .pt-add-row button').click();
-        await values(mesh.locator('#pt-assignments .pt-assign').last(), a.values);
+        // A Parts-style pseudo-condition (which SubModelParts form the computing
+        // domain) is filed in its own Domain card — one per physics domain,
+        // each with a single-choice dropdown — and is deliberately absent from
+        // the Conditions card's grouped add-row.
+        const partsCard = await mesh.evaluate((id) => {
+          const cards = Array.from(document.querySelectorAll('#pt-parts .pt-card'));
+          return cards.findIndex((card) => Array.from(card.querySelectorAll('select.pt-add-what option')).some((o) => o.value === id));
+        }, a.conditionId);
+        const host = partsCard >= 0 ? mesh.locator('#pt-parts .pt-card').nth(partsCard) : mesh.locator('#pt-assignments');
+        if (partsCard < 0) await mesh.selectOption('#pt-assignments .pt-add-what', a.conditionId);
+        await host.locator('select.pt-add-where').selectOption(a.smpPath);
+        await host.locator('.pt-add-row button').click();
+        await values(host.locator('.pt-assign').last(), a.values);
       }
       for (const m of c.materials) {
         await mesh.selectOption('#pt-materials .pt-add-what', m.lawId);
@@ -93,16 +133,6 @@ export async function manualTutorials(out, selected = []) {
         }
         return resultPages.length > 0;
       }, 'Open results creates VTK tab', 60000);
-      if (c.structureField) {
-        // The second participant tab opens alongside the first; wait for both.
-        await until(async () => {
-          for (const page of app.windows().filter(p => p.url().includes('/renderer/mesh/'))) {
-            const name = await page.locator('#doc-chip-name').textContent().catch(() => '');
-            if (name.includes('.vtk') && !resultPages.includes(page)) resultPages.push(page);
-          }
-          return resultPages.length >= 2;
-        }, 'Open results creates both participant tabs', 60000).catch(() => { console.warn(`${c.id}: only ${resultPages.length} result tab(s) opened`); });
-      }
       const shotField = async (result, field, shot) => {
         await result.locator('#toolbar button[data-action="field"]').click();
         const selector = result.locator('#field-panel select').first();
@@ -118,12 +148,17 @@ export async function manualTutorials(out, selected = []) {
       };
       let result, selector, options, choice;
       if (c.structureField) {
-        // One result tab per participant: fluid drives the main capture.
+        // `Open results` opens ONE tab: the case's latest result file (most
+        // steps wins across families, ties by name — the fluid participant
+        // here), not a tab per participant. The second participant is opened
+        // the way any result file is — the shell window's Post-Processing mode
+        // and Open…, the same dialog flow tools/e2e/lifecycle.mjs drives — and
+        // its field is captured from the viewer the app opens for it.
         const names = await Promise.all(resultPages.map(p => p.locator('#doc-chip-name').textContent().catch(() => '')));
         result = resultPages[names.findIndex(n => n.startsWith('Fluid'))] ?? resultPages[0];
         ({ selector, options } = await shotField(result, c.field, `tutorial-${c.id}-results.png`));
-        const structPage = resultPages[names.findIndex(n => n.startsWith('Structure'))];
-        if (structPage) await shotField(structPage, c.structureField, `tutorial-${c.id}-structure.png`);
+        const structPage = await openParticipant(app, dir, 'Structure', deadline);
+        await shotField(structPage, c.structureField, `tutorial-${c.id}-structure.png`);
       } else {
         result = resultPages[0];
         ({ selector, options } = await shotField(result, c.field, `tutorial-${c.id}-results.png`));

@@ -37,6 +37,45 @@ def vtk(file):
     return points, cells, fields
 
 
+def _face_flux(points, cells, velocity, x_plane, outward_x):
+    """Outward volume flux through the mesh faces on a plane x = const.
+
+    The ASCII output keeps the reference coordinates, and the inlet and outlet
+    planes do not move in x, so the faces there are selected directly.  Linear
+    triangles integrate the nodal velocity exactly.
+    """
+    total = 0.0
+    for cell in cells:
+        on_plane = [i for i in cell if abs(points[i][0] - x_plane) < 1e-9]
+        if len(on_plane) != 3:
+            continue
+        a, b, c = (points[i] for i in on_plane)
+        u = [b[k] - a[k] for k in range(3)]
+        v = [c[k] - a[k] for k in range(3)]
+        n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+        if n[0] * outward_x < 0:
+            n = [-x for x in n]
+        mean_v = [sum(velocity[i][k] for i in on_plane) / 3 for k in range(3)]
+        total += 0.5 * sum(n[k] * mean_v[k] for k in range(3))
+    return total
+
+
+def _deformed_volume(points, cells, mesh_displacement):
+    """Volume of a tet mesh in its deformed configuration."""
+    total = 0.0
+    for cell in cells:
+        if len(cell) != 4:
+            continue
+        a, b, c, d = ([points[i][k] + mesh_displacement[i][k] for k in range(3)] for i in cell)
+        u = [b[k] - a[k] for k in range(3)]
+        v = [c[k] - a[k] for k in range(3)]
+        w = [d[k] - a[k] for k in range(3)]
+        total += abs(u[0] * (v[1] * w[2] - v[2] * w[1])
+                     - u[1] * (v[0] * w[2] - v[2] * w[0])
+                     + u[2] * (v[0] * w[1] - v[1] * w[0])) / 6
+    return total
+
+
 def verify_coupled(case, directory):
     """Partitioned channel-over-slab cases: fluid VTK + structure VTK + coupling log."""
     directory = pathlib.Path(directory)
@@ -74,16 +113,43 @@ def verify_coupled(case, directory):
         vals = [v[0] for xyz, v in zip(p, velocity) if abs(xyz[0] - x) < 1e-8]
         assert len(vals) >= 2
         return sum(vals) / len(vals), len(vals)
-    # Three steps is a developing flow (2 m channel at 0.1 m/s needs ~20 s to
-    # cross), so no inlet/outlet balance is expected yet: the outlet still
-    # carries the quiescent initial condition while the inlet is exact.
     inlet_mean, inlet_nodes = face_mean(0)
     outlet_mean, outlet_nodes = face_mean(width)
     check('inlet_face_mean_m_per_s', abs(inlet_mean - inlet_speed), 0.02)
-    check('outlet_face_quiescent_m_per_s', abs(outlet_mean), 0.05)
+    checks['outlet_face_mean_m_per_s'] = outlet_mean
     checks['inlet_face_nodes'] = inlet_nodes
     checks['outlet_face_nodes'] = outlet_nodes
-    assert 'MESH_DISPLACEMENT' in fields, 'ALE fluid output carries no MESH_DISPLACEMENT'
+
+    # An incompressible solve pushes the inflow straight through, and the slab
+    # sweeps the ALE domain (mm-scale motion over 0.2 m2), so the outlet
+    # carries the inflow plus the squeeze - the quiescent-outlet premise does
+    # not hold.  Assert instead the ALE mass balance over the sampled window:
+    # the net outward flux through inlet and outlet equals minus the volume
+    # change of the moving fluid domain.  The trapezoid rule over three
+    # samples of a fast transient is coarse, hence the generous tolerance.
+    assert len(fluid_files) >= 2, 'The ALE mass balance needs at least two fluid frames'
+    fluid_settings = parameters['solver_settings'].get('fluid_solver_settings')
+    if fluid_settings is None:    # cosim: the fluid participant has its own document
+        cfd = json.loads((directory / 'ProjectParametersCFD.json').read_text())
+        fluid_settings = cfd['solver_settings']['fluid_solver_settings']
+    time_step = fluid_settings['time_stepping']['time_step']
+    volumes, net_fluxes, inlet_flux = [], [], None
+    for path in fluid_files:
+        frame_points, frame_cells, frame_fields = vtk(path)
+        assert 'MESH_DISPLACEMENT' in frame_fields, 'ALE fluid output carries no MESH_DISPLACEMENT'
+        frame_velocity = frame_fields['VELOCITY']
+        inlet = _face_flux(frame_points, frame_cells, frame_velocity, 0.0, -1.0)
+        outlet = _face_flux(frame_points, frame_cells, frame_velocity, width, +1.0)
+        if inlet_flux is None:
+            inlet_flux = inlet
+        volumes.append(_deformed_volume(frame_points, frame_cells, frame_fields['MESH_DISPLACEMENT']))
+        net_fluxes.append(inlet + outlet)
+    delivered = time_step * abs(inlet_flux)
+    integrated = time_step * (sum(net_fluxes[1:-1]) + (net_fluxes[0] + net_fluxes[-1]) / 2)
+    volume_change = volumes[-1] - volumes[0]
+    checks['delivered_volume_m3'] = delivered
+    checks['fluid_volume_change_m3'] = volume_change
+    check('ale_mass_balance_error', abs(integrated + volume_change) / delivered, 0.35)
 
     displacement = struct_fields['DISPLACEMENT']
     peak = max(math.sqrt(sum(x * x for x in v)) for v in displacement)
@@ -95,9 +161,11 @@ def verify_coupled(case, directory):
     records = [json.loads(line) for line in convergence if line.strip()]
     steps = [r for r in records if r.get('event') == 'step']
     assert steps, 'Coupling convergence log has no step records'
+    assert len(steps) == len(fluid_files), f'Coupling log has {len(steps)} steps but the fluid wrote {len(fluid_files)} frames'
     checks['coupling_steps'] = len(steps)
-    checks['coupling_iterations_per_step'] = [r.get('iterations', 0) for r in steps]
-    assert all(r.get('iterations', 0) >= 1 for r in steps), 'A coupled step recorded no coupling iteration'
+    checks['coupling_iterations_per_step'] = [r.get('nonlinearIteration', 0) for r in steps]
+    assert all(r.get('nonlinearIteration', 0) >= 1 for r in steps), 'A coupled step recorded no coupling iteration'
+    assert all(r.get('solverStepResult') is not False for r in steps), 'A coupled step did not solve'
     checks['coupling_nonconverged_steps'] = sum(1 for r in steps if r.get('converged') is False)
     return {'case': case, 'python': platform.python_version(), 'kratos': importlib.metadata.version('KratosMultiphysics'),
             'threads': 2, 'nodes': len(p) + len(ps), 'elements': len(cells) + len(struct_cells),

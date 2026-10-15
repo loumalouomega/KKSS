@@ -1,0 +1,309 @@
+{
+    "analysis_stage": "KratosMultiphysics.FSIApplication.fsi_analysis",
+    "problem_data": {
+        "problem_name": "mesh",
+        "parallel_type": "OpenMP",
+        "echo_level": 1,
+        "start_time": 0,
+        "end_time": 0.15
+    },
+    "solver_settings": {
+        "solver_type": "Partitioned",
+        "coupling_scheme": "DirichletNeumann",
+        "echo_level": 1,
+        "structure_solver_settings": {
+            "solver_type": "Dynamic",
+            "model_part_name": "Structure",
+            "domain_size": 3,
+            "echo_level": 1,
+            "model_import_settings": {
+                "input_type": "mdpa",
+                "input_filename": "mesh_Structural"
+            },
+            "material_import_settings": {
+                "materials_filename": "StructuralMaterials.json"
+            },
+            "time_stepping": {
+                "automatic_time_step": false,
+                "time_step": 0.05
+            },
+            "rotation_dofs": false,
+            "analysis_type": "non_linear",
+            "time_integration_method": "implicit",
+            "scheme_type": "bossak",
+            "rayleigh_alpha": 0,
+            "rayleigh_beta": 0,
+            "convergence_criterion": "residual_criterion",
+            "residual_relative_tolerance": 0.0001,
+            "residual_absolute_tolerance": 1e-9,
+            "max_iteration": 10,
+            "line_search": false,
+            "use_old_stiffness_in_first_iteration": false
+        },
+        "fluid_solver_settings": {
+            "model_part_name": "FluidModelPart",
+            "domain_size": 3,
+            "solver_type": "Monolithic",
+            "model_import_settings": {
+                "input_type": "mdpa",
+                "input_filename": "mesh_Fluid"
+            },
+            "material_import_settings": {
+                "materials_filename": "FluidMaterials.json"
+            },
+            "echo_level": 0,
+            "compute_reactions": true,
+            "volume_model_part_name": "FluidModelPart.Fluid",
+            "skin_parts": [
+                "FluidModelPart.Inlet",
+                "FluidModelPart.Outlet",
+                "FluidModelPart.Walls",
+                "FluidModelPart.Interface"
+            ],
+            "no_skin_parts": [
+                "FluidModelPart.Inlet",
+                "FluidModelPart.Outlet",
+                "FluidModelPart.Walls"
+            ],
+            "time_stepping": {
+                "automatic_time_step": false,
+                "time_step": 0.05
+            },
+            "maximum_iterations": 10,
+            "relative_velocity_tolerance": 0.001,
+            "absolute_velocity_tolerance": 0.00001,
+            "relative_pressure_tolerance": 0.001,
+            "absolute_pressure_tolerance": 0.00001,
+            "time_scheme": "bossak",
+            "formulation": {
+                "element_type": "qsvms",
+                "use_orthogonal_subscales": false,
+                "dynamic_tau": 1
+            },
+            "reform_dofs_at_each_step": false
+        },
+        "mesh_solver_settings": {
+            "echo_level": 0,
+            "domain_size": 3,
+            "model_part_name": "FluidModelPart",
+            "solver_type": "structural_similarity"
+        },
+        "coupling_settings": {
+            "nl_tol": 1e-7,
+            "nl_max_it": 25,
+            "solve_mesh_at_each_iteration": true,
+            "mapper_settings": [
+                {
+                    "mapper_face": "unique",
+                    "fluid_interface_submodelpart_name": "FluidModelPart.Interface",
+                    "structure_interface_submodelpart_name": "Structure.Interface"
+                }
+            ],
+            "coupling_strategy_settings": {
+                "solver_type": "Relaxation",
+                "w_0": 0.825,
+                "acceleration_type": "Aitken"
+            },
+            "structure_interfaces_list": [
+                "Structure.Interface"
+            ],
+            "fluid_interfaces_list": [
+                "FluidModelPart.Interface"
+            ]
+        }
+    },
+    "processes": {
+        "fluid_initial_conditions_process_list": [],
+        "fluid_boundary_conditions_process_list": [
+            {
+                "python_module": "apply_inlet_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Inlet",
+                    "variable_name": "VELOCITY",
+                    "modulus": 0.1,
+                    "direction": [
+                        1,
+                        0,
+                        0
+                    ],
+                    "interval": [
+                        0,
+                        "End"
+                    ]
+                }
+            },
+            {
+                "python_module": "apply_outlet_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Outlet",
+                    "variable_name": "PRESSURE",
+                    "constrained": true,
+                    "value": 0,
+                    "hydrostatic_outlet": false,
+                    "h_top": 0
+                }
+            },
+            {
+                "python_module": "apply_slip_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "process_name": "ApplySlipProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Walls"
+                }
+            },
+            {
+                "python_module": "assign_vector_variable_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignVectorVariableProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Inlet",
+                    "variable_name": "MESH_DISPLACEMENT",
+                    "interval": [
+                        0,
+                        "End"
+                    ],
+                    "constrained": [
+                        true,
+                        true,
+                        true
+                    ],
+                    "value": [
+                        0,
+                        0,
+                        0
+                    ]
+                }
+            },
+            {
+                "python_module": "assign_vector_variable_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignVectorVariableProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Outlet",
+                    "variable_name": "MESH_DISPLACEMENT",
+                    "interval": [
+                        0,
+                        "End"
+                    ],
+                    "constrained": [
+                        true,
+                        true,
+                        true
+                    ],
+                    "value": [
+                        0,
+                        0,
+                        0
+                    ]
+                }
+            },
+            {
+                "python_module": "assign_vector_variable_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignVectorVariableProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Walls",
+                    "variable_name": "MESH_DISPLACEMENT",
+                    "interval": [
+                        0,
+                        "End"
+                    ],
+                    "constrained": [
+                        true,
+                        true,
+                        true
+                    ],
+                    "value": [
+                        0,
+                        0,
+                        0
+                    ]
+                }
+            }
+        ],
+        "structure_constraints_process_list": [
+            {
+                "python_module": "assign_vector_variable_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignVectorVariableProcess",
+                "Parameters": {
+                    "model_part_name": "Structure.Fixed",
+                    "variable_name": "DISPLACEMENT",
+                    "interval": [
+                        0,
+                        "End"
+                    ],
+                    "constrained": [
+                        true,
+                        true,
+                        true
+                    ],
+                    "value": [
+                        0,
+                        0,
+                        0
+                    ]
+                }
+            }
+        ],
+        "structure_loads_process_list": []
+    },
+    "output_processes": {
+        "gid_output": [],
+        "vtk_output": [
+            {
+                "python_module": "vtk_output_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "VtkOutputProcess",
+                "help": "This process writes postprocessing files for Paraview",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart",
+                    "output_control_type": "step",
+                    "output_interval": 1,
+                    "file_format": "ascii",
+                    "output_precision": 7,
+                    "output_sub_model_parts": false,
+                    "output_path": "vtk_output",
+                    "save_output_files_in_folder": true,
+                    "nodal_solution_step_data_variables": [
+                        "VELOCITY",
+                        "PRESSURE",
+                        "MESH_DISPLACEMENT"
+                    ],
+                    "nodal_data_value_variables": [],
+                    "element_data_value_variables": [],
+                    "condition_data_value_variables": [],
+                    "gauss_point_variables_extrapolated_to_nodes": []
+                }
+            },
+            {
+                "python_module": "vtk_output_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "VtkOutputProcess",
+                "help": "This process writes postprocessing files for Paraview",
+                "Parameters": {
+                    "model_part_name": "Structure",
+                    "output_control_type": "step",
+                    "output_interval": 1,
+                    "file_format": "ascii",
+                    "output_precision": 7,
+                    "output_sub_model_parts": false,
+                    "output_path": "vtk_output",
+                    "save_output_files_in_folder": true,
+                    "nodal_solution_step_data_variables": [
+                        "DISPLACEMENT",
+                        "REACTION"
+                    ],
+                    "nodal_data_value_variables": [],
+                    "element_data_value_variables": [],
+                    "condition_data_value_variables": [],
+                    "gauss_point_variables_extrapolated_to_nodes": [
+                        "VON_MISES_STRESS"
+                    ]
+                }
+            }
+        ]
+    }
+}

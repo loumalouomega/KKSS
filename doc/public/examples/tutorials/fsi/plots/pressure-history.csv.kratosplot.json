@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "tool": "Kratos MDPA Preview",
+  "recipe": {
+    "version": 1,
+    "sources": [
+      {
+        "id": "pressure",
+        "type": "history",
+        "path": "../vtk_output/FluidModelPart_0_1.vtk",
+        "kind": "Nodal",
+        "entityId": 121,
+        "variable": "PRESSURE"
+      }
+    ],
+    "series": [
+      {
+        "id": "pressure",
+        "source": "pressure",
+        "name": "Interface pressure node 121",
+        "x": "time",
+        "y": "v0",
+        "transforms": [
+          {
+            "op": "convert",
+            "factor": 1,
+            "unit": "Pa"
+          }
+        ]
+      }
+    ],
+    "presentation": {
+      "family": "line",
+      "title": "Interface pressure over coupled steps",
+      "lineMode": "lines+markers",
+      "xLabel": "Reconstructed solver time [s]",
+      "yLabel": "Pressure [Pa]"
+    }
+  },
+  "sources": [
+    {
+      "id": "pressure",
+      "revision": "e028b115fa641500ba2c33772ec4cc6ea1619db859b9feac1ca61faafb4ea3fa",
+      "rows": 3,
+      "columns": [
+        {
+          "id": "time",
+          "label": "Step label",
+          "type": "text",
+          "domain": "stepLabel"
+        },
+        {
+          "id": "frame",
+          "label": "Frame index",
+          "type": "number",
+          "domain": "frameIndex"
+        },
+        {
+          "id": "v0",
+          "label": "PRESSURE",
+          "type": "number"
+        }
+      ],
+      "partial": false
+    }
+  ],
+  "partial": false,
+  "diagnostics": [],
+  "fullCount": 3,
+  "displayCount": 3,
+  "series": [
+    {
+      "id": "pressure",
+      "name": "Interface pressure node 121",
+      "x": {
+        "id": "time",
+        "label": "Step label",
+        "type": "text",
+        "domain": "stepLabel"
+      },
+      "y": {
+        "id": "v0",
+        "label": "PRESSURE",
+        "type": "number",
+        "unit": "Pa",
+        "dimensions": [
+          1,
+          -1,
+          -2,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "originalX": {
+        "id": "time",
+        "label": "Step label",
+        "type": "text",
+        "domain": "stepLabel"
+      },
+      "originalY": {
+        "id": "v0",
+        "label": "PRESSURE",
+        "type": "number"
+      },
+      "statistics": {
+        "count": 3,
+        "missing": 0,
+        "min": 573.35944,
+        "max": 1705.7612,
+        "mean": 1184.5458133333334,
+        "std": 466.65799064132926,
+        "q1": 923.93812,
+        "median": 1274.5168,
+        "q3": 1490.1390000000001
+      },
+      "diagnostics": [
+        "History reads disk values without replaying mesh edits.",
+        "Filename steps are not physical time; supply a physical-time mapping for alignment.",
+        "Y units are unknown.",
+        "X units are unknown (not assumed seconds)."
+      ]
+    }
+  ],
+  "tutorial": {
+    "case": "fsi",
+    "inputs": {
+      "ProjectParameters.json": "caf2d60c82ad4823b78080148c3bc8bbfc3dfe60d4b192b36116b8f9f816f20e",
+      "recipe.json": "e22270c1691c5b1b30529e92e71341025f99b56da584718ac000df1cd6908d17",
+      "vtk_output/FluidModelPart_0_1.vtk": "f36d2615b770d44ed1709bb2d539845a5766f658157650f7ee7870e6428f58b5",
+      "vtk_output/FluidModelPart_0_2.vtk": "47747bbd3e06ae761648484a66ed5a04ffc740c3f279e3df7335ce46bd8b7566",
+      "vtk_output/FluidModelPart_0_3.vtk": "08bea0215256038d909222454034317d44cb0f859a116b63fb5378117ed8f055",
+      "vtk_output/Structure_0_1.vtk": "68a0c0751bfd20b29e5235d7a977cd3c211a94038d27d485d9a6a3c574dc757c",
+      "vtk_output/Structure_0_2.vtk": "d7ecf84317835135e8c2ada7962415be97e3a68af07505658b3d957b7ceebf97",
+      "vtk_output/Structure_0_3.vtk": "76a7e8a5da2a4dfac0aa1c7e8cc1e75f62deedae12aaced2be4ed9af0301e213"
+    },
+    "timeMapping": {
+      "basis": "Single stationary solution; no time history"
+    },
+    "units": "Explicitly supplied from the tutorial SI setup using recipe convert transforms; original VTK field units remain unknown"
+  }
+}

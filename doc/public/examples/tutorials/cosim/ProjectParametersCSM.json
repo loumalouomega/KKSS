@@ -1,0 +1,99 @@
+{
+    "analysis_stage": "KratosMultiphysics.StructuralMechanicsApplication.structural_mechanics_analysis",
+    "problem_data": {
+        "problem_name": "mesh_Structural",
+        "parallel_type": "OpenMP",
+        "echo_level": 1,
+        "start_time": 0,
+        "end_time": 0.15
+    },
+    "solver_settings": {
+        "solver_type": "Dynamic",
+        "model_part_name": "Structure",
+        "domain_size": 3,
+        "echo_level": 1,
+        "model_import_settings": {
+            "input_type": "mdpa",
+            "input_filename": "mesh_Structural"
+        },
+        "material_import_settings": {
+            "materials_filename": "StructuralMaterials.json"
+        },
+        "time_stepping": {
+            "automatic_time_step": false,
+            "time_step": 0.05
+        },
+        "rotation_dofs": false,
+        "analysis_type": "non_linear",
+        "time_integration_method": "implicit",
+        "scheme_type": "bossak",
+        "rayleigh_alpha": 0,
+        "rayleigh_beta": 0,
+        "convergence_criterion": "residual_criterion",
+        "residual_relative_tolerance": 0.0001,
+        "residual_absolute_tolerance": 1e-9,
+        "max_iteration": 10,
+        "line_search": false,
+        "use_old_stiffness_in_first_iteration": false
+    },
+    "processes": {
+        "constraints_process_list": [
+            {
+                "python_module": "assign_vector_variable_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignVectorVariableProcess",
+                "Parameters": {
+                    "model_part_name": "Structure.Fixed",
+                    "variable_name": "DISPLACEMENT",
+                    "interval": [
+                        0,
+                        "End"
+                    ],
+                    "constrained": [
+                        true,
+                        true,
+                        true
+                    ],
+                    "value": [
+                        0,
+                        0,
+                        0
+                    ]
+                }
+            }
+        ],
+        "loads_process_list": [],
+        "list_other_processes": []
+    },
+    "output_processes": {
+        "gid_output": [],
+        "vtk_output": [
+            {
+                "python_module": "vtk_output_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "VtkOutputProcess",
+                "help": "This process writes postprocessing files for Paraview",
+                "Parameters": {
+                    "model_part_name": "Structure",
+                    "output_control_type": "step",
+                    "output_interval": 1,
+                    "file_format": "ascii",
+                    "output_precision": 7,
+                    "output_sub_model_parts": false,
+                    "output_path": "vtk_output",
+                    "save_output_files_in_folder": true,
+                    "nodal_solution_step_data_variables": [
+                        "DISPLACEMENT",
+                        "REACTION"
+                    ],
+                    "nodal_data_value_variables": [],
+                    "element_data_value_variables": [],
+                    "condition_data_value_variables": [],
+                    "gauss_point_variables_extrapolated_to_nodes": [
+                        "VON_MISES_STRESS"
+                    ]
+                }
+            }
+        ]
+    }
+}

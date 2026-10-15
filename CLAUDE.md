@@ -2029,9 +2029,10 @@ formal certification or manual screen-reader sign-off.
 
 ## Geometry-to-results tutorials (Tier 1, verified)
 
-`doc/guide/tutorial-geometry-to-results.md` is the landing page for five manual
-CAD → MDPA → Problemtype → Kratos → VTK walkthroughs; each has a downloadable
-case and solver-produced results. Shared definitions live in
+`doc/guide/tutorial-geometry-to-results.md` is the landing page for seven manual
+CAD → MDPA → Problemtype → Kratos → VTK walkthroughs (five single-physics plus
+partitioned FSI and weak CoSimulation channel-slab coupling); each has a
+downloadable case and solver-produced results. Shared definitions live in
 `tools/tutorials/cases.mjs`; `generate.mjs` creates clean cases through the
 real CAD and mesh MCP servers, runs Kratos, and invokes `verify.py` for
 physical checks. `publish.mjs` freezes measured results, input hashes and
@@ -2041,7 +2042,49 @@ beam-reference displacement error (25% limit); fluid 150 / 248, zero flux
 imbalance; thermal 263 / 814, 0.000019 K maximum linear-profile error
 (0.001 K limit); potential flow 150 / 248, 0.0000328 m/s maximum gradient
 error (0.001 m/s limit); shallow water 150 / 248, 4.0 m³ volume with zero
-measured depth error. Limits are separate from the recorded baselines.
+measured depth error; coupled channel-slab 561 nodes (392 fluid + 169 structure)
+/ 1436 elements over three 0.05 s steps — FSI peak final-frame displacement
+1.676 mm with 6/7/6 interface iterations per step and 6.8 % ALE mass-balance
+error, weak CoSimulation swinging −1.904 / −0.417 / +1.543 mm at interface node
+89 with one exchange per step and 19.6 % mass-balance error. Limits are separate
+from the recorded baselines.
+
+**Coupled cases (Tier 6, closed 2026-10-15).** The two coupled pages run the same
+channel-slab case through different exchanges: FSI sub-iterates each step to the
+Dirichlet-Neumann criterion (MVQN available), CoSimulation is weak — one data
+exchange per step, average-value predictor, nearest-element mapper. Three upstream
+mesh fixes came out of the work: a one-node point load in a sibling `<part>`
+submodel part no longer lands in the wrong model part (`68f1ebc`), the CoSimulation
+fluid participant applies `apply_noslip_process` on its interface so the wall load
+reaches the fluid reactions (`3f7564c`), and the webview keeps the chosen material
+law across a Materials card re-render (`8f65e28`, webview-only — generated case
+bytes are unchanged, so the published archives keep pinning `3f7564c`, the revision
+that produced them). The coupled verifier checks the inlet profile and outlet
+pressure exactly, the ALE mass balance (outlet flux against inlet flux plus the
+sweeping slab; error ≤ 0.35 of the delivered volume) and at least one coupling
+iteration per step; the outlet's mean axial speed is informational — an
+incompressible solve pushes the inflow straight through, so the older quiescence
+premise was wrong. `writeDocs.mjs` regenerates the pages from the definitions while
+preserving the hand-written `## Plot` and `## Post-run checks and batch` sections;
+its plot extraction must stop at both `## Post-run checks and batch` and
+`## Verified result`, or every run duplicates the batch section.
+
+**Kratos MCP background-run acceptance (item 10's last bullet).** Driving the pinned
+`kratos-mcp-server@0.9.0` over stdio (the app's launch line, `KRATOS_PYTHONPATH` at
+the tutorial venv) proved a background partitioned coupled run end to end:
+`run_simulation` copy-ran each published case in ~2 s (returncode 0, tracked with
+`job_status`/`job_logs`) and `results_probe` read the interface values back — CoSim
+node 121 pressure −1580.5538 Pa and node 89 Y +1.543471 mm, FSI 1274.5168 Pa and
+−0.0016700613 m — reproducing the fixtures to machine precision (max |Δ| 3e-22 in
+the fluid fields, 5e-11 m in the structure). Two differences from the app's own run
+path: the server drives the analysis class directly, so the case's `MainKratos*.py`
+`__main__` block and its `kkss-convergence-v2.jsonl` monitoring do not run; and FSI
+needs an explicit
+`analysis_class="KratosMultiphysics.FSIApplication.fsi_analysis:FsiAnalysis"` — the
+server's `analysis_stage` discovery takes the longest MRO and finds Kratos'
+deprecated `FSIAnalysis` stub (a no-op `__init__` that crashes on 10.4.3).
+CoSimulation is unaffected: the runner detects `coupled_solvers.*` and uses
+`CoSimulationAnalysis`. Retest when the pin moves past 0.9.0.
 
 `manual.mjs` is also an Electron acceptance test: it opens each case in the
 real app, exports a fresh CAD mesh, configures and generates the Problemtype
@@ -2062,7 +2105,7 @@ fixes). Mesh `0819bdc` extends the Field panel's display-only displacement
 warp to 1000× so small solver deformations remain inspectable; the cantilever
 tutorial captures it at 1000× without changing field values. The published
 `verification.json` files pin the full CAD and mesh generation revisions used
-for their solver baselines. `esbuild.mjs` copies CAD viewer assets to the
+for their solver baselines; the coupled archives pin mesh `3f7564c`. `esbuild.mjs` copies CAD viewer assets to the
 runtime snapshot server. Keep submodule changes committed on the designated
 branch before moving these pointers.
 

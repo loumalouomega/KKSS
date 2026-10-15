@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "source": "coupled-channel.brep",
+  "parts": [
+    {
+      "name": "Fluid",
+      "color": "#e6194b",
+      "volumes": [
+        "solid-0"
+      ],
+      "surfaces": [],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Structure",
+      "color": "#3cb44b",
+      "volumes": [
+        "solid-1"
+      ],
+      "surfaces": [],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Inlet",
+      "color": "#4363d8",
+      "volumes": [],
+      "surfaces": [
+        "face-0"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Outlet",
+      "color": "#f58231",
+      "volumes": [],
+      "surfaces": [
+        "face-1"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Walls",
+      "color": "#911eb4",
+      "volumes": [],
+      "surfaces": [
+        "face-3",
+        "face-4",
+        "face-5"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Interface",
+      "color": "#42d4f4",
+      "volumes": [],
+      "surfaces": [
+        "face-2"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Fixed",
+      "color": "#f032e6",
+      "volumes": [],
+      "surfaces": [
+        "face-6",
+        "face-7"
+      ],
+      "lines": [],
+      "points": []
+    }
+  ]
+}

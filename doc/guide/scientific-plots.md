@@ -24,6 +24,8 @@ Download and **extract the complete case archive** before loading a recipe. Keep
 | [Stationary conduction](tutorial-thermal#plot-the-temperature-profile) | `plots/temperature-profile.json` | Temperature versus distance, not a fabricated transient |
 | [Potential flow](tutorial-potential-flow#plot-potential-versus-distance) | `plots/potential-profile.json` | Potential versus distance and the uniform-flow slope |
 | [Still-water basin](tutorial-shallow-water#plot-water-depth-over-time) | `plots/depth-history.json` | A deliberately flat depth history |
+| [Partitioned FSI](tutorial-fsi#plot-interface-motion-and-wall-pressure) | `plots/interface-displacement-history.json`, `plots/pressure-history.json` | Interface displacement and wall pressure over three coupled steps |
+| [Weak CoSimulation](tutorial-cosimulation#plot-the-single-exchange-oscillation) | `plots/interface-displacement-history.json`, `plots/pressure-history.json` | The single-exchange leapfrog: interface displacement and wall pressure |
 
 Each `plots/` directory includes full-resolution CSV, a `.csv.kratosplot.json` provenance companion and `verification.json` with selected node coordinates, input SHA-256 hashes, unit conventions and time reconstruction. These supplement—not replace—the solver verification. Regenerate with `npm run tutorials:plots` after building; no solver rerun is required.
 

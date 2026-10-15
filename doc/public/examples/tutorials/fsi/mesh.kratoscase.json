@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "problemtypeId": "fsi",
+  "values": {
+    "problem": {
+      "startTime": 0,
+      "endTime": 0.15,
+      "couplingScheme": "DirichletNeumann",
+      "nlTol": 1e-7,
+      "nlMaxIt": 25,
+      "solveMeshAtEachIteration": true,
+      "couplingStrategy": "Relaxation",
+      "accelerationType": "Aitken",
+      "w0": 0.825,
+      "bufferSize": 7,
+      "meshSolver": "structural_similarity"
+    },
+    "fluid": {
+      "f_strategy": "monolithic",
+      "f_elementType": "qsvms",
+      "f_timeScheme": "bossak",
+      "f_oss": false,
+      "f_dynamicTau": 1,
+      "f_timeStepMode": "fixed",
+      "f_timeStep": 0.05,
+      "f_courantTarget": 1,
+      "f_minDeltaTime": 0.0001,
+      "f_maxDeltaTime": 0.1,
+      "f_refVelocity": 1,
+      "f_maxIterations": 10,
+      "f_relVelTol": 0.001,
+      "f_absVelTol": 0.00001,
+      "f_relPresTol": 0.001,
+      "f_absPresTol": 0.00001,
+      "f_velocityTolerance": 0.001,
+      "f_maxVelocityIterations": 4,
+      "f_predictorCorrector": false,
+      "f_pressureTolerance": 0.001,
+      "f_maxPressureIterations": 4,
+      "f_gravityValue": 0,
+      "f_gravityDirection": [
+        0,
+        -1,
+        0
+      ],
+      "f_linearSolver": "automatic",
+      "f_linearMaxIteration": 200,
+      "f_linearTolerance": 1e-7,
+      "f_preconditioner": "none",
+      "f_echoLevel": 0,
+      "f_computeReactions": true
+    },
+    "structure": {
+      "s_solverType": "dynamic",
+      "s_analysisType": "non_linear",
+      "s_elementBase": "SmallDisplacementElement",
+      "s_schemeType": "bossak",
+      "s_convergenceCriterion": "residual_criterion",
+      "s_residualRelTol": 0.0001,
+      "s_residualAbsTol": 1e-9,
+      "s_displacementRelTol": 0.0001,
+      "s_displacementAbsTol": 1e-9,
+      "s_maxIteration": 10,
+      "s_lineSearch": false,
+      "s_useOldStiffness": false,
+      "s_rayleighAlpha": 0,
+      "s_rayleighBeta": 0,
+      "s_eigenCount": 5,
+      "s_eigenMaxIteration": 1000,
+      "s_eigenTolerance": 0.000001,
+      "s_linearSolver": "automatic",
+      "s_linearMaxIteration": 200,
+      "s_linearTolerance": 1e-7,
+      "s_preconditioner": "none",
+      "s_echoLevel": 1
+    }
+  },
+  "assignments": [
+    {
+      "conditionId": "f_parts",
+      "smpPath": "Fluid",
+      "values": {}
+    },
+    {
+      "conditionId": "f_inlet",
+      "smpPath": "Inlet",
+      "values": {
+        "modulus": 0.1,
+        "direction": "x"
+      }
+    },
+    {
+      "conditionId": "f_outlet",
+      "smpPath": "Outlet",
+      "values": {
+        "value": 0
+      }
+    },
+    {
+      "conditionId": "f_slip",
+      "smpPath": "Walls",
+      "values": {}
+    },
+    {
+      "conditionId": "fluidInterface",
+      "smpPath": "Interface",
+      "values": {}
+    },
+    {
+      "conditionId": "aleMeshBC",
+      "smpPath": "Inlet",
+      "values": {}
+    },
+    {
+      "conditionId": "aleMeshBC",
+      "smpPath": "Outlet",
+      "values": {}
+    },
+    {
+      "conditionId": "aleMeshBC",
+      "smpPath": "Walls",
+      "values": {}
+    },
+    {
+      "conditionId": "s_parts",
+      "smpPath": "Structure",
+      "values": {}
+    },
+    {
+      "conditionId": "s_displacement",
+      "smpPath": "Fixed",
+      "values": {
+        "value": [
+          0,
+          0,
+          0
+        ],
+        "constrained": true
+      }
+    },
+    {
+      "conditionId": "structureInterface",
+      "smpPath": "Interface",
+      "values": {}
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Fluid",
+      "lawId": "newtonian_3d",
+      "values": {
+        "DENSITY": 1000,
+        "DYNAMIC_VISCOSITY": 0.6
+      }
+    },
+    {
+      "smpPath": "Structure",
+      "lawId": "linear_elastic_3d",
+      "values": {
+        "DENSITY": 1000,
+        "YOUNG_MODULUS": 500000000,
+        "POISSON_RATIO": 0.3
+      }
+    }
+  ],
+  "output": {
+    "format": "ascii",
+    "controlType": "step",
+    "interval": 1,
+    "nodalVariables": [
+      "VELOCITY",
+      "PRESSURE",
+      "MESH_DISPLACEMENT"
+    ]
+  }
+}

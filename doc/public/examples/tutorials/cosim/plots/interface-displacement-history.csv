@@ -1,0 +1,7 @@
+series,stage,x,y,z,error,x_unit,y_unit,z_unit,source,entity_kind,entity_id,frame,time,run,source_row,original_components,submodelpart,size,size_unit,share
+Interface node 89: Y,derived,1,-1.9037834,,,unknown,mm,unknown,tip,Nodes,89,0,,,,,,,unknown,
+Interface node 89: Y,derived,2,-0.41716354,,,unknown,mm,unknown,tip,Nodes,89,1,,,,,,,unknown,
+Interface node 89: Y,derived,3,1.543471,,,unknown,mm,unknown,tip,Nodes,89,2,,,,,,,unknown,
+Interface node 89: Y,original,1,-0.0019037834,,,unknown,unknown,unknown,tip,Nodes,89,0,,,,,,,unknown,
+Interface node 89: Y,original,2,-0.00041716354,,,unknown,unknown,unknown,tip,Nodes,89,1,,,,,,,unknown,
+Interface node 89: Y,original,3,0.001543471,,,unknown,unknown,unknown,tip,Nodes,89,2,,,,,,,unknown,
