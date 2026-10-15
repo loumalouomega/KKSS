@@ -52,9 +52,11 @@ The newer problemtypes configure repeatable lists — optimization **responses**
 - **Renaming** an entry rewrites every dropdown that named it (the objective, the constraints), so a rename can never leave a dangling reference. A name that no longer exists is shown in red, and Generate refuses the case naming it.
 - An entry with no parts is evaluated on the whole model part, unless its type requires SubModelParts — then Generate refuses it and says how many it needs.
 
-![Structural Optimization Setup: the responses, controls and constraints collections with a seeded vertex-morphing shape control](/screenshots/problemtype-optimization.png)
+![Structural Optimization Setup for the Kratos 3D-hook example: the responses, controls and constraints collections with a vertex-morphing control on the hook's own design_surface_1, beside the hook mesh](/screenshots/problemtype-optimization.png)
 
-![Structural Optimization solver cards: the primal analysis and the objective, algorithm, line-search and convergence sections](/screenshots/problemtype-optimization-algorithm.png)
+![The Setup collections close up: responses (mass, strain energy), the vertex-morphing control's filter and damping settings, and a gradient-projection constraint](/screenshots/problemtype-optimization-setup.png)
+
+![Structural Optimization solver cards over the 3D hook: the primal analysis and the objective, algorithm, line-search and convergence sections](/screenshots/problemtype-optimization-algorithm.png)
 
 ## Coupled simulations: FSI and CoSimulation
 
@@ -72,7 +74,7 @@ The newer problemtypes configure repeatable lists — optimization **responses**
 
 Generate refuses a case whose domain has no body, whose interface side is not assigned, whose pair sides are assigned a different number of times, whose interface side carries no boundary cells of the right dimension (line conditions or elements in 2D, surface faces in 3D — a mapper needs geometry, so a node-only part is refused), whose pair sides do not overlap in space (bounding boxes compared within a millionth of the mesh diagonal — usually a wrong pairing order), or whose fluid time stepping is unusable. CoSimulation additionally refuses strong coupling without ALE mesh motion (the fluid would never see the structure's displacement), and an *ALE mesh displacement* assignment while ALE is off.
 
-![CoSimulation Coupling card: strong coupling with its iteration and tolerance settings, the MVQN accelerator, mapper and ALE mesh motion](/screenshots/problemtype-coupling.png)
+![CoSimulation Coupling card over the 3D hook: strong coupling with its iteration and tolerance settings, the MVQN accelerator, mapper and ALE mesh motion — the interface sides are the hook's load face and tip](/screenshots/problemtype-coupling.png)
 
 The **Coupling** section of the CoSimulation problemtype:
 
@@ -142,9 +144,9 @@ A constraint names a response, a relation (`<=`, `<`, `=`, `>=`, `>`) and a refe
 
 **Optimization progress panel.** Advanced ▸ **Optimization progress…** opens a panel showing the formulation (*minimize strain_energy s.t. mass ≤ initial; controls: stiffness*), the verdict (running, finished, stopped, incomplete, or no data yet), the objective against the iteration, each constraint's standardized value against the iteration (at or below zero is satisfied), and the last iterations as a table. Its buttons open the full history in the Plots workspace, open the design fields, and export the summary as CSV. With *Write design fields* on, **Open design fields** opens the per-iteration controls, updates and gradients under `Optimization_Results/` with a timeline. MCP `case_optimization` returns the same summary and verdict.
 
-![Optimization progress panel: formulation, verdict, objective history, constraint histories and the iteration table](/screenshots/problemtype-optimization-progress.png)
+![Optimization progress panel over the 3D hook: the formulation the hook's own optimization_parameters.json declares, the objective history, two constraint histories and the iteration table](/screenshots/problemtype-optimization-progress.png)
 
-![ROM · Structural Mechanics: the Reduced-order model stages, projection, POD basis, HROM and Sampling cards over the primal](/screenshots/problemtype-rom.png)
+![ROM · Structural Mechanics over the 3D hook: the Reduced-order model stages, projection, POD basis, HROM and Sampling cards beside the hook mesh](/screenshots/problemtype-rom.png)
 
 ![ROM Parameters: one range entry whose Varies target is the materials file's Young modulus, with its minimum and maximum](/screenshots/problemtype-rom-parameters.png)
 

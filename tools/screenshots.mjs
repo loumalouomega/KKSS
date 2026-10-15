@@ -258,24 +258,28 @@ async function sessionProperties() {
   }
 }
 
-// ---- Session B2: mesh Problemtype sidebar on an optimization example ---------
+// ---- Session B2: mesh Problemtype sidebar on the Kratos 3D hook -------------
 //
 // Documents the mesh 5.11.0 problemtype families (Structural Optimization,
-// the four ROM trainers, strong CoSimulation) against the archara
-// shape-optimization mesh from ~/src/Examples. Launches are per problemtype,
-// each with a seeded `<stem>.kratoscase.json` so the sidebar renders
-// populated forms (responses/controls/constraints, a ROM material parameter,
-// strong-coupling CoSimulation options) rather than empty templates. An
-// `optimization_parameters.json` + solver-written summary (the mesh
-// submodule's own gradient-projection fixture) feed the Optimization
-// progress panel. Skips cleanly where ~/src/Examples is absent (CI): the
-// committed PNGs stay as they are.
+// the four ROM trainers, strong CoSimulation) against OptimizationApplication's
+// own 3D hook case from ~/src/Examples: a tetrahedral SmallDisplacementElement3D4N
+// volume mesh whose SubModelParts are named exactly what the panels talk about
+// (domain, design_surface_1, main_load_1, support_*, tip_1, non_design_*), plus
+// its implicit-vertex-morphing optimization_parameters.json and a solver-written
+// summary (the mesh submodule's own gradient-projection fixture) for the
+// Optimization progress panel. Each stage launches with a seeded
+// `<stem>.kratoscase.json` so the sidebar renders populated forms. The outline's
+// default visibility keeps the shaded boundary skin shown (the tetra block is
+// hidden behind those real surface parts) — the prettiest honest mesh view, so
+// the harness leaves it as the viewer opens it. Skips cleanly where
+// ~/src/Examples is absent (CI): the committed PNGs stay as they are.
 // `--disable-gpu` pins the renderer to software GL: on GPU-composited
 // desktops the vtk.js scene build can lose its WebGL context mid-build
 // (observed on a GL-flaky workstation, where the unhandled exception left
 // `#app { display:none }` behind), while SwiftShader produces identical doc
 // frames deterministically.
 const PROBLEMTYPE_EXAMPLES = () => path.join(os.homedir(), "src", "Examples");
+const HOOK_SUBDIR = path.join("optimization_application", "use_cases", "3d_hook");
 const problemaState = () => ({
   version: 1,
   values: {},
@@ -287,11 +291,10 @@ const problemaState = () => ({
 async function shotProblemtypeStage(name, problemtypeId, caseStateFile) {
   const stage = path.join(fixtureDir, name);
   fs.mkdirSync(stage, { recursive: true });
-  fs.cpSync(path.join(PROBLEMTYPE_EXAMPLES(), "optimization_application", "use_cases", "archara", "shape_only", "archara.mdpa"),
-    path.join(stage, "archara.mdpa"));
-  fs.writeFileSync(path.join(stage, "archara.kratoscase.json"),
+  fs.cpSync(path.join(PROBLEMTYPE_EXAMPLES(), HOOK_SUBDIR, "hook.mdpa"), path.join(stage, "hook.mdpa"));
+  fs.writeFileSync(path.join(stage, "hook.kratoscase.json"),
     JSON.stringify({ ...problemaState(), problemtypeId, ...caseStateFile }, null, 2));
-  const { app, output } = await launchApp(path.join(stage, "archara.mdpa"), { extraArgs: [...EXTRA_ARGS, "--disable-gpu"], userDataDir: profileDir });
+  const { app, output } = await launchApp(path.join(stage, "hook.mdpa"), { extraArgs: [...EXTRA_ARGS, "--disable-gpu"], userDataDir: profileDir });
   const deadline = Date.now() + 180_000;
   let prepared;
   try {
@@ -306,6 +309,10 @@ async function shotProblemtypeStage(name, problemtypeId, caseStateFile) {
     await sleep(400);
     await page.selectOption("#pt-select", problemtypeId);
     await page.waitForFunction(() => document.querySelectorAll("#pt-collections .pt-card, #pt-forms .pt-card").length > 0, null, { timeout: 20_000 });
+    await sleep(2_500); // scene settle (a 10 MB tetra mesh) before framing
+    await click(page, "#nav-fit"); // fit the whole model deterministically
+    await page.keyboard.press("i"); // the isometric corner view (`1–6`/`i` presets)
+    await sleep(800); // snap + repaint
     return { page, caseDir: stage, close: async () => { await restoreWindow(prepared); await closeApp(app); } };
   } catch (err) {
     try { await restoreWindow(prepared); await closeApp(app); } catch { /* surface the real error */ }
@@ -324,11 +331,58 @@ async function expandProblemtypeCards(page, titles) {
   await sleep(600);
 }
 
+/**
+ * Layer un-hide helper for meshes whose visibility defaults hide a needed
+ * block (a shell `3D4N` mesh decodes to a volume, so upstream's outline
+ * default hides it behind surface blocks). The 3D hook needs no un-hide —
+ * its shaded boundary skin is the intended view — but the helper stays so a
+ * future fixture with the same shape can still be framed honestly.
+ */
+async function ensureBlockVisible(page, labelPart) {
+  await page.evaluate((part) => {
+    for (const row of document.querySelectorAll("#sidebar label")) {
+      const text = row.textContent ?? "";
+      if (text.includes(part)) {
+        const box = row.querySelector("input[type=checkbox]");
+        if (box && !box.checked) box.click();
+        return;
+      }
+    }
+  }, labelPart);
+  await sleep(900); // scene re-render
+}
+
+/**
+ * Scrolls the mesh viewer's sidebar so `wanted` (a container id or a card
+ * title) is at the top — the sidebar is its own scroll container, the mesh
+ * view on the right never moves. `shootFull` then takes a WHOLE-WINDOW shot:
+ * problemtype panel left, the loaded mesh right (side-by-side context, as in
+ * the other viewer figures), with the pointer parked off the chrome.
+ */
+async function ptScroll(page, wanted) {
+  await page.evaluate((key) => {
+    if (key.startsWith("#")) {
+      document.querySelector(key)?.scrollIntoView({ block: "start" });
+      return;
+    }
+    for (const card of document.querySelectorAll("#pt-forms .pt-card, #pt-collections .pt-card")) {
+      const label = card.querySelector(".pt-card-title")?.textContent ?? "";
+      if (label === key) { card.scrollIntoView({ block: "start" }); break; }
+    }
+  }, wanted);
+  await sleep(500);
+}
+
+const shootFull = async (page, file) => {
+  await page.mouse.move(0, 0);
+  await sleep(300);
+  await shootViewer(page, file);
+};
+
 async function sessionProblemtypes() {
-  const paramsSrc = path.join(PROBLEMTYPE_EXAMPLES(), "optimization_application", "use_cases", "archara", "shape_only",
-    "implicit_vertex_morphing", "optimization_parameters.json");
+  const paramsSrc = path.join(PROBLEMTYPE_EXAMPLES(), HOOK_SUBDIR, "implicit_vertex_morphing", "optimization_parameters.json");
   const summarySrc = path.join(root, "mesh", "src", "test", "fixtures", "optimization", "gradient_projection_cut.csv");
-  const meshSrc = path.join(PROBLEMTYPE_EXAMPLES(), "optimization_application", "use_cases", "archara", "shape_only", "archara.mdpa");
+  const meshSrc = path.join(PROBLEMTYPE_EXAMPLES(), HOOK_SUBDIR, "hook.mdpa");
   for (const f of [meshSrc, paramsSrc, summarySrc]) {
     if (!fs.existsSync(f)) {
       warnings.push(`problemtypes session skipped: missing ${f}`);
@@ -337,22 +391,35 @@ async function sessionProblemtypes() {
   }
 
   // 1 — Structural Optimization: seeded responses/controls/constraints, then
-  // the progress panel fed by the real optimization_parameters.json + summary.
+  // the progress panel fed by the hook's own optimization_parameters.json +
+  // the solver summary fixture.
   {
     const { page, caseDir, close } = await shotProblemtypeStage("opt-optimization", "optimization", {
+      values: {
+        algorithm: { algorithmType: "algorithm_gradient_projection" },
+      },
+      // A real primal load on the hook's own load face clears the preflight
+      // "strain-energy needs a loaded primal" finding the seeded template
+      // would otherwise show in the committed solver-cards figure.
+      assignments: [{ conditionId: "surfacePressure", smpPath: "main_load_1", values: {} }],
       collections: {
         responses: [
           { name: "mass", type: "mass", parts: [], values: {} },
           { name: "strain_energy", type: "strainEnergy", parts: [], values: {} },
         ],
-        controls: [{ name: "shape_control", type: "shape", parts: ["faceleft"], values: {} }],
+        controls: [{ name: "shape_control", type: "shape", parts: ["design_surface_1"], values: {} }],
         constraints: [{ name: "mass_limit", type: "limit", parts: [], values: { response: "mass", relation: "<=", refMode: "initial" } }],
       },
     });
     try {
-      await shoot(page, "problemtype-optimization.png", "#pt-collections");
+      // Full window: Setup collections left, mesh right.
+      await ptScroll(page, "#pt-collections");
+      await shootFull(page, "problemtype-optimization.png");
+      // Detail crop: the three setup collections alone.
+      await shoot(page, "problemtype-optimization-setup.png", "#pt-collections");
       await expandProblemtypeCards(page, ["Optimization"]);
-      await shoot(page, "problemtype-optimization-algorithm.png", "#pt-forms");
+      await ptScroll(page, "Optimization");
+      await shootFull(page, "problemtype-optimization-algorithm.png");
 
       // The staged case: the optimizer's own document names summary.csv.
       fs.cpSync(paramsSrc, path.join(caseDir, "optimization_parameters.json"));
@@ -361,13 +428,9 @@ async function sessionProblemtypes() {
       await click(page, '[data-action="optimizationProgress"]');
       await page.waitForSelector("#optimization-panel", { state: "visible", timeout: 20_000 });
       await sleep(1_500);
-      // The dock panel is as tall as the window; its content is the top third.
-      const panelBox = await page.locator("#optimization-panel").boundingBox();
-      await page.screenshot({
-        path: path.join(OUT, "problemtype-optimization-progress.png"),
-        clip: { x: panelBox.x, y: panelBox.y, width: panelBox.width, height: Math.min(panelBox.height, 720) },
-      });
-      console.log("shot problemtype-optimization-progress.png");
+      // Panel docked left with the real objective/constraint charts; the
+      // whole window for the mesh context (no element clip).
+      await shootFull(page, "problemtype-optimization-progress.png");
     } finally { await close(); }
   }
 
@@ -381,13 +444,15 @@ async function sessionProblemtypes() {
     });
     try {
       await expandProblemtypeCards(page, ["Reduced-order model", "Sampling"]);
-      await shoot(page, "problemtype-rom.png", "#pt-forms");
+      await ptScroll(page, "Reduced-order model");
+      await shootFull(page, "problemtype-rom.png");
       await shoot(page, "problemtype-rom-parameters.png", "#pt-collections");
     } finally { await close(); }
   }
 
-  // 3 — Generic Coupling (CoSimulation): strong coupling options, no
-  // assignments so the Coupling card is the whole story.
+  // 3 — Generic Coupling (CoSimulation): strong coupling options over the
+  // hook's real boundary parts (the load face as the fluid side, the tip as
+  // the structure side).
   {
     const { page, close } = await shotProblemtypeStage("opt-cosim", "cosim", {
       values: {
@@ -404,12 +469,13 @@ async function sessionProblemtypes() {
         },
       },
       assignments: [
-        { conditionId: "fluidInterface", smpPath: "faceleft", values: {} },
-        { conditionId: "structureInterface", smpPath: "faceleft", values: {} },
+        { conditionId: "fluidInterface", smpPath: "main_load_1", values: {} },
+        { conditionId: "structureInterface", smpPath: "tip_1", values: {} },
       ],
     });
     try {
-      await shoot(page, "problemtype-coupling.png", "#pt-forms");
+      await ptScroll(page, "Coupling");
+      await shootFull(page, "problemtype-coupling.png");
     } finally { await close(); }
   }
 }
