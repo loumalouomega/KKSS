@@ -258,6 +258,162 @@ async function sessionProperties() {
   }
 }
 
+// ---- Session B2: mesh Problemtype sidebar on an optimization example ---------
+//
+// Documents the mesh 5.11.0 problemtype families (Structural Optimization,
+// the four ROM trainers, strong CoSimulation) against the archara
+// shape-optimization mesh from ~/src/Examples. Launches are per problemtype,
+// each with a seeded `<stem>.kratoscase.json` so the sidebar renders
+// populated forms (responses/controls/constraints, a ROM material parameter,
+// strong-coupling CoSimulation options) rather than empty templates. An
+// `optimization_parameters.json` + solver-written summary (the mesh
+// submodule's own gradient-projection fixture) feed the Optimization
+// progress panel. Skips cleanly where ~/src/Examples is absent (CI): the
+// committed PNGs stay as they are.
+// `--disable-gpu` pins the renderer to software GL: on GPU-composited
+// desktops the vtk.js scene build can lose its WebGL context mid-build
+// (observed on a GL-flaky workstation, where the unhandled exception left
+// `#app { display:none }` behind), while SwiftShader produces identical doc
+// frames deterministically.
+const PROBLEMTYPE_EXAMPLES = () => path.join(os.homedir(), "src", "Examples");
+const problemaState = () => ({
+  version: 1,
+  values: {},
+  assignments: [],
+  materials: [],
+  output: { format: "ascii", controlType: "step", interval: 1, nodalVariables: [] },
+});
+
+async function shotProblemtypeStage(name, problemtypeId, caseStateFile) {
+  const stage = path.join(fixtureDir, name);
+  fs.mkdirSync(stage, { recursive: true });
+  fs.cpSync(path.join(PROBLEMTYPE_EXAMPLES(), "optimization_application", "use_cases", "archara", "shape_only", "archara.mdpa"),
+    path.join(stage, "archara.mdpa"));
+  fs.writeFileSync(path.join(stage, "archara.kratoscase.json"),
+    JSON.stringify({ ...problemaState(), problemtypeId, ...caseStateFile }, null, 2));
+  const { app, output } = await launchApp(path.join(stage, "archara.mdpa"), { extraArgs: [...EXTRA_ARGS, "--disable-gpu"], userDataDir: profileDir });
+  const deadline = Date.now() + 180_000;
+  let prepared;
+  try {
+    await waitForMarkers(output, ["[mesh] host → webview: model"], deadline);
+    const page = await appWindow(app, "/renderer/mesh/", deadline);
+    // The first `progress` message hides `#app` behind the loading overlay
+    // until the model is applied to the scene; the selects live inside it.
+    await page.waitForFunction(() => getComputedStyle(document.querySelector("#app")).display !== "none", null, { timeout: 60_000 });
+    await page.waitForSelector("#pt-select", { state: "visible", timeout: 20_000 });
+    await sleep(1_200);
+    prepared = await prepareWindow(app, deadline);
+    await sleep(400);
+    await page.selectOption("#pt-select", problemtypeId);
+    await page.waitForFunction(() => document.querySelectorAll("#pt-collections .pt-card, #pt-forms .pt-card").length > 0, null, { timeout: 20_000 });
+    return { page, caseDir: stage, close: async () => { await restoreWindow(prepared); await closeApp(app); } };
+  } catch (err) {
+    try { await restoreWindow(prepared); await closeApp(app); } catch { /* surface the real error */ }
+    throw err;
+  }
+}
+
+/** Expands the `.pt-card` whose title label matches, inside the given host. */
+async function expandProblemtypeCards(page, titles) {
+  await page.evaluate((wanted) => {
+    for (const title of document.querySelectorAll("#pt-forms .pt-card > .edit-form-title, #pt-collections .pt-card > .edit-form-title")) {
+      const label = title.querySelector(".pt-card-title")?.textContent ?? title.textContent ?? "";
+      if (wanted.includes(label)) title.click();
+    }
+  }, titles);
+  await sleep(600);
+}
+
+async function sessionProblemtypes() {
+  const paramsSrc = path.join(PROBLEMTYPE_EXAMPLES(), "optimization_application", "use_cases", "archara", "shape_only",
+    "implicit_vertex_morphing", "optimization_parameters.json");
+  const summarySrc = path.join(root, "mesh", "src", "test", "fixtures", "optimization", "gradient_projection_cut.csv");
+  const meshSrc = path.join(PROBLEMTYPE_EXAMPLES(), "optimization_application", "use_cases", "archara", "shape_only", "archara.mdpa");
+  for (const f of [meshSrc, paramsSrc, summarySrc]) {
+    if (!fs.existsSync(f)) {
+      warnings.push(`problemtypes session skipped: missing ${f}`);
+      return;
+    }
+  }
+
+  // 1 — Structural Optimization: seeded responses/controls/constraints, then
+  // the progress panel fed by the real optimization_parameters.json + summary.
+  {
+    const { page, caseDir, close } = await shotProblemtypeStage("opt-optimization", "optimization", {
+      collections: {
+        responses: [
+          { name: "mass", type: "mass", parts: [], values: {} },
+          { name: "strain_energy", type: "strainEnergy", parts: [], values: {} },
+        ],
+        controls: [{ name: "shape_control", type: "shape", parts: ["faceleft"], values: {} }],
+        constraints: [{ name: "mass_limit", type: "limit", parts: [], values: { response: "mass", relation: "<=", refMode: "initial" } }],
+      },
+    });
+    try {
+      await shoot(page, "problemtype-optimization.png", "#pt-collections");
+      await expandProblemtypeCards(page, ["Optimization"]);
+      await shoot(page, "problemtype-optimization-algorithm.png", "#pt-forms");
+
+      // The staged case: the optimizer's own document names summary.csv.
+      fs.cpSync(paramsSrc, path.join(caseDir, "optimization_parameters.json"));
+      fs.cpSync(summarySrc, path.join(caseDir, "summary.csv"));
+      await click(page, '[data-action="advanced"]');
+      await click(page, '[data-action="optimizationProgress"]');
+      await page.waitForSelector("#optimization-panel", { state: "visible", timeout: 20_000 });
+      await sleep(1_500);
+      // The dock panel is as tall as the window; its content is the top third.
+      const panelBox = await page.locator("#optimization-panel").boundingBox();
+      await page.screenshot({
+        path: path.join(OUT, "problemtype-optimization-progress.png"),
+        clip: { x: panelBox.x, y: panelBox.y, width: panelBox.width, height: Math.min(panelBox.height, 720) },
+      });
+      console.log("shot problemtype-optimization-progress.png");
+    } finally { await close(); }
+  }
+
+  // 2 — ROM · Structural Mechanics over a young-modulus material parameter.
+  {
+    const { page, close } = await shotProblemtypeStage("opt-rom", "romStructural", {
+      materials: [{ smpPath: "domain", lawId: "linear_elastic_3d", values: { YOUNG_MODULUS: 210000, DENSITY: 7850, POISSON_RATIO: 0.3 } }],
+      collections: {
+        parameters: [{ name: "young_modulus", type: "range", parts: [], values: { target: "material:domain/YOUNG_MODULUS", min: 150000, max: 250000 } }],
+      },
+    });
+    try {
+      await expandProblemtypeCards(page, ["Reduced-order model", "Sampling"]);
+      await shoot(page, "problemtype-rom.png", "#pt-forms");
+      await shoot(page, "problemtype-rom-parameters.png", "#pt-collections");
+    } finally { await close(); }
+  }
+
+  // 3 — Generic Coupling (CoSimulation): strong coupling options, no
+  // assignments so the Coupling card is the whole story.
+  {
+    const { page, close } = await shotProblemtypeStage("opt-cosim", "cosim", {
+      values: {
+        coupling: {
+          couplingType: "strong",
+          numCouplingIterations: 10,
+          absTolerance: 1e-5,
+          relTolerance: 1e-5,
+          accelerator: "mvqn",
+          predictor: "linear",
+          mapperType: "nearest_element",
+          aleMesh: true,
+          meshSolver: "structural_similarity",
+        },
+      },
+      assignments: [
+        { conditionId: "fluidInterface", smpPath: "faceleft", values: {} },
+        { conditionId: "structureInterface", smpPath: "faceleft", values: {} },
+      ],
+    });
+    try {
+      await shoot(page, "problemtype-coupling.png", "#pt-forms");
+    } finally { await close(); }
+  }
+}
+
 // ---- Session C: mesh mode on a VTK time series --------------------------------
 
 async function sessionVtk() {
@@ -348,6 +504,11 @@ if (process.argv.includes("--home-workflow-only")) {
   finally { cleanupDirs(); }
   process.exit(0);
 }
+if (process.argv.includes("--problemtypes-only")) {
+  try { await sessionProblemtypes(); }
+  finally { cleanupDirs(); }
+  process.exit(0);
+}
 if (process.argv.includes("--animations-only")) {
   try { await captureAnimations(OUT); }
   finally { cleanupDirs(); }
@@ -375,6 +536,7 @@ if (!meshOnly) await sessionCad();
 await sessionMdpa();
 await sessionVtk();
 await sessionProperties();
+await sessionProblemtypes();
 // Verified new mesh panels, using deterministic files and their real hosts.
 await mesh423Scenario(OUT);
 await meshPlotsScenario(OUT);

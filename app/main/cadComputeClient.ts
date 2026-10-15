@@ -290,6 +290,10 @@ export const cadCompute = {
   exportViaMeshio: rpc<typeof meshio.exportViaMeshio>("exportViaMeshio"),
   // cad 3.11.0 MMG remeshing (meshioService.remeshMesh → mmgService).
   remeshMesh: rpc<typeof meshio.remeshMesh>("remeshMesh"),
+  // cad 3.17.0 FE Mesh quality gate (meshioService.checkMeshQuality over the
+  // last generated MSH text — the worker already spreads meshioService, and
+  // kernelActivity.ts keys it to meshio++, so no alias change).
+  checkMeshQuality: rpc<typeof meshio.checkMeshQuality>("checkMeshQuality"),
   buildPartsFromMeshioRegions:
     rpc<typeof meshioParts.buildPartsFromMeshioRegions>("buildPartsFromMeshioRegions"),
 };

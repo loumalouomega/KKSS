@@ -1450,8 +1450,54 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 74 CAD + 47 mesh + 4 aggregation + 31 app-owned
+discovery (current sets: 76 CAD + 49 mesh + 4 aggregation + 31 app-owned
 workflow tools).
+
+**The cad 3.16.0 → 3.17.0 + mesh 5.10.0 → 5.11.0 jump needed one host port,
+no new workers, no new settings and four policy rows plus one packaging row.**
+
+- **cad: the FE Mesh quality gate, ported message-for-message.** `provider.ts`
+  keeps the last generated MSH text per document (`lastMshText`, reset at each
+  generate start) and answers `qualityGateRequest` with `qualityGateResult` /
+  `qualityGateError` over `docPipeline.checkMeshQuality`. `cadHost.ts` ports
+  all three (field, reset + store in `meshingGenerate`, handler before
+  `passagesRequest`) plus the one-line `checkMeshQuality` binding in
+  `cadComputeClient.ts` — the worker already spreads `meshioService`, and
+  `kernelActivity.ts` already keys it to meshio++, so
+  `test/cadKernelStatus.test.ts` passes unchanged. `Part.density` (per-Part
+  material density driving BOM/solid mass) flows through the imported protocol
+  and sidecar types with no host change; the density input, the quality-gate
+  row, the coincident-point prompt and the Geometry display mode are all
+  webview-created, so the generated CAD page needs no markup change.
+  `cad__check_mesh_quality` and `cad__segment_mesh_surface` join the table as
+  `read` (facts-only; the deviation map's optional PLY is what keeps its
+  sibling `write`). meshio++ 16.42.0 on both sides — the skew is closed.
+- **mesh: ROM + optimization problemtypes, strong CoSimulation, no host code.**
+  Four ROM trainers (`romStructural`/`romThermal`/`romFluid`/`romPotentialFlow`,
+  family `reduced`) plus `Structural Optimization` (family `optimization`) join
+  the built-ins; CoSimulation gains strong coupling, N interface pairs and ALE
+  mesh motion; FSI/CoSimulation are ported to Python (`coupled.py` parity);
+  `collections`/`caseAddress`/`applications`/`interfaceCheck`/`kratosAppProbe`
+  are the new pure infrastructure. The providers run verbatim: no new
+  `vscode.*` API, no new `globalState` key, no new setting (a `package.nls.json`
+  i18n refactor only), no `meshBody()` edit (`pt-collections` rides the
+  imported `SIDEBAR_HTML`; the optimization panel is dynamically created).
+  One REAL shim change: the fake webview's `onDidReceiveMessage` now keeps
+  **multiple listeners and replays the retained inbox to each as it attaches**
+  — mesh 5.11.0's `PreviewSession` registers its own `ready` listener beside
+  the provider's main handler, and the old single-slot + drain-once behavior
+  swallowed `ready`, leaving the open handshake (documentInfo, engineStatus,
+  the model post) permanently unstarted.
+  Policy grows two rows (`mesh__case_optimization` `write` — optional CSV like
+  convergence — plus its `toolPaths.ts` scope row; `mesh__case_rom` `read`,
+  no row) and `case_validate`'s `checkInstall` probe needs none. Routing gains
+  `.cad.json` (new `fileAssociations` row) and `.fil`/`.op2` writers: 61
+  readable / 49 writable in `doc/index.md`, `file-formats.md`,
+  `getting-started.md` and the chat prompt.
+- **Verified:** `typecheck`, full unit suite (919 passed, 1 pre-existing skip),
+  `check:packaging`, theme guard, generated pages carrying `pt-collections`
+  and the CAD legend/mode button, and copied-server tool lists matching the
+  policy table in both directions (282 total: 76 CAD + 49 mesh).
 
 **The cad 3.14.0 → 3.16.0 + mesh 5.5.0 → 5.10.0 jump needed five host ports,
 one new worker, two settings and three policy/packaging rows.**

@@ -7,6 +7,43 @@ full auto-generated compare links.
 
 ## Unreleased
 
+### CAD/mesh submodule integration (CAD Preview 3.17.0 · Mesh Preview 5.11.0)
+
+- feat: mesh 5.11.0's **new problemtype families** — four **ROM** reduced-order-model
+  trainers (Structural Mechanics, Convection-diffusion, Fluid Dynamics, Potential Flow;
+  RomApplication's `RomManager`: POD basis and optional HROM over a sampled parameter
+  space) and **Structural Optimization** (OptimizationApplication: mass / strain-energy /
+  centroid / discrete-value responses, material, shell-thickness, vertex-morphing shape
+  and SIMP topology controls, with gradient, Nesterov, Adam and projection algorithms).
+  Documented with worked examples in the new [Kratos Problemtypes](doc/guide/problemtypes.md)
+  guide and live captures.
+- feat: mesh 5.11.0's **coupling upgrades** — CoSimulation keeps weak coupling and gains
+  **strong coupling** (iterated to a residual criterion with MVQN/IQN-ILS/Aitken
+  acceleration), several **interface pairs** and optional **ALE mesh motion**; FSI and
+  CoSimulation are available as Python-language (`coupled.py`) workspace problemtypes with
+  per-step coupling records in the convergence history.
+- feat: mesh 5.11.0's required-application preflight: every generated driver checks the
+  Kratos applications it needs before running, **Run** asks the configured Python first
+  and refuses naming the missing ones, and `case_validate` reports `applications` (with an
+  optional import probe) without running anything.
+- feat: CAD Preview 3.17.0's **FE Mesh quality gate**: the panel grades the last
+  generated mesh against caller-supplied meshio++ threshold clauses (scaled Jacobian,
+  aspect ratio, skewness, angles…), reporting per-clause violations, fractions, worst
+  value and cell — facts against your numbers, never a verdict. The CAD host keeps the
+  last generated MSH text per document, as upstream does.
+- feat: CAD Preview 3.17.0's per-**Part material density** (g/cm³) driving BOM/solid mass,
+  mesh-source `render_snapshot` via meshio++'s software rasterizer, `segment_mesh_surface`
+  (patch segmentation with primitive fits), and the **Geometry display mode** with its
+  entity-type legend.
+- feat: meshio++ 16.42.0 (both submodules — the earlier minor skew is closed): the
+  isoparametric `tessellate` mesh operation, a new readable/writable **Kratos CAD JSON**
+  `.cad.json` format (now a native file association), and Abaqus `.fil` / MSC Nastran
+  `.op2` result-file writers — 61 readable / 49 writable extended formats.
+- docs: a new **Kratos Problemtypes** guide documenting the whole catalog with the
+  application preflight contract, setup collections (responses/controls/parameters), the
+  FSI/CoSimulation pairing rules, and ROM/optimization workflows — with screenshots
+  generated from the real app on an upstream example case.
+
 ## [2.13.0] - 2026-10-14
 
 - feat: integrate **CAD Preview 3.16.0** and **Mesh Preview 5.10.0**. Pre-Processing

@@ -163,6 +163,12 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__compare_models: "read",
   cad__check_mesh_health: "read",
   cad__check_brep_health: "read",
+  // cad 3.17.0: two meshio++ facts-only tools — check_mesh_quality generates
+  // the FE mesh in memory and grades it against the caller's thresholds,
+  // segment_mesh_surface reads triangle soups. Neither writes (the deviation
+  // map's optional PLY is what makes its sibling `write`).
+  cad__check_mesh_quality: "read",
+  cad__segment_mesh_surface: "read",
   cad__recognize_primitives: "read",
   cad__list_workspace_models: "read",
   cad__get_state: "read",
@@ -260,6 +266,11 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // mesh 5.5.0 saved monitors: list/evaluate read, but set/remove write the
   // sidecar and evaluate can write a .csv — same conservative rule.
   mesh__case_monitors: "write",
+  // mesh 5.11.0 optimization progress is read-only except its optional .csv
+  // export — the same conservative outputPath rule as case_convergence above.
+  mesh__case_optimization: "write",
+  // mesh 5.11.0 ROM results: bounded lists only, no output path — pure read.
+  mesh__case_rom: "read",
   mesh__case_evaluate_quantity: "read",
   mesh__case_estimate_timestep: "read",
   mesh__mesh_select: "write",

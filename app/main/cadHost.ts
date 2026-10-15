@@ -557,6 +557,9 @@ export class CadHost {
    * the geometry on screen was actually built from.
    */
   private currentScadOverrides: Record<string, ScadValue> = {};
+  /** MSH text of the last mesh this panel generated — what the quality gate
+   * runs over. Reset at the start of each generate, mirroring provider.ts. */
+  private lastMshText: string | null = null;
   /** The latest Standard-Parts search page, so a thumbnails request can be
    *  validated against it (stale pages ignored) and mapped id → image URL. */
   private lastPartsSearch: { requestId: string; pngById: Map<string, string> } | null = null;
@@ -1062,6 +1065,7 @@ export class CadHost {
     this.currentAnnotations = [];
     this.currentPlanes = [];
     this.currentScadOverrides = {};
+    this.lastMshText = null;
     this.currentViewState = undefined;
     this.currentMeshOptions = undefined;
     this.lastPartsSearch = null;
@@ -1528,7 +1532,9 @@ export class CadHost {
         if (!input) throw new Error("No mesh geometry available: missing STL data.");
         const { parts, options } = await this.resolveMeshPartsAndOptions(input, msg.options);
         const startedAt = Date.now();
+        this.lastMshText = null;
         const result = await cadCompute.generateMesh(this.runtimePath, input, options, parts);
+        this.lastMshText = result.mshText;
         this.post({
           type: "meshingResult",
           requestId: msg.requestId,
@@ -2183,6 +2189,19 @@ export class CadHost {
         if (epoch === this.epoch) {
           this.post({ type: "brepHealthError", requestId: msg.requestId, message: (err as Error).message });
         }
+      }
+      return;
+    }
+
+    if (msg.type === "qualityGateRequest") {
+      // cad 3.17.0 FE Mesh quality gate, ported message-for-message from
+      // provider.ts: meshio++'s checkQuality over the last generated mesh.
+      try {
+        if (this.lastMshText === null) throw new Error("Generate a mesh first — the quality gate runs over the last generated mesh.");
+        const result = await cadCompute.checkMeshQuality(this.lastMshText, msg.require.trim());
+        this.post({ type: "qualityGateResult", requestId: msg.requestId, result });
+      } catch (err) {
+        this.post({ type: "qualityGateError", requestId: msg.requestId, message: (err as Error).message });
       }
       return;
     }

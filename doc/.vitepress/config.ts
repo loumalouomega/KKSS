@@ -28,6 +28,7 @@ export default defineConfig({
         items: [
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },
+          { text: 'Kratos Problemtypes', link: '/guide/problemtypes' },
           { text: 'Scientific Plots & FEM Analysis', link: '/guide/scientific-plots' },
           { text: 'Geometry to Results Tutorials', link: '/guide/tutorial-geometry-to-results' },
           { text: 'AI Simulation Walkthrough', link: '/guide/tutorial-ai-simulation' },
@@ -54,6 +55,7 @@ export default defineConfig({
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },
+          { text: 'Kratos Problemtypes', link: '/guide/problemtypes' },
           { text: 'Scientific Plots & FEM Analysis', link: '/guide/scientific-plots' },
           { text: 'Geometry to Results Tutorials', link: '/guide/tutorial-geometry-to-results' },
           { text: 'AI Simulation Walkthrough', link: '/guide/tutorial-ai-simulation' },
