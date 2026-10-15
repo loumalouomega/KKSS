@@ -37,7 +37,7 @@ Both mode views stay alive when you switch: the loaded file, the camera, and you
 
 In Post-Processing, **File ▸ Import Mesh…** adds several files to the active model in one undoable operation without welding. **File ▸ Export Mesh As** groups the writable formats; **Export…** retains its `Ctrl+E` shortcut. Choose **Show report**, or **Advanced ▸ Export report…**, to inspect export fidelity and provenance. **Advanced ▸ Streamlines…** offers worker-backed tracing and tube styling, while **Flow balance… ▸ All steps** scans a timeline and exports CSV. See [Post-Processing](/guide/mesh-mode) for field units, pressure conversion and Fluid time-stepping validation.
 
-For a complete first simulation, follow the [geometry-to-results tutorials](/guide/tutorial-geometry-to-results): each of the five built-in physics cases starts with CAD geometry, runs through the Problemtype sidebar and checks actual solver results.
+For a complete first simulation, follow the [geometry-to-results tutorials](/guide/tutorial-geometry-to-results): five single-physics cases plus partitioned FSI and weak-CoSimulation channel-slab coupling start with CAD geometry, run through the Problemtype sidebar and check actual solver results.
 
 ### Scientific plotting
 

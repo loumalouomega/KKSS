@@ -26,8 +26,8 @@ for (const c of cases) {
   await fs.mkdir(dest);
   await fs.copyFile(path.join(root, 'LICENSE'), path.join(dest, 'LICENSE'));
   for (const name of await fs.readdir(source)) {
-    if (name === 'vtk_output' || name === c.geometry || name === 'obstacle-channel.svg' || name.startsWith(c.geometry + '.') && !name.endsWith('.geo') ||
-        /^(mesh(?:_case)?\.mdpa|mesh\.kratoscase\.json|ProjectParameters\.json|.*Materials\.json|MainKratos\.py)$/.test(name)) {
+    if (name === 'vtk_output' || name === 'kkss-convergence-v2.jsonl' || name === c.geometry || name === 'obstacle-channel.svg' || name.startsWith(c.geometry + '.') && !name.endsWith('.geo') ||
+        /^(mesh(?:_case|_Fluid|_Structural)?\.mdpa|mesh\.kratoscase\.json|ProjectParameters(?:CoSim|CFD|CSM)?\.json|.*Materials\.json|MainKratos(?:CoSim)?\.py)$/.test(name)) {
       await fs.cp(path.join(source, name), path.join(dest, name), { recursive: true });
     }
   }
@@ -51,7 +51,7 @@ for (const c of cases) {
     verification.revisions[name] = revision.stdout.trim();
   }
   await fs.writeFile(path.join(dest, 'verification.json'), JSON.stringify(verification, null, 2) + '\n');
-  await fs.writeFile(path.join(dest, 'README.txt'), `${c.title}\n\nOpen ${c.geometry} in KKSS Pre-Processing. Sidecars replay the documented geometry edits and named Parts.\nOpen mesh.mdpa in Post-Processing for the saved Problemtype setup.\nRun MainKratos.py with Kratos 10.4.3 and the required application, using OMP_NUM_THREADS=2.\nSee https://loumalouomega.github.io/KKSS/guide/tutorial-${c.id}\n\nverification.json records solver-produced results and SHA-256 hashes. Values are tutorial checks, not formal solver certification.\nGeometry source: ${c.source}; source and derived tutorial assets distributed under KKSS's AGPL-3.0-or-later license.\n`);
+  await fs.writeFile(path.join(dest, 'README.txt'), `${c.title}\n\nOpen ${c.geometry} in KKSS Pre-Processing. Sidecars replay the documented geometry edits and named Parts.\nOpen mesh.mdpa in Post-Processing for the saved Problemtype setup.\nRun ${c.driver ?? 'MainKratos.py'} with Kratos 10.4.3 and the required application, using OMP_NUM_THREADS=2.\nSee https://loumalouomega.github.io/KKSS/guide/tutorial-${c.id}\n\nverification.json records solver-produced results and SHA-256 hashes. Values are tutorial checks, not formal solver certification.\nGeometry source: ${c.source}; source and derived tutorial assets distributed under KKSS's AGPL-3.0-or-later license.\n`);
   await exec(python, ['-c', `import pathlib,sys,zipfile
 source=pathlib.Path(sys.argv[1])
 with zipfile.ZipFile(sys.argv[2], 'w', zipfile.ZIP_DEFLATED) as z:

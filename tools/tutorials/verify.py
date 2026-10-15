@@ -37,7 +37,80 @@ def vtk(file):
     return points, cells, fields
 
 
+def verify_coupled(case, directory):
+    """Partitioned channel-over-slab cases: fluid VTK + structure VTK + coupling log."""
+    directory = pathlib.Path(directory)
+    primary = 'ProjectParametersCoSim.json' if case == 'cosim' else 'ProjectParameters.json'
+    parameters = json.loads((directory / primary).read_text())
+    recipe = json.loads((directory / 'recipe.json').read_text())
+    coupled = recipe['coupled']
+    width = coupled['widthMm'] / 1000
+    inlet_speed = next(a['values']['modulus'] for a in recipe['assignments'] if a['conditionId'] == 'f_inlet')
+    fluid_files = sorted((directory / 'vtk_output').glob('FluidModelPart_*.vtk'), key=lambda p: int(p.stem.rsplit('_', 1)[1]))
+    struct_files = sorted((directory / 'vtk_output').glob('Structure_*.vtk'), key=lambda p: int(p.stem.rsplit('_', 1)[1]))
+    assert fluid_files, 'No fluid solver results'
+    assert struct_files, 'No structure solver results'
+    assert len(fluid_files) == len(struct_files), f'Fluid wrote {len(fluid_files)} frames but structure wrote {len(struct_files)}'
+    p, cells, fields = vtk(fluid_files[-1])
+    ps, struct_cells, struct_fields = vtk(struct_files[-1])
+    checks = {}
+
+    def check(name, value, limit):
+        assert math.isfinite(value) and value <= limit, f'{name}: {value} > {limit}'
+        checks[name] = {'measured': value, 'maximum': limit}
+
+    def check_min(name, value, limit):
+        assert math.isfinite(value) and value >= limit, f'{name}: {value} < {limit}'
+        checks[name] = {'measured': value, 'minimum': limit}
+
+    velocity, pressure = fields['VELOCITY'], fields['PRESSURE']
+    # The two inlet corners on the interface line follow the moving wall
+    # (no-slip coupling), not the inlet profile — check the interior instead.
+    check('inlet_velocity_error_m_per_s', max(math.dist(v, [inlet_speed, 0, 0]) for xyz, v in zip(p, velocity) if abs(xyz[0]) < 1e-8 and xyz[1] > 1e-8), 1e-6)
+    checks['interface_corner_speed_m_per_s'] = max(math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2) for xyz, v in zip(p, velocity) if abs(xyz[0]) < 1e-8 and xyz[1] <= 1e-8)
+    check('outlet_pressure_error_Pa', max(abs(v[0]) for xyz, v in zip(p, pressure) if abs(xyz[0] - width) < 1e-8), 1e-6)
+
+    def face_mean(x):
+        vals = [v[0] for xyz, v in zip(p, velocity) if abs(xyz[0] - x) < 1e-8]
+        assert len(vals) >= 2
+        return sum(vals) / len(vals), len(vals)
+    # Three steps is a developing flow (2 m channel at 0.1 m/s needs ~20 s to
+    # cross), so no inlet/outlet balance is expected yet: the outlet still
+    # carries the quiescent initial condition while the inlet is exact.
+    inlet_mean, inlet_nodes = face_mean(0)
+    outlet_mean, outlet_nodes = face_mean(width)
+    check('inlet_face_mean_m_per_s', abs(inlet_mean - inlet_speed), 0.02)
+    check('outlet_face_quiescent_m_per_s', abs(outlet_mean), 0.05)
+    checks['inlet_face_nodes'] = inlet_nodes
+    checks['outlet_face_nodes'] = outlet_nodes
+    assert 'MESH_DISPLACEMENT' in fields, 'ALE fluid output carries no MESH_DISPLACEMENT'
+
+    displacement = struct_fields['DISPLACEMENT']
+    peak = max(math.sqrt(sum(x * x for x in v)) for v in displacement)
+    check_min('peak_structure_displacement_m', peak, 1e-7)
+    check('peak_structure_displacement_limit_m', peak, 0.02)
+    checks['peak_structure_displacement_m'] = peak
+
+    convergence = (directory / 'kkss-convergence-v2.jsonl').read_text().strip().split('\n')
+    records = [json.loads(line) for line in convergence if line.strip()]
+    steps = [r for r in records if r.get('event') == 'step']
+    assert steps, 'Coupling convergence log has no step records'
+    checks['coupling_steps'] = len(steps)
+    checks['coupling_iterations_per_step'] = [r.get('iterations', 0) for r in steps]
+    assert all(r.get('iterations', 0) >= 1 for r in steps), 'A coupled step recorded no coupling iteration'
+    checks['coupling_nonconverged_steps'] = sum(1 for r in steps if r.get('converged') is False)
+    return {'case': case, 'python': platform.python_version(), 'kratos': importlib.metadata.version('KratosMultiphysics'),
+            'threads': 2, 'nodes': len(p) + len(ps), 'elements': len(cells) + len(struct_cells),
+            'fields': sorted(set(fields) | set(struct_fields)),
+            'result': str(fluid_files[-1].relative_to(directory)),
+            'structure_result': str(struct_files[-1].relative_to(directory)),
+            'frames': len(fluid_files),
+            'end_time': parameters['problem_data']['end_time'], 'checks': checks}
+
+
 def verify(case, directory):
+    if case in ('fsi', 'cosim'):
+        return verify_coupled(case, directory)
     directory = pathlib.Path(directory)
     parameters = json.loads((directory / 'ProjectParameters.json').read_text())
     files = sorted((directory / 'vtk_output').glob('*.vtk'), key=lambda p: int(p.stem.rsplit('_', 1)[1]))

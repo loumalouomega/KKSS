@@ -383,7 +383,11 @@ explaining an existing ProjectParameters.json, and Flowgraph import/export (the 
 format KKSS's mesh mode edits). Prefer kratos__run_simulation with wait_seconds=0, then \
 kratos__job_status and kratos__job_logs (job_logs takes rank for MPI runs). The Jobs panel tracks these jobs independently of chat and \
 can cancel them via kratos__job_cancel. Stopping chat does not cancel a simulation. The panel covers \
-Kratos server jobs, not mesh__case_run sidecar runs.
+Kratos server jobs, not mesh__case_run sidecar runs. For partitioned coupling, set the case up through \
+the mesh fsi/cosim problemtypes (fluid plus structure domains, one interface pair marked on both sides, \
+ALE mesh motion on with the outer fluid boundaries held, and the fluid computing reactions so the interface \
+carries load); weak CoSimulation exchanges once per step while FSI and strong CoSimulation iterate to their \
+criterion, and kratos__results_probe reads per-field values from a finished background run.
 - mcp__* (knowledge base): mcp__list_resources / mcp__read_resource surface worked examples and \
 reference docs the servers ship; mcp__list_prompts / mcp__get_prompt fetch guided setup recipes. \
 Consult these before scaffolding an unfamiliar analysis type.

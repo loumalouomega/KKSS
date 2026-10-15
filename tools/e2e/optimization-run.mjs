@@ -67,13 +67,23 @@ async function waitForGenerated(stage, deadline) {  const names = ["optimization
 }
 
 /** The run sidecar `<stem>.kratosrun.json` reaches a terminal state: done when
- *  the process exited 0; a nonzero exit (or an invalid driver) fails loudly. */
+ *  the process exited 0; a nonzero exit (or an invalid driver) fails loudly.
+ *  A non-live status (`orphaned`/`detached`/`cancelled`/`failed`) fails fast —
+ *  waiting out a dead run only produces the same answer an hour later. The
+ *  sidecar's status is authoritative; the app marks a run orphaned when the
+ *  mesh view was closed or reloaded while it ran (windowCloseAction). */
+const DEAD_SIDECAR_STATUSES = ["orphaned", "detached", "cancelled", "failed"];
 async function waitForRun(stage, deadline) {
   const sidecar = path.join(stage, "hook.kratosrun.json");
   for (;;) {
     if (Date.now() > deadline) throw new Error("The optimization run did not finish in time");
     try {
       const run = JSON.parse(fs.readFileSync(sidecar, "utf8"));
+      if (typeof run.status === "string" && DEAD_SIDECAK_STATUSES.includes(run.status) && run.exitCode === null) {
+        throw new Error(
+          `The optimization run was marked ${run.status} before finishing`
+          + (run.message ? `: ${run.message}` : " — the mesh view closed or reloaded while it ran."));
+      }
       if (typeof run.exitCode !== "number") { /* still running */ }
       else if (run.exitCode !== 0) {
         const log = fs.existsSync(path.join(stage, "hook.kratosrun.log"))
@@ -84,7 +94,7 @@ async function waitForRun(stage, deadline) {
         return run;
       }
     } catch (err) {
-      if (err.code !== "ENOENT" && err instanceof SyntaxError === false && String(err).startsWith("The optimization run failed")) throw err;
+      if (err.code !== "ENOENT" && err instanceof SyntaxError === false && String(err).startsWith("The optimization run")) throw err;
     }
     await sleep(5_000);
   }
@@ -181,6 +191,16 @@ export async function optimizationRunScenario(out) {
     await page.waitForFunction(() => getComputedStyle(document.querySelector("#app")).display !== "none", null, { timeout: 90_000 });
     await page.waitForSelector("#pt-select", { state: "visible", timeout: 30_000 });
     await sleep(2_000); // scene settle (a 10 MB tetra mesh) before touching the sidebar
+
+    // Resolution + renderer stability: this long session and its captures run
+    // under the same enlarged frame as the problemtype session (2200 × 1900
+    // CSS at the shared 2× device scale — ~4400 × 3800 PNGs), which proved far
+    // steadier under software GL than the default window during a live solve.
+    await app.evaluate(({ BaseWindow }, size) => {
+      const win = BaseWindow.getAllWindows()[0];
+      if (win) win.setContentSize(size.width, size.height);
+    }, { width: 2200, height: 1900 });
+    await sleep(1_000);
 
     // ---- The user flow: generate, then run --------------------------------
     await page.selectOption("#pt-select", "optimization");

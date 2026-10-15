@@ -25,7 +25,7 @@ export async function manualTutorials(out, selected = []) {
     const dir = path.join(temp, c.id), profile = path.join(temp, 'profile');
     fs.cpSync(path.join(root, 'doc/public/examples/tutorials', c.id), dir, { recursive: true });
     // Author case settings in the actual sidebar and export a new mesh in CAD.
-    for (const name of fs.readdirSync(dir)) if (name === 'vtk_output' || /^(mesh.*|ProjectParameters.json|.*Materials.json|MainKratos.py)$/.test(name)) fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    for (const name of fs.readdirSync(dir)) if (name === 'vtk_output' || /^(mesh.*|ProjectParameters.*\.json|.*Materials\.json|MainKratos.*\.py|kkss-convergence.*\.jsonl)$/.test(name)) fs.rmSync(path.join(dir, name), { recursive: true, force: true });
     fs.mkdirSync(profile);
     fs.writeFileSync(path.join(profile, 'state.json'), JSON.stringify({ uiTheme: 'dark', 'kratos.pythonPath': python, 'kratos.extraEnv': { OMP_NUM_THREADS: '2' } }));
     const { app, output } = await launchApp(path.join(dir, c.geometry), { userDataDir: profile, extraArgs: [...softwareGL, '--force-device-scale-factor=2'], env: { OMP_NUM_THREADS: '2', KKSS_KRATOS_PYTHON: python } });
@@ -55,7 +55,9 @@ export async function manualTutorials(out, selected = []) {
         const expanded = mesh.locator(`.sb-section[data-section="${section}"]:not(.collapsed) > .sb-section-header .panel-chevron`);
         if (await expanded.count()) await expanded.click();
       }
-      await values(mesh.locator('#pt-forms'), c.problem);
+      // Coupled cases keep section-keyed values; the sidebar form is flat.
+      const formValues = c.values ? Object.assign({}, ...Object.values(c.values)) : c.problem;
+      await values(mesh.locator('#pt-forms'), formValues);
       for (const a of c.assignments) {
         await mesh.selectOption('#pt-assignments .pt-add-what', a.conditionId);
         await mesh.selectOption('#pt-assignments .pt-add-where', a.smpPath);
@@ -69,7 +71,7 @@ export async function manualTutorials(out, selected = []) {
         await values(mesh.locator('#pt-materials .pt-assign').last(), m.values);
       }
       await mesh.locator('#pt-generate').click();
-      await until(() => fs.existsSync(path.join(dir, 'ProjectParameters.json')), 'Generate case files');
+      await until(() => fs.existsSync(path.join(dir, c.primaryDocument ?? 'ProjectParameters.json')), 'Generate case files');
       await mesh.locator('#pt-select').scrollIntoViewIfNeeded();
       if (out) await mesh.screenshot({ path: path.join(out, `tutorial-${c.id}-setup.png`) });
       await until(async () => await mesh.locator('#pt-run').isEnabled(), 'manual interpreter ready', 60000);
@@ -83,24 +85,50 @@ export async function manualTutorials(out, selected = []) {
       }, 'manual solver completion', 180000);
       const report = JSON.parse(execFileSync(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { encoding: 'utf8' }));
       await mesh.locator('#pt-open-results').click();
-      let result;
+      const resultPages = [];
       await until(async () => {
         for (const page of app.windows().filter(p => p.url().includes('/renderer/mesh/'))) {
           const name = await page.locator('#doc-chip-name').textContent().catch(() => '');
-          if (name.includes('.vtk')) { result = page; return true; }
+          if (name.includes('.vtk') && !resultPages.includes(page)) resultPages.push(page);
         }
-        return false;
+        return resultPages.length > 0;
       }, 'Open results creates VTK tab', 60000);
-      await result.locator('#toolbar button[data-action="field"]').click();
-      const selector = result.locator('#field-panel select').first();
-      await selector.waitFor();
-      const options = await selector.locator('option').evaluateAll(els => els.map(el => ({ text: el.textContent, value: el.value })));
-      const choice = options.find(o => o.text.startsWith(c.field + ' '));
-      assert.ok(choice, `Missing ${c.field}`);
-      await selector.selectOption(choice.value);
-      await result.locator('#toolbar button[data-action="reset"]').click();
-      await sleep(1800);
-      if (out) await result.screenshot({ path: path.join(out, `tutorial-${c.id}-results.png`) });
+      if (c.structureField) {
+        // The second participant tab opens alongside the first; wait for both.
+        await until(async () => {
+          for (const page of app.windows().filter(p => p.url().includes('/renderer/mesh/'))) {
+            const name = await page.locator('#doc-chip-name').textContent().catch(() => '');
+            if (name.includes('.vtk') && !resultPages.includes(page)) resultPages.push(page);
+          }
+          return resultPages.length >= 2;
+        }, 'Open results creates both participant tabs', 60000).catch(() => { console.warn(`${c.id}: only ${resultPages.length} result tab(s) opened`); });
+      }
+      const shotField = async (result, field, shot) => {
+        await result.locator('#toolbar button[data-action="field"]').click();
+        const selector = result.locator('#field-panel select').first();
+        await selector.waitFor();
+        const options = await selector.locator('option').evaluateAll(els => els.map(el => ({ text: el.textContent, value: el.value })));
+        const choice = options.find(o => o.text.startsWith(field + ' '));
+        assert.ok(choice, `Missing ${field}`);
+        await selector.selectOption(choice.value);
+        await result.locator('#toolbar button[data-action="reset"]').click();
+        await sleep(1800);
+        if (out) await result.screenshot({ path: path.join(out, shot) });
+        return { result, selector, options };
+      };
+      let result, selector, options, choice;
+      if (c.structureField) {
+        // One result tab per participant: fluid drives the main capture.
+        const names = await Promise.all(resultPages.map(p => p.locator('#doc-chip-name').textContent().catch(() => '')));
+        result = resultPages[names.findIndex(n => n.startsWith('Fluid'))] ?? resultPages[0];
+        ({ selector, options } = await shotField(result, c.field, `tutorial-${c.id}-results.png`));
+        const structPage = resultPages[names.findIndex(n => n.startsWith('Structure'))];
+        if (structPage) await shotField(structPage, c.structureField, `tutorial-${c.id}-structure.png`);
+      } else {
+        result = resultPages[0];
+        ({ selector, options } = await shotField(result, c.field, `tutorial-${c.id}-results.png`));
+        choice = options.find(o => o.text.startsWith(c.field + ' '));
+      }
       if (c.id === 'fluid') {
         const pressure = options.find(o => o.text.startsWith('PRESSURE '));
         assert.ok(pressure, 'Missing PRESSURE');

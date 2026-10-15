@@ -1,4 +1,7 @@
 // Reproducible solver acceptance + thread scaling, using published tutorial inputs.
+// Coupled tutorials opt out (benchmark: false): partitioned solves are an order
+// of magnitude heavier and thread scaling is already covered by the five
+// single-physics cases.
 // KKSS_TUTORIAL_PYTHON=/path/python node tools/workflows/benchmark.mjs [report.json]
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -20,7 +23,7 @@ const report = { version: 1, date: new Date().toISOString(), cpu: os.cpus()[0]?.
   responsiveness: 'Node coordinator event-loop delay during external solves; not a GUI frame-rate measurement.', samples: [] };
 const output = path.resolve(process.argv[2] ?? path.join(dir, 'benchmark.json'));
 await fs.mkdir(path.dirname(output), { recursive: true });
-for (const c of cases) for (const threads of [...new Set([1, 2, 4, os.availableParallelism()])]) for (let repetition = 1; repetition <= 3; repetition++) {
+for (const c of cases.filter(c => c.benchmark !== false)) for (const threads of [...new Set([1, 2, 4, os.availableParallelism()])]) for (let repetition = 1; repetition <= 3; repetition++) {
   const cwd = path.join(dir, `${c.id}-${threads}-${repetition}`);
   await fs.cp(path.join(root, 'doc/public/examples/tutorials', c.id), cwd, { recursive: true });
   await fs.rm(path.join(cwd, 'vtk_output'), { recursive: true, force: true });
