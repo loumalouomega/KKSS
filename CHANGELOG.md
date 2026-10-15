@@ -26,6 +26,11 @@ full auto-generated compare links.
   Kratos applications it needs before running, **Run** asks the configured Python first
   and refuses naming the missing ones, and `case_validate` reports `applications` (with an
   optional import probe) without running anything.
+- feat: KKSS's `openLatestResults` hook learned mesh 5.11.0's **`outputFolder`** option, so
+  the Optimization progress panel's **Design fields** button opens the per-iteration design
+  fields timeline in the folder the case's `optimization_parameters.json` names (instead of
+  degrading to a "no results" toast for a `vtk_output/` that an optimization case never
+  writes) — the same no-results toast now names the folder it looked at.
 - feat: CAD Preview 3.17.0's **FE Mesh quality gate**: the panel grades the last
   generated mesh against caller-supplied meshio++ threshold clauses (scaled Jacobian,
   aspect ratio, skewness, angles…), reporting per-clause violations, fractions, worst

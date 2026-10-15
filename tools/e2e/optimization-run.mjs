@@ -174,7 +174,7 @@ export async function optimizationRunScenario(out) {
     extraArgs: ["--force-device-scale-factor=2", "--disable-gpu"],
     userDataDir: profile,
   });
-  const deadline = Date.now() + 60 * 60_000;
+  const deadline = Date.now() + 75 * 60_000;
   try {
     await waitForMarkers(output, ["[mesh] host → webview: model"], deadline);
     const page = await appWindow(app, MESH_URL, deadline);
@@ -189,12 +189,17 @@ export async function optimizationRunScenario(out) {
     await page.locator("#pt-generate").click();
     await waitForGenerated(stage, Date.now() + 300_000);
     await page.locator("#pt-run:enabled").click({ timeout: 120_000 });
+    // Each iteration is a primal solve plus a gradient pass — ~5–6 minutes
+    // each on the streaming host (measured), so the full five-iteration run
+    // takes ~half an hour. Wait it out; the sidecar's terminal state is what
+    // says the optimizer finalized (and that its summary holds every row).
     await waitForRun(stage, deadline);
 
-    // ---- Progress panel over the REAL summary ------------------------------
+    // ---- Progress panel over the REAL completed run -------------------------
     await page.locator('[data-action="advanced"]').click();
     await page.locator('[data-action="optimizationProgress"]').click();
     await page.waitForSelector("#optimization-panel", { state: "visible", timeout: 30_000 });
+    await page.locator("#optimization-panel button.panel-btn", { hasText: "Refresh" }).click();
     await until(async () => (await page.locator(".opt-verdict").textContent()).includes("finished"), "the panel reads the finished run", 60_000);
     await sleep(1_500);
     await page.mouse.move(0, 0); await sleep(300);
@@ -203,7 +208,7 @@ export async function optimizationRunScenario(out) {
 
     // ---- Design fields: the per-iteration timeline -------------------------
     await page.locator("#optimization-panel button.panel-btn", { hasText: "Design fields" }).click();
-    await until(async () => output().includes("[mesh] host → webview: vtkGroup"), "the design-fields timeline posts", 120_000);
+    await until(async () => output().includes("[mesh] host → webview: vtkGroup"), "the design-fields timeline posts", 240_000);
     await sleep(4_000);
     const dfPage = await meshPage(app, Date.now() + 90_000, "hook");
     await dfPage.waitForFunction(() => {

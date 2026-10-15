@@ -1482,12 +1482,19 @@ no new workers, no new settings and four policy rows plus one packaging row.**
   `vscode.*` API, no new `globalState` key, no new setting (a `package.nls.json`
   i18n refactor only), no `meshBody()` edit (`pt-collections` rides the
   imported `SIDEBAR_HTML`; the optimization panel is dynamically created).
-  One REAL shim change: the fake webview's `onDidReceiveMessage` now keeps
-  **multiple listeners and replays the retained inbox to each as it attaches**
-  — mesh 5.11.0's `PreviewSession` registers its own `ready` listener beside
-  the provider's main handler, and the old single-slot + drain-once behavior
-  swallowed `ready`, leaving the open handshake (documentInfo, engineStatus,
-  the model post) permanently unstarted.
+  Two REAL shim changes. First, the fake webview's `onDidReceiveMessage` now
+  keeps **multiple listeners and replays the retained inbox to each as it
+  attaches** — mesh 5.11.0's `PreviewSession` registers its own `ready`
+  listener beside the provider's main handler, and the old single-slot +
+  drain-once behavior swallowed `ready`, leaving the open handshake
+  (documentInfo, engineStatus, the model post) permanently unstarted. Second, 
+  `openLatestResults` learned mesh 5.11.0's `outputFolder` option: the
+  optimization problemtype's Design-fields button opens
+  `kratos.vtk.openLatestResults` with the folder the case's
+  optimization_parameters.json names, and the hook (typed options passthrough
+  + `{folder}` in the no-results toast, new i18n keys, default stays
+  `vtk_output`) is what makes design fields open at all instead of a silent
+  no-results toast.
   Policy grows two rows (`mesh__case_optimization` `write` — optional CSV like
   convergence — plus its `toolPaths.ts` scope row; `mesh__case_rom` `read`,
   no row) and `case_validate`'s `checkInstall` probe needs none. Routing gains

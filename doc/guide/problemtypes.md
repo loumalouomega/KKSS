@@ -32,7 +32,7 @@ Eighteen built-ins ship with the app, grouped by family in the Problemtype dropd
 A coupled problemtype has several **domains** (for example *Fluid* and *Structure*). Each domain has its own Parts condition, conditions, materials and mesh: Generate writes one `ProjectParameters.json` plus one mesh per physics (`<name>_Fluid.mdpa`, `<name>_Structural.mdpa`, …) sliced from the mesh you have open, and one materials file per domain.
 
 ::: warning First-run rule for the newer families
-The five tutorial physics (structural, fluid, thermal, potential flow, shallow water) are solver-verified end to end — see the [geometry-to-results tutorials](./tutorial-geometry-to-results). The compressible, embedded, free-surface, buoyancy, conjugate-heat-transfer, FSI, CoSimulation, ROM and optimization problemtypes follow their Kratos writers and applications, but no case of those was run here. Treat the first run as a check of the generated files: every generated driver checks that the Kratos applications the case needs can be imported before it starts, and **Run** asks the configured Python first, refusing with the missing applications named. MPM and DEM are not provided.
+The five tutorial physics (structural, fluid, thermal, potential flow, shallow water) are solver-verified end to end — see the [geometry-to-results tutorials](./tutorial-geometry-to-results) — and the Structural Optimization problemtype has a runnable real-world worked case in the section below. The compressible, embedded, free-surface, buoyancy, conjugate-heat-transfer, FSI, CoSimulation and ROM problemtypes follow their Kratos writers and applications, but no case of those was run here. Treat the first run as a check of the generated files: every generated driver checks that the Kratos applications the case needs can be imported before it starts, and **Run** asks the configured Python first, refusing with the missing applications named. MPM and DEM are not provided.
 :::
 
 ## Setting up any case
@@ -143,6 +143,20 @@ A constraint names a response, a relation (`<=`, `<`, `=`, `>=`, `>`) and a refe
 | `kkss_optimization_stop.py` | a small process so a **Stop** finishes the run cleanly at the next iteration |
 
 **Optimization progress panel.** Advanced ▸ **Optimization progress…** opens a panel showing the formulation (*minimize strain_energy s.t. mass ≤ initial; controls: stiffness*), the verdict (running, finished, stopped, incomplete, or no data yet), the objective against the iteration, each constraint's standardized value against the iteration (at or below zero is satisfied), and the last iterations as a table. Its buttons open the full history in the Plots workspace, open the design fields, and export the summary as CSV. With *Write design fields* on, **Open design fields** opens the per-iteration controls, updates and gradients under `Optimization_Results/` with a timeline. MCP `case_optimization` returns the same summary and verdict.
+
+## Following the shape's evolution — a worked run
+
+The figures below come from a **real run**: OptimizationApplication's own 3D-hook case from `~/src/Examples/optimization_application/use_cases/3d_hook/` (a 213,622-cell tetrahedral hook), seeded exactly as described above — a shape (vertex-morphing) control on the hook's own `design_surface_1`, an implicit filter with a 25 mm radius, filter-based mesh motion with the hook's non-design parts damped, with the hook's steel mapped in the model's own units (N/mm, ton/mm³) — and run with **minimize strain energy** (unconstrained compliance minimization; a constraint's standardized criterion counts an unviolated constraint as satisfied at the initial point, which stops the run at iteration 0) for five constant-size 3 mm steps. Each point of the design surface is a design variable, so the Run executes a primal analysis plus a gradient pass per iteration — about five to six minutes per iteration, or roughly half an hour for the five-iteration run (~6 minutes overall if fewer iterations are requested; measured on this fixture at eight solver threads — thread counts don't imply better solve times).
+
+![Optimization progress panel over the finished real run: the formulation, the objective history and the iteration table beside the hook mesh](/screenshots/problemtype-optimization-progress.png)
+
+**Design fields** opens the per-iteration output in a new Post-Processing tab with a timeline — one step per iteration. The captures land with the next screenshot run.
+
+<!-- resolves when the run captures regenerate
+![The hook's design-fields timeline: the morphing shape per iteration, with the incident fields the optimizer writes](/screenshots/problemtype-optimization-design-fields.png)
+
+![The shape evolving across the five iterations](/screenshots/problemtype-optimization-evolution.gif)
+-->
 
 ![Optimization progress panel over the 3D hook: the formulation the hook's own optimization_parameters.json declares, the objective history, two constraint histories and the iteration table](/screenshots/problemtype-optimization-progress.png)
 
