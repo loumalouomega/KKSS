@@ -236,6 +236,7 @@
   "Chat panel reloaded — the conversation is intact.": "Chat panel reloaded — the conversation is intact.",
   "Home screen reloaded.": "Home screen reloaded.",
   "No results in vtk_output/ yet — run the case first (results appear as the solver writes steps).": "No results in vtk_output/ yet — run the case first (results appear as the solver writes steps).",
+  "No results in {0}/ yet — run the case first (results appear as the solver writes steps).": "No results in {0}/ yet — run the case first (results appear as the solver writes steps).",
   "Save changes to {0}?": "Save changes to {0}?",
   "Don't Save": "Don't Save",
   "Connect a cloud account first: Settings ▸ Cloud Accounts.": "Connect a cloud account first: Settings ▸ Cloud Accounts.",

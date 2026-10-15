@@ -98,8 +98,11 @@ export interface VscodeShimHooks {
   /**
    * Implements "kratos.vtk.openLatestResults" — since mesh 3.8.0 this command
    * is the *only* path behind PtController.openResults(), so it cannot throw.
+   * mesh 5.11.0 added `outputFolder` for its optimization design fields, whose
+   * outputs live in the folder the case's optimization_parameters.json names
+   * rather than `vtk_output`.
    */
-  openLatestResults(caseDir: string, options?: { excludeNewest?: boolean }): void;
+  openLatestResults(caseDir: string, options?: { excludeNewest?: boolean; outputFolder?: string }): void;
   /**
    * The explicit project root, or undefined when the user has not chosen one.
    * Backs `workspace.workspaceFolders` — unlike the hooks above this is a

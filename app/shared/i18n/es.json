@@ -236,6 +236,7 @@
   "Chat panel reloaded — the conversation is intact.": "Panel de chat recargado. La conversación está intacta.",
   "Home screen reloaded.": "Pantalla de inicio recargada.",
   "No results in vtk_output/ yet — run the case first (results appear as the solver writes steps).": "Todavía no hay resultados en vtk_output/. Ejecute primero el caso (los resultados aparecen al guardar cada paso).",
+  "No results in {0}/ yet — run the case first (results appear as the solver writes steps).": "Todavía no hay resultados en {0}/. Ejecute primero el caso (los resultados aparecen al guardar cada paso).",
   "Save changes to {0}?": "¿Guardar los cambios en {0}?",
   "Don't Save": "No guardar",
   "Connect a cloud account first: Settings ▸ Cloud Accounts.": "Conecte primero una cuenta: Ajustes ▸ Cuentas de la nube.",

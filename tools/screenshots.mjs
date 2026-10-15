@@ -31,6 +31,7 @@ import { captureAnimations } from "./tutorials/animations.mjs";
 import { scriptedCapture } from "./tutorials/assistant.mjs";
 import { mesh423Scenario } from "./e2e/mesh-423.mjs";
 import { meshPlotsScenario } from "./e2e/mesh-plots.mjs";
+import { optimizationRunScenario } from "./e2e/optimization-run.mjs";
 
 const OUT = path.join(root, "doc", "public", "screenshots");
 const IMAGES = path.join(root, "images");
@@ -146,13 +147,13 @@ const SHOT_SIZE = { width: 1760, height: 1600 };
  * back before the session ends, so generating docs never rewrites the user's
  * own preference.
  */
-async function prepareWindow(app, deadline) {
+async function prepareWindow(app, deadline, size = SHOT_SIZE) {
   await app.evaluate(async ({ BaseWindow }, size) => {
     // One BaseWindow hosts every view (app/main/windows.ts); its own resize
     // listener re-runs layout(), so the views follow.
     const win = BaseWindow.getAllWindows()[0];
     if (win) win.setContentSize(size.width, size.height);
-  }, SHOT_SIZE);
+  }, size);
   const shell = await appWindow(app, "/renderer/shell/", deadline);
   const previousZoom = await shell.locator("#zoom-select").inputValue();
   if (previousZoom !== "1") await shell.selectOption("#zoom-select", "1");
@@ -305,7 +306,10 @@ async function shotProblemtypeStage(name, problemtypeId, caseStateFile) {
     await page.waitForFunction(() => getComputedStyle(document.querySelector("#app")).display !== "none", null, { timeout: 60_000 });
     await page.waitForSelector("#pt-select", { state: "visible", timeout: 20_000 });
     await sleep(1_200);
-    prepared = await prepareWindow(app, deadline);
+    // Resolution: a larger frame just for these captures — at the shared 2×
+    // device scale the full-window PNGs come out ~4400×3800, so the sidebar
+    // cards and the hook render at full doc legibility.
+    prepared = await prepareWindow(app, deadline, { width: 2200, height: 1900 });
     await sleep(400);
     await page.selectOption("#pt-select", problemtypeId);
     await page.waitForFunction(() => document.querySelectorAll("#pt-collections .pt-card, #pt-forms .pt-card").length > 0, null, { timeout: 20_000 });
@@ -598,6 +602,11 @@ if (process.argv.includes("--plots-only")) {
   finally { cleanupDirs(); }
   process.exit(0);
 }
+if (process.argv.includes("--optimization-run-only")) {
+  try { await optimizationRunScenario(OUT); }
+  finally { cleanupDirs(); }
+  process.exit(0);
+}
 if (!meshOnly) await sessionCad();
 await sessionMdpa();
 await sessionVtk();
@@ -606,6 +615,9 @@ await sessionProblemtypes();
 // Verified new mesh panels, using deterministic files and their real hosts.
 await mesh423Scenario(OUT);
 await meshPlotsScenario(OUT);
+// A REAL Structural-Optimization run (Generate ▸ Run case with the pinned
+// Kratos runtime) — skipped with a warning wherever its runtime is absent.
+await optimizationRunScenario(OUT);
 // Last, so its recents list contains the documents the sessions above opened.
 if (!meshOnly) {
   await sessionHome();
