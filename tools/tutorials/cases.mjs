@@ -63,7 +63,12 @@ export const cases = [
       // Dynamic Bossak structure like Mok/GiD (a static structure ignores the
       // transferred POINT_LOAD on this solver build).
       problem: { endTime: 0.15 },
-      structure: { s_solverType: 'dynamic', s_schemeType: 'bossak' },
+      structure: {
+        // Dynamic non-linear like Mok: a linear analysis assembles once and
+        // never sees the per-step transferred POINT_LOAD; non-linear rebuilds
+        // every iteration. Bossak dodges this branch's broken BDF2 Predict.
+        s_solverType: 'dynamic', s_schemeType: 'bossak', s_analysisType: 'non_linear',
+      },
       // Bossak: this Kratos branch segfaults in BDF2 Predict on 3D monolithic
       // fluid (verified live); Bossak runs cleanly and stays monolithic.
       // Compute reactions: the structure pulls the fluid REACTION as its load —
@@ -111,7 +116,12 @@ export const cases = [
       // the sidebar exposes it as a fluid checkbox; coupled generation could
       // force it on upstream).
       fluid: { f_timeStep: 0.05, f_echoLevel: 0, f_timeScheme: 'bossak', f_computeReactions: true },
-      structure: { s_solverType: 'dynamic', s_schemeType: 'bossak' },
+      structure: {
+        // Dynamic non-linear like Mok: a linear analysis assembles once and
+        // never sees the per-step transferred POINT_LOAD; non-linear rebuilds
+        // every iteration. Bossak dodges this branch's broken BDF2 Predict.
+        s_solverType: 'dynamic', s_schemeType: 'bossak', s_analysisType: 'non_linear',
+      },
     },
     assignments: [
       assignment('f_parts', 'Fluid'),
