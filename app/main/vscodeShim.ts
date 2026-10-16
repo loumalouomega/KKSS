@@ -361,12 +361,20 @@ export const window = {
    * cad's export targets and the mesh Export menu. vscode resolves to the
    * picked item itself, so callers read back their own extra properties
    * (meshExport's exportSkin uses `description` to carry the extension).
+   *
+   * `canPickMany` (mesh 5.12.0's result conversion) opens the picker with
+   * toggling rows and resolves to the checked items — possibly an empty array,
+   * which callers treat as "nothing selected"; cancel stays undefined.
    */
   showQuickPick: async <T extends QuickPickItem>(
     items: T[],
-    options?: { title?: string; placeHolder?: string }
-  ): Promise<T | undefined> =>
-    electronQuickPick(items, { title: options?.title, placeHolder: options?.placeHolder }),
+    options?: { title?: string; placeHolder?: string; canPickMany?: boolean }
+  ): Promise<T | T[] | undefined> =>
+    electronQuickPick(items, {
+      title: options?.title,
+      placeHolder: options?.placeHolder,
+      canPickMany: options?.canPickMany,
+    }),
 
   /** Native, validated number prompts used by mesh grid/export operations. */
   showInputBox: async (options: {

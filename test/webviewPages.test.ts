@@ -41,6 +41,9 @@ describe.skipIf(!built)("generated webview pages", () => {
     for (const anchor of ['id="statusbar"', 'id="doc-chip"', 'id="advanced-group"', 'id="kernel-status-text"']) {
       expect(html).toContain(anchor);
     }
+    // cad 3.18.0's Printability panel: main.ts binds it by id, so a stale page
+    // would leave its checks inert.
+    expect(html).toContain('id="printability-panel"');
   });
 
   it("carries the mesh provider skeleton", () => {

@@ -303,8 +303,8 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**16.41**, the version mesh locks and the one
-  KKSS stages; CAD declares `^16.31.0` and resolves that same staged tree, so the
+  `@meshioplusplus/wasm` package (**17.2.0**, the version mesh locks and the one
+  KKSS stages; CAD declares `^16.42.0` and resolves that same staged tree, so the
   pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
   rather than by the pins agreeing — re-run both after either bump, and prefer
   re-aligning CAD over letting the skew grow;
@@ -340,8 +340,8 @@ resubmitted automatically.
   `out/cad-runtime/dist/../../meshio`. That is why KKSS's
   `cadMeshioLoader.ts` shim and its esbuild alias are gone, and why ONE version
   serves both consumers: the staged tree wins at runtime regardless of what
-  either `package.json` declares. mesh 5.10.0 moved to 16.41 while cad still
-  declares `^16.31.0`, so the two pins now differ — the runtime parity tests
+  either `package.json` declares. mesh 5.12.0 moved to 17.2.0 while cad still
+  declares `^16.42.0`, so the two pins differ again — the runtime parity tests
   are the gate, not the pins. It loads the `.wasm` via meshio++'s
   `locateFile` hook (the `wasmBinary` buffer hook MMG uses is pruned from this
   build), so the tree must exist on disk — another reason for `asar: false`.
@@ -1106,7 +1106,7 @@ resubmitted automatically.
   what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 277-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
+  `test/chatToolPolicy.test.ts` pins the exact 285-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1361,7 +1361,7 @@ resubmitted automatically.
   compound suffixes such as `.post.msh` remain intact.
 
 - **Distribution metadata follows the routing tables.** `electron-builder.yml`
-  ships associations for all 65 CAD/mesh-readable suffixes, including compound
+  ships associations for all 106 CAD/mesh-readable suffixes, including compound
   GiD names, registers the `kkss` scheme, and builds AppImage, deb and rpm
   targets. `npm run check:packaging` parses the two upstream registries and
   fails if the packaging list drifts. The Flatpak work is intentionally a
@@ -1450,8 +1450,64 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 76 CAD + 49 mesh + 4 aggregation + 31 app-owned
+discovery (current sets: 77 CAD + 51 mesh + 4 aggregation + 31 app-owned
 workflow tools).
+
+**The cad 3.17.0 → 3.18.0 + mesh 5.11.0 → 5.12.0 jump needed one host port,
+one new picker mode, three policy rows and one packaging row; meshio++ moved to
+17.2.0 and the pin skew reopened.**
+
+- **cad: the Printability panel, ported message-for-message.** `provider.ts`
+  answers `printabilityRequest` with `printabilityResult` / `printabilityError`
+  over `docPipeline.checkPrintability`, reducing either source to welded
+  triangles (B-rep via `readOcctSource` + `replayTail`; mesh via the webview's
+  serialized, already-edited STL) and refusing display-only formats by name;
+  `cadHost.ts` ports the handler with the usual epoch guard,
+  `cadComputeClient.ts` binds `checkPrintability` and the worker spreads
+  `printabilityHost` (`kernelActivity.ts` already keys it to OCCT, so
+  `test/cadKernelStatus.test.ts` passes unchanged). The bundled starter limits
+  (`dist/process-limits/starter-limits.json`) are read tolerantly through
+  `bundledProcessLimitsPath` and staged by `esbuild.mjs` (preflight +
+  copyArtifacts) as `out/cad-runtime/dist/process-limits/…`. The panel itself
+  is webview-created; the generated CAD page gains `printability-panel` markup
+  via `viewerDom`, and `test/webviewPages.test.ts` anchors it.
+- **cad: `.amf` is a display-only import.** `fileRouter` gained it beside
+  3MF/Collada (`strategy: "three"`, `DISPLAY_ONLY_MESH_FORMATS`), three's
+  `AMFLoader` builds the scene in the viewer (plain or zipped, material/mesh
+  colours, declared unit seeds the Units dropdown), so the parent adds the
+  `electron-builder.yml` association (the check now covers 106 routed
+  suffixes), a router test case and
+  the docs rows. The host's triangle-dependent operations refuse it by name
+  through the same guard, and `check_printability` reports it as
+  unsupported like every other display-only format.
+- **mesh: result conversion and plot ownership resolution, no host port.**
+  `case_export_results` and `plot_run_resolve` are served by the bundled MCP
+  server. The interactive route is the new File ▸ **Convert Results to Other
+  Formats…** item → `activeMeshHost().dispatchCase("exportResults")` (the
+  packSeries precedent); mesh's `showQuickPick({canPickMany: true})` needed a
+  real multi-select mode in `services/quickPick.ts` + the picker page
+  (checkbox column, Space/click toggles, Enter confirms, Esc cancels) and the
+  shim's `canPickMany` passthrough — single-pick callers are unchanged.
+  `RunManager.autoConvertResults` needed nothing: the existing OutputChannel
+  shim covers it. `dist/sheet-templates/starter-templates.json` (emitted since
+  cad 3.16.0 but never staged) joined `copyArtifacts` so the chat's
+  `cad__list_sheet_templates` sees the bundled starters.
+- **chore: meshio++ 17.2.0** (mesh `^16.42.0` → `^17.2.0`; cad still declares
+  `^16.42.0` and resolves the same staged tree, so the skew is back across a
+  major — the two runtime parity tests are the gate). `meshioFormats.ts` is
+  unchanged, so the documented counts stay 61 readable / 49 writable; policy
+  grows three rows (285 total: 77 CAD + 51 mesh) with a
+  `mesh__case_export_results` scope row, and the chat prompt gains the three
+  tools' sentences.
+- **Verified:** `typecheck`; `npm run build:app` copied 56 artifacts with both
+  `out/cad-runtime/dist/process-limits/starter-limits.json` and
+  `out/cad-runtime/dist/sheet-templates/starter-templates.json` landing, the
+  generated CAD page carrying `printability-panel` and the picker bundle
+  emitting `pickedMany`; `check:packaging` (61 readable / 49 writable — it had
+  been failing on the missing `amf` association — and 106 routed suffixes);
+  the theme guard and `docs:build`. The unit suite, the bundled-runtime MCP
+  tests and the screenshot pipeline (the viewer visibly changed) are left to
+  CI per this session's instruction.
 
 **The cad 3.16.0 → 3.17.0 + mesh 5.10.0 → 5.11.0 jump needed one host port,
 no new workers, no new settings and four policy rows plus one packaging row.**
@@ -2269,8 +2325,8 @@ extended-format time-series readers.
 
 `tools/format-registry.mjs` shares the packaging source parse and derives separate
 counts from unique values in `MESHIO_READ_CANDIDATES` and `MESHIO_WRITE_FORMAT`.
-At the current gitlinks: 60 readable and 46 writable extended formats, with 80
-read and 54 write suffixes. Native formats remain separate; field-only formats
+At the current gitlinks: 61 readable and 49 writable extended formats, with 81
+read and 57 write suffixes. Native formats remain separate; field-only formats
 are included, and writable figures SVG/TikZ count only on write. Packaging CI
 rejects mismatched or ambiguous counts in the landing page and format/start guides.
 Regenerate the Home form capture with

@@ -69,10 +69,14 @@ import { finishOpen } from "./services/performance";
  *     the provider's own guards (edit-free tail, no existing Parts).
  *   - `documentInfo.relativePath` for Copy reference — relative to the EXPLICIT
  *     project root only (see `relativePath`), never an invented path.
- *   - `.3mf` and `.dae` join the router as display-only mesh formats, so every
- *     operation that needs triangles refuses them by name through cad's own
- *     `displayOnlyMeshMessage` (see `requireComparableMesh`) instead of the
- *     generic STL/OBJ/PLY/glTF sentence.
+ *   - `.3mf`, `.dae` and `.amf` join the router as display-only mesh formats,
+ *     so every operation that needs triangles refuses them by name through
+ *     cad's own `displayOnlyMeshMessage` (see `requireComparableMesh`) instead
+ *     of the generic STL/OBJ/PLY/glTF sentence.
+ *   - The Printability panel (`printabilityRequest` → `printabilityResult` /
+ *     `printabilityError` over `docPipeline.checkPrintability`), including the
+ *     tolerant read of the bundled starter limits
+ *     (dist/process-limits/starter-limits.json).
  * NOT ported from cad 3.16.0: `edits.externalFrom` (the badge marking an append
  * another writer made) — it is only ever set by the edits watcher, which KKSS
  * does not have, and the field is optional for exactly that reason.
@@ -100,7 +104,7 @@ import {
   csgColorPartsNote,
   type CsgColorGroup,
 } from "../../cad/src/csgColorParts";
-import { displayOnlyMeshMessage } from "../../cad/src/fileRouter";
+import { DISPLAY_ONLY_MESH_FORMATS, displayOnlyMeshMessage } from "../../cad/src/fileRouter";
 import { SVG_VIEWS } from "../../cad/src/svgSilhouette";
 import type { CompareSource } from "../../cad/src/modelDiffHost";
 import { resolveExternalBuffers, type GltfExternalBuffers } from "../../cad/src/gltfParser";
@@ -206,6 +210,12 @@ import {
   serializeMeshPresetsJson,
   type MeshPresetLibrary,
 } from "../../cad/src/meshPresets";
+import {
+  bundledProcessLimitsPath,
+  parseProcessLimits,
+  resolvePlate,
+  resolveProcess,
+} from "../../cad/src/processLimits";
 import { compileParametricScript } from "../../cad/src/parametricScript";
 import { evaluateVariables } from "../../cad/src/editVariables";
 import type { MeshGenerationInput } from "../../cad/src/gmshService";
@@ -480,6 +490,14 @@ const writeMeshPresets = (modelPath: string, library: MeshPresetLibrary): Promis
 /** The bundled starters (dist/mesh-presets/starter-presets.json), read-only. */
 const readBundledMeshPresets = async (runtimePath: string): Promise<MeshPresetLibrary> =>
   parseMeshPresetsJson(await readTextOrEmpty(bundledMeshPresetsPath(runtimePath)));
+
+/** cad 3.18.0's bundled printability process limits and build plates
+ *  (dist/process-limits/starter-limits.json), read-only. The panel can always
+ *  pass explicit numbers instead, and those win; a missing or broken bundle
+ *  degrades to "no starters", never an error (parseProcessLimits itself drops
+ *  a bad row rather than the file). */
+const readBundledProcessLimits = async (runtimePath: string) =>
+  parseProcessLimits(await readTextOrEmpty(bundledProcessLimitsPath(runtimePath)));
 
 const readMeshOptions = async (modelPath: string): Promise<MeshOptions> => {
   try {
@@ -2832,6 +2850,59 @@ export class CadHost {
 
     if (msg.type === "repairMeshButtonClicked") {
       await this.handleRepairMesh();
+      return;
+    }
+
+    if (msg.type === "printabilityRequest") {
+      // cad 3.18.0's Printability panel, ported message-for-message from
+      // provider.ts: a facts-only report over the welded triangles any source
+      // reduces to, plus the overhang overlay for `up`. The bundled starter
+      // limits are read tolerantly — a broken bundle degrades to "no
+      // starters", never an error.
+      const epoch = this.epoch;
+      try {
+        if (!doc.route) throw new Error("Unsupported file type.");
+        let source: Parameters<typeof cadCompute.checkPrintability>[1];
+        const scadWarnings: string[] = [];
+        if (doc.route.strategy === "occt") {
+          const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+          source = {
+            kind: "brep",
+            bytes: src.bytes,
+            format: src.format as OcctSourceFormat,
+            ops: replayTail(this.currentEdits, this.currentBakedThrough),
+          };
+        } else {
+          if (DISPLAY_ONLY_MESH_FORMATS.has(doc.route.format)) {
+            throw new Error(displayOnlyMeshMessage(doc.route.format, "a printability check"));
+          }
+          // The webview serialises the DISPLAYED (edited) mesh, so pending mesh
+          // edits are already in it.
+          if (!msg.stl) throw new Error("No mesh geometry available: missing STL data.");
+          source = { kind: "stl", bytes: Buffer.from(msg.stl, "base64") };
+        }
+        const library = await readBundledProcessLimits(this.runtimePath);
+        const result = await cadCompute.checkPrintability(this.runtimePath, source, {
+          overhangLimitDeg: msg.overhangLimitDeg,
+          process: resolveProcess(msg.process, library),
+          plate: resolvePlate(msg.plate, library),
+          overlayUp: msg.up,
+        });
+        if (epoch !== this.epoch) return;
+        for (const warning of scadWarnings) this.post({ type: "status", text: warning });
+        this.post({
+          type: "printabilityResult",
+          requestId: msg.requestId,
+          report: result.report,
+          up: msg.up,
+          positions: encodeBuffer(result.overlay!.positions),
+          values: encodeBuffer(result.overlay!.values),
+        });
+      } catch (err) {
+        if (epoch === this.epoch) {
+          this.post({ type: "printabilityError", requestId: msg.requestId, message: (err as Error).message });
+        }
+      }
       return;
     }
 

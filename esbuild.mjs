@@ -71,6 +71,12 @@ const required = [
   // port in cadHost and by the chat's cad MCP server — both through
   // bundledProcessLimitsPath(extensionPath), i.e. out/cad-runtime/dist/….
   ["cad/dist/process-limits/starter-limits.json", "npm run build --prefix cad"],
+  // cad 3.16.0's bundled drawing-sheet templates (cad/esbuild.mjs
+  // copySheetTemplates). The chat's cad MCP server reads them through
+  // readBundledSheetTemplateLibrary for list_sheet_templates /
+  // apply_sheet_template; the interactive form that also uses them is not
+  // ported (KKSS's sheet flow has its own layer picker).
+  ["cad/dist/sheet-templates/starter-templates.json", "npm run build --prefix cad"],
   // fTetWild, staged by cad 3.6.0's own build (scripts/runtimeAssets.mjs) and
   // resolved at runtime by cad's `runtimePackage.ts`.
   ["cad/dist/ftetwild/index.js", "npm run build --prefix cad"],
@@ -340,6 +346,14 @@ function copyArtifacts() {
     [
       "cad/dist/mesh-presets/starter-presets.json",
       out("cad-runtime/dist/mesh-presets/starter-presets.json"),
+    ],
+    // cad 3.16.0's bundled drawing-sheet templates — same <extensionPath>/dist/…
+    // convention (bundledProcessLimitsPath's sibling, bundledSheetTemplatesPath /
+    // readBundledSheetTemplateLibrary), read by the chat sidebar's cad MCP
+    // server (the interactive form is not ported).
+    [
+      "cad/dist/sheet-templates/starter-templates.json",
+      out("cad-runtime/dist/sheet-templates/starter-templates.json"),
     ],
     // cad 3.18.0's bundled printability process limits and build plates —
     // same <extensionPath>/dist/… convention (bundledProcessLimitsPath).

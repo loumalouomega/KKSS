@@ -76,6 +76,9 @@ export const SCOPED_TOOL_PATH_ARGS: Readonly<Record<string, readonly string[]>> 
   // ---- kratos-mdpa ------------------------------------------------------
   mesh__case_generate: ["meshPath", "casePath"],
   mesh__case_convergence: ["meshPath", "outputPath"],
+  // mesh 5.12.0's result conversion: `folder` is the destination (absolute or
+  // relative to the case folder); `formats` are extensions, not paths.
+  mesh__case_export_results: ["meshPath", "folder"],
   mesh__case_monitors: ["meshPath", "outputPath", "resultPath", "run.recordPath"],
   mesh__case_optimization: ["meshPath", "outputPath"],
   mesh__case_material_assign: ["meshPath", "smpPath", "casePath"],

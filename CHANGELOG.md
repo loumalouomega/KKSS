@@ -27,6 +27,43 @@ full auto-generated compare links.
   write-up (it no longer defers to the FSI page) and 200× display warp; both
   coupled tutorials gain fresh captures and wall-tip/pressure plot recipes.
 
+### CAD/mesh submodule integration (CAD Preview 3.18.0 · Mesh Preview 5.12.0)
+
+- feat: CAD Preview 3.18.0's **Printability panel** (Advanced ▸ Analysis) and its
+  `check_printability` tool: an overhang limit and build direction, a bundled process
+  (fdm/sla/sls/mjf, each naming its source) and build plate, per-body sampled wall
+  thickness, per-direction overhang area, plate contact and a support-volume upper
+  bound, the overhang faces coloured in the view, and every rule it cannot measure
+  under **Not checked** — facts against the numbers, never a verdict.
+- feat: **AMF** (`.amf`, plain XML or the zipped container) joins 3MF and Collada as a
+  display-only import: three's `AMFLoader` builds the scene, material and mesh colours
+  arrive as native colours (a Part colour still wins) and the file's declared unit
+  seeds the Units dropdown. It exports on to STL/OBJ/PLY/glTF/3MF, and every
+  host-side triangle operation refuses it by name. Registered as a native file
+  association.
+- feat: mesh 5.12.0's **Convert Results to Other Formats…** — the File-menu item, the
+  Problemtype form's Output ▸ also export as (saved as `output.exportFormats`) and the
+  `case_export_results` tool convert a case's `vtk_output/` frames through meshio++
+  (an XDMF/PVD packs the series into one file, other formats write one file per step
+  under `converted/`), automatically when a run finishes. The quick-pick window gained
+  a real multi-select mode for it (Space/click toggles, Enter confirms, Esc cancels).
+- feat: mesh 5.12.0's `plot_run_resolve`: explicit ownership resolution for one result
+  path — `verified` only through an execution receipt that still verifies, otherwise
+  `unverified`/`unresolved` statuses that can never stand in as a run binding.
+- feat: CAD Preview 3.18.0's **Copy reference** appends a stored query for faces
+  produced by topology-changing edits (so a pasted reference survives renumbering), and
+  curve ops take a `coincident: reuse|independent` choice when an endpoint lands on an
+  existing point (Collapse shares the vertex). mesh 5.12.0's **Plot distribution** opens
+  the Plots pane on a field's histogram (uncovered entities are excluded and reported,
+  never counted as 0), **Show on mesh** colours the view by a plot quantity/component,
+  and a persistent plot cache with streamed table import keeps large plots quick.
+- chore: meshio++ **17.2.0** (mesh's `^16.42.0` → `^17.2.0`; CAD still declares
+  `^16.42.0` and resolves the same staged tree, so the skew is back — the bundled
+  CAD/mesh MCP runtime tests are the gate). The three new tools are classified
+  (`cad__check_printability` and `mesh__plot_run_resolve` read, `mesh__case_export_results`
+  write, path-scoped), and the bundled drawing-sheet templates the chat's
+  `list_sheet_templates` reads are now staged alongside the starter process limits.
+
 ### CAD/mesh submodule integration (CAD Preview 3.17.0 · Mesh Preview 5.11.0)
 
 - feat: mesh 5.11.0's **new problemtype families** — four **ROM** reduced-order-model

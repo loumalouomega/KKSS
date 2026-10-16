@@ -61,6 +61,14 @@
  * - `cad__measure_mesh_deviation` — **write** because its optional deviation
  *   mesh path writes a PLY; `cad__generate_prep_report` and `cad__batch_export`
  *   always create output files. Diagnostic and inventory tools stay `read`.
+ * - `cad__check_printability` (cad 3.18.0) — **read**: a facts-only report
+ *   (overhang statistics, sampled wall thickness) over the welded triangles,
+ *   plus overlay buffers handed to the webview. It writes nothing.
+ * - `mesh__plot_run_resolve` (mesh 5.12.0) — **read**: resolves run/image
+ *   references against what is on disk; a pure lookup.
+ * - `mesh__case_export_results` (mesh 5.12.0) — **write**: converts a run's
+ *   result frames into other meshio++ formats under `folder` (default
+ *   `converted`).
  *
  * - `kratos__results_time_history`, `kratos__results_compare`,
  *   `kratos__study_results` — **write**: each takes an optional `csv_file`.
@@ -144,7 +152,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__queue_resume: "write",
   app__queue_resume_row: "write",
   app__queue_cancel: "write",
-  // ---- cad-preview (74) ---------------------------------------------------
+  // ---- cad-preview (77) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",
   cad__get_mass_properties: "read",
@@ -169,6 +177,10 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // map's optional PLY is what makes its sibling `write`).
   cad__check_mesh_quality: "read",
   cad__segment_mesh_surface: "read",
+  // cad 3.18.0's printability facts: overhang statistics and sampled wall
+  // thickness over the welded triangles, plus overlay buffers for the panel.
+  // It writes nothing — the same read-shaped class as its siblings above.
+  cad__check_printability: "read",
   cad__recognize_primitives: "read",
   cad__list_workspace_models: "read",
   cad__get_state: "read",
@@ -229,7 +241,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
 
-  // ---- kratos-mdpa (47) ---------------------------------------------------
+  // ---- kratos-mdpa (51) ---------------------------------------------------
   mesh__mesh_resample: "write",
   mesh__mesh_periodic: "write",
   mesh__mesh_info: "read",
@@ -248,6 +260,9 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__plot_run_bind: "read",
   mesh__plot_time_cursor: "read",
   mesh__plot_run_target: "read",
+  // mesh 5.12.0's plot_run_resolve: run/image references resolved against what
+  // is on disk — a pure lookup beside the bind/time-cursor rows.
+  mesh__plot_run_resolve: "read",
   mesh__mesh_quality: "read",
   mesh__mesh_field_integrate: "read",
   mesh__mesh_flow_balance: "write",
@@ -271,6 +286,10 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__case_optimization: "write",
   // mesh 5.11.0 ROM results: bounded lists only, no output path — pure read.
   mesh__case_rom: "read",
+  // mesh 5.12.0's result conversion: frames into other meshio++ formats under
+  // `folder` (default "converted", relative to the case folder) — the same
+  // tools the File menu's Convert Results item calls.
+  mesh__case_export_results: "write",
   mesh__case_evaluate_quantity: "read",
   mesh__case_estimate_timestep: "read",
   mesh__mesh_select: "write",

@@ -520,6 +520,17 @@ export function installMenu(deps: MenuDeps): void {
           enabled: !inCad(),
           click: () => void activeMeshHost()?.packSeries(),
         },
+        {
+          // mesh 5.12.0's kratos.runs.exportResults / kratos.case.exportResults —
+          // converts a finished run's VTK frames to other meshio++ formats.
+          // Upstream it is reachable only from the Command Palette and the
+          // Kratos Runs tree, so this menu item is the on-demand route; a
+          // case's saved `output.exportFormats` convert automatically when a
+          // run finishes (RunManager.autoConvertResults).
+          label: t("Convert Results to Other Formats…"),
+          enabled: !inCad(),
+          click: () => void activeMeshHost()?.dispatchCase("exportResults"),
+        },
         { type: "separator" },
         {
           // mesh 3.18.0's kratos.mesh.undo/redo (Ctrl+Z / Ctrl+Shift+Z

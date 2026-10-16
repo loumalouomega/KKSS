@@ -14,6 +14,7 @@ describe("scopedCallPaths", () => {
     expect(scopedCallPaths("mesh__mesh_transform", args({ path: "/p/a.mdpa", outputPath: "/p/b.mdpa", recipeName: "r" }))).toEqual(["/p/a.mdpa", "/p/b.mdpa"]);
     expect(scopedCallPaths("mesh__mesh_batch_transform", args({ paths: ["/p/a.vtk", "/p/b.vtk"], outputDir: "/p/out" }))).toEqual(["/p/a.vtk", "/p/b.vtk", "/p/out"]);
     expect(scopedCallPaths("cad__decompose_to_primitives", args({ path: "/p/m.step", saveScript: { libraryPath: "/p/lib.json", description: "x" } }))).toEqual(["/p/m.step", "/p/lib.json"]);
+    expect(scopedCallPaths("mesh__case_export_results", args({ meshPath: "/p/a.mdpa", folder: "/p/converted", formats: [".xdmf", ".pvd"] }))).toEqual(["/p/a.mdpa", "/p/converted"]);
   });
 
   it("ignores enum-ish and free-text values whose names merely resemble paths", () => {
