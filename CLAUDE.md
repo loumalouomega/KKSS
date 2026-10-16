@@ -2031,7 +2031,7 @@ formal certification or manual screen-reader sign-off.
 
 `doc/guide/tutorial-geometry-to-results.md` is the landing page for seven manual
 CAD → MDPA → Problemtype → Kratos → VTK walkthroughs (five single-physics plus
-partitioned FSI and weak CoSimulation channel-slab coupling); each has a
+the partitioned FSI Mok benchmark and weak CoSimulation channel-slab coupling); each has a
 downloadable case and solver-produced results. Shared definitions live in
 `tools/tutorials/cases.mjs`; `generate.mjs` creates clean cases through the
 real CAD and mesh MCP servers, runs Kratos, and invokes `verify.py` for
@@ -2042,17 +2042,24 @@ beam-reference displacement error (25% limit); fluid 150 / 248, zero flux
 imbalance; thermal 263 / 814, 0.000019 K maximum linear-profile error
 (0.001 K limit); potential flow 150 / 248, 0.0000328 m/s maximum gradient
 error (0.001 m/s limit); shallow water 150 / 248, 4.0 m³ volume with zero
-measured depth error; coupled channel-slab 561 nodes (392 fluid + 169 structure)
-/ 1436 elements over three 0.05 s steps — FSI peak final-frame displacement
-1.676 mm with 6/7/6 interface iterations per step and 6.8 % ALE mass-balance
-error, weak CoSimulation swinging −1.904 / −0.417 / +1.543 mm at interface node
-89 with one exchange per step and 19.6 % mass-balance error. Limits are separate
+measured depth error; coupled channel-slab (CoSimulation) 561 nodes (392 fluid + 169 structure)
+/ 1436 elements over three 0.05 s steps, swinging −1.904 / −0.417 / +1.543 mm
+at interface node 89 with one exchange per step and 19.6 % mass-balance error;
+Mok FSI benchmark 5632 nodes (5116 fluid + 516 structure) / 10569 elements over
+five hundred 0.05 s steps — wall-tip peak 7.793 cm at 8.5 s (5.1 mm under the
+published 8.3 cm at ~9.5 s), 5.805 cm at 25 s (3.9 mm under 6.2 cm), steady
+inlet profile error 2.6e-9 m/s, 0.15 % ALE area-balance error, MVQN converged
+every step (mean 4.1 interface iterations, at most 10). Limits are separate
 from the recorded baselines.
 
-**Coupled cases (Tier 6, closed 2026-10-15).** The two coupled pages run the same
-channel-slab case through different exchanges: FSI sub-iterates each step to the
-Dirichlet-Neumann criterion (MVQN available), CoSimulation is weak — one data
-exchange per step, average-value predictor, nearest-element mapper. Three upstream
+**Coupled cases (Tier 6, closed 2026-10-15).** The two coupled pages run different
+exchanges on different cases: FSI reproduces the Mok benchmark through our own
+pipeline (planar channel with a flexible wall, MVQN to 1e-8 within 25 iterations;
+Δt = 0.05 s because the structure Newton stops converging at t ≈ 4 s with the
+published Δt = 0.1 s on this Kratos build — the upstream Kratos-7.0 files diverge
+here too, at t ≈ 6.7 s), CoSimulation runs weak coupling on the 3D channel-slab
+case — one data exchange per step, average-value predictor, nearest-element
+mapper. Three upstream
 mesh fixes came out of the work: a one-node point load in a sibling `<part>`
 submodel part no longer lands in the wrong model part (`68f1ebc`), the CoSimulation
 fluid participant applies `apply_noslip_process` on its interface so the wall load
@@ -2074,7 +2081,8 @@ its plot extraction must stop at both `## Post-run checks and batch` and
 the tutorial venv) proved a background partitioned coupled run end to end:
 `run_simulation` copy-ran each published case in ~2 s (returncode 0, tracked with
 `job_status`/`job_logs`) and `results_probe` read the interface values back — CoSim
-node 121 pressure −1580.5538 Pa and node 89 Y +1.543471 mm, FSI 1274.5168 Pa and
+node 121 pressure −1580.5538 Pa and node 89 Y +1.543471 mm, FSI (then the
+channel-slab case, since replaced by the Mok benchmark) 1274.5168 Pa and
 −0.0016700613 m — reproducing the fixtures to machine precision (max |Δ| 3e-22 in
 the fluid fields, 5e-11 m in the structure). Two differences from the app's own run
 path: the server drives the analysis class directly, so the case's `MainKratos*.py`
@@ -2092,7 +2100,7 @@ case in the sidebar, clicks **Run**, checks the terminal receipt and solver
 fields, then opens results and captures the selected field/timeline. The
 cantilever additionally verifies the display-only displacement warp at 1000×
 and captures both its deformed shape and von Mises stress. The full
-`npm run docs:screenshots` pipeline runs those five sessions and
+`npm run docs:screenshots` pipeline runs those seven sessions and
 `assistant.mjs`; its local scripted OpenAI-compatible provider performs real
 tool calls and a solver run, tests dry-run/denial/approval and snapshot output,
 then reopens the persisted conversation without repeating tool calls. The

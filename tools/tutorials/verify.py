@@ -176,7 +176,137 @@ def verify_coupled(case, directory):
             'end_time': parameters['problem_data']['end_time'], 'checks': checks}
 
 
+def _face_flux_2d(points, cells, velocity, x_plane, outward_x):
+    """Outward flux through the boundary edges on a plane x = const (2D).
+
+    Linear triangles integrate the edge mean velocity exactly; the deformed
+    and reference inlet/outlet planes coincide because the ALE boundary
+    condition holds their mesh.
+    """
+    total = 0.0
+    for cell in cells:
+        on_plane = [i for i in cell if abs(points[i][0] - x_plane) < 1e-9]
+        if len(on_plane) != 2:
+            continue
+        a, b = (points[i] for i in on_plane)
+        mean_vx = sum(velocity[i][0] for i in on_plane) / 2
+        total += outward_x * mean_vx * abs(b[1] - a[1])
+    return total
+
+
+def _deformed_area(points, cells, mesh_displacement):
+    """Area of a triangle mesh in its deformed configuration."""
+    total = 0.0
+    for cell in cells:
+        a, b, c = ([points[i][k] + mesh_displacement[i][k] for k in range(3)] for i in cell)
+        u = (b[0] - a[0], b[1] - a[1])
+        v = (c[0] - a[0], c[1] - a[1])
+        total += abs(u[0] * v[1] - u[1] * v[0]) / 2
+    return total
+
+
+def verify_mok(directory):
+    """Mok benchmark: 2D fluid VTK + flexible-wall VTK + coupling log.
+
+    Point A is the wall tip (0.500, 0.250). The published comparison
+    (data/Mok_ux_A.png, the cyan Kratos solution) puts its horizontal
+    displacement at about 8.3 cm around t = 9.5 s and 6.2 cm at t = 25 s; the
+    checks compare this case's tip against those values within the tolerance a
+    different discretisation earns, and record the measured numbers either
+    way. The per-frame fluid output is also checked against the imposed steady
+    inlet profile and against the ALE area balance.
+    """
+    directory = pathlib.Path(directory)
+    parameters = json.loads((directory / 'ProjectParameters.json').read_text())
+    fluid_files = sorted((directory / 'vtk_output').glob('FluidModelPart_*.vtk'), key=lambda p: int(p.stem.rsplit('_', 1)[1]))
+    struct_files = sorted((directory / 'vtk_output').glob('Structure_*.vtk'), key=lambda p: int(p.stem.rsplit('_', 1)[1]))
+    assert fluid_files, 'No fluid solver results'
+    assert struct_files, 'No structure solver results'
+    assert len(fluid_files) == len(struct_files), f'Fluid wrote {len(fluid_files)} frames but structure wrote {len(struct_files)}'
+    checks = {}
+
+    def check(name, value, limit):
+        assert math.isfinite(value) and value <= limit, f'{name}: {value} > {limit}'
+        checks[name] = {'measured': value, 'maximum': limit}
+
+    def check_min(name, value, limit):
+        assert math.isfinite(value) and value >= limit, f'{name}: {value} < {limit}'
+        checks[name] = {'measured': value, 'minimum': limit}
+
+    dt = parameters['solver_settings']['fluid_solver_settings']['time_stepping']['time_step']
+    state = json.loads((directory / 'mesh.kratoscase.json').read_text())
+    frame_dt = dt * int(state.get('output', {}).get('interval', 1))
+
+    # Final fluid frame: the steady-phase inlet parabola at x = 0 (the ramp
+    # expression hands over at t = 10 s and the case ends at 25 s) and the
+    # zero-pressure outlet.
+    p, cells, fields = vtk(fluid_files[-1])
+    velocity, pressure = fields['VELOCITY'], fields['PRESSURE']
+    check('inlet_profile_error_m_per_s',
+          max(abs(v[0] - 0.2428 * xyz[1] * (1 - xyz[1])) for xyz, v in zip(p, velocity) if abs(xyz[0]) < 1e-9), 1e-6)
+    check('outlet_pressure_error_Pa', max(abs(v[0]) for xyz, v in zip(p, pressure) if abs(xyz[0] - 1.75) < 1e-9), 1e-6)
+
+    # ALE mass balance over the whole run: the net outward flux through inlet
+    # and outlet equals minus the change of the moving fluid area (2D, unit
+    # thickness). The trapezoid over the saved frames is dense (every 0.5 s).
+    assert 'MESH_DISPLACEMENT' in fields, 'ALE fluid output carries no MESH_DISPLACEMENT'
+    net_fluxes, inflowing, areas = [], [], []
+    for path in fluid_files:
+        frame_points, frame_cells, frame_fields = vtk(path)
+        frame_velocity = frame_fields['VELOCITY']
+        inlet = _face_flux_2d(frame_points, frame_cells, frame_velocity, 0.0, -1.0)
+        outlet = _face_flux_2d(frame_points, frame_cells, frame_velocity, 1.75, +1.0)
+        net_fluxes.append(inlet + outlet)
+        inflowing.append(abs(inlet))
+        areas.append(_deformed_area(frame_points, frame_cells, frame_fields['MESH_DISPLACEMENT']))
+    def trapezoid(values):
+        return frame_dt * (sum(values[1:-1]) + (values[0] + values[-1]) / 2)
+    delivered = trapezoid(inflowing)
+    check('ale_area_balance_error', abs(trapezoid(net_fluxes) + (areas[-1] - areas[0])) / delivered, 0.02)
+    checks['delivered_area_m2'] = delivered
+    checks['fluid_area_change_m2'] = areas[-1] - areas[0]
+
+    # Point A, the wall tip at (0.500, 0.250): the leftmost node on the top
+    # edge, in every frame.
+    tip = []
+    for path in struct_files:
+        ps, _, sf = vtk(path)
+        top = [i for i, q in enumerate(ps) if q[1] > 0.25 - 1e-6]
+        assert top, 'No wall tip nodes in the structure output'
+        tip.append(sf['DISPLACEMENT'][min(top, key=lambda k: ps[k][0])][0])
+    peak = max(tip)
+    checks['tip_ux_peak_m'] = peak
+    checks['tip_ux_peak_time_s'] = tip.index(peak) * frame_dt
+    checks['tip_ux_final_m'] = tip[-1]
+    check_min('tip_ux_peak_m_minimum', peak, 0.03)
+    check('tip_ux_peak_vs_published_error_m', abs(peak - 0.083), 0.020)
+    check('tip_ux_final_vs_published_error_m', abs(tip[-1] - 0.062), 0.015)
+
+    convergence = (directory / 'kkss-convergence-v2.jsonl').read_text().strip().split('\n')
+    records = [json.loads(line) for line in convergence if line.strip()]
+    steps = [r for r in records if r.get('event') == 'step']
+    assert steps, 'Coupling convergence log has no step records'
+    iterations = [r.get('nonlinearIteration', 0) for r in steps]
+    assert all(r.get('solverStepResult') is not False for r in steps), 'A coupled step did not solve'
+    checks['coupling_steps'] = len(steps)
+    checks['coupling_iterations_max'] = max(iterations)
+    checks['coupling_iterations_mean'] = sum(iterations) / len(iterations)
+    checks['coupling_nonconverged_steps'] = sum(1 for r in steps if r.get('converged') is False)
+
+    ps, struct_cells, struct_fields = vtk(struct_files[-1])
+    return {'case': 'fsi', 'python': platform.python_version(), 'kratos': importlib.metadata.version('KratosMultiphysics'),
+            'threads': 2, 'nodes': len(p) + len(ps), 'elements': len(cells) + len(struct_cells),
+            'fields': sorted(set(fields) | set(struct_fields)),
+            'result': str(fluid_files[-1].relative_to(directory)),
+            'structure_result': str(struct_files[-1].relative_to(directory)),
+            'frames': len(fluid_files),
+            'end_time': parameters['problem_data']['end_time'], 'checks': checks}
+
+
 def verify(case, directory):
+    recipe = json.loads((pathlib.Path(directory) / 'recipe.json').read_text())
+    if case == 'fsi' and recipe.get('mok'):
+        return verify_mok(directory)
     if case in ('fsi', 'cosim'):
         return verify_coupled(case, directory)
     directory = pathlib.Path(directory)

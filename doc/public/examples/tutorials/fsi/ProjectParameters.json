@@ -5,7 +5,7 @@
         "parallel_type": "OpenMP",
         "echo_level": 1,
         "start_time": 0,
-        "end_time": 0.15
+        "end_time": 25
     },
     "solver_settings": {
         "solver_type": "Partitioned",
@@ -14,8 +14,8 @@
         "structure_solver_settings": {
             "solver_type": "Dynamic",
             "model_part_name": "Structure",
-            "domain_size": 3,
-            "echo_level": 1,
+            "domain_size": 2,
+            "echo_level": 0,
             "model_import_settings": {
                 "input_type": "mdpa",
                 "input_filename": "mesh_Structural"
@@ -34,15 +34,15 @@
             "rayleigh_alpha": 0,
             "rayleigh_beta": 0,
             "convergence_criterion": "residual_criterion",
-            "residual_relative_tolerance": 0.0001,
-            "residual_absolute_tolerance": 1e-9,
-            "max_iteration": 10,
+            "residual_relative_tolerance": 1e-8,
+            "residual_absolute_tolerance": 1e-10,
+            "max_iteration": 20,
             "line_search": false,
             "use_old_stiffness_in_first_iteration": false
         },
         "fluid_solver_settings": {
             "model_part_name": "FluidModelPart",
-            "domain_size": 3,
+            "domain_size": 2,
             "solver_type": "Monolithic",
             "model_import_settings": {
                 "input_type": "mdpa",
@@ -56,27 +56,30 @@
             "volume_model_part_name": "FluidModelPart.Fluid",
             "skin_parts": [
                 "FluidModelPart.Inlet",
+                "FluidModelPart.Inlet",
                 "FluidModelPart.Outlet",
                 "FluidModelPart.Walls",
+                "FluidModelPart.Slip",
                 "FluidModelPart.Interface"
             ],
             "no_skin_parts": [
                 "FluidModelPart.Inlet",
                 "FluidModelPart.Outlet",
-                "FluidModelPart.Walls"
+                "FluidModelPart.Walls",
+                "FluidModelPart.Slip"
             ],
             "time_stepping": {
                 "automatic_time_step": false,
                 "time_step": 0.05
             },
-            "maximum_iterations": 10,
-            "relative_velocity_tolerance": 0.001,
-            "absolute_velocity_tolerance": 0.00001,
-            "relative_pressure_tolerance": 0.001,
-            "absolute_pressure_tolerance": 0.00001,
+            "maximum_iterations": 20,
+            "relative_velocity_tolerance": 1e-8,
+            "absolute_velocity_tolerance": 1e-10,
+            "relative_pressure_tolerance": 1e-8,
+            "absolute_pressure_tolerance": 1e-10,
             "time_scheme": "bossak",
             "formulation": {
-                "element_type": "qsvms",
+                "element_type": "vms",
                 "use_orthogonal_subscales": false,
                 "dynamic_tau": 1
             },
@@ -84,12 +87,12 @@
         },
         "mesh_solver_settings": {
             "echo_level": 0,
-            "domain_size": 3,
+            "domain_size": 2,
             "model_part_name": "FluidModelPart",
             "solver_type": "structural_similarity"
         },
         "coupling_settings": {
-            "nl_tol": 1e-7,
+            "nl_tol": 1e-8,
             "nl_max_it": 25,
             "solve_mesh_at_each_iteration": true,
             "mapper_settings": [
@@ -100,9 +103,8 @@
                 }
             ],
             "coupling_strategy_settings": {
-                "solver_type": "Relaxation",
-                "w_0": 0.825,
-                "acceleration_type": "Aitken"
+                "solver_type": "MVQN",
+                "w_0": 0.825
             },
             "structure_interfaces_list": [
                 "Structure.Interface"
@@ -121,14 +123,24 @@
                 "Parameters": {
                     "model_part_name": "FluidModelPart.Inlet",
                     "variable_name": "VELOCITY",
-                    "modulus": 0.1,
-                    "direction": [
-                        1,
-                        0,
-                        0
-                    ],
+                    "modulus": "0.1214*(1-cos(0.1*pi*t))*y*(1-y)",
+                    "direction": "automatic_inwards_normal",
                     "interval": [
                         0,
+                        10
+                    ]
+                }
+            },
+            {
+                "python_module": "apply_inlet_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Inlet",
+                    "variable_name": "VELOCITY",
+                    "modulus": "0.2428*y*(1-y)",
+                    "direction": "automatic_inwards_normal",
+                    "interval": [
+                        10,
                         "End"
                     ]
                 }
@@ -146,11 +158,18 @@
                 }
             },
             {
+                "python_module": "apply_noslip_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Walls"
+                }
+            },
+            {
                 "python_module": "apply_slip_process",
                 "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
                 "process_name": "ApplySlipProcess",
                 "Parameters": {
-                    "model_part_name": "FluidModelPart.Walls"
+                    "model_part_name": "FluidModelPart.Slip"
                 }
             },
             {
@@ -221,6 +240,29 @@
                         0
                     ]
                 }
+            },
+            {
+                "python_module": "assign_vector_variable_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignVectorVariableProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Slip",
+                    "variable_name": "MESH_DISPLACEMENT",
+                    "interval": [
+                        0,
+                        "End"
+                    ],
+                    "constrained": [
+                        true,
+                        true,
+                        true
+                    ],
+                    "value": [
+                        0,
+                        0,
+                        0
+                    ]
+                }
             }
         ],
         "structure_constraints_process_list": [
@@ -261,7 +303,7 @@
                 "Parameters": {
                     "model_part_name": "FluidModelPart",
                     "output_control_type": "step",
-                    "output_interval": 1,
+                    "output_interval": 10,
                     "file_format": "ascii",
                     "output_precision": 7,
                     "output_sub_model_parts": false,
@@ -286,7 +328,7 @@
                 "Parameters": {
                     "model_part_name": "Structure",
                     "output_control_type": "step",
-                    "output_interval": 1,
+                    "output_interval": 10,
                     "file_format": "ascii",
                     "output_precision": 7,
                     "output_sub_model_parts": false,

@@ -26,17 +26,19 @@ import { encodeGif } from '../lib/gif.mjs';
 export const GIF_BUDGET_BYTES = 1_500_000;
 const WIDTH = 640;
 const DELAY_MS = 100; // 10 fps
-const STRIDE = 3; // fixed 0.1 s step ⇒ every 3rd step is evenly paced
+const STRIDE = 3; // every 3rd saved frame is evenly paced
 
 /** `fromStep` is 1-based, matching the timeline label and the tutorial text. */
 /** `family` selects the VTK filename prefix inside the case's `vtk_output/`. */
 export const series = [
   { case: 'fluid', family: 'FluidModelPart', file: 'tutorial-fluid-velocity.gif', field: 'VELOCITY', range: [0, 0.17], fromStep: 1, frames: 51 },
   { case: 'fluid', family: 'FluidModelPart', file: 'tutorial-fluid-pressure.gif', field: 'PRESSURE', range: [-10, 10], fromStep: 5, frames: 51 },
-  { case: 'fsi', family: 'FluidModelPart', file: 'tutorial-fsi-velocity.gif', field: 'VELOCITY', range: [0, 0.15], fromStep: 1 },
-  { case: 'fsi', family: 'Structure', file: 'tutorial-fsi-displacement.gif', field: 'DISPLACEMENT', range: [0, 0.005], fromStep: 1 },
+  { case: 'fsi', family: 'FluidModelPart', file: 'tutorial-fsi-velocity.gif', field: 'VELOCITY', range: [0, 0.13], fromStep: 1 },
+  // The Mok wall bends ~8 cm: warp 1 keeps it in frame, and the colour range
+  // covers the published 8.3 cm peak plus discretisation spread.
+  { case: 'fsi', family: 'Structure', file: 'tutorial-fsi-displacement.gif', field: 'DISPLACEMENT', range: [0, 0.12], fromStep: 1, warp: 1 },
   { case: 'cosim', family: 'FluidModelPart', file: 'tutorial-cosim-velocity.gif', field: 'VELOCITY', range: [0, 0.15], fromStep: 1 },
-  { case: 'cosim', family: 'Structure', file: 'tutorial-cosim-displacement.gif', field: 'DISPLACEMENT', range: [0, 0.005], fromStep: 1 },
+  { case: 'cosim', family: 'Structure', file: 'tutorial-cosim-displacement.gif', field: 'DISPLACEMENT', range: [0, 0.005], fromStep: 1, warp: 200 },
 ];
 
 /** Frame indices (0-based): every STRIDE-th from `fromStep`, always ending on the last frame. */
@@ -107,6 +109,17 @@ async function captureSeries(temp, out, s) {
     const scalarBar = page.locator('#field-panel label', { hasText: 'Show scalar bar in scene' }).locator('input');
     if (!(await scalarBar.isChecked())) await scalarBar.check();
     await page.locator('#toolbar button[data-action="reset"]').click();
+    if (s.warp) {
+      // Display-only warp for the coupled slab (2 m × 50 mm, millimetre
+      // bending), front view: the same 200× the tutorial figure names, chosen
+      // so the deflected shape stays inside this window's frame too.
+      const deformedMode = page.locator('.field-mode-btn').filter({ hasText: 'Deformed' });
+      await deformedMode.click();
+      const deformForm = page.locator('.field-subform').filter({ hasText: 'Deform by' });
+      await deformForm.locator('select').selectOption(choice.value);
+      await deformForm.locator('input[type="range"]').evaluate((el, v) => { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); }, s.warp);
+      await page.locator('body').press('5'); // +Z FRONT: the X-Y bending plane face-on
+    }
 
     // Capture only the 3D canvas: hide the floating chrome while shooting.
     const chrome = ['#toolbar', '#field-panel', '#nav-controls'];

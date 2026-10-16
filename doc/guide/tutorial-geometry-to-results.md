@@ -9,7 +9,7 @@ These seven tutorials join the CAD and mesh guides into one complete Kratos work
 | Convection-diffusion | [Stationary heat conduction](tutorial-thermal) | Linear 300–400 K profile |
 | Potential flow | [Uniform flow](tutorial-potential-flow) | Potential gradient equals free-stream velocity |
 | Shallow water | [Still-water basin](tutorial-shallow-water) | Depth, momentum and volume conservation |
-| Fluid-structure interaction | [Partitioned channel-slab coupling](tutorial-fsi) | Interface motion, flux balance and coupling history |
+| Fluid-structure interaction | [Mok benchmark wall](tutorial-fsi) | Wall-tip motion vs the published benchmark, inlet profile and coupling history |
 | Partitioned coupling | [Weak CoSimulation channel-slab coupling](tutorial-cosimulation) | Interface motion, flux balance and coupling history |
 
 Start from [CAD mode](cad-mode) and [mesh mode](mesh-mode) if you need a tour of either viewer. For a ready-made MDPA-only case that skips geometry, see [Worked Kratos Cases](tutorial-kratos-examples). For a prompted walkthrough using the chat tools, see [Using the AI assistant](tutorial-ai-simulation).

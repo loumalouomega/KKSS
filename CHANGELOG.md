@@ -7,6 +7,26 @@ full auto-generated compare links.
 
 ## Unreleased
 
+### Tutorials: FSI example is now the Mok benchmark
+
+- feat: the FSI tutorial reproduces the **Mok benchmark** (Mok 2001, Valdés 2007;
+  Kratos' `fsi_mok` validation case) through the app's own pipeline — CAD polyline
+  channel with a 28-station convergent ramp sampled from the benchmark boundary,
+  conformal two-face meshing, partitioned MVQN coupling — instead of the former
+  channel-slab model. Wall-tip peak 7.79 cm at 8.5 s (published 8.3 cm at ~9.5 s)
+  settling to 5.81 cm at 25 s (published 6.2 cm); inlet profile, outlet pressure
+  and ALE area-balance checks all pass. The case runs Δt = 0.05 s (the published
+  Δt = 0.1 s diverges the structure solve at t ≈ 4 s on Kratos 10.4.3).
+- feat: fluid inlets accept a symbolic **modulus expression** and an activation
+  window, so two inlet assignments write a two-phase inlet. Recorded cases
+  regenerate byte-identical process blocks.
+- feat: planar multi-face models mesh conformally (CAD): the surface fragment
+  merges the coincident boundaries the STEP importer duplicates per face, so
+  shared interface edges carry one node set and no orphan conditions.
+- docs: the CoSimulation tutorial keeps the channel-slab case with a self-contained
+  write-up (it no longer defers to the FSI page) and 200× display warp; both
+  coupled tutorials gain fresh captures and wall-tip/pressure plot recipes.
+
 ### CAD/mesh submodule integration (CAD Preview 3.17.0 · Mesh Preview 5.11.0)
 
 - feat: mesh 5.11.0's **new problemtype families** — four **ROM** reduced-order-model

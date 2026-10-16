@@ -122,7 +122,7 @@ export async function manualTutorials(out, selected = []) {
         const state = JSON.parse(fs.readFileSync(receipt, 'utf8'));
         if (state.exitCode !== undefined && state.exitCode !== 0) throw Error(JSON.stringify(state));
         return state.exitCode === 0;
-      }, 'manual solver completion', 180000);
+      }, 'manual solver completion', c.manualTimeout ?? 180000);
       const report = JSON.parse(execFileSync(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { encoding: 'utf8' }));
       await mesh.locator('#pt-open-results').click();
       const resultPages = [];
@@ -133,7 +133,7 @@ export async function manualTutorials(out, selected = []) {
         }
         return resultPages.length > 0;
       }, 'Open results creates VTK tab', 60000);
-      const shotField = async (result, field, shot) => {
+      const shotField = async (result, field, shot, warp) => {
         await result.locator('#toolbar button[data-action="field"]').click();
         const selector = result.locator('#field-panel select').first();
         await selector.waitFor();
@@ -142,6 +142,18 @@ export async function manualTutorials(out, selected = []) {
         assert.ok(choice, `Missing ${field}`);
         await selector.selectOption(choice.value);
         await result.locator('#toolbar button[data-action="reset"]').click();
+        if (warp) {
+          // Display-only warp so the coupled shape's bending is visible; the
+          // figure's caption names the factor. The channel-slab cosim case uses
+          // 200× (millimetre bending that 1000× would bow clean off the reset
+          // frame); the Mok fsi case sets 1× through c.warp.
+          const deformedMode = result.locator('.field-mode-btn').filter({ hasText: 'Deformed' });
+          await deformedMode.click();
+          const deformForm = result.locator('.field-subform').filter({ hasText: 'Deform by' });
+          await deformForm.locator('select').selectOption(choice.value);
+          await deformForm.locator('input[type="range"]').evaluate((el, v) => { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); }, warp);
+          await result.locator('body').press('5'); // +Z FRONT: the X-Y bending plane face-on
+        }
         await sleep(1800);
         if (out) await result.screenshot({ path: path.join(out, shot) });
         return { result, selector, options };
@@ -158,7 +170,7 @@ export async function manualTutorials(out, selected = []) {
         result = resultPages[names.findIndex(n => n.startsWith('Fluid'))] ?? resultPages[0];
         ({ selector, options } = await shotField(result, c.field, `tutorial-${c.id}-results.png`));
         const structPage = await openParticipant(app, dir, 'Structure', deadline);
-        await shotField(structPage, c.structureField, `tutorial-${c.id}-structure.png`);
+        await shotField(structPage, c.structureField, `tutorial-${c.id}-structure.png`, c.warp ?? 200);
       } else {
         result = resultPages[0];
         ({ selector, options } = await shotField(result, c.field, `tutorial-${c.id}-results.png`));

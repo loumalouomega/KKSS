@@ -5,13 +5,14 @@
             "properties_id": 1,
             "Material": {
                 "Variables": {
-                    "DENSITY": 1000.0,
-                    "YOUNG_MODULUS": 500000000.0,
-                    "POISSON_RATIO": 0.3
+                    "DENSITY": 1500.0,
+                    "YOUNG_MODULUS": 2300000.0,
+                    "POISSON_RATIO": 0.45,
+                    "THICKNESS": 1.0
                 },
                 "Tables": {},
                 "constitutive_law": {
-                    "name": "LinearElastic3DLaw"
+                    "name": "LinearElasticPlaneStress2DLaw"
                 }
             }
         }

@@ -66,6 +66,11 @@ const required = [
   ["cad/node_modules/@loumalouomega/mmg-wasm/dist/mmg.cjs", "npm ci --prefix cad"],
   // cad 2.7.0's bundled starter meshing presets (cad/esbuild.mjs copyMeshPresets).
   ["cad/dist/mesh-presets/starter-presets.json", "npm run build --prefix cad"],
+  // cad 3.18.0's bundled printability process limits and build plates
+  // (cad/esbuild.mjs copyProcessLimits). Read by the Printability panel's
+  // port in cadHost and by the chat's cad MCP server — both through
+  // bundledProcessLimitsPath(extensionPath), i.e. out/cad-runtime/dist/….
+  ["cad/dist/process-limits/starter-limits.json", "npm run build --prefix cad"],
   // fTetWild, staged by cad 3.6.0's own build (scripts/runtimeAssets.mjs) and
   // resolved at runtime by cad's `runtimePackage.ts`.
   ["cad/dist/ftetwild/index.js", "npm run build --prefix cad"],
@@ -335,6 +340,12 @@ function copyArtifacts() {
     [
       "cad/dist/mesh-presets/starter-presets.json",
       out("cad-runtime/dist/mesh-presets/starter-presets.json"),
+    ],
+    // cad 3.18.0's bundled printability process limits and build plates —
+    // same <extensionPath>/dist/… convention (bundledProcessLimitsPath).
+    [
+      "cad/dist/process-limits/starter-limits.json",
+      out("cad-runtime/dist/process-limits/starter-limits.json"),
     ],
     // Stdio MCP servers for the chat sidebar. cad's sits beside its WASM so
     // its extensionPath (= dirname/..) resolves to out/cad-runtime; mesh's

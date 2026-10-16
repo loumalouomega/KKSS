@@ -48,7 +48,9 @@ export async function publishTutorialPlots() {
       const model = await parseMeshFile(path.join(dir, 'vtk_output', files.at(-1)));
       const sourcePath = '../vtk_output/' + files[0];
       const finalPath = '../vtk_output/' + files.at(-1);
-      const dt = dtDoc.solver_settings.time_stepping?.time_step;
+      const dt = c.id === 'fsi'
+        ? parameters.solver_settings.fluid_solver_settings?.time_stepping?.time_step
+        : dtDoc.solver_settings.time_stepping?.time_step;
       // Kratos VTK suffix = solver STEP, not a timestamp. This is an EXPLICIT
       // reconstruction for these fixed-step cases, not a general filename heuristic.
       const times = dt ? files.map(n => Number((parameters.problem_data.start_time + Number(n.match(/_(\d+)\.vtk$/)[1])*dt).toPrecision(12))) : undefined;
@@ -76,6 +78,24 @@ export async function publishTutorialPlots() {
       } else if (c.id === 'shallow-water') {
         const center = nearest(model, [2,0.5,0]);
         recipes['depth-history'] = recipe('Still-water basin depth', [history('depth', center, 'HEIGHT')], [series('depth', 0, 'm', `Depth at node ${center.id}`)], { xLabel: 'Reconstructed solver time [s]', yLabel: 'Water depth [m]' });
+      } else if (c.id === 'fsi') {
+        // Mok benchmark: point A is the wall tip (0.500, 0.250); its
+        // horizontal-displacement history is the published comparison curve
+        // (Mok_ux_A.png). Both participants share the frame count; the fluid
+        // family drives the time axis, the structure family the tip history.
+        const structModel = await parseMeshFile(path.join(dir, 'vtk_output', structFiles.at(-1)));
+        const tipA = nearest(structModel, [0.5, 0.25, 0]);
+        const structSource = '../vtk_output/' + structFiles[0];
+        coordinates.pointA = tipA;
+        const structHistory = (id, node, variable) => {
+          coordinates[id] = node;
+          return { id, type: 'history', path: structSource, kind: 'Nodal', entityId: node.id, variable, ...(times ? { times, timeUnit: 's' } : {}) };
+        };
+        recipes['tip-displacement-history'] = recipe('Mok benchmark: wall-tip horizontal displacement (point A)', [structHistory('tipA', tipA, 'DISPLACEMENT')],
+          [series('tipA', 0, 'mm', `Point A node ${tipA.id}: X`, 1000)], { xLabel: 'Reconstructed solver time [s]', yLabel: 'Displacement X [mm]' });
+        const upstreamProbe = nearest(model, [0.45, 0.25, 0]);
+        recipes['pressure-history'] = recipe('Pressure upstream of the flexible wall', [history('pressure', upstreamProbe, 'PRESSURE')],
+          [series('pressure', 0, 'Pa', `Pressure node ${upstreamProbe.id}`)], { xLabel: 'Reconstructed solver time [s]', yLabel: 'Pressure [Pa]' });
       } else if (isCoupled) {
         // Both participants share the step count; the fluid family drives the
         // time axis, the structure family the displacement history.
