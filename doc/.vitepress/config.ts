@@ -28,6 +28,7 @@ export default defineConfig({
         items: [
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },
+          { text: 'Kratos Problemtypes', link: '/guide/problemtypes' },
           { text: 'Scientific Plots & FEM Analysis', link: '/guide/scientific-plots' },
           { text: 'Geometry to Results Tutorials', link: '/guide/tutorial-geometry-to-results' },
           { text: 'AI Simulation Walkthrough', link: '/guide/tutorial-ai-simulation' },
@@ -36,6 +37,8 @@ export default defineConfig({
           { text: 'Conduction', link: '/guide/tutorial-thermal' },
           { text: 'Potential Flow', link: '/guide/tutorial-potential-flow' },
           { text: 'Shallow Water', link: '/guide/tutorial-shallow-water' },
+          { text: 'FSI Coupling', link: '/guide/tutorial-fsi' },
+          { text: 'CoSimulation Coupling', link: '/guide/tutorial-cosimulation' },
           { text: 'Worked Kratos Cases', link: '/guide/tutorial-kratos-examples' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' },
@@ -54,6 +57,7 @@ export default defineConfig({
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },
+          { text: 'Kratos Problemtypes', link: '/guide/problemtypes' },
           { text: 'Scientific Plots & FEM Analysis', link: '/guide/scientific-plots' },
           { text: 'Geometry to Results Tutorials', link: '/guide/tutorial-geometry-to-results' },
           { text: 'AI Simulation Walkthrough', link: '/guide/tutorial-ai-simulation' },
@@ -62,6 +66,8 @@ export default defineConfig({
           { text: 'Conduction', link: '/guide/tutorial-thermal' },
           { text: 'Potential Flow', link: '/guide/tutorial-potential-flow' },
           { text: 'Shallow Water', link: '/guide/tutorial-shallow-water' },
+          { text: 'FSI Coupling', link: '/guide/tutorial-fsi' },
+          { text: 'CoSimulation Coupling', link: '/guide/tutorial-cosimulation' },
           { text: 'Worked Kratos Cases', link: '/guide/tutorial-kratos-examples' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' }

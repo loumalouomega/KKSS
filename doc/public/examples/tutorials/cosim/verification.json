@@ -1,0 +1,93 @@
+{
+  "case": "cosim",
+  "python": "3.12.14",
+  "kratos": "10.4.3",
+  "threads": 2,
+  "nodes": 561,
+  "elements": 1436,
+  "fields": [
+    "DISPLACEMENT",
+    "MESH_DISPLACEMENT",
+    "PRESSURE",
+    "REACTION",
+    "VELOCITY",
+    "VON_MISES_STRESS"
+  ],
+  "result": "vtk_output/FluidModelPart_0_3.vtk",
+  "structure_result": "vtk_output/Structure_0_3.vtk",
+  "frames": 3,
+  "end_time": 0.15,
+  "checks": {
+    "inlet_velocity_error_m_per_s": {
+      "measured": 0,
+      "maximum": 0.000001
+    },
+    "interface_corner_speed_m_per_s": 0,
+    "outlet_pressure_error_Pa": {
+      "measured": 0,
+      "maximum": 0.000001
+    },
+    "inlet_face_mean_m_per_s": {
+      "measured": 0.010000000000000009,
+      "maximum": 0.02
+    },
+    "outlet_face_mean_m_per_s": 0.08695188995,
+    "inlet_face_nodes": 20,
+    "outlet_face_nodes": 20,
+    "delivered_volume_m3": 0.00028333334316666667,
+    "fluid_volume_change_m3": -0.00015398432278938834,
+    "ale_mass_balance_error": {
+      "measured": 0.19554419310335533,
+      "maximum": 0.35
+    },
+    "peak_structure_displacement_m": 0.0015550441763259874,
+    "peak_structure_displacement_limit_m": {
+      "measured": 0.0015550441763259874,
+      "maximum": 0.02
+    },
+    "coupling_steps": 3,
+    "coupling_iterations_per_step": [
+      1,
+      1,
+      1
+    ],
+    "coupling_nonconverged_steps": 0
+  },
+  "files": {
+    "coupled-channel.brep": "d94d6764f1a229976a427da3d54079d14917079076fe7de18881302f3f5820d7",
+    "coupled-channel.brep.edits.json": "d6a2266553455d299a02489d3ea3c0f1e513b3f70a4c95d4929da006f6435609",
+    "coupled-channel.brep.mesh.json": "ecd59229da473efcba5011eb8612a7315e84d4c9039cdb4de6f00afecd981b90",
+    "coupled-channel.brep.parts.json": "d39b6d320b45b16a8b0ac468351f52b3b7b262bd54bd4f6d5335ea55482d392c",
+    "FluidMaterials.json": "29ed221e25e08dcb95e2c78afe16d46d0fe5160968a4e571ae43901feb142e87",
+    "kkss-convergence-v2.jsonl": "d8ba4d652a555953183fd68f2f4d0f9a83c9f9cc553c46348ccf4f3dfeb854c6",
+    "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
+    "MainKratosCoSim.py": "7452459cace19a54d936529b26ca8633d432ccb9e6aaa2ffcb07d23108d3a20b",
+    "mesh_Fluid.mdpa": "9d63bfc2178bec349f73729052a47a08ae2797a360117945ac6e7e7dee3b9f63",
+    "mesh_Structural.mdpa": "3e6cfd1614673b66c045c57214836b21266b07cf4777fdfcae5e7b8547056a54",
+    "mesh.kratoscase.json": "437f48aa09957289d4234abc05163baafbf5cee67991e8073668a5df8766e2b9",
+    "mesh.mdpa": "67208fc9af43180768462195b97293010b49cb76b4ce2425946d3ea00c533010",
+    "ProjectParametersCFD.json": "e472c2064846a25d6e9cf973cd0d6d0a70fe985360227df688ac2dc5ec625e53",
+    "ProjectParametersCoSim.json": "3bedc7bc3b79ce8ced102bee983c4cbe04053f2f80f7ab1a00df965ce4912e91",
+    "ProjectParametersCSM.json": "d5650ffb00dfefaf7caf49321250c0c534593c6cab4c3be3b2f6e747f611ad19",
+    "recipe.json": "ee029b725c11341661bf3d9a2c12dd2c83365b1c2b315dfa0e42dbec89d8261c",
+    "StructuralMaterials.json": "90b5774216a0383edb408f217ae896b487255a6cdb1316796d91b379cc9560ef",
+    "vtk_output/FluidModelPart_0_1.vtk": "ec40596321bfa3bd4b3da3777ac734c546826e3056ef5c9e34f189f2498fb385",
+    "vtk_output/FluidModelPart_0_2.vtk": "33b79aa764395db7e2b10b0e5aaca9fbc00b2db438f32df7a75dcf7c41e256d0",
+    "vtk_output/FluidModelPart_0_3.vtk": "407f63ecb1a7c1e56e6f820ef9044b5d36b7831b233aee1bfcfbd4292e4efac4",
+    "vtk_output/Structure_0_1.vtk": "dd7ca58ad07a8b8ccd22249e5b7a55754de57322c4f23983d517ce94b5fba945",
+    "vtk_output/Structure_0_2.vtk": "20a9ee19ffb8f5714d148b2d66d1c862667ce64322d05d30a1a7904b6f708195",
+    "vtk_output/Structure_0_3.vtk": "7a13318770e84ade64e9d6ef30b73eed467a09d734b51ca27522211151b0271e",
+    "plots/interface-displacement-history.csv": "a1e59bb9fc23a4d04193dbcf02026a0495637d7fecf60aa73be656477d6f0499",
+    "plots/interface-displacement-history.csv.kratosplot.json": "c42281cc06b06afe6192d524a96a032893ecb3c8c7887b9d7d36dea1bb74ba7a",
+    "plots/interface-displacement-history.json": "fd7573eff1c76a2377d07a671cefa58ec6cad62b96e9470d4fb38b73f5acf9bd",
+    "plots/pressure-history.csv": "7040e020c259c61bd255c460c03812120603e4a7a862f2a9a4d105c47ce2a808",
+    "plots/pressure-history.csv.kratosplot.json": "03af07900a90125e5af740f358fc52e37d67b2fa0ab82718aa609af5af2f2223",
+    "plots/pressure-history.json": "6b0abc004bf7df61c5360046dba41e2c79d5fa3f1214b17661f4a310fe36edb6",
+    "plots/verification.json": "3df68084b5bebcfba0c3417e61d5e75244a86231e6dd70526d4f74716945d6cd"
+  },
+  "source": "cad/examples/BREP/blank.brep",
+  "revisions": {
+    "cad": "8b3ff3217b7ad1d147b90327f00e08240c0ff04a",
+    "mesh": "3f7564c26c25324671bd8bba029708a030512412"
+  }
+}

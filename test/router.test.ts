@@ -95,6 +95,15 @@ describe("modeForFile", () => {
     expect(modeForFile("a.foam", "mesh")).toBe("mesh");
   });
 
+  it("routes .amf to cad mode as a display-only three-strategy mesh", () => {
+    // cad 3.18.0 adds AMF beside 3MF/Collada: cad's three preview displays it,
+    // while every operation that needs triangles refuses it by name. mesh
+    // never claims the extension, so cad mode wins outright.
+    expect(routeFile("a.amf")?.strategy).toBe("three");
+    expect(modeForFile("a.amf", "cad")).toBe("cad");
+    expect(modeForFile("a.amf", "mesh")).toBe("cad");
+  });
+
   it("routes the OpenSCAD formats to cad mode, on the occt strategy", () => {
     // cad 1.12.0. `.csg` is OpenSCAD's fully evaluated form, built kernel-side
     // into an opaque base shape; `.scad` is converted to it on open by a

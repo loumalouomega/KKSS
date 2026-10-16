@@ -142,7 +142,16 @@ class FakeWebviewPanel {
   readonly viewColumn = 1;
   private revealCb: (() => void) | undefined;
   private disposeCbs: Array<() => void> = [];
-  private handler: MessageHandler | undefined;
+  /**
+   * VS Code's `onDidReceiveMessage` is an event: **multiple** listeners coexist.
+   * mesh 5.11.0 legitimately uses that — the `PreviewSession` constructor adds
+   * its own `ready` listener beside the provider's main handler — and a
+   * last-registration-wins single slot silently swallowed `ready`, which is
+   * what keeps the model post (and the whole open handshake) from ever running.
+   * Every listener gets every message; one disposed listener never affects the
+   * others.
+   */
+  private handlers: MessageHandler[] = [];
   private buffered: unknown[] = [];
 
   readonly webview: {
@@ -173,23 +182,30 @@ class FakeWebviewPanel {
         return Promise.resolve(true);
       },
       onDidReceiveMessage: (cb: MessageHandler) => {
-        panel.handler = cb;
-        const pending = panel.buffered;
-        panel.buffered = [];
-        for (const msg of pending) cb(msg);
+        panel.handlers.push(cb);
+        // The page is pre-loaded, so messages can arrive before the first
+        // listener attaches (the open handshake's ready/viewLayersLoad). VS
+        // Code delivers such a message to the listeners attached at receive
+        // time; after mesh 5.11.0 the session's ready listener and the
+        // provider's main handler must BOTH see those retained messages, so
+        // the inbox is replayed per attach rather than consumed by the first.
+        for (const msg of panel.buffered) cb(msg);
         return {
           dispose() {
-            if (panel.handler === cb) panel.handler = undefined;
+            panel.handlers = panel.handlers.filter((h) => h !== cb);
           },
         };
       },
     };
   }
 
-  /** Route an inbound webview message to the provider's subscription. */
+  /** Route an inbound webview message to every provider subscription. */
   deliver(msg: unknown): void {
-    if (this.handler) this.handler(msg);
-    else this.buffered.push(msg);
+    if (this.handlers.length > 0) {
+      for (const handler of [...this.handlers]) handler(msg);
+    } else {
+      this.buffered.push(msg);
+    }
   }
 
   /** Set by MeshHost so a provider-initiated reveal focuses this tab. */

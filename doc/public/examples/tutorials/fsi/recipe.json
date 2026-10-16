@@ -1,0 +1,730 @@
+{
+  "id": "fsi",
+  "title": "Fluid-structure interaction (Mok benchmark)",
+  "problemtype": "fsi",
+  "mok": true,
+  "source": "cad/examples/BREP/blank.brep",
+  "geometry": "mok-channel.brep",
+  "ops": [
+    {
+      "op": "addPolyline",
+      "points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          500,
+          0,
+          0
+        ],
+        [
+          500,
+          250,
+          0
+        ],
+        [
+          505,
+          250,
+          0
+        ],
+        [
+          505,
+          0,
+          0
+        ],
+        [
+          533.14,
+          11.36,
+          0
+        ],
+        [
+          563.99,
+          23.8,
+          0
+        ],
+        [
+          593.14,
+          35.56,
+          0
+        ],
+        [
+          622.63,
+          47.46,
+          0
+        ],
+        [
+          651.43,
+          59.08,
+          0
+        ],
+        [
+          684.09,
+          72.26,
+          0
+        ],
+        [
+          714.76,
+          84.64,
+          0
+        ],
+        [
+          749.09,
+          98.49,
+          0
+        ],
+        [
+          779.6,
+          110.8,
+          0
+        ],
+        [
+          813.22,
+          124.37,
+          0
+        ],
+        [
+          849.92,
+          139.18,
+          0
+        ],
+        [
+          877.79,
+          150.42,
+          0
+        ],
+        [
+          905.66,
+          161.67,
+          0
+        ],
+        [
+          933.53,
+          172.91,
+          0
+        ],
+        [
+          961.4,
+          184.16,
+          0
+        ],
+        [
+          989.27,
+          195.4,
+          0
+        ],
+        [
+          1017.15,
+          206.65,
+          0
+        ],
+        [
+          1045.02,
+          217.9,
+          0
+        ],
+        [
+          1072.89,
+          229.14,
+          0
+        ],
+        [
+          1100.76,
+          240.39,
+          0
+        ],
+        [
+          1128.63,
+          251.63,
+          0
+        ],
+        [
+          1156.5,
+          262.88,
+          0
+        ],
+        [
+          1193.7,
+          276.44,
+          0
+        ],
+        [
+          1232,
+          286.93,
+          0
+        ],
+        [
+          1270.9,
+          294.53,
+          0
+        ],
+        [
+          1310.3,
+          298.81,
+          0
+        ],
+        [
+          1350,
+          300,
+          0
+        ],
+        [
+          1750,
+          300,
+          0
+        ],
+        [
+          1750,
+          500,
+          0
+        ],
+        [
+          0,
+          500,
+          0
+        ]
+      ],
+      "closed": true
+    },
+    {
+      "op": "addLine",
+      "start": [
+        500,
+        0,
+        0
+      ],
+      "end": [
+        505,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "addSurfaceFromLines",
+      "edges": [
+        "edge-0",
+        "edge-1",
+        "edge-2",
+        "edge-3",
+        "edge-4",
+        "edge-5",
+        "edge-6",
+        "edge-7",
+        "edge-8",
+        "edge-9",
+        "edge-10",
+        "edge-11",
+        "edge-12",
+        "edge-13",
+        "edge-14",
+        "edge-15",
+        "edge-16",
+        "edge-17",
+        "edge-18",
+        "edge-19",
+        "edge-20",
+        "edge-21",
+        "edge-22",
+        "edge-23",
+        "edge-24",
+        "edge-25",
+        "edge-26",
+        "edge-27",
+        "edge-28",
+        "edge-29",
+        "edge-30",
+        "edge-31",
+        "edge-32",
+        "edge-33",
+        "edge-34"
+      ]
+    },
+    {
+      "op": "addSurfaceFromLines",
+      "edges": [
+        "edge-35",
+        "edge-3",
+        "edge-2",
+        "edge-1"
+      ]
+    }
+  ],
+  "options": {
+    "dimension": 2,
+    "sizeMin": 2,
+    "sizeMax": 40
+  },
+  "values": {
+    "problem": {
+      "endTime": 25,
+      "nlTol": 1e-8,
+      "nlMaxIt": 25,
+      "couplingStrategy": "MVQN"
+    },
+    "fluid": {
+      "f_elementType": "vms",
+      "f_timeScheme": "bossak",
+      "f_dynamicTau": 1,
+      "f_timeStep": 0.05,
+      "f_maxIterations": 20,
+      "f_relVelTol": 1e-8,
+      "f_absVelTol": 1e-10,
+      "f_relPresTol": 1e-8,
+      "f_absPresTol": 1e-10,
+      "f_computeReactions": true,
+      "f_echoLevel": 0
+    },
+    "structure": {
+      "s_solverType": "dynamic",
+      "s_analysisType": "non_linear",
+      "s_elementBase": "TotalLagrangianElement",
+      "s_schemeType": "bossak",
+      "s_convergenceCriterion": "residual_criterion",
+      "s_maxIteration": 20,
+      "s_residualRelTol": 1e-8,
+      "s_residualAbsTol": 1e-10,
+      "s_echoLevel": 0
+    }
+  },
+  "assignments": [
+    {
+      "conditionId": "f_parts",
+      "smpPath": "Fluid",
+      "values": {}
+    },
+    {
+      "conditionId": "f_inlet",
+      "smpPath": "Inlet",
+      "values": {
+        "modulus": 0.0607,
+        "modulusExpression": "0.1214*(1-cos(0.1*pi*t))*y*(1-y)",
+        "intervalStart": 0,
+        "intervalEnd": "10"
+      }
+    },
+    {
+      "conditionId": "f_inlet",
+      "smpPath": "Inlet",
+      "values": {
+        "modulus": 0.0607,
+        "modulusExpression": "0.2428*y*(1-y)",
+        "intervalStart": 10,
+        "intervalEnd": "End"
+      }
+    },
+    {
+      "conditionId": "f_outlet",
+      "smpPath": "Outlet",
+      "values": {
+        "value": 0
+      }
+    },
+    {
+      "conditionId": "f_noSlip",
+      "smpPath": "Walls",
+      "values": {}
+    },
+    {
+      "conditionId": "f_slip",
+      "smpPath": "Slip",
+      "values": {}
+    },
+    {
+      "conditionId": "fluidInterface",
+      "smpPath": "Interface",
+      "values": {}
+    },
+    {
+      "conditionId": "aleMeshBC",
+      "smpPath": "Inlet",
+      "values": {}
+    },
+    {
+      "conditionId": "aleMeshBC",
+      "smpPath": "Outlet",
+      "values": {}
+    },
+    {
+      "conditionId": "aleMeshBC",
+      "smpPath": "Walls",
+      "values": {}
+    },
+    {
+      "conditionId": "aleMeshBC",
+      "smpPath": "Slip",
+      "values": {}
+    },
+    {
+      "conditionId": "s_parts",
+      "smpPath": "Structure",
+      "values": {}
+    },
+    {
+      "conditionId": "s_displacement",
+      "smpPath": "Fixed",
+      "values": {
+        "value": [
+          0,
+          0,
+          0
+        ],
+        "constrained": true
+      }
+    },
+    {
+      "conditionId": "structureInterface",
+      "smpPath": "Interface",
+      "values": {}
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Fluid",
+      "lawId": "newtonian_2d",
+      "values": {
+        "DENSITY": 956,
+        "DYNAMIC_VISCOSITY": 0.145
+      }
+    },
+    {
+      "smpPath": "Structure",
+      "lawId": "linear_elastic_plane_stress",
+      "values": {
+        "DENSITY": 1500,
+        "YOUNG_MODULUS": 2300000,
+        "POISSON_RATIO": 0.45,
+        "THICKNESS": 1
+      }
+    }
+  ],
+  "field": "VELOCITY",
+  "structureField": "DISPLACEMENT",
+  "benchmark": true,
+  "timeout": 7200000,
+  "output": {
+    "interval": 10
+  },
+  "warp": 1,
+  "manualTimeout": 7200000,
+  "parts": [
+    {
+      "name": "Fluid",
+      "surfaces": [
+        "face-0"
+      ]
+    },
+    {
+      "name": "Structure",
+      "surfaces": [
+        "face-1"
+      ],
+      "meshSize": 1.5
+    },
+    {
+      "name": "Inlet",
+      "lines": [
+        "edge-34"
+      ]
+    },
+    {
+      "name": "Outlet",
+      "lines": [
+        "edge-32"
+      ]
+    },
+    {
+      "name": "Walls",
+      "lines": [
+        "edge-0",
+        "edge-4",
+        "edge-5",
+        "edge-6",
+        "edge-7",
+        "edge-8",
+        "edge-9",
+        "edge-10",
+        "edge-11",
+        "edge-12",
+        "edge-13",
+        "edge-14",
+        "edge-15",
+        "edge-16",
+        "edge-17",
+        "edge-18",
+        "edge-19",
+        "edge-20",
+        "edge-21",
+        "edge-22",
+        "edge-23",
+        "edge-24",
+        "edge-25",
+        "edge-26",
+        "edge-27",
+        "edge-28",
+        "edge-29",
+        "edge-30",
+        "edge-31"
+      ]
+    },
+    {
+      "name": "Slip",
+      "lines": [
+        "edge-33"
+      ]
+    },
+    {
+      "name": "Fixed",
+      "lines": [
+        "edge-35"
+      ]
+    },
+    {
+      "name": "Interface",
+      "lines": [
+        "edge-1",
+        "edge-2",
+        "edge-3"
+      ],
+      "meshGrading": {
+        "sizeAtWall": 2,
+        "sizeFar": 30,
+        "distNear": 12,
+        "distFar": 150
+      }
+    }
+  ],
+  "exportUnit": "m",
+  "preflight": {
+    "ok": true,
+    "problemtype": "fsi",
+    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-z8IS1L/fsi/mesh.kratoscase.json",
+    "warnings": [],
+    "applications": [
+      "FSIApplication",
+      "FluidDynamicsApplication",
+      "MappingApplication",
+      "MeshMovingApplication",
+      "StructuralMechanicsApplication"
+    ],
+    "issues": [],
+    "advisories": [
+      "\"Inlet velocity\" is assigned to \"Inlet\" more than once."
+    ],
+    "counts": {
+      "error": 0,
+      "warning": 1,
+      "info": 0
+    },
+    "findings": [
+      {
+        "severity": "warning",
+        "code": "assignment-duplicate",
+        "message": "\"Inlet velocity\" is assigned to \"Inlet\" more than once.",
+        "target": {
+          "smpPath": "Inlet",
+          "conditionId": "f_inlet"
+        }
+      }
+    ],
+    "state": {
+      "version": 1,
+      "problemtypeId": "fsi",
+      "values": {
+        "problem": {
+          "startTime": 0,
+          "endTime": 25,
+          "couplingScheme": "DirichletNeumann",
+          "nlTol": 1e-8,
+          "nlMaxIt": 25,
+          "solveMeshAtEachIteration": true,
+          "couplingStrategy": "MVQN",
+          "accelerationType": "Aitken",
+          "w0": 0.825,
+          "bufferSize": 7,
+          "meshSolver": "structural_similarity"
+        },
+        "fluid": {
+          "f_strategy": "monolithic",
+          "f_elementType": "vms",
+          "f_timeScheme": "bossak",
+          "f_oss": false,
+          "f_dynamicTau": 1,
+          "f_timeStepMode": "fixed",
+          "f_timeStep": 0.05,
+          "f_courantTarget": 1,
+          "f_minDeltaTime": 0.0001,
+          "f_maxDeltaTime": 0.1,
+          "f_refVelocity": 1,
+          "f_maxIterations": 20,
+          "f_relVelTol": 1e-8,
+          "f_absVelTol": 1e-10,
+          "f_relPresTol": 1e-8,
+          "f_absPresTol": 1e-10,
+          "f_velocityTolerance": 0.001,
+          "f_maxVelocityIterations": 4,
+          "f_predictorCorrector": false,
+          "f_pressureTolerance": 0.001,
+          "f_maxPressureIterations": 4,
+          "f_gravityValue": 0,
+          "f_gravityDirection": [
+            0,
+            -1,
+            0
+          ],
+          "f_linearSolver": "automatic",
+          "f_linearMaxIteration": 200,
+          "f_linearTolerance": 1e-7,
+          "f_preconditioner": "none",
+          "f_echoLevel": 0,
+          "f_computeReactions": true
+        },
+        "structure": {
+          "s_solverType": "dynamic",
+          "s_analysisType": "non_linear",
+          "s_elementBase": "TotalLagrangianElement",
+          "s_schemeType": "bossak",
+          "s_convergenceCriterion": "residual_criterion",
+          "s_residualRelTol": 1e-8,
+          "s_residualAbsTol": 1e-10,
+          "s_displacementRelTol": 0.0001,
+          "s_displacementAbsTol": 1e-9,
+          "s_maxIteration": 20,
+          "s_lineSearch": false,
+          "s_useOldStiffness": false,
+          "s_rayleighAlpha": 0,
+          "s_rayleighBeta": 0,
+          "s_eigenCount": 5,
+          "s_eigenMaxIteration": 1000,
+          "s_eigenTolerance": 0.000001,
+          "s_linearSolver": "automatic",
+          "s_linearMaxIteration": 200,
+          "s_linearTolerance": 1e-7,
+          "s_preconditioner": "none",
+          "s_echoLevel": 0
+        }
+      },
+      "assignments": [
+        {
+          "conditionId": "f_parts",
+          "smpPath": "Fluid",
+          "values": {}
+        },
+        {
+          "conditionId": "f_inlet",
+          "smpPath": "Inlet",
+          "values": {
+            "modulus": 0.0607,
+            "modulusExpression": "0.1214*(1-cos(0.1*pi*t))*y*(1-y)",
+            "intervalStart": 0,
+            "intervalEnd": "10"
+          }
+        },
+        {
+          "conditionId": "f_inlet",
+          "smpPath": "Inlet",
+          "values": {
+            "modulus": 0.0607,
+            "modulusExpression": "0.2428*y*(1-y)",
+            "intervalStart": 10,
+            "intervalEnd": "End"
+          }
+        },
+        {
+          "conditionId": "f_outlet",
+          "smpPath": "Outlet",
+          "values": {
+            "value": 0
+          }
+        },
+        {
+          "conditionId": "f_noSlip",
+          "smpPath": "Walls",
+          "values": {}
+        },
+        {
+          "conditionId": "f_slip",
+          "smpPath": "Slip",
+          "values": {}
+        },
+        {
+          "conditionId": "fluidInterface",
+          "smpPath": "Interface",
+          "values": {}
+        },
+        {
+          "conditionId": "aleMeshBC",
+          "smpPath": "Inlet",
+          "values": {}
+        },
+        {
+          "conditionId": "aleMeshBC",
+          "smpPath": "Outlet",
+          "values": {}
+        },
+        {
+          "conditionId": "aleMeshBC",
+          "smpPath": "Walls",
+          "values": {}
+        },
+        {
+          "conditionId": "aleMeshBC",
+          "smpPath": "Slip",
+          "values": {}
+        },
+        {
+          "conditionId": "s_parts",
+          "smpPath": "Structure",
+          "values": {}
+        },
+        {
+          "conditionId": "s_displacement",
+          "smpPath": "Fixed",
+          "values": {
+            "value": [
+              0,
+              0,
+              0
+            ],
+            "constrained": true
+          }
+        },
+        {
+          "conditionId": "structureInterface",
+          "smpPath": "Interface",
+          "values": {}
+        }
+      ],
+      "materials": [
+        {
+          "smpPath": "Fluid",
+          "lawId": "newtonian_2d",
+          "values": {
+            "DENSITY": 956,
+            "DYNAMIC_VISCOSITY": 0.145
+          }
+        },
+        {
+          "smpPath": "Structure",
+          "lawId": "linear_elastic_plane_stress",
+          "values": {
+            "DENSITY": 1500,
+            "YOUNG_MODULUS": 2300000,
+            "POISSON_RATIO": 0.45,
+            "THICKNESS": 1
+          }
+        }
+      ],
+      "output": {
+        "format": "ascii",
+        "controlType": "step",
+        "interval": 10,
+        "nodalVariables": [
+          "VELOCITY",
+          "PRESSURE",
+          "MESH_DISPLACEMENT"
+        ]
+      }
+    }
+  }
+}

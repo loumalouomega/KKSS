@@ -98,8 +98,11 @@ export interface VscodeShimHooks {
   /**
    * Implements "kratos.vtk.openLatestResults" — since mesh 3.8.0 this command
    * is the *only* path behind PtController.openResults(), so it cannot throw.
+   * mesh 5.11.0 added `outputFolder` for its optimization design fields, whose
+   * outputs live in the folder the case's optimization_parameters.json names
+   * rather than `vtk_output`.
    */
-  openLatestResults(caseDir: string, options?: { excludeNewest?: boolean }): void;
+  openLatestResults(caseDir: string, options?: { excludeNewest?: boolean; outputFolder?: string }): void;
   /**
    * The explicit project root, or undefined when the user has not chosen one.
    * Backs `workspace.workspaceFolders` — unlike the hooks above this is a
@@ -358,12 +361,20 @@ export const window = {
    * cad's export targets and the mesh Export menu. vscode resolves to the
    * picked item itself, so callers read back their own extra properties
    * (meshExport's exportSkin uses `description` to carry the extension).
+   *
+   * `canPickMany` (mesh 5.12.0's result conversion) opens the picker with
+   * toggling rows and resolves to the checked items — possibly an empty array,
+   * which callers treat as "nothing selected"; cancel stays undefined.
    */
   showQuickPick: async <T extends QuickPickItem>(
     items: T[],
-    options?: { title?: string; placeHolder?: string }
-  ): Promise<T | undefined> =>
-    electronQuickPick(items, { title: options?.title, placeHolder: options?.placeHolder }),
+    options?: { title?: string; placeHolder?: string; canPickMany?: boolean }
+  ): Promise<T | T[] | undefined> =>
+    electronQuickPick(items, {
+      title: options?.title,
+      placeHolder: options?.placeHolder,
+      canPickMany: options?.canPickMany,
+    }),
 
   /** Native, validated number prompts used by mesh grid/export operations. */
   showInputBox: async (options: {

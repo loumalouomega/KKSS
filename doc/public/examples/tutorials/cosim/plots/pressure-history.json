@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "pressure",
+      "type": "history",
+      "path": "../vtk_output/FluidModelPart_0_1.vtk",
+      "kind": "Nodal",
+      "entityId": 121,
+      "variable": "PRESSURE"
+    }
+  ],
+  "series": [
+    {
+      "id": "pressure",
+      "source": "pressure",
+      "name": "Interface pressure node 121",
+      "x": "time",
+      "y": "v0",
+      "transforms": [
+        {
+          "op": "convert",
+          "factor": 1,
+          "unit": "Pa"
+        }
+      ]
+    }
+  ],
+  "presentation": {
+    "family": "line",
+    "title": "Interface pressure over coupled steps",
+    "lineMode": "lines+markers",
+    "xLabel": "Reconstructed solver time [s]",
+    "yLabel": "Pressure [Pa]"
+  }
+}

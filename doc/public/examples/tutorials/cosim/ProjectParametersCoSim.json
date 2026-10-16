@@ -1,0 +1,96 @@
+{
+    "problem_data": {
+        "problem_name": "mesh",
+        "parallel_type": "OpenMP",
+        "echo_level": 1,
+        "start_time": 0,
+        "end_time": 0.15
+    },
+    "solver_settings": {
+        "type": "coupled_solvers.gauss_seidel_weak",
+        "echo_level": 1,
+        "predictors": [
+            {
+                "type": "average_value_based",
+                "solver": "fluid",
+                "data_name": "fluid_interface_displacement",
+                "beta": 0.5
+            }
+        ],
+        "data_transfer_operators": {
+            "kratos_mapping": {
+                "type": "kratos_mapping",
+                "mapper_settings": {
+                    "mapper_type": "nearest_element"
+                }
+            }
+        },
+        "coupling_sequence": [
+            {
+                "name": "fluid",
+                "input_data_list": [],
+                "output_data_list": []
+            },
+            {
+                "name": "structure",
+                "input_data_list": [
+                    {
+                        "data": "structure_interface_load",
+                        "from_solver": "fluid",
+                        "from_solver_data": "fluid_interface_load",
+                        "data_transfer_operator": "kratos_mapping",
+                        "data_transfer_operator_options": [
+                            "swap_sign"
+                        ]
+                    }
+                ],
+                "output_data_list": [
+                    {
+                        "data": "structure_interface_displacement",
+                        "to_solver": "fluid",
+                        "to_solver_data": "fluid_interface_displacement",
+                        "data_transfer_operator": "kratos_mapping"
+                    }
+                ]
+            }
+        ],
+        "solvers": {
+            "fluid": {
+                "type": "solver_wrappers.kratos.fluid_dynamics_wrapper",
+                "solver_wrapper_settings": {
+                    "input_file": "ProjectParametersCFD.json"
+                },
+                "data": {
+                    "fluid_interface_load": {
+                        "model_part_name": "FluidModelPart.Interface",
+                        "variable_name": "REACTION",
+                        "dimension": 3
+                    },
+                    "fluid_interface_displacement": {
+                        "model_part_name": "FluidModelPart.Interface",
+                        "variable_name": "MESH_DISPLACEMENT",
+                        "dimension": 3
+                    }
+                }
+            },
+            "structure": {
+                "type": "solver_wrappers.kratos.structural_mechanics_wrapper",
+                "solver_wrapper_settings": {
+                    "input_file": "ProjectParametersCSM.json"
+                },
+                "data": {
+                    "structure_interface_load": {
+                        "model_part_name": "Structure.Interface",
+                        "variable_name": "POINT_LOAD",
+                        "dimension": 3
+                    },
+                    "structure_interface_displacement": {
+                        "model_part_name": "Structure.Interface",
+                        "variable_name": "DISPLACEMENT",
+                        "dimension": 3
+                    }
+                }
+            }
+        }
+    }
+}

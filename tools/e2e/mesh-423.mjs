@@ -142,7 +142,8 @@ internalField uniform ${value};
       groups: exports.submenu.items.map(i => i.label),
       shortcut: file.items.find(i => i.label === 'Export…').accelerator };
   });
-  assert.deepEqual((await nativeMenu()).groups, ['Structural CAE', 'Kratos', 'VTK', 'Surface', 'Solvers', 'HDF5 / netCDF', 'Fields', 'Figures']);
+  // mesh 5.11.0 added the CAD group (.cad.json, Kratos CAD JSON via meshio++).
+  assert.deepEqual((await nativeMenu()).groups, ['Structural CAE', 'Kratos', 'VTK', 'Surface', 'Solvers', 'CAD', 'HDF5 / netCDF', 'Fields', 'Figures']);
   assert.equal((await nativeMenu()).shortcut, 'CmdOrCtrl+E');
   const shell = await c.page(app, 'shell');
   await shell.locator('#home-btn').click();

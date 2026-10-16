@@ -35,12 +35,22 @@ export async function publishTutorialPlots() {
     for (const c of cases) {
       const dir = path.join(output, c.id), plots = path.join(dir, 'plots');
       await fs.mkdir(plots, { recursive: true });
-      const parameters = JSON.parse(await fs.readFile(path.join(dir, 'ProjectParameters.json'), 'utf8'));
-      const files = (await fs.readdir(path.join(dir, 'vtk_output'))).filter(n => n.endsWith('.vtk')).sort((a,b) => Number(a.match(/_(\d+)\.vtk$/)[1]) - Number(b.match(/_(\d+)\.vtk$/)[1]));
+      const isCoupled = c.id === 'fsi' || c.id === 'cosim';
+      const parameters = JSON.parse(await fs.readFile(path.join(dir, c.primaryDocument ?? 'ProjectParameters.json'), 'utf8'));
+      const dtDoc = c.id === 'cosim'
+        ? JSON.parse(await fs.readFile(path.join(dir, 'ProjectParametersCFD.json'), 'utf8'))
+        : parameters;
+      const vtkFiles = (await fs.readdir(path.join(dir, 'vtk_output'))).filter(n => n.endsWith('.vtk')).sort((a,b) => Number(a.match(/_(\d+)\.vtk$/)[1]) - Number(b.match(/_(\d+)\.vtk$/)[1]));
+      const fluidFiles = vtkFiles.filter(n => n.startsWith('FluidModelPart'));
+      const structFiles = vtkFiles.filter(n => n.startsWith('Structure'));
+      if (isCoupled && (!fluidFiles.length || !structFiles.length || fluidFiles.length !== structFiles.length)) throw Error(`${c.id}: expected matching fluid/structure VTK families`);
+      const files = isCoupled ? fluidFiles : vtkFiles;
       const model = await parseMeshFile(path.join(dir, 'vtk_output', files.at(-1)));
       const sourcePath = '../vtk_output/' + files[0];
       const finalPath = '../vtk_output/' + files.at(-1);
-      const dt = parameters.solver_settings.time_stepping?.time_step;
+      const dt = c.id === 'fsi'
+        ? parameters.solver_settings.fluid_solver_settings?.time_stepping?.time_step
+        : dtDoc.solver_settings.time_stepping?.time_step;
       // Kratos VTK suffix = solver STEP, not a timestamp. This is an EXPLICIT
       // reconstruction for these fixed-step cases, not a general filename heuristic.
       const times = dt ? files.map(n => Number((parameters.problem_data.start_time + Number(n.match(/_(\d+)\.vtk$/)[1])*dt).toPrecision(12))) : undefined;
@@ -68,6 +78,40 @@ export async function publishTutorialPlots() {
       } else if (c.id === 'shallow-water') {
         const center = nearest(model, [2,0.5,0]);
         recipes['depth-history'] = recipe('Still-water basin depth', [history('depth', center, 'HEIGHT')], [series('depth', 0, 'm', `Depth at node ${center.id}`)], { xLabel: 'Reconstructed solver time [s]', yLabel: 'Water depth [m]' });
+      } else if (c.id === 'fsi') {
+        // Mok benchmark: point A is the wall tip (0.500, 0.250); its
+        // horizontal-displacement history is the published comparison curve
+        // (Mok_ux_A.png). Both participants share the frame count; the fluid
+        // family drives the time axis, the structure family the tip history.
+        const structModel = await parseMeshFile(path.join(dir, 'vtk_output', structFiles.at(-1)));
+        const tipA = nearest(structModel, [0.5, 0.25, 0]);
+        const structSource = '../vtk_output/' + structFiles[0];
+        coordinates.pointA = tipA;
+        const structHistory = (id, node, variable) => {
+          coordinates[id] = node;
+          return { id, type: 'history', path: structSource, kind: 'Nodal', entityId: node.id, variable, ...(times ? { times, timeUnit: 's' } : {}) };
+        };
+        recipes['tip-displacement-history'] = recipe('Mok benchmark: wall-tip horizontal displacement (point A)', [structHistory('tipA', tipA, 'DISPLACEMENT')],
+          [series('tipA', 0, 'mm', `Point A node ${tipA.id}: X`, 1000)], { xLabel: 'Reconstructed solver time [s]', yLabel: 'Displacement X [mm]' });
+        const upstreamProbe = nearest(model, [0.45, 0.25, 0]);
+        recipes['pressure-history'] = recipe('Pressure upstream of the flexible wall', [history('pressure', upstreamProbe, 'PRESSURE')],
+          [series('pressure', 0, 'Pa', `Pressure node ${upstreamProbe.id}`)], { xLabel: 'Reconstructed solver time [s]', yLabel: 'Pressure [Pa]' });
+      } else if (isCoupled) {
+        // Both participants share the step count; the fluid family drives the
+        // time axis, the structure family the displacement history.
+        const midX = c.coupled.widthMm / 1000 / 2, midZ = c.coupled.depthMm / 1000 / 2;
+        const structModel = await parseMeshFile(path.join(dir, 'vtk_output', structFiles.at(-1)));
+        const probe = nearest(model, [midX, 0.05, midZ]), tip = nearest(structModel, [midX, 0, midZ]);
+        const structSource = '../vtk_output/' + structFiles[0];
+        coordinates.interface = tip;
+        const structHistory = (id, node, variable) => {
+          coordinates[id] = node;
+          return { id, type: 'history', path: structSource, kind: 'Nodal', entityId: node.id, variable, ...(times ? { times, timeUnit: 's' } : {}) };
+        };
+        recipes['pressure-history'] = recipe('Interface pressure over coupled steps', [history('pressure', probe, 'PRESSURE')],
+          [series('pressure', 0, 'Pa', `Interface pressure node ${probe.id}`)], { xLabel: 'Reconstructed solver time [s]', yLabel: 'Pressure [Pa]' });
+        recipes['interface-displacement-history'] = recipe('Interface displacement over coupled steps', [structHistory('tip', tip, 'DISPLACEMENT')],
+          [series('tip', 1, 'mm', `Interface node ${tip.id}: Y`, 1000)], { xLabel: 'Reconstructed solver time [s]', yLabel: 'Displacement Y [mm]' });
       } else {
         const thermal = c.id === 'thermal', min = model.bounds.min, max = model.bounds.max;
         const y = (min[1]+max[1])/2, z = (min[2]+max[2])/2, epsilon = (max[0]-min[0])*1e-5;
@@ -77,7 +121,11 @@ export async function publishTutorialPlots() {
           [series('profile', 0, thermal ? 'K' : 'm²/s', variable, 1, 'distance')], { xLabel: 'Distance along probe [m; supplied by SI case]', yLabel: thermal ? 'Temperature [K]' : 'Velocity potential [m²/s]' });
       }
       const inputs = {};
-      for (const file of ['ProjectParameters.json', 'recipe.json', ...files.map(n => 'vtk_output/'+n)]) inputs[file] = hash(await fs.readFile(path.join(dir,file)));
+      const paramInputs = isCoupled
+        ? (c.id === 'cosim' ? ['ProjectParametersCoSim.json', 'ProjectParametersCFD.json', 'ProjectParametersCSM.json'] : ['ProjectParameters.json'])
+        : ['ProjectParameters.json'];
+      const resultInputs = (isCoupled ? [...fluidFiles, ...structFiles] : files).map(n => 'vtk_output/' + n);
+      for (const file of [...paramInputs, 'recipe.json', ...resultInputs]) inputs[file] = hash(await fs.readFile(path.join(dir,file)));
       const summary = { version: 1, case: c.id, source: 'Published Kratos solver output; no solver rerun or synthetic values', coordinates, inputs,
         timeMapping: times ? { basis: 'start_time + STEP * fixed time_step; VTK suffix is STEP, not a timestamp', start: parameters.problem_data.start_time, dt, times, configuredEndTime: parameters.problem_data.end_time } : { basis: 'Single stationary solution; no time history' },
         units: 'Explicitly supplied from the tutorial SI setup using recipe convert transforms; original VTK field units remain unknown',

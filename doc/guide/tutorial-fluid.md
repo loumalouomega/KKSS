@@ -1,35 +1,29 @@
 # Laminar flow around an obstacle
 
-**Fluid dynamics.** This walkthrough starts in CAD and ends with a measured, solver-produced wake. The model is a planar XY channel 2.0 m long and 0.6 m high. A circular obstacle approximation with a 0.12 m diameter sits 0.5 m from the inlet, centered halfway between the walls. Geometry is authored in CAD millimetres; export the face mesh in metres for the SI solver.
+**Fluid dynamics.** This walkthrough starts from geometry and ends with a solver-produced field. Lengths, time, mass and temperature use SI after CAD mesh export unless the table says mm. Follow the steps with the built-in example or download the complete case.
 
-## Create the geometry and mesh
+## Create the model and mesh
 
-1. Open `cad/examples/BREP/blank.brep` in Pre-Processing. Choose **File → Import SVG…** and open the downloadable [obstacle-channel.svg recipe](/examples/tutorials/fluid/obstacle-channel.svg). It creates the outer channel loop and a 32-segment circular inner loop. The file uses SVG's Y-down coordinates; KKSS imports these as a planar face sketch at x = 0…2000 mm and y = 0…600 mm.
-2. Switch to **Line** selection and select all 36 edges: the four outer edges and 32 obstacle edges. In **Edits → GEOMETRY → 2D**, choose **Surface → Build**. This creates one planar face with the inner loop cut out. Confirm there is one face and a visible opening before meshing.
-3. Under **Parts**, assign the face to `Domain`. Name the x = 0 edge `Inlet`, the x = 2000 mm edge `Outlet`, the two long edges at y = 0 and y = 600 mm `Walls`, and all 32 inner-loop edges `Obstacle`. Use **Surf** selection for the face and **Line** selection for the boundary parts.
-4. Under **FE Mesh**, select Gmsh, dimension **2D**, first order, and global size min/max **15/70 mm**. In the `Obstacle` Part's **Grade** controls, set size at wall **12 mm**, size far **60 mm**, distance near **25 mm**, and distance far **350 mm**. Export **MDPA Elements** with units **m** as `mesh.mdpa`. This must be a planar XY face mesh with a hole; do not mesh a solid's surface.
+Create a 2.0 × 0.6 m planar XY channel (CAD dimensions 2000 × 600 mm) with a 32-sided circular obstacle of radius 60 mm centered at (500, 300) mm. Import the [SVG sketch recipe](/examples/tutorials/fluid/obstacle-channel.svg), then select its four outer edges and 32 obstacle edges and build one face with the inner loop as a hole. Name the face `Domain`, x = 0 `Inlet`, x = 2000 mm `Outlet`, y = 0 and y = 600 mm `Walls`, and the hole loop `Obstacle`. Use a 2D first-order mesh, global min/max sizes 15/70 mm, and grade around Obstacle from 12 mm at its wall to 60 mm at 350 mm distance (12 mm through the first 25 mm). Export to metres. Set the Newtonian 2D material to density 1000 kg/m³ and dynamic viscosity 0.6 Pa·s; with inlet speed 0.1 m/s this gives Reynolds number 20 based on the 120 mm obstacle diameter.
 
-The published mesh has 945 nodes and 1766 triangles. Your counts can differ slightly across Gmsh versions while retaining the same named regions and physical checks.
+1. Open `cad/examples/BREP/blank.brep` in CAD mode. Choose **File → Import SVG…** and open [`obstacle-channel.svg`](/examples/tutorials/fluid/obstacle-channel.svg). The recipe creates a 2000 × 600 mm channel and a 32-segment, 60 mm-radius obstacle centered at (500, 300) mm. Imported world coordinates are x = 0…2000 mm and y = 0…600 mm.
+2. Switch to **Line** selection and select both loops. Choose **GEOMETRY → 2D → Surface → Build** to form one flat face with the inner loop as a hole. Confirm the preview shows one face with an opening.
+3. Under **Parts**, name the face `Domain`; name x = 0 `Inlet`, x = 2000 mm `Outlet`, the y edges `Walls`, and the inner 32 edges `Obstacle`. Use **Surf** selection for the face and **Line** selection for boundaries.
+4. Under **FE Mesh**, choose Gmsh, 2D, first order, global size min/max **15/70 mm**. In the `Obstacle` Part's **Grade** controls set size at wall **12 mm**, size far **60 mm**, distance near **25 mm**, and distance far **350 mm**. Choose **MDPA Elements**, export units **m**, and export as `mesh.mdpa`. This is a planar XY face mesh with a hole, not the surface mesh of a solid.
+5. Open the exported file in Post-Processing. The Problemtype section is populated from the mesh’s named SubModelParts. Select **Fluid dynamics** and enter the case setup below.
 
 ## Set up, generate and run
 
-Open `mesh.mdpa` in Post-Processing and select **Fluid dynamics** in the Problemtype sidebar. Assign the fluid body to `Domain`, inlet velocity to `Inlet`, outlet pressure to `Outlet`, slip to `Walls`, and no-slip to `Obstacle`. Set the Newtonian 2D material to density **1000 kg/m³** and dynamic viscosity **0.6 Pa·s**. The 0.1 m/s inlet and 0.12 m obstacle diameter give a Reynolds number of **20**.
-
-| Problemtype setting | Value |
+| Setting | Value |
 |---|---|
-| Time step / end time | 0.1 s / 5 s (50 steps) |
-| Inlet | 0.1 m/s in +X |
-| Outlet | 0 Pa |
-| Top and bottom walls | Slip |
-| Obstacle | No-slip |
-| Fluid material | ρ = 1000 kg/m³; μ = 0.6 Pa·s |
-| Solver | 2D monolithic VMS; maximum 20 iterations; echo level 0 |
-| Output | VTK each step, fields `VELOCITY` and `PRESSURE` |
-| Python | Set **Settings → Simulation → kratos.pythonPath** to a Python that imports Kratos and `FluidDynamicsApplication`; set `kratos.extraEnv` to `{"OMP_NUM_THREADS":"2"}` |
+| Geometry and SubModelParts | 2.0 × 0.6 m XY; face Domain; edge parts Inlet, Outlet, Walls; 32-edge hole Obstacle; 945 nodes; 1766 triangles |
+| Problemtype values and physics | Δt 0.1 s; end 5 s; 51 saved solver steps; no initial frame; inlet 0.1 m/s +X; outlet 0 Pa; slip walls; no-slip obstacle; ρ 1000 kg/m³; μ 0.6 Pa·s; Re 20 |
+| Solver/output | 2D monolithic VMS; maximum 20 iterations; VTK each 0.1 s step with `VELOCITY` and `PRESSURE` |
+| Python | Point **Settings → Simulation → kratos.pythonPath** at a Python environment that imports Kratos Multiphysics and **FluidDynamicsApplication** |
 
-Click **Generate case files**. Check that there are no missing-part warnings and that `ProjectParameters.json` names the `Domain`, `Inlet`, `Outlet`, `Walls`, and `Obstacle` SubModelParts. If **Run case** is disabled, use the Home screen's **Check environment** action and configure `kratos.pythonPath`; a missing `FluidDynamicsApplication` diagnostic means that Python installation lacks the required application. Click **Run case** and watch the embedded terminal for time-step progress or solver errors.
+Click **Generate case files**. This writes `ProjectParameters.json`, the materials file (when used), and `MainKratos.py` beside the mesh. Inspect generation warnings under the Problemtype panel. Set the interpreter through **Settings → Simulation → kratos.pythonPath**, then use the Home screen's **Check environment** action to confirm the required application is available. Click **Run case**; the embedded terminal shows solver progress and diagnostics. A failed import usually means the selected Python environment lacks the named Kratos application.
 
-After the solve completes, click **Open results**. In the VTK tab, click **Field** and select `VELOCITY` to see the wake; select `PRESSURE` to inspect pressure around the obstacle. Navigate to the last saved frame. The timeline labels filename **steps**, not seconds; the archive has 51 steps for a configured end time of 5 s (see below).
+When the run finishes, click **Open results**. In the VTK tab, click **Field**, select the listed field, and use the timeline to choose the final step. The values below came from the verified final frame.
 
 ## Plot pressure evolution and the wake
 
@@ -52,33 +46,18 @@ Before generating, the Problemtype sidebar preflights the setup as structured er
 
 ## Verified result
 
-The baseline run used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 945 nodes, 1766 elements and 51 result frames with a configured end time of 5 s. The wake sample behind the obstacle reached **−0.00475046 m/s** in the axial direction despite the +0.1 m/s inlet, showing a small reverse-flow region. Velocity on all 32 sampled obstacle boundary nodes was zero. Pressure ranged from **−7.23421 to 9.28020 Pa**, with the outlet fixed to 0 Pa. Inlet and outlet fluxes were **0.0600000020** and **0.0600000018 m²/s per metre of depth**, a difference of **2.40 × 10⁻¹⁰ m²/s**.
+In the final saved frame, the near-wake sample has a minimum axial velocity of −0.00475046 m/s against the +0.1 m/s inlet, and 32 obstacle boundary nodes satisfy no-slip exactly. Pressure ranges from −7.23421 to 9.28020 Pa with the outlet fixed at 0 Pa. Inlet/outlet fluxes are 0.0600000020 and 0.0600000018 m²/s per metre of depth (difference 2.40 × 10⁻¹⁰ m²/s). The acceptance limits are a near-wake velocity deficit ≥ 0.025 m/s, pressure range ≥ 0.05 Pa, no-slip speed ≤ 2 × 10⁻⁵ m/s, and flux imbalance ≤ 0.001 m²/s.
 
-The measured values are the published baseline; acceptance tolerances are separate:
+Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 945 nodes and 1766 cells. The run wrote 51 output frame(s) with configured end time 5 s. [Download this runnable case](/examples/tutorials/fluid.zip); the folder contains the CAD source, sketch SVG, edit/parts/mesh sidecars, generated case, VTK output and SHA-256 provenance. Downloaded cases are starting points: rerunning overwrites their generated outputs.
 
-| Check | Measured baseline | Acceptance tolerance |
-|---|---:|---:|
-| Inlet velocity error | 0 m/s | ≤ 1 × 10⁻⁶ m/s |
-| Outlet pressure error | 0 Pa | ≤ 1 × 10⁻⁶ Pa |
-| Obstacle no-slip speed | 0 m/s | ≤ 2 × 10⁻⁵ m/s |
-| Near-wake velocity deficit from inlet | 0.10475046 m/s | ≥ 0.025 m/s |
-| Pressure range | 16.5144072 Pa | ≥ 0.05 Pa |
-| Inlet/outlet flux imbalance | 2.40 × 10⁻¹⁰ m²/s | ≤ 0.001 m²/s |
+![CAD geometry and named parts](/screenshots/tutorial-fluid-geometry.png)
 
-[Download the runnable case](/examples/tutorials/fluid.zip). It contains the CAD source and sidecars, SVG sketch recipe, generated MDPA inputs, VTK result sequence, and SHA-256 provenance. [Download the SVG sketch recipe separately](/examples/tutorials/fluid/obstacle-channel.svg). The other MDPA-only examples in [Worked Kratos Cases](tutorial-kratos-examples) skip the CAD meshing step.
-
-![CAD geometry with the obstacle hole and named boundary parts](/screenshots/tutorial-fluid-geometry.png)
-
-![Fluid Problemtype setup in KKSS](/screenshots/tutorial-fluid-setup.png)
+![Problemtype setup](/screenshots/tutorial-fluid-setup.png)
 
 ![Velocity wake behind the obstacle in KKSS](/screenshots/tutorial-fluid-results.png)
 
-![Pressure field around the obstacle in KKSS](/screenshots/tutorial-fluid-pressure.png)
-
-The timeline can also be played. These loops step through the published series (every third step, ending on step 51) with the Field panel's colour range pinned, so a colour means the same value in every frame. The velocity loop starts from the near-potential flow of step 1 and shows the wake forming behind the obstacle.
+![Pressure around the obstacle in KKSS](/screenshots/tutorial-fluid-pressure.png)
 
 ![Velocity magnitude from step 1 to 51 on a fixed 0–0.17 m/s scale](/screenshots/tutorial-fluid-velocity.gif)
-
-The pressure loop starts at step 5. Steps 1–4 are the impulsive start (about 3300 Pa at step 1, falling to ±9 Pa by step 10) and would stretch the scale until the later frames looked flat; the scale here is fixed at ±10 Pa, so step 5 saturates. The loop shows that start-up pressure decaying until only the small stagnation and wake pattern around the obstacle remains.
 
 ![Pressure from step 5 to 51 on a fixed ±10 Pa scale](/screenshots/tutorial-fluid-pressure.gif)

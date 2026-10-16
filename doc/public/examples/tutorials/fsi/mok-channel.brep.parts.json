@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "source": "mok-channel.brep",
+  "parts": [
+    {
+      "name": "Fluid",
+      "color": "#e6194b",
+      "volumes": [],
+      "surfaces": [
+        "face-0"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Structure",
+      "color": "#3cb44b",
+      "volumes": [],
+      "surfaces": [
+        "face-1"
+      ],
+      "lines": [],
+      "points": [],
+      "meshSize": 1.5
+    },
+    {
+      "name": "Inlet",
+      "color": "#4363d8",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-34"
+      ],
+      "points": []
+    },
+    {
+      "name": "Outlet",
+      "color": "#f58231",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-32"
+      ],
+      "points": []
+    },
+    {
+      "name": "Walls",
+      "color": "#911eb4",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-0",
+        "edge-4",
+        "edge-5",
+        "edge-6",
+        "edge-7",
+        "edge-8",
+        "edge-9",
+        "edge-10",
+        "edge-11",
+        "edge-12",
+        "edge-13",
+        "edge-14",
+        "edge-15",
+        "edge-16",
+        "edge-17",
+        "edge-18",
+        "edge-19",
+        "edge-20",
+        "edge-21",
+        "edge-22",
+        "edge-23",
+        "edge-24",
+        "edge-25",
+        "edge-26",
+        "edge-27",
+        "edge-28",
+        "edge-29",
+        "edge-30",
+        "edge-31"
+      ],
+      "points": []
+    },
+    {
+      "name": "Slip",
+      "color": "#42d4f4",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-33"
+      ],
+      "points": []
+    },
+    {
+      "name": "Fixed",
+      "color": "#f032e6",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-35"
+      ],
+      "points": []
+    },
+    {
+      "name": "Interface",
+      "color": "#bfef45",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-1",
+        "edge-2",
+        "edge-3"
+      ],
+      "points": [],
+      "meshGrading": {
+        "sizeAtWall": 2,
+        "sizeFar": 30,
+        "distNear": 12,
+        "distFar": 150
+      }
+    }
+  ]
+}

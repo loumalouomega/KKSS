@@ -1,7 +1,8 @@
 import { t } from "../../shared/i18n";
 /**
  * Modal picker window — the Electron replacement for vscode.window.
- * showQuickPick and showInputBox, backed by app/renderer/picker/.
+ * showQuickPick (single- or multi-select, `canPickMany`) and showInputBox,
+ * backed by app/renderer/picker/.
  */
 import { BrowserWindow, dialog, ipcMain } from "electron";
 import * as path from "path";
@@ -12,11 +13,12 @@ export interface QuickPickItem {
 }
 
 type PickerInit =
-  | { kind: "pick"; title: string; items: QuickPickItem[] }
+  | { kind: "pick"; title: string; items: QuickPickItem[]; multi?: boolean }
   | { kind: "input"; title: string; prompt?: string; value?: string; placeholder?: string };
 
 type PickerReply =
   | { type: "picked"; index: number }
+  | { type: "pickedMany"; indexes: number[] }
   | { type: "input"; value: string }
   | { type: "cancel" };
 
@@ -66,15 +68,38 @@ export function configurePicker(outDir: string): void {
   pickerOutDir = outDir;
 }
 
+/**
+ * `canPickMany` opens the list with toggling rows (Space/click) and resolves
+ * to the checked items — an empty array is possible and is the caller's
+ * "nothing selected"; cancel resolves to undefined. Far fewer lines than
+ * VS Code's two overloads: the single-pick form still resolves on the first
+ * click, unchanged.
+ */
+export function showQuickPick<T extends QuickPickItem>(
+  items: T[],
+  options?: { placeHolder?: string; title?: string; canPickMany?: false }
+): Promise<T | undefined>;
+export function showQuickPick<T extends QuickPickItem>(
+  items: T[],
+  options: { placeHolder?: string; title?: string; canPickMany: true }
+): Promise<T[] | undefined>;
+export function showQuickPick<T extends QuickPickItem>(
+  items: T[],
+  options?: { placeHolder?: string; title?: string; canPickMany?: boolean }
+): Promise<T | T[] | undefined>;
 export async function showQuickPick<T extends QuickPickItem>(
   items: T[],
-  options: { placeHolder?: string; title?: string }
-): Promise<T | undefined> {
+  options?: { placeHolder?: string; title?: string; canPickMany?: boolean }
+): Promise<T | T[] | undefined> {
   const reply = await openPicker(
-    { kind: "pick", title: options.title ?? options.placeHolder ?? t("Select"), items },
+    { kind: "pick", title: options?.title ?? options?.placeHolder ?? t("Select"), items, multi: options?.canPickMany },
     pickerOutDir
   );
-  if (reply && reply.type === "picked" && items[reply.index]) return items[reply.index];
+  if (!reply) return undefined;
+  if (reply.type === "picked" && items[reply.index]) return items[reply.index];
+  if (reply.type === "pickedMany") {
+    return reply.indexes.map((index) => items[index]).filter((item): item is T => item !== undefined);
+  }
   return undefined;
 }
 

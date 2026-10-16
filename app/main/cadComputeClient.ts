@@ -29,6 +29,7 @@ import type * as stepPartsService from "../../cad/src/stepPartsService";
 import type * as brepHealth from "../../cad/src/brepHealth";
 import type * as passageAnalysis from "../../cad/src/passageAnalysisHost";
 import type * as meshDeviation from "../../cad/src/meshDeviationHost";
+import type * as printabilityHost from "../../cad/src/printabilityHost";
 import type * as gltfDecode from "../../cad/src/gltfDecode";
 import type * as brepCache from "./cadBRepCache";
 import { createKernelTracker } from "./cadKernelStatus";
@@ -274,6 +275,10 @@ export const cadCompute = {
   checkBrepHealth: rpc<typeof brepHealth.checkBrepHealth>("checkBrepHealth"),
   analyzePassages: rpc<typeof passageAnalysis.analyzePassages>("analyzePassages"),
   measureMeshDeviation: rpc<typeof meshDeviation.measureMeshDeviation>("measureMeshDeviation"),
+  // cad 3.18.0's Printability panel: facts-only printability over the welded
+  // triangles any source reduces to (the worker spreads printabilityHost, and
+  // kernelActivity.ts keys it to OCCT).
+  checkPrintability: rpc<typeof printabilityHost.checkPrintability>("checkPrintability"),
 
   // ---- meshio++ route (VTK/VTU/MED/CGNS/Exodus/XDMF/MDPA, OpenFOAM) -----
   convertToStlBoundary: rpc<typeof meshio.convertToStlBoundary>("convertToStlBoundary"),
@@ -290,6 +295,10 @@ export const cadCompute = {
   exportViaMeshio: rpc<typeof meshio.exportViaMeshio>("exportViaMeshio"),
   // cad 3.11.0 MMG remeshing (meshioService.remeshMesh → mmgService).
   remeshMesh: rpc<typeof meshio.remeshMesh>("remeshMesh"),
+  // cad 3.17.0 FE Mesh quality gate (meshioService.checkMeshQuality over the
+  // last generated MSH text — the worker already spreads meshioService, and
+  // kernelActivity.ts keys it to meshio++, so no alias change).
+  checkMeshQuality: rpc<typeof meshio.checkMeshQuality>("checkMeshQuality"),
   buildPartsFromMeshioRegions:
     rpc<typeof meshioParts.buildPartsFromMeshioRegions>("buildPartsFromMeshioRegions"),
 };

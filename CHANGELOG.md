@@ -7,6 +7,105 @@ full auto-generated compare links.
 
 ## Unreleased
 
+### Tutorials: FSI example is now the Mok benchmark
+
+- feat: the FSI tutorial reproduces the **Mok benchmark** (Mok 2001, Valdés 2007;
+  Kratos' `fsi_mok` validation case) through the app's own pipeline — CAD polyline
+  channel with a 28-station convergent ramp sampled from the benchmark boundary,
+  conformal two-face meshing, partitioned MVQN coupling — instead of the former
+  channel-slab model. Wall-tip peak 7.79 cm at 8.5 s (published 8.3 cm at ~9.5 s)
+  settling to 5.81 cm at 25 s (published 6.2 cm); inlet profile, outlet pressure
+  and ALE area-balance checks all pass. The case runs Δt = 0.05 s (the published
+  Δt = 0.1 s diverges the structure solve at t ≈ 4 s on Kratos 10.4.3).
+- feat: fluid inlets accept a symbolic **modulus expression** and an activation
+  window, so two inlet assignments write a two-phase inlet. Recorded cases
+  regenerate byte-identical process blocks.
+- feat: planar multi-face models mesh conformally (CAD): the surface fragment
+  merges the coincident boundaries the STEP importer duplicates per face, so
+  shared interface edges carry one node set and no orphan conditions.
+- docs: the CoSimulation tutorial keeps the channel-slab case with a self-contained
+  write-up (it no longer defers to the FSI page) and 200× display warp; both
+  coupled tutorials gain fresh captures and wall-tip/pressure plot recipes.
+
+### CAD/mesh submodule integration (CAD Preview 3.18.0 · Mesh Preview 5.12.0)
+
+- feat: CAD Preview 3.18.0's **Printability panel** (Advanced ▸ Analysis) and its
+  `check_printability` tool: an overhang limit and build direction, a bundled process
+  (fdm/sla/sls/mjf, each naming its source) and build plate, per-body sampled wall
+  thickness, per-direction overhang area, plate contact and a support-volume upper
+  bound, the overhang faces coloured in the view, and every rule it cannot measure
+  under **Not checked** — facts against the numbers, never a verdict.
+- feat: **AMF** (`.amf`, plain XML or the zipped container) joins 3MF and Collada as a
+  display-only import: three's `AMFLoader` builds the scene, material and mesh colours
+  arrive as native colours (a Part colour still wins) and the file's declared unit
+  seeds the Units dropdown. It exports on to STL/OBJ/PLY/glTF/3MF, and every
+  host-side triangle operation refuses it by name. Registered as a native file
+  association.
+- feat: mesh 5.12.0's **Convert Results to Other Formats…** — the File-menu item, the
+  Problemtype form's Output ▸ also export as (saved as `output.exportFormats`) and the
+  `case_export_results` tool convert a case's `vtk_output/` frames through meshio++
+  (an XDMF/PVD packs the series into one file, other formats write one file per step
+  under `converted/`), automatically when a run finishes. The quick-pick window gained
+  a real multi-select mode for it (Space/click toggles, Enter confirms, Esc cancels).
+- feat: mesh 5.12.0's `plot_run_resolve`: explicit ownership resolution for one result
+  path — `verified` only through an execution receipt that still verifies, otherwise
+  `unverified`/`unresolved` statuses that can never stand in as a run binding.
+- feat: CAD Preview 3.18.0's **Copy reference** appends a stored query for faces
+  produced by topology-changing edits (so a pasted reference survives renumbering), and
+  curve ops take a `coincident: reuse|independent` choice when an endpoint lands on an
+  existing point (Collapse shares the vertex). mesh 5.12.0's **Plot distribution** opens
+  the Plots pane on a field's histogram (uncovered entities are excluded and reported,
+  never counted as 0), **Show on mesh** colours the view by a plot quantity/component,
+  and a persistent plot cache with streamed table import keeps large plots quick.
+- chore: meshio++ **17.2.0** (mesh's `^16.42.0` → `^17.2.0`; CAD still declares
+  `^16.42.0` and resolves the same staged tree, so the skew is back — the bundled
+  CAD/mesh MCP runtime tests are the gate). The three new tools are classified
+  (`cad__check_printability` and `mesh__plot_run_resolve` read, `mesh__case_export_results`
+  write, path-scoped), and the bundled drawing-sheet templates the chat's
+  `list_sheet_templates` reads are now staged alongside the starter process limits.
+
+### CAD/mesh submodule integration (CAD Preview 3.17.0 · Mesh Preview 5.11.0)
+
+- feat: mesh 5.11.0's **new problemtype families** — four **ROM** reduced-order-model
+  trainers (Structural Mechanics, Convection-diffusion, Fluid Dynamics, Potential Flow;
+  RomApplication's `RomManager`: POD basis and optional HROM over a sampled parameter
+  space) and **Structural Optimization** (OptimizationApplication: mass / strain-energy /
+  centroid / discrete-value responses, material, shell-thickness, vertex-morphing shape
+  and SIMP topology controls, with gradient, Nesterov, Adam and projection algorithms).
+  Documented with worked examples in the new [Kratos Problemtypes](doc/guide/problemtypes.md)
+  guide and live captures.
+- feat: mesh 5.11.0's **coupling upgrades** — CoSimulation keeps weak coupling and gains
+  **strong coupling** (iterated to a residual criterion with MVQN/IQN-ILS/Aitken
+  acceleration), several **interface pairs** and optional **ALE mesh motion**; FSI and
+  CoSimulation are available as Python-language (`coupled.py`) workspace problemtypes with
+  per-step coupling records in the convergence history.
+- feat: mesh 5.11.0's required-application preflight: every generated driver checks the
+  Kratos applications it needs before running, **Run** asks the configured Python first
+  and refuses naming the missing ones, and `case_validate` reports `applications` (with an
+  optional import probe) without running anything.
+- feat: KKSS's `openLatestResults` hook learned mesh 5.11.0's **`outputFolder`** option, so
+  the Optimization progress panel's **Design fields** button opens the per-iteration design
+  fields timeline in the folder the case's `optimization_parameters.json` names (instead of
+  degrading to a "no results" toast for a `vtk_output/` that an optimization case never
+  writes) — the same no-results toast now names the folder it looked at.
+- feat: CAD Preview 3.17.0's **FE Mesh quality gate**: the panel grades the last
+  generated mesh against caller-supplied meshio++ threshold clauses (scaled Jacobian,
+  aspect ratio, skewness, angles…), reporting per-clause violations, fractions, worst
+  value and cell — facts against your numbers, never a verdict. The CAD host keeps the
+  last generated MSH text per document, as upstream does.
+- feat: CAD Preview 3.17.0's per-**Part material density** (g/cm³) driving BOM/solid mass,
+  mesh-source `render_snapshot` via meshio++'s software rasterizer, `segment_mesh_surface`
+  (patch segmentation with primitive fits), and the **Geometry display mode** with its
+  entity-type legend.
+- feat: meshio++ 16.42.0 (both submodules — the earlier minor skew is closed): the
+  isoparametric `tessellate` mesh operation, a new readable/writable **Kratos CAD JSON**
+  `.cad.json` format (now a native file association), and Abaqus `.fil` / MSC Nastran
+  `.op2` result-file writers — 61 readable / 49 writable extended formats.
+- docs: a new **Kratos Problemtypes** guide documenting the whole catalog with the
+  application preflight contract, setup collections (responses/controls/parameters), the
+  FSI/CoSimulation pairing rules, and ROM/optimization workflows — with screenshots
+  generated from the real app on an upstream example case.
+
 ## [2.13.0] - 2026-10-14
 
 - feat: integrate **CAD Preview 3.16.0** and **Mesh Preview 5.10.0**. Pre-Processing

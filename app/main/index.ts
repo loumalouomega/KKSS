@@ -691,9 +691,13 @@ function createTab(mode: Mode) {
  * newest step rather than opening a duplicate; otherwise open the latest file
  * in a new tab. `excludeNewest` is set for a run that did not finish cleanly,
  * whose final step may be truncated (the vtk writer has no atomic rename).
+ * mesh 5.11.0 added `outputFolder`: an optimization case writes its design
+ * fields into the folder its optimization_parameters.json names rather than
+ * `vtk_output`, and its Design-fields button opens exactly that.
  */
-function openLatestResults(caseDir: string, options?: { excludeNewest?: boolean }): void {
-  const outDir = path.join(caseDir, "vtk_output");
+function openLatestResults(caseDir: string, options?: { excludeNewest?: boolean; outputFolder?: string }): void {
+  const folder = options?.outputFolder ?? "vtk_output";
+  const outDir = path.join(caseDir, folder);
   let names: string[] = [];
   try {
     names = fsSync.readdirSync(outDir);
@@ -704,7 +708,7 @@ function openLatestResults(caseDir: string, options?: { excludeNewest?: boolean 
   if (!latest) {
     toast(
       "info",
-      t("No results in vtk_output/ yet — run the case first (results appear as the solver writes steps).")
+      t("No results in {0}/ yet — run the case first (results appear as the solver writes steps).", { 0: folder })
     );
     return;
   }

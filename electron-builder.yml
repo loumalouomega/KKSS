@@ -68,6 +68,8 @@ fileAssociations:
     name: KKSS 3MF document
   - ext: dae
     name: KKSS Collada document
+  - ext: amf
+    name: KKSS AMF document
   - ext: med
     name: KKSS MED document
     mimeType: application/x-kkss-med
@@ -255,6 +257,8 @@ fileAssociations:
     name: KKSS compressed libMesh document
   - ext: z88
     name: KKSS Z88 document
+  - ext: cad.json
+    name: KKSS CAD JSON document
 protocols:
   - name: KKSS document link
     schemes:

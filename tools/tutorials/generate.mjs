@@ -24,7 +24,87 @@ try {
       if (c.ops.length) await mcp.call('cad__apply_edit_ops', { path: geometry, ops: c.ops });
       let inventory = await mcp.call('cad__load_model', { path: geometry });
       let parts = c.parts;
-      if (c.planar) {
+      if (c.coupled3d) {
+        // Two touching boxes sharing the y = 0 face: the fluid channel above,
+        // the structure slab below. Faces are classified by outward normal and
+        // centre; the shared face exists once per solid and the Interface part
+        // takes the fluid side (the export fragments touching volumes so the
+        // merged face meshes once).
+        const { widthMm: W, fluidHeightMm: Hf, solidHeightMm: Hs, depthMm: D } = c.coupled;
+        inventory = await mcp.call('cad__load_model', { path: geometry });
+        const solids = inventory.solids ?? [];
+        if (solids.length !== 2) throw Error(`Coupled channel needs two solids, found ${solids.length}`);
+        const at = (v, target) => Math.abs(v - target) < 1e-6;
+        const faces = [];
+        for (const s of solids) for (const id of s.faceIds ?? []) {
+          const info = await mcp.call('cad__inspect', { path: geometry, entityId: id });
+          faces.push({ id, solid: s.id, center: info.center });
+        }
+        if (faces.length !== 12) throw Error(`Coupled channel needs twelve faces, found ${faces.length}`);
+        const fluidSolid = solids.find(s => faces.some(f => f.solid === s.id && at(f.center[1], Hf)))?.id;
+        const structSolid = solids.find(s => s.id !== fluidSolid)?.id;
+        if (!fluidSolid || !structSolid) throw Error('Could not tell the fluid solid from the structure solid');
+        // Box face normals are not outward-oriented, so classification is by
+        // centre position only.
+        const inlet = [], outlet = [], walls = [], fixed = [];
+        let fluidInterface = null, structInterface = null;
+        for (const f of faces) {
+          const [x, y, z] = f.center, id = f.id;
+          if (f.solid === fluidSolid) {
+            if (at(x, 0)) inlet.push(id);
+            else if (at(x, W)) outlet.push(id);
+            else if (at(y, Hf) || at(z, 0) || at(z, D)) walls.push(id);
+            else if (at(y, 0)) fluidInterface = id;
+            else throw Error(`Could not classify fluid boundary face ${id} at ${f.center}`);
+          } else {
+            if (at(y, 0)) structInterface = id;
+            else if ((at(x, 0) || at(x, W)) && !at(y, -Hs)) fixed.push(id);
+            else if (!(at(x, 0) || at(x, W) || at(y, -Hs) || at(z, 0) || at(z, D))) throw Error(`Could not classify structure boundary face ${id} at ${f.center}`);
+          }
+        }
+        if (inlet.length !== 1 || outlet.length !== 1 || walls.length !== 3 || !fluidInterface || !structInterface || fixed.length !== 2) throw Error('Unexpected coupled-channel boundary topology');
+        parts = [
+          { name: 'Fluid', volumes: [fluidSolid] },
+          { name: 'Structure', volumes: [structSolid] },
+          { name: 'Inlet', surfaces: inlet }, { name: 'Outlet', surfaces: outlet }, { name: 'Walls', surfaces: walls },
+          // One shared Interface part: the exporter drops a second part with
+          // identical faces, and the slicer carries a shared path into both
+          // domain meshes. Both interface conditions address it.
+          { name: 'Interface', surfaces: [fluidInterface] },
+          { name: 'Fixed', surfaces: fixed },
+        ];
+      } else if (c.mok) {
+        // The Mok channel: classify every edge of the model the ops built by
+        // its midpoint. The flexible wall's slot edges (three) become the
+        // shared Interface; its bottom line is the Fixed clamp; inlet and
+        // outlet are the two risers; the remaining boundary (base, ramp, flat
+        // bottom and top) is the no-slip Walls and the slip Slip.
+        const edgeCount = c.ops[0].points.length + 1; // closed polyline + the wall's bottom line
+        const at = (v, target) => Math.abs(v - target) < 1e-6;
+        const inlet = [], outlet = [], walls = [], slip = [], fixed = [], iface = [];
+        for (let n = 0; n < edgeCount; n++) {
+          const id = `edge-${n}`;
+          const { center: [x, y] } = await mcp.call('cad__inspect', { path: geometry, entityId: id });
+          if (at(x, 0)) inlet.push(id);
+          else if (at(x, 1750)) outlet.push(id);
+          else if (at(y, 500)) slip.push(id);
+          else if (at(y, 0)) (x > 500 && x < 505 ? fixed : walls).push(id);
+          else if (at(x, 500) || at(x, 505) || (at(x, 502.5) && at(y, 250))) iface.push(id);
+          else walls.push(id); // the ramp and the flat bottom at y = 300
+        }
+        if (inlet.length !== 1 || outlet.length !== 1 || slip.length !== 1 || fixed.length !== 1 || iface.length !== 3 || walls.length !== edgeCount - 7)
+          throw Error(`Unexpected Mok channel boundary topology (${edgeCount} edges: ${[inlet, outlet, walls, slip, fixed, iface].map(a => a.length)})`);
+        parts = [
+          { name: 'Fluid', surfaces: ['face-0'] },
+          // The wall meshes at 1.5 mm so the bending tip resolves; the fluid
+          // refines from 2 mm at the interface to 40 mm far away, through the
+          // Interface part's grading field.
+          { name: 'Structure', surfaces: ['face-1'], meshSize: 1.5 },
+          { name: 'Inlet', lines: inlet }, { name: 'Outlet', lines: outlet },
+          { name: 'Walls', lines: walls }, { name: 'Slip', lines: slip }, { name: 'Fixed', lines: fixed },
+          { name: 'Interface', lines: iface, meshGrading: { sizeAtWall: 2, sizeFar: 30, distNear: 12, distFar: 150 } },
+        ];
+      } else if (c.planar) {
         if (c.planarGeometry === 'obstacle') {
           const edgeCount = 4 + c.obstacle.sides;
           const edges = [];
@@ -66,9 +146,16 @@ try {
       const exported = await mcp.call('cad__export_mesh', { path: geometry, outputPath: meshPath, format: 'mdpaElements', unit: 'm', options: c.options });
       const described = await mcp.call('mesh__problemtype_describe', { problemtype: c.problemtype });
       const state = described.defaultState;
-      Object.assign(state.values.problem, c.problem);
+      if (c.values) {
+        // Coupled problemtypes keep section-keyed values (fsi:
+        // problem/fluid/structure; cosim: coupling/fluid/structure).
+        for (const [section, vals] of Object.entries(c.values)) Object.assign(state.values[section] ??= {}, vals);
+      } else {
+        Object.assign(state.values.problem, c.problem);
+      }
       state.assignments = c.assignments;
       state.materials = c.materials;
+      if (c.output) state.output = { ...state.output, ...c.output };
       await mcp.call('mesh__case_write_state', { meshPath, state });
       await mcp.call('mesh__case_generate', { meshPath });
       // mesh 5.5.0 structured preflight: record the finding set beside the
@@ -84,7 +171,8 @@ try {
         ? [...c.ops, { op: 'addSurfaceFromLines', edges: Array.from({ length: 4 + c.obstacle.sides }, (_, n) => `edge-${n}`) }]
         : c.ops, exportUnit: 'm', inventory, exported, preflight }, null, 2));
       console.log(`${c.id}: generated; solving`);
-      const { stdout, stderr } = await exec(python, ['MainKratos.py'], { cwd: dir, env: { ...process.env, OMP_NUM_THREADS: '2' }, timeout: 180000, maxBuffer: 16 * 1024 * 1024 });
+      const driver = c.driver ?? 'MainKratos.py';
+      const { stdout, stderr } = await exec(python, [driver], { cwd: dir, env: { ...process.env, OMP_NUM_THREADS: '2' }, timeout: c.timeout ?? 180000, maxBuffer: 16 * 1024 * 1024 });
       await fs.writeFile(path.join(dir, 'solver.log'), stdout + stderr);
       const verification = await exec(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { maxBuffer: 1024 * 1024 });
       const report = JSON.parse(verification.stdout);

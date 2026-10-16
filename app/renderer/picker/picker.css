@@ -62,6 +62,18 @@ body {
   opacity: 0.8;
 }
 
+/* Multi-select (`canPickMany`): a checkbox column, and a tint for checked rows
+ * so the keyboard cursor and the checked set stay distinguishable. */
+.picker-item .check {
+  flex: none;
+  width: 14px;
+  text-align: center;
+}
+
+.picker-item.checked {
+  background: var(--vscode-list-inactiveSelectionBackground);
+}
+
 #picker-hint {
   font-size: var(--ui-fs-label);
   color: var(--vscode-descriptionForeground);

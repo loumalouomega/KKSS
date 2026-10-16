@@ -1,0 +1,7 @@
+series,stage,x,y,z,error,x_unit,y_unit,z_unit,source,entity_kind,entity_id,frame,time,run,source_row,original_components,submodelpart,size,size_unit,share
+Interface pressure node 121,derived,1,2868.6665,,,unknown,Pa,unknown,pressure,Nodes,121,0,,,,,,,unknown,
+Interface pressure node 121,derived,2,-0.049134683,,,unknown,Pa,unknown,pressure,Nodes,121,1,,,,,,,unknown,
+Interface pressure node 121,derived,3,-1580.5538,,,unknown,Pa,unknown,pressure,Nodes,121,2,,,,,,,unknown,
+Interface pressure node 121,original,1,2868.6665,,,unknown,unknown,unknown,pressure,Nodes,121,0,,,,,,,unknown,
+Interface pressure node 121,original,2,-0.049134683,,,unknown,unknown,unknown,pressure,Nodes,121,1,,,,,,,unknown,
+Interface pressure node 121,original,3,-1580.5538,,,unknown,unknown,unknown,pressure,Nodes,121,2,,,,,,,unknown,

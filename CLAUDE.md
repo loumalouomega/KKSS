@@ -303,8 +303,8 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**16.41**, the version mesh locks and the one
-  KKSS stages; CAD declares `^16.31.0` and resolves that same staged tree, so the
+  `@meshioplusplus/wasm` package (**17.2.0**, the version mesh locks and the one
+  KKSS stages; CAD declares `^16.42.0` and resolves that same staged tree, so the
   pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
   rather than by the pins agreeing — re-run both after either bump, and prefer
   re-aligning CAD over letting the skew grow;
@@ -340,8 +340,8 @@ resubmitted automatically.
   `out/cad-runtime/dist/../../meshio`. That is why KKSS's
   `cadMeshioLoader.ts` shim and its esbuild alias are gone, and why ONE version
   serves both consumers: the staged tree wins at runtime regardless of what
-  either `package.json` declares. mesh 5.10.0 moved to 16.41 while cad still
-  declares `^16.31.0`, so the two pins now differ — the runtime parity tests
+  either `package.json` declares. mesh 5.12.0 moved to 17.2.0 while cad still
+  declares `^16.42.0`, so the two pins differ again — the runtime parity tests
   are the gate, not the pins. It loads the `.wasm` via meshio++'s
   `locateFile` hook (the `wasmBinary` buffer hook MMG uses is pruned from this
   build), so the tree must exist on disk — another reason for `asar: false`.
@@ -1106,7 +1106,7 @@ resubmitted automatically.
   what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 277-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
+  `test/chatToolPolicy.test.ts` pins the exact 285-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1361,7 +1361,7 @@ resubmitted automatically.
   compound suffixes such as `.post.msh` remain intact.
 
 - **Distribution metadata follows the routing tables.** `electron-builder.yml`
-  ships associations for all 65 CAD/mesh-readable suffixes, including compound
+  ships associations for all 106 CAD/mesh-readable suffixes, including compound
   GiD names, registers the `kkss` scheme, and builds AppImage, deb and rpm
   targets. `npm run check:packaging` parses the two upstream registries and
   fails if the packaging list drifts. The Flatpak work is intentionally a
@@ -1450,8 +1450,117 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 74 CAD + 47 mesh + 4 aggregation + 31 app-owned
+discovery (current sets: 77 CAD + 51 mesh + 4 aggregation + 31 app-owned
 workflow tools).
+
+**The cad 3.17.0 → 3.18.0 + mesh 5.11.0 → 5.12.0 jump needed one host port,
+one new picker mode, three policy rows and one packaging row; meshio++ moved to
+17.2.0 and the pin skew reopened.**
+
+- **cad: the Printability panel, ported message-for-message.** `provider.ts`
+  answers `printabilityRequest` with `printabilityResult` / `printabilityError`
+  over `docPipeline.checkPrintability`, reducing either source to welded
+  triangles (B-rep via `readOcctSource` + `replayTail`; mesh via the webview's
+  serialized, already-edited STL) and refusing display-only formats by name;
+  `cadHost.ts` ports the handler with the usual epoch guard,
+  `cadComputeClient.ts` binds `checkPrintability` and the worker spreads
+  `printabilityHost` (`kernelActivity.ts` already keys it to OCCT, so
+  `test/cadKernelStatus.test.ts` passes unchanged). The bundled starter limits
+  (`dist/process-limits/starter-limits.json`) are read tolerantly through
+  `bundledProcessLimitsPath` and staged by `esbuild.mjs` (preflight +
+  copyArtifacts) as `out/cad-runtime/dist/process-limits/…`. The panel itself
+  is webview-created; the generated CAD page gains `printability-panel` markup
+  via `viewerDom`, and `test/webviewPages.test.ts` anchors it.
+- **cad: `.amf` is a display-only import.** `fileRouter` gained it beside
+  3MF/Collada (`strategy: "three"`, `DISPLAY_ONLY_MESH_FORMATS`), three's
+  `AMFLoader` builds the scene in the viewer (plain or zipped, material/mesh
+  colours, declared unit seeds the Units dropdown), so the parent adds the
+  `electron-builder.yml` association (the check now covers 106 routed
+  suffixes), a router test case and
+  the docs rows. The host's triangle-dependent operations refuse it by name
+  through the same guard, and `check_printability` reports it as
+  unsupported like every other display-only format.
+- **mesh: result conversion and plot ownership resolution, no host port.**
+  `case_export_results` and `plot_run_resolve` are served by the bundled MCP
+  server. The interactive route is the new File ▸ **Convert Results to Other
+  Formats…** item → `activeMeshHost().dispatchCase("exportResults")` (the
+  packSeries precedent); mesh's `showQuickPick({canPickMany: true})` needed a
+  real multi-select mode in `services/quickPick.ts` + the picker page
+  (checkbox column, Space/click toggles, Enter confirms, Esc cancels) and the
+  shim's `canPickMany` passthrough — single-pick callers are unchanged.
+  `RunManager.autoConvertResults` needed nothing: the existing OutputChannel
+  shim covers it. `dist/sheet-templates/starter-templates.json` (emitted since
+  cad 3.16.0 but never staged) joined `copyArtifacts` so the chat's
+  `cad__list_sheet_templates` sees the bundled starters.
+- **chore: meshio++ 17.2.0** (mesh `^16.42.0` → `^17.2.0`; cad still declares
+  `^16.42.0` and resolves the same staged tree, so the skew is back across a
+  major — the two runtime parity tests are the gate). `meshioFormats.ts` is
+  unchanged, so the documented counts stay 61 readable / 49 writable; policy
+  grows three rows (285 total: 77 CAD + 51 mesh) with a
+  `mesh__case_export_results` scope row, and the chat prompt gains the three
+  tools' sentences.
+- **Verified:** `typecheck`; `npm run build:app` copied 56 artifacts with both
+  `out/cad-runtime/dist/process-limits/starter-limits.json` and
+  `out/cad-runtime/dist/sheet-templates/starter-templates.json` landing, the
+  generated CAD page carrying `printability-panel` and the picker bundle
+  emitting `pickedMany`; `check:packaging` (61 readable / 49 writable — it had
+  been failing on the missing `amf` association — and 106 routed suffixes);
+  the theme guard and `docs:build`. The unit suite, the bundled-runtime MCP
+  tests and the screenshot pipeline (the viewer visibly changed) are left to
+  CI per this session's instruction.
+
+**The cad 3.16.0 → 3.17.0 + mesh 5.10.0 → 5.11.0 jump needed one host port,
+no new workers, no new settings and four policy rows plus one packaging row.**
+
+- **cad: the FE Mesh quality gate, ported message-for-message.** `provider.ts`
+  keeps the last generated MSH text per document (`lastMshText`, reset at each
+  generate start) and answers `qualityGateRequest` with `qualityGateResult` /
+  `qualityGateError` over `docPipeline.checkMeshQuality`. `cadHost.ts` ports
+  all three (field, reset + store in `meshingGenerate`, handler before
+  `passagesRequest`) plus the one-line `checkMeshQuality` binding in
+  `cadComputeClient.ts` — the worker already spreads `meshioService`, and
+  `kernelActivity.ts` already keys it to meshio++, so
+  `test/cadKernelStatus.test.ts` passes unchanged. `Part.density` (per-Part
+  material density driving BOM/solid mass) flows through the imported protocol
+  and sidecar types with no host change; the density input, the quality-gate
+  row, the coincident-point prompt and the Geometry display mode are all
+  webview-created, so the generated CAD page needs no markup change.
+  `cad__check_mesh_quality` and `cad__segment_mesh_surface` join the table as
+  `read` (facts-only; the deviation map's optional PLY is what keeps its
+  sibling `write`). meshio++ 16.42.0 on both sides — the skew is closed.
+- **mesh: ROM + optimization problemtypes, strong CoSimulation, no host code.**
+  Four ROM trainers (`romStructural`/`romThermal`/`romFluid`/`romPotentialFlow`,
+  family `reduced`) plus `Structural Optimization` (family `optimization`) join
+  the built-ins; CoSimulation gains strong coupling, N interface pairs and ALE
+  mesh motion; FSI/CoSimulation are ported to Python (`coupled.py` parity);
+  `collections`/`caseAddress`/`applications`/`interfaceCheck`/`kratosAppProbe`
+  are the new pure infrastructure. The providers run verbatim: no new
+  `vscode.*` API, no new `globalState` key, no new setting (a `package.nls.json`
+  i18n refactor only), no `meshBody()` edit (`pt-collections` rides the
+  imported `SIDEBAR_HTML`; the optimization panel is dynamically created).
+  Two REAL shim changes. First, the fake webview's `onDidReceiveMessage` now
+  keeps **multiple listeners and replays the retained inbox to each as it
+  attaches** — mesh 5.11.0's `PreviewSession` registers its own `ready`
+  listener beside the provider's main handler, and the old single-slot +
+  drain-once behavior swallowed `ready`, leaving the open handshake
+  (documentInfo, engineStatus, the model post) permanently unstarted. Second, 
+  `openLatestResults` learned mesh 5.11.0's `outputFolder` option: the
+  optimization problemtype's Design-fields button opens
+  `kratos.vtk.openLatestResults` with the folder the case's
+  optimization_parameters.json names, and the hook (typed options passthrough
+  + `{folder}` in the no-results toast, new i18n keys, default stays
+  `vtk_output`) is what makes design fields open at all instead of a silent
+  no-results toast.
+  Policy grows two rows (`mesh__case_optimization` `write` — optional CSV like
+  convergence — plus its `toolPaths.ts` scope row; `mesh__case_rom` `read`,
+  no row) and `case_validate`'s `checkInstall` probe needs none. Routing gains
+  `.cad.json` (new `fileAssociations` row) and `.fil`/`.op2` writers: 61
+  readable / 49 writable in `doc/index.md`, `file-formats.md`,
+  `getting-started.md` and the chat prompt.
+- **Verified:** `typecheck`, full unit suite (919 passed, 1 pre-existing skip),
+  `check:packaging`, theme guard, generated pages carrying `pt-collections`
+  and the CAD legend/mode button, and copied-server tool lists matching the
+  policy table in both directions (282 total: 76 CAD + 49 mesh).
 
 **The cad 3.14.0 → 3.16.0 + mesh 5.5.0 → 5.10.0 jump needed five host ports,
 one new worker, two settings and three policy/packaging rows.**
@@ -1976,9 +2085,10 @@ formal certification or manual screen-reader sign-off.
 
 ## Geometry-to-results tutorials (Tier 1, verified)
 
-`doc/guide/tutorial-geometry-to-results.md` is the landing page for five manual
-CAD → MDPA → Problemtype → Kratos → VTK walkthroughs; each has a downloadable
-case and solver-produced results. Shared definitions live in
+`doc/guide/tutorial-geometry-to-results.md` is the landing page for seven manual
+CAD → MDPA → Problemtype → Kratos → VTK walkthroughs (five single-physics plus
+the partitioned FSI Mok benchmark and weak CoSimulation channel-slab coupling); each has a
+downloadable case and solver-produced results. Shared definitions live in
 `tools/tutorials/cases.mjs`; `generate.mjs` creates clean cases through the
 real CAD and mesh MCP servers, runs Kratos, and invokes `verify.py` for
 physical checks. `publish.mjs` freezes measured results, input hashes and
@@ -1988,7 +2098,57 @@ beam-reference displacement error (25% limit); fluid 150 / 248, zero flux
 imbalance; thermal 263 / 814, 0.000019 K maximum linear-profile error
 (0.001 K limit); potential flow 150 / 248, 0.0000328 m/s maximum gradient
 error (0.001 m/s limit); shallow water 150 / 248, 4.0 m³ volume with zero
-measured depth error. Limits are separate from the recorded baselines.
+measured depth error; coupled channel-slab (CoSimulation) 561 nodes (392 fluid + 169 structure)
+/ 1436 elements over three 0.05 s steps, swinging −1.904 / −0.417 / +1.543 mm
+at interface node 89 with one exchange per step and 19.6 % mass-balance error;
+Mok FSI benchmark 5632 nodes (5116 fluid + 516 structure) / 10569 elements over
+five hundred 0.05 s steps — wall-tip peak 7.793 cm at 8.5 s (5.1 mm under the
+published 8.3 cm at ~9.5 s), 5.805 cm at 25 s (3.9 mm under 6.2 cm), steady
+inlet profile error 2.6e-9 m/s, 0.15 % ALE area-balance error, MVQN converged
+every step (mean 4.1 interface iterations, at most 10). Limits are separate
+from the recorded baselines.
+
+**Coupled cases (Tier 6, closed 2026-10-15).** The two coupled pages run different
+exchanges on different cases: FSI reproduces the Mok benchmark through our own
+pipeline (planar channel with a flexible wall, MVQN to 1e-8 within 25 iterations;
+Δt = 0.05 s because the structure Newton stops converging at t ≈ 4 s with the
+published Δt = 0.1 s on this Kratos build — the upstream Kratos-7.0 files diverge
+here too, at t ≈ 6.7 s), CoSimulation runs weak coupling on the 3D channel-slab
+case — one data exchange per step, average-value predictor, nearest-element
+mapper. Three upstream
+mesh fixes came out of the work: a one-node point load in a sibling `<part>`
+submodel part no longer lands in the wrong model part (`68f1ebc`), the CoSimulation
+fluid participant applies `apply_noslip_process` on its interface so the wall load
+reaches the fluid reactions (`3f7564c`), and the webview keeps the chosen material
+law across a Materials card re-render (`8f65e28`, webview-only — generated case
+bytes are unchanged, so the published archives keep pinning `3f7564c`, the revision
+that produced them). The coupled verifier checks the inlet profile and outlet
+pressure exactly, the ALE mass balance (outlet flux against inlet flux plus the
+sweeping slab; error ≤ 0.35 of the delivered volume) and at least one coupling
+iteration per step; the outlet's mean axial speed is informational — an
+incompressible solve pushes the inflow straight through, so the older quiescence
+premise was wrong. `writeDocs.mjs` regenerates the pages from the definitions while
+preserving the hand-written `## Plot` and `## Post-run checks and batch` sections;
+its plot extraction must stop at both `## Post-run checks and batch` and
+`## Verified result`, or every run duplicates the batch section.
+
+**Kratos MCP background-run acceptance (item 10's last bullet).** Driving the pinned
+`kratos-mcp-server@0.9.0` over stdio (the app's launch line, `KRATOS_PYTHONPATH` at
+the tutorial venv) proved a background partitioned coupled run end to end:
+`run_simulation` copy-ran each published case in ~2 s (returncode 0, tracked with
+`job_status`/`job_logs`) and `results_probe` read the interface values back — CoSim
+node 121 pressure −1580.5538 Pa and node 89 Y +1.543471 mm, FSI (then the
+channel-slab case, since replaced by the Mok benchmark) 1274.5168 Pa and
+−0.0016700613 m — reproducing the fixtures to machine precision (max |Δ| 3e-22 in
+the fluid fields, 5e-11 m in the structure). Two differences from the app's own run
+path: the server drives the analysis class directly, so the case's `MainKratos*.py`
+`__main__` block and its `kkss-convergence-v2.jsonl` monitoring do not run; and FSI
+needs an explicit
+`analysis_class="KratosMultiphysics.FSIApplication.fsi_analysis:FsiAnalysis"` — the
+server's `analysis_stage` discovery takes the longest MRO and finds Kratos'
+deprecated `FSIAnalysis` stub (a no-op `__init__` that crashes on 10.4.3).
+CoSimulation is unaffected: the runner detects `coupled_solvers.*` and uses
+`CoSimulationAnalysis`. Retest when the pin moves past 0.9.0.
 
 `manual.mjs` is also an Electron acceptance test: it opens each case in the
 real app, exports a fresh CAD mesh, configures and generates the Problemtype
@@ -1996,7 +2156,7 @@ case in the sidebar, clicks **Run**, checks the terminal receipt and solver
 fields, then opens results and captures the selected field/timeline. The
 cantilever additionally verifies the display-only displacement warp at 1000×
 and captures both its deformed shape and von Mises stress. The full
-`npm run docs:screenshots` pipeline runs those five sessions and
+`npm run docs:screenshots` pipeline runs those seven sessions and
 `assistant.mjs`; its local scripted OpenAI-compatible provider performs real
 tool calls and a solver run, tests dry-run/denial/approval and snapshot output,
 then reopens the persisted conversation without repeating tool calls. The
@@ -2009,7 +2169,7 @@ fixes). Mesh `0819bdc` extends the Field panel's display-only displacement
 warp to 1000× so small solver deformations remain inspectable; the cantilever
 tutorial captures it at 1000× without changing field values. The published
 `verification.json` files pin the full CAD and mesh generation revisions used
-for their solver baselines. `esbuild.mjs` copies CAD viewer assets to the
+for their solver baselines; the coupled archives pin mesh `3f7564c`. `esbuild.mjs` copies CAD viewer assets to the
 runtime snapshot server. Keep submodule changes committed on the designated
 branch before moving these pointers.
 
@@ -2165,8 +2325,8 @@ extended-format time-series readers.
 
 `tools/format-registry.mjs` shares the packaging source parse and derives separate
 counts from unique values in `MESHIO_READ_CANDIDATES` and `MESHIO_WRITE_FORMAT`.
-At the current gitlinks: 60 readable and 46 writable extended formats, with 80
-read and 54 write suffixes. Native formats remain separate; field-only formats
+At the current gitlinks: 61 readable and 49 writable extended formats, with 81
+read and 57 write suffixes. Native formats remain separate; field-only formats
 are included, and writable figures SVG/TikZ count only on write. Packaging CI
 rejects mismatched or ambiguous counts in the landing page and format/start guides.
 Regenerate the Home form capture with

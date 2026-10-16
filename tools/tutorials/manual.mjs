@@ -19,13 +19,34 @@ async function values(container, values) {
   }
 }
 
+/** The case's latest file of one participant family, opened through the shell
+ *  window's Post-Processing mode and Open… — the user's own path for a result
+ *  file the Problemtype sidebar's single `Open results` did not pick. */
+async function openParticipant(app, dir, family, deadline) {
+  const files = fs.readdirSync(path.join(dir, 'vtk_output')).filter((n) => n.startsWith(family) && n.endsWith('.vtk'));
+  assert.ok(files.length, `no ${family} output in ${dir}/vtk_output`);
+  const latest = files.sort((a, b) => Number(a.match(/_(\d+)\.vtk$/)[1]) - Number(b.match(/_(\d+)\.vtk$/)[1])).at(-1);
+  const shell = await appWindow(app, '/renderer/shell/', deadline);
+  await shell.locator('#mode-mesh').click();
+  await selectFile(app, path.join(dir, 'vtk_output', latest));
+  await shell.locator('#open-btn').click();
+  let found;
+  await until(async () => {
+    for (const page of app.windows().filter(p => p.url().includes('/renderer/mesh/'))) {
+      if (await page.locator('#doc-chip-name').textContent().catch(() => '') === latest) { found = page; return true; }
+    }
+    return false;
+  }, `${latest} opens in a viewer`, 120000);
+  return found;
+}
+
 export async function manualTutorials(out, selected = []) {
   for (const c of cases.filter(c => !selected.length || selected.includes(c.id))) {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kkss-tutorial-'));
     const dir = path.join(temp, c.id), profile = path.join(temp, 'profile');
     fs.cpSync(path.join(root, 'doc/public/examples/tutorials', c.id), dir, { recursive: true });
     // Author case settings in the actual sidebar and export a new mesh in CAD.
-    for (const name of fs.readdirSync(dir)) if (name === 'vtk_output' || /^(mesh.*|ProjectParameters.json|.*Materials.json|MainKratos.py)$/.test(name)) fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    for (const name of fs.readdirSync(dir)) if (name === 'vtk_output' || /^(mesh.*|ProjectParameters.*\.json|.*Materials\.json|MainKratos.*\.py|kkss-convergence.*\.jsonl)$/.test(name)) fs.rmSync(path.join(dir, name), { recursive: true, force: true });
     fs.mkdirSync(profile);
     fs.writeFileSync(path.join(profile, 'state.json'), JSON.stringify({ uiTheme: 'dark', 'kratos.pythonPath': python, 'kratos.extraEnv': { OMP_NUM_THREADS: '2' } }));
     const { app, output } = await launchApp(path.join(dir, c.geometry), { userDataDir: profile, extraArgs: [...softwareGL, '--force-device-scale-factor=2'], env: { OMP_NUM_THREADS: '2', KKSS_KRATOS_PYTHON: python } });
@@ -55,12 +76,33 @@ export async function manualTutorials(out, selected = []) {
         const expanded = mesh.locator(`.sb-section[data-section="${section}"]:not(.collapsed) > .sb-section-header .panel-chevron`);
         if (await expanded.count()) await expanded.click();
       }
-      await values(mesh.locator('#pt-forms'), c.problem);
+      // Coupled problemtypes carry one card per section (coupling, fluid,
+      // structure) and all but the first start collapsed; every field must be
+      // visible before the form can be filled by data-field.  Click through the
+      // app's own toggles so its persisted collapse state stays consistent.
+      while (await mesh.locator('#pt-forms .pt-card.collapsed > .edit-form-title').count() > 0) {
+        await mesh.locator('#pt-forms .pt-card.collapsed > .edit-form-title').first().click();
+      }
+      while (await mesh.locator('#pt-forms .pt-group.collapsed > .pt-group-header').count() > 0) {
+        await mesh.locator('#pt-forms .pt-group.collapsed > .pt-group-header').first().click();
+      }
+      // Coupled cases keep section-keyed values; the sidebar form is flat.
+      const formValues = c.values ? Object.assign({}, ...Object.values(c.values)) : c.problem;
+      await values(mesh.locator('#pt-forms'), formValues);
       for (const a of c.assignments) {
-        await mesh.selectOption('#pt-assignments .pt-add-what', a.conditionId);
-        await mesh.selectOption('#pt-assignments .pt-add-where', a.smpPath);
-        await mesh.locator('#pt-assignments .pt-add-row button').click();
-        await values(mesh.locator('#pt-assignments .pt-assign').last(), a.values);
+        // A Parts-style pseudo-condition (which SubModelParts form the computing
+        // domain) is filed in its own Domain card — one per physics domain,
+        // each with a single-choice dropdown — and is deliberately absent from
+        // the Conditions card's grouped add-row.
+        const partsCard = await mesh.evaluate((id) => {
+          const cards = Array.from(document.querySelectorAll('#pt-parts .pt-card'));
+          return cards.findIndex((card) => Array.from(card.querySelectorAll('select.pt-add-what option')).some((o) => o.value === id));
+        }, a.conditionId);
+        const host = partsCard >= 0 ? mesh.locator('#pt-parts .pt-card').nth(partsCard) : mesh.locator('#pt-assignments');
+        if (partsCard < 0) await mesh.selectOption('#pt-assignments .pt-add-what', a.conditionId);
+        await host.locator('select.pt-add-where').selectOption(a.smpPath);
+        await host.locator('.pt-add-row button').click();
+        await values(host.locator('.pt-assign').last(), a.values);
       }
       for (const m of c.materials) {
         await mesh.selectOption('#pt-materials .pt-add-what', m.lawId);
@@ -69,7 +111,7 @@ export async function manualTutorials(out, selected = []) {
         await values(mesh.locator('#pt-materials .pt-assign').last(), m.values);
       }
       await mesh.locator('#pt-generate').click();
-      await until(() => fs.existsSync(path.join(dir, 'ProjectParameters.json')), 'Generate case files');
+      await until(() => fs.existsSync(path.join(dir, c.primaryDocument ?? 'ProjectParameters.json')), 'Generate case files');
       await mesh.locator('#pt-select').scrollIntoViewIfNeeded();
       if (out) await mesh.screenshot({ path: path.join(out, `tutorial-${c.id}-setup.png`) });
       await until(async () => await mesh.locator('#pt-run').isEnabled(), 'manual interpreter ready', 60000);
@@ -80,27 +122,60 @@ export async function manualTutorials(out, selected = []) {
         const state = JSON.parse(fs.readFileSync(receipt, 'utf8'));
         if (state.exitCode !== undefined && state.exitCode !== 0) throw Error(JSON.stringify(state));
         return state.exitCode === 0;
-      }, 'manual solver completion', 180000);
+      }, 'manual solver completion', c.manualTimeout ?? 180000);
       const report = JSON.parse(execFileSync(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { encoding: 'utf8' }));
       await mesh.locator('#pt-open-results').click();
-      let result;
+      const resultPages = [];
       await until(async () => {
         for (const page of app.windows().filter(p => p.url().includes('/renderer/mesh/'))) {
           const name = await page.locator('#doc-chip-name').textContent().catch(() => '');
-          if (name.includes('.vtk')) { result = page; return true; }
+          if (name.includes('.vtk') && !resultPages.includes(page)) resultPages.push(page);
         }
-        return false;
+        return resultPages.length > 0;
       }, 'Open results creates VTK tab', 60000);
-      await result.locator('#toolbar button[data-action="field"]').click();
-      const selector = result.locator('#field-panel select').first();
-      await selector.waitFor();
-      const options = await selector.locator('option').evaluateAll(els => els.map(el => ({ text: el.textContent, value: el.value })));
-      const choice = options.find(o => o.text.startsWith(c.field + ' '));
-      assert.ok(choice, `Missing ${c.field}`);
-      await selector.selectOption(choice.value);
-      await result.locator('#toolbar button[data-action="reset"]').click();
-      await sleep(1800);
-      if (out) await result.screenshot({ path: path.join(out, `tutorial-${c.id}-results.png`) });
+      const shotField = async (result, field, shot, warp) => {
+        await result.locator('#toolbar button[data-action="field"]').click();
+        const selector = result.locator('#field-panel select').first();
+        await selector.waitFor();
+        const options = await selector.locator('option').evaluateAll(els => els.map(el => ({ text: el.textContent, value: el.value })));
+        const choice = options.find(o => o.text.startsWith(field + ' '));
+        assert.ok(choice, `Missing ${field}`);
+        await selector.selectOption(choice.value);
+        await result.locator('#toolbar button[data-action="reset"]').click();
+        if (warp) {
+          // Display-only warp so the coupled shape's bending is visible; the
+          // figure's caption names the factor. The channel-slab cosim case uses
+          // 200× (millimetre bending that 1000× would bow clean off the reset
+          // frame); the Mok fsi case sets 1× through c.warp.
+          const deformedMode = result.locator('.field-mode-btn').filter({ hasText: 'Deformed' });
+          await deformedMode.click();
+          const deformForm = result.locator('.field-subform').filter({ hasText: 'Deform by' });
+          await deformForm.locator('select').selectOption(choice.value);
+          await deformForm.locator('input[type="range"]').evaluate((el, v) => { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); }, warp);
+          await result.locator('body').press('5'); // +Z FRONT: the X-Y bending plane face-on
+        }
+        await sleep(1800);
+        if (out) await result.screenshot({ path: path.join(out, shot) });
+        return { result, selector, options };
+      };
+      let result, selector, options, choice;
+      if (c.structureField) {
+        // `Open results` opens ONE tab: the case's latest result file (most
+        // steps wins across families, ties by name — the fluid participant
+        // here), not a tab per participant. The second participant is opened
+        // the way any result file is — the shell window's Post-Processing mode
+        // and Open…, the same dialog flow tools/e2e/lifecycle.mjs drives — and
+        // its field is captured from the viewer the app opens for it.
+        const names = await Promise.all(resultPages.map(p => p.locator('#doc-chip-name').textContent().catch(() => '')));
+        result = resultPages[names.findIndex(n => n.startsWith('Fluid'))] ?? resultPages[0];
+        ({ selector, options } = await shotField(result, c.field, `tutorial-${c.id}-results.png`));
+        const structPage = await openParticipant(app, dir, 'Structure', deadline);
+        await shotField(structPage, c.structureField, `tutorial-${c.id}-structure.png`, c.warp ?? 200);
+      } else {
+        result = resultPages[0];
+        ({ selector, options } = await shotField(result, c.field, `tutorial-${c.id}-results.png`));
+        choice = options.find(o => o.text.startsWith(c.field + ' '));
+      }
       if (c.id === 'fluid') {
         const pressure = options.find(o => o.text.startsWith('PRESSURE '));
         assert.ok(pressure, 'Missing PRESSURE');

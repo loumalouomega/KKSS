@@ -8,12 +8,14 @@ import { cases } from './cases.mjs';
 import { root, python } from './mcp.mjs';
 import { publishTutorialPlots } from './plots.mjs';
 
-const sources = process.argv.slice(2).map(p => path.resolve(p));
-if (!sources.length) throw Error('Usage: node tools/tutorials/publish.mjs <generation-directory> [...]');
+const args = process.argv.slice(2);
+const only = new Set(args.filter(a => a.startsWith('--only=')).flatMap(a => a.slice('--only='.length).split(',')));
+const sources = args.filter(a => !a.startsWith('--')).map(p => path.resolve(p));
+if (!sources.length) throw Error('Usage: node tools/tutorials/publish.mjs <generation-directory> [...] [--only=<case>[,<case>]]');
 const exec = promisify(execFile);
 const output = path.join(root, 'doc/public/examples/tutorials');
 await fs.mkdir(output, { recursive: true });
-for (const c of cases) {
+for (const c of cases.filter(c => !only.size || only.has(c.id))) {
   let source;
   for (const candidate of sources) {
     try { await fs.access(path.join(candidate, c.id, 'verification.json')); source = path.join(candidate, c.id); } catch { /* another generation */ }
@@ -22,12 +24,13 @@ for (const c of cases) {
   const verified = await exec(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, source], { encoding: 'utf8' });
   const verification = JSON.parse(verified.stdout);
   const dest = path.join(output, c.id);
+  if (path.resolve(source) === path.resolve(dest)) throw Error(`${c.id}: the generation directory is the published directory`);
   await fs.rm(dest, { recursive: true, force: true });
   await fs.mkdir(dest);
   await fs.copyFile(path.join(root, 'LICENSE'), path.join(dest, 'LICENSE'));
   for (const name of await fs.readdir(source)) {
-    if (name === 'vtk_output' || name === c.geometry || name === 'obstacle-channel.svg' || name.startsWith(c.geometry + '.') && !name.endsWith('.geo') ||
-        /^(mesh(?:_case)?\.mdpa|mesh\.kratoscase\.json|ProjectParameters\.json|.*Materials\.json|MainKratos\.py)$/.test(name)) {
+    if (name === 'vtk_output' || name === 'kkss-convergence-v2.jsonl' || name === c.geometry || name === 'obstacle-channel.svg' || name.startsWith(c.geometry + '.') && !name.endsWith('.geo') ||
+        /^(mesh(?:_case|_Fluid|_Structural)?\.mdpa|mesh\.kratoscase\.json|ProjectParameters(?:CoSim|CFD|CSM)?\.json|.*Materials\.json|MainKratos(?:CoSim)?\.py)$/.test(name)) {
       await fs.cp(path.join(source, name), path.join(dest, name), { recursive: true });
     }
   }
@@ -51,7 +54,7 @@ for (const c of cases) {
     verification.revisions[name] = revision.stdout.trim();
   }
   await fs.writeFile(path.join(dest, 'verification.json'), JSON.stringify(verification, null, 2) + '\n');
-  await fs.writeFile(path.join(dest, 'README.txt'), `${c.title}\n\nOpen ${c.geometry} in KKSS Pre-Processing. Sidecars replay the documented geometry edits and named Parts.\nOpen mesh.mdpa in Post-Processing for the saved Problemtype setup.\nRun MainKratos.py with Kratos 10.4.3 and the required application, using OMP_NUM_THREADS=2.\nSee https://loumalouomega.github.io/KKSS/guide/tutorial-${c.id}\n\nverification.json records solver-produced results and SHA-256 hashes. Values are tutorial checks, not formal solver certification.\nGeometry source: ${c.source}; source and derived tutorial assets distributed under KKSS's AGPL-3.0-or-later license.\n`);
+  await fs.writeFile(path.join(dest, 'README.txt'), `${c.title}\n\nOpen ${c.geometry} in KKSS Pre-Processing. Sidecars replay the documented geometry edits and named Parts.\nOpen mesh.mdpa in Post-Processing for the saved Problemtype setup.\nRun ${c.driver ?? 'MainKratos.py'} with Kratos 10.4.3 and the required application, using OMP_NUM_THREADS=2.\nSee https://loumalouomega.github.io/KKSS/guide/tutorial-${c.id}\n\nverification.json records solver-produced results and SHA-256 hashes. Values are tutorial checks, not formal solver certification.\nGeometry source: ${c.source}; source and derived tutorial assets distributed under KKSS's AGPL-3.0-or-later license.\n`);
   await exec(python, ['-c', `import pathlib,sys,zipfile
 source=pathlib.Path(sys.argv[1])
 with zipfile.ZipFile(sys.argv[2], 'w', zipfile.ZIP_DEFLATED) as z:
