@@ -7,7 +7,7 @@ full auto-generated compare links.
 
 ## Unreleased
 
-### Tutorials: FSI example is now the Mok benchmark
+## [2.14.0] - 2026-10-16
 
 - feat: the FSI tutorial reproduces the **Mok benchmark** (Mok 2001, Valdés 2007;
   Kratos' `fsi_mok` validation case) through the app's own pipeline — CAD polyline
@@ -26,8 +26,6 @@ full auto-generated compare links.
 - docs: the CoSimulation tutorial keeps the channel-slab case with a self-contained
   write-up (it no longer defers to the FSI page) and 200× display warp; both
   coupled tutorials gain fresh captures and wall-tip/pressure plot recipes.
-
-### CAD/mesh submodule integration (CAD Preview 3.18.0 · Mesh Preview 5.12.0)
 
 - feat: CAD Preview 3.18.0's **Printability panel** (Advanced ▸ Analysis) and its
   `check_printability` tool: an overhang limit and build direction, a bundled process
@@ -63,8 +61,6 @@ full auto-generated compare links.
   (`cad__check_printability` and `mesh__plot_run_resolve` read, `mesh__case_export_results`
   write, path-scoped), and the bundled drawing-sheet templates the chat's
   `list_sheet_templates` reads are now staged alongside the starter process limits.
-
-### CAD/mesh submodule integration (CAD Preview 3.17.0 · Mesh Preview 5.11.0)
 
 - feat: mesh 5.11.0's **new problemtype families** — four **ROM** reduced-order-model
   trainers (Structural Mechanics, Convection-diffusion, Fluid Dynamics, Potential Flow;
@@ -263,6 +259,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.14.0]: https://github.com/loumalouomega/KKSS/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/loumalouomega/KKSS/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/loumalouomega/KKSS/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/loumalouomega/KKSS/compare/v2.10.0...v2.11.0
