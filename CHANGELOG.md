@@ -7,6 +7,8 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.16.0] - 2026-10-17
+
 - feat: the **Help menu** gains the two windows it was missing: **KKSS Manual…**
   opens the full documentation site inside the app (`kkss://docs` — the built
   site staged to `out/docs/` by every build, its ~100 MB of downloadable
@@ -19,6 +21,10 @@ full auto-generated compare links.
   fallback page instead of an error. Pinned by `test/docsServe.test.ts`
   (path-traversal guard, example-link rewrite, site-base agreement with the
   built dist) and `test/helpMenu.test.ts` (menu order + i18n in en/es).
+- fix: the release workflow installs the manual's dependencies (`npm ci --prefix doc`)
+  before building the in-app manual. The v2.15.0 tag's release run failed at that
+  step and published nothing, so this release is the first published build of the
+  2.15.0 code, along with the Help menu above.
 
 ## [2.15.0] - 2026-10-17
 
@@ -302,6 +308,8 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.16.0]: https://github.com/loumalouomega/KKSS/compare/v2.15.0...v2.16.0
+[2.15.0]: https://github.com/loumalouomega/KKSS/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/loumalouomega/KKSS/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/loumalouomega/KKSS/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/loumalouomega/KKSS/compare/v2.11.0...v2.12.0

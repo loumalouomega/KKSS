@@ -2,7 +2,7 @@
 
 Kratos simulations usually start from geometry — but plenty of usable geometry
 starts as a *mesh*: a triangulated scan, a mesh exported by another code, or a
-skin extracted from a CFD case. KKSS 2.15.0 closes that direction with
+skin extracted from a CFD case. KKSS 2.16.0 closes that direction with
 **Fit to CAD**: meshio++'s `fitCad` segments a closed triangle skin and
 replaces every patch with an exact analytic face — planes, spheres, cylinders,
 cones and tori, rolling-ball fillets and blends, chamfers, vertex blends,
