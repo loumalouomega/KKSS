@@ -86,6 +86,22 @@ The feed plumbing electron-updater needs: the `publish:` block in `electron-buil
 
 Content comes straight from the repo's `CHANGELOG.md` — `esbuild.mjs`'s `copyArtifacts()` copies it verbatim to `out/CHANGELOG.md` (read via `__dirname` next to `out/main.js`, same path-contract pattern as the other `out/`-relative assets), and `app/main/services/changelog.ts`'s `parseChangelog()` — kept electron-import-free like `updateCheck.ts`, so `test/changelog.test.ts` can exercise it directly — splits it on the `## [X.Y.Z] - YYYY-MM-DD` headings the `CLAUDE.md` changelog-sync rule enforces. Keeping that format is what keeps this dialog's content accurate; a heading that doesn't match the pattern is silently skipped.
 
+### License window
+
+**Help ▸ License…** (`app/main/services/license.ts`) is the About pattern at its smallest: a frameless singleton over `app/renderer/license/` whose one message back is `{type: "close"}` (`license:toHost`, `app/preload/licensePreload.ts`). The text it shows is the repo's `LICENSE` — `copyArtifacts()` copies it to `out/LICENSE` beside `CHANGELOG.md`, the service reads it via `__dirname` and sends the whole file inside one `license:init` message (`{version, text}`), and the renderer puts it in a selectable `<pre>`. The window title and subtitle come from the `KKSS License` / `Full license text, as shipped with this build (version {0}).` i18n keys, so the page and the menu travel together in both locales.
+
+### The in-app manual (KKSS Manual…)
+
+**Help ▸ KKSS Manual…** (`app/main/services/manual.ts`) opens the documentation site **inside the app**: a resizable window on `kkss://docs`, the protocol branch in `app/main/protocol.ts` that serves the built site from `out/docs/` — `doc/.vitepress/dist`, staged by `esbuild.mjs`'s `copyArtifacts()` on every build (optional like the VTK-wasm runtime: without it the handler serves `manualFallbackHtml()`, whose one line is "run `npm run docs:build`"; packaged installs always ship a built manual because the build stages it).
+
+Three rules make the site work served rather than hosted:
+
+- **The base never moves.** The built pages carry the site's public base (`vitepress.config`'s `base: '/KKSS/'`) in every asset and page link, and VitePress's client router resolves against `location.pathname` — so the manual URL keeps the base (`kkss://docs/KKSS/…`, `manual.ts`'s `MANUAL_ROOT_URL`) and the protocol branch strips `SITE_BASE` before mapping to disk (`resolveDocsPath`, `app/main/services/docsServe.ts`, pinned by `test/docsServe.test.ts` against path traversal). Change the docs base and `docsServe.ts`'s `SITE_BASE` moves with it; the test fails if the constant and a built `dist/index.html` disagree.
+- **The ~100 MB of downloadable examples stay a web concern.** `copyArtifacts()` stages everything but `examples/`, and rewrites the built pages' `<a href>` example links to the published site's URLs (`rewriteExampleLinks`, the same pinned module) — `manual.ts` intercepts `will-navigate` off `kkss://docs` and opens those (and any outside URL) in the OS browser instead of replacing the manual.
+- **A distinct origin.** The manual lives on the `kkss://docs` host label (never `kkss://app`), so the site's scripts are not `kkss://app`-origin siblings of the app's own pages; the window ships no preload bridge.
+
+`test/helpMenu.test.ts` pins the menu order (Manual → Documentation → submodule links → License → What's New → About) and both i18n key sets.
+
 ## Guided workflow services
 
 `app/main/services/workflows/` contains the app-owned v1 project, environment and queue contracts.

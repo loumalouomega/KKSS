@@ -7,6 +7,19 @@ full auto-generated compare links.
 
 ## Unreleased
 
+- feat: the **Help menu** gains the two windows it was missing: **KKSS Manual…**
+  opens the full documentation site inside the app (`kkss://docs` — the built
+  site staged to `out/docs/` by every build, its ~100 MB of downloadable
+  examples left online with their links rewritten to the published site), and
+  **License…** shows the repo's AGPL-3.0 license text beside the existing
+  What's New and About dialogs (and the Online-documentation and submodule
+  links). The manual window is a normal resizable singleton window; internal
+  VitePress navigation stays in the window, example/outside links open in the
+  OS browser; a dev checkout without `npm run docs:build` gets a one-command
+  fallback page instead of an error. Pinned by `test/docsServe.test.ts`
+  (path-traversal guard, example-link rewrite, site-base agreement with the
+  built dist) and `test/helpMenu.test.ts` (menu order + i18n in en/es).
+
 ## [2.15.0] - 2026-10-17
 
 - feat: **mesh → CAD** (the meshioplusplus 17.2.0/17.3.0 update, embedded at CAD

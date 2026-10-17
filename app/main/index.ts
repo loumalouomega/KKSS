@@ -25,6 +25,7 @@ import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsup
 import { showOpenDialog } from "./services/dialogs";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
+import { configureLicense } from "./services/license";
 import { configureWhatsNew, checkForNewVersion } from "./services/whatsNew";
 import { configureAppearance, windowBackground } from "./services/appearance";
 import { configureSettings, refreshSettingsRows, showSettings } from "./services/settings/settingsWindow";
@@ -1315,6 +1316,7 @@ app.whenReady().then(() => {
   configurePicker(__dirname);
   configureAbout(__dirname);
   configureWhatsNew(__dirname);
+  configureLicense(__dirname);
   // Before the first view: every preload fetches the theme synchronously.
   configureLocale();
   configureAppearance();

@@ -388,11 +388,21 @@ resubmitted automatically.
   `public/`+`views/`, its `LICENSE`, and our `vscode-bridge.js`) must sit
   beside `out/main.js`.
 - **Custom schemes replace VS Code webview plumbing.** `kkss://app/...`
-  serves out/ assets; `kkss-file://local/<enc>` serves user files from
-  allow-listed roots only (`app/main/protocol.ts` — the `localResourceRoots`
-  equivalent). cad's `loadUrl` strategy fetches `kkss-file:` URLs; the CSP in
-  each generated page must keep allowing that (and `worker-src blob:` for
-  vtk.js).
+  serves out/ assets; `kkss://docs/...` serves the in-app manual (Help ▸
+  KKSS Manual…: the built docs site staged to `out/docs/` — everything but
+  the ~100 MB `examples/` tree, whose links esbuild rewrites to the
+  published site; the URL keeps the site's own `/KKSS/` base because
+  VitePress's router 404s without it, the handler strips it before mapping
+  to disk — `app/main/services/docsServe.ts` owns both rules and
+  `test/docsServe.test.ts` pins them); `kkss-file://local/<enc>` serves
+  user files from allow-listed roots only (`app/main/protocol.ts` — the
+  `localResourceRoots` equivalent). cad's `loadUrl` strategy fetches
+  `kkss-file:` URLs; the CSP in each generated page must keep allowing
+  that (and `worker-src blob:` for vtk.js). Help's other windows follow
+  the About singleton pattern: License (`services/license.ts`, the
+  `LICENSE` file beside `CHANGELOG.md` pushed in one `license:init`) and
+  the manual (`services/manual.ts`, which opens any off-`kkss://docs`
+  navigation in the OS browser).
 - **The mesh page is the ONE asset the host rewrites on the way out.**
   `kkss://app/renderer/mesh/index.html` is read as text and passed through
   `app/main/mesh/rendererPage.ts` before it is served; everything else — the

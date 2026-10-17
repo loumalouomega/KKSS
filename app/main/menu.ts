@@ -15,6 +15,8 @@ import type { MeshHost } from "./mesh/meshHost";
 import type { Mode, Screen } from "./ipc";
 import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
+import { showLicense } from "./services/license";
+import { showManual } from "./services/manual";
 import { showChangelog } from "./services/whatsNew";
 import { stateStore } from "./services/stateStore";
 import type { CloudStatus } from "./services/cloud/cloudService";
@@ -852,6 +854,7 @@ export function installMenu(deps: MenuDeps): void {
     {
       label: t("&Help"),
       submenu: [
+        { label: t("KKSS Manual…"), click: () => showManual() },
         { label: t("KKSS Documentation"), click: () => void shell.openExternal(DOCS_URL) },
         {
           label: t("CAD-Preview (pre-processing submodule)"),
@@ -862,6 +865,7 @@ export function installMenu(deps: MenuDeps): void {
           click: () => void shell.openExternal("https://github.com/loumalouomega/VSCode-MDPA-Preview"),
         },
         { type: "separator" },
+        { label: t("License…"), click: () => showLicense() },
         { label: t("What's New…"), click: () => showChangelog() },
         { label: t("About KKSS…"), click: () => showAbout() },
       ],

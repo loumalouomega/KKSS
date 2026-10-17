@@ -56,6 +56,11 @@ jobs:
       - name: Install submodule dependencies
         run: npm run submodules:install
 
+      # Before the app build: esbuild stages the built site into out/docs/ as
+      # the in-app manual (Help ▸ KKSS Manual…), so it ships in every package.
+      - name: Build the manual (docs site)
+        run: npm run docs:build
+
       - name: Build (submodules + app)
         run: npm run build
 
