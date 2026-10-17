@@ -152,7 +152,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__queue_resume: "write",
   app__queue_resume_row: "write",
   app__queue_cancel: "write",
-  // ---- cad-preview (77) ---------------------------------------------------
+  // ---- cad-preview (81) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",
   cad__get_mass_properties: "read",
@@ -181,6 +181,15 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // thickness over the welded triangles, plus overlay buffers for the panel.
   // It writes nothing — the same read-shaped class as its siblings above.
   cad__check_printability: "read",
+  // cad 3.19.0's mesh → analytic CAD: fit_mesh_to_cad writes a brand-new
+  // AP214 STEP (and optionally the solid's .cad.json B-rep side channel) —
+  // never the source mesh, but a file lands on disk. iga_refine likewise
+  // always writes a new .cad.json; iga_sample and iga_evaluate are facts and
+  // evaluations only.
+  cad__fit_mesh_to_cad: "write",
+  cad__iga_sample: "read",
+  cad__iga_refine: "write",
+  cad__iga_evaluate: "read",
   cad__recognize_primitives: "read",
   cad__list_workspace_models: "read",
   cad__get_state: "read",
@@ -241,7 +250,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
 
-  // ---- kratos-mdpa (51) ---------------------------------------------------
+  // ---- kratos-mdpa (52) ---------------------------------------------------
   mesh__mesh_resample: "write",
   mesh__mesh_periodic: "write",
   mesh__mesh_info: "read",
@@ -290,6 +299,10 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // `folder` (default "converted", relative to the case folder) — the same
   // tools the File menu's Convert Results item calls.
   mesh__case_export_results: "write",
+  // mesh 5.14.0's Export Optimized Geometry as CAD: the final design-field
+  // frame through mesh's own .step pipeline (auto-fit + .cad.json companion)
+  // beside the exported STEP — write-shaped like every mesh__* file target.
+  mesh__case_optimization_cad: "write",
   mesh__case_evaluate_quantity: "read",
   mesh__case_estimate_timestep: "read",
   mesh__mesh_select: "write",

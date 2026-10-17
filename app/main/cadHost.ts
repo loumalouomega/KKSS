@@ -2853,6 +2853,11 @@ export class CadHost {
       return;
     }
 
+    if (msg.type === "fitMeshToCadButtonClicked") {
+      await this.handleFitMeshToCad();
+      return;
+    }
+
     if (msg.type === "printabilityRequest") {
       // cad 3.18.0's Printability panel, ported message-for-message from
       // provider.ts: a facts-only report over the welded triangles any source
@@ -4024,6 +4029,73 @@ export class CadHost {
       );
       return result.stlBytes;
     });
+  }
+
+  /**
+   * cad 3.19.0's Fit to CAD (meshio++'s `fitCad`) — the *analytic* counterpart
+   * of `handlePromoteToBrep`: promotion SEWS the triangles into a B-rep, this
+   * REPLACES them with exact faces (planes/spheres/cylinders/cones/tori,
+   * fillets/blends/chamfers/threads, freeform B-splines where nothing else
+   * fits). Same one-shot-export shape (the source keeps its mesh identity) and
+   * the same `COMPARABLE_MESH_FORMATS` gate; it additionally needs a closed,
+   * CONSISTENTLY WOUND skin and the full artifact's OpenCASCADE (a mesh that
+   * fails to close throws upstream's own error, naming the open edges — the
+   * Mesh Health report already showed them). Deliberately always a STEP and no
+   * format/unit quick-picks: `fitCad` writes AP214 and takes the mesh's own
+   * coordinates as-is, so there is nothing to choose. Unlike
+   * `promptSaveAndWrite`'s generic "Exported to …" status, the final message
+   * carries the fit's own report — `valid` in particular is the one thing the
+   * user must not lose, since an invalid solid is still written and must be
+   * stated as such (provider.handleFitMeshToCad, message-for-message).
+   */
+  private async handleFitMeshToCad(): Promise<void> {
+    const doc = this.doc;
+    if (!doc?.route) return;
+    if (!COMPARABLE_MESH_FORMATS.has(doc.route.format)) {
+      this.post({
+        type: "error",
+        message:
+          doc.route.strategy === "three"
+            ? displayOnlyMeshMessage(doc.route.format, "Fit to CAD")
+            : "Fit to CAD requires an STL/OBJ/PLY/glTF source.",
+      });
+      return;
+    }
+    const meshFormat = doc.route.format as MeshParseFormat;
+
+    const baseName = path.basename(doc.path).replace(/\.[^.]+$/, "");
+    const savePath = await showSaveDialog({
+      defaultPath: path.join(path.dirname(doc.path), `${baseName}.step`),
+      filters: [{ name: "STEP", extensions: ["step"] }],
+    });
+    if (!savePath) return;
+
+    try {
+      const sourceBytes = await fs.readFile(doc.path);
+      const result = await cadCompute.fitMeshToCad(
+        sourceBytes,
+        meshFormat,
+        {},
+        await this.gltfBuffers(meshFormat, sourceBytes)
+      );
+      await fs.writeFile(savePath, result.stepBytes);
+
+      const r = result.report;
+      const summary =
+        `${r.numFaces} faces (${r.numPlane} plane, ${r.numCylinder} cylinder, ${r.numSphere} sphere, ` +
+        `${r.numCone} cone, ${r.numTorus} torus), volume ratio ${r.volumeRatio.toFixed(4)}, ` +
+        `max deviation ${r.maxDeviation.toExponential(2)}`;
+      if (r.valid) {
+        this.post({ type: "status", text: `Fitted to CAD: ${summary} — saved to ${savePath}` });
+      } else {
+        this.post({
+          type: "error",
+          message: `The fitted solid failed OpenCASCADE's B-rep check (${summary}) — written to ${savePath}, but inspect it before relying on it.`,
+        });
+      }
+    } catch (err) {
+      this.post({ type: "error", message: `Fit to CAD failed: ${(err as Error).message}` });
+    }
   }
 
   /**

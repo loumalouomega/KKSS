@@ -18,7 +18,9 @@
     "timeStep": 0.1,
     "endTime": 5,
     "echoLevel": 0,
-    "maxIterations": 20
+    "maxIterations": 20,
+    "elementType": "vms",
+    "timeScheme": "bossak"
   },
   "assignments": [
     {
@@ -375,5 +377,116 @@
       }
     }
   ],
-  "exportUnit": "m"
+  "exportUnit": "m",
+  "preflight": {
+    "ok": true,
+    "problemtype": "fluid",
+    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-PW5ANY/fluid/mesh.kratoscase.json",
+    "warnings": [],
+    "applications": [
+      "FluidDynamicsApplication"
+    ],
+    "issues": [],
+    "advisories": [],
+    "counts": {
+      "error": 0,
+      "warning": 0,
+      "info": 0
+    },
+    "findings": [],
+    "state": {
+      "version": 1,
+      "problemtypeId": "fluid",
+      "values": {
+        "problem": {
+          "strategy": "monolithic",
+          "elementType": "vms",
+          "timeScheme": "bossak",
+          "oss": false,
+          "dynamicTau": 1,
+          "timeStepMode": "fixed",
+          "startTime": 0,
+          "timeStep": 0.1,
+          "courantTarget": 1,
+          "minDeltaTime": 0.0001,
+          "maxDeltaTime": 0.1,
+          "refVelocity": 1,
+          "endTime": 5,
+          "maxIterations": 20,
+          "relVelTol": 0.001,
+          "absVelTol": 0.00001,
+          "relPresTol": 0.001,
+          "absPresTol": 0.00001,
+          "velocityTolerance": 0.001,
+          "maxVelocityIterations": 4,
+          "predictorCorrector": false,
+          "pressureTolerance": 0.001,
+          "maxPressureIterations": 4,
+          "gravityValue": 0,
+          "gravityDirection": [
+            0,
+            -1,
+            0
+          ],
+          "linearSolver": "automatic",
+          "linearMaxIteration": 200,
+          "linearTolerance": 1e-7,
+          "preconditioner": "none",
+          "echoLevel": 0,
+          "computeReactions": false
+        }
+      },
+      "assignments": [
+        {
+          "conditionId": "parts",
+          "smpPath": "Domain",
+          "values": {}
+        },
+        {
+          "conditionId": "inlet",
+          "smpPath": "Inlet",
+          "values": {
+            "modulus": 0.1,
+            "direction": "x"
+          }
+        },
+        {
+          "conditionId": "outlet",
+          "smpPath": "Outlet",
+          "values": {
+            "value": 0
+          }
+        },
+        {
+          "conditionId": "slip",
+          "smpPath": "Walls",
+          "values": {}
+        },
+        {
+          "conditionId": "noSlip",
+          "smpPath": "Obstacle",
+          "values": {}
+        }
+      ],
+      "materials": [
+        {
+          "smpPath": "Domain",
+          "lawId": "newtonian_2d",
+          "values": {
+            "DENSITY": 1000,
+            "DYNAMIC_VISCOSITY": 0.6
+          }
+        }
+      ],
+      "output": {
+        "format": "ascii",
+        "controlType": "step",
+        "interval": 1,
+        "nodalVariables": [
+          "VELOCITY",
+          "PRESSURE"
+        ]
+      }
+    }
+  }
 }

@@ -30,6 +30,7 @@ import type * as brepHealth from "../../cad/src/brepHealth";
 import type * as passageAnalysis from "../../cad/src/passageAnalysisHost";
 import type * as meshDeviation from "../../cad/src/meshDeviationHost";
 import type * as printabilityHost from "../../cad/src/printabilityHost";
+import type * as meshFitCad from "../../cad/src/meshFitCad";
 import type * as gltfDecode from "../../cad/src/gltfDecode";
 import type * as brepCache from "./cadBRepCache";
 import { createKernelTracker } from "./cadKernelStatus";
@@ -279,6 +280,10 @@ export const cadCompute = {
   // triangles any source reduces to (the worker spreads printabilityHost, and
   // kernelActivity.ts keys it to OCCT).
   checkPrintability: rpc<typeof printabilityHost.checkPrintability>("checkPrintability"),
+  // cad 3.19.0's Fit to CAD: meshio++ fitCad over a segmented, primitive-fitted
+  // closed skin (meshFitCad.ts) — the interactive half of `cad__fit_mesh_to_cad`.
+  // Needs the FULL artifact's OpenCASCADE; the staged out/meshio tree serves it.
+  fitMeshToCad: rpc<typeof meshFitCad.fitMeshToCad>("fitMeshToCad"),
 
   // ---- meshio++ route (VTK/VTU/MED/CGNS/Exodus/XDMF/MDPA, OpenFOAM) -----
   convertToStlBoundary: rpc<typeof meshio.convertToStlBoundary>("convertToStlBoundary"),

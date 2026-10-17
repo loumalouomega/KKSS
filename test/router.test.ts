@@ -3,10 +3,30 @@ import { modeForFile, modeForViewType, unsupportedSuffix } from "../app/main/rou
 import { routeFile } from "../cad/src/fileRouter";
 
 describe("modeForFile", () => {
-  it("routes CAD-only formats to cad regardless of active mode", () => {
-    for (const f of ["a.step", "a.stp", "a.iges", "a.igs", "a.brep", "a.gltf", "a.glb"]) {
+  it("routes formats mesh never claims to cad regardless of active mode", () => {
+    // Only sources that cannot open in mesh mode stay unconditional: the
+    // B-rep/parametric formats (since mesh 5.13.0 STEP/IGES/glTF joined its
+    // reader set, .brep/.csg/.scad are left) and 17.3.0's Tecplot binary,
+    // whose reader meshio++ only reaches through cad's importer.
+    for (const f of ["a.brep", "a.scad", "a.plt"]) {
       expect(modeForFile(f, "cad")).toBe("cad");
       expect(modeForFile(f, "mesh")).toBe("cad");
+    }
+  });
+
+  it("lets the active mode decide the overlap cad routes with its own pipeline", () => {
+    // mesh 5.13.0: STEP/IGES reads (the full artifact's OpenCASCADE returning
+    // the solid's own triangulation) and glTF/GLB reads joined the mesh
+    // registry, so these no longer act like CAD-only formats. cad still
+    // reaches them with its OWN pipeline (occt for the B-reps, three.js for
+    // glTF), which per the overlap rule means the active mode wins — an OS
+    // launch (activeMode always "cad") keeps STEP opening in CAD, while a
+    // mesh-mode tab opening one reads its skin instead. The cad routes that
+    // go through its meshio++ BRIDGE (geometry-only boundary) still lose to
+    // mesh (the .t19/.plt/… test below).
+    for (const f of ["a.step", "a.stp", "a.iges", "a.igs", "a.gltf", "a.glb"]) {
+      expect(modeForFile(f, "cad")).toBe("cad");
+      expect(modeForFile(f, "mesh")).toBe("mesh");
     }
   });
 
@@ -24,6 +44,18 @@ describe("modeForFile", () => {
     // blocks, SubModelParts). Without the strategy check they would fall into
     // the "active mode wins" branch and .mdpa would open in CAD mode.
     for (const f of ["a.mdpa", "a.vtk", "a.vtu", "a.med", "a.cgns", "a.exo", "a.e", "a.xdmf"]) {
+      expect(routeFile(f)?.strategy).toBe("meshio"); // cad really does claim it
+      expect(modeForFile(f, "cad")).toBe("mesh");
+      expect(modeForFile(f, "mesh")).toBe("mesh");
+    }
+  });
+
+  it("routes meshio++ 17.3.0's solver-result formats to mesh even though cad claims them", () => {
+    // cad 3.20.0 routed the remaining meshio++ 17.3.0 writers as imports
+    // (.plt/.xplt/.meshb/.t19/.fil/.rst/.d3plot) — strategy "meshio", the
+    // geometry-only bridge, so they belong to the post-processing mode that
+    // reads fields and SubModelParts, exactly like .mdpa above.
+    for (const f of ["a.xplt", "a.meshb", "a.t19", "a.fil", "a.rst", "a.d3plot"]) {
       expect(routeFile(f)?.strategy).toBe("meshio"); // cad really does claim it
       expect(modeForFile(f, "cad")).toBe("mesh");
       expect(modeForFile(f, "mesh")).toBe("mesh");
@@ -132,7 +164,7 @@ describe("modeForFile", () => {
   });
 
   it("lets the active mode win for overlapping formats", () => {
-    for (const f of ["a.stl", "a.obj", "a.ply"]) {
+    for (const f of ["a.stl", "a.obj", "a.ply", "a.gltf", "a.glb"]) {
       expect(modeForFile(f, "cad")).toBe("cad");
       expect(modeForFile(f, "mesh")).toBe("mesh");
     }
@@ -144,7 +176,8 @@ describe("modeForFile", () => {
   });
 
   it("is case-insensitive", () => {
-    expect(modeForFile("A.STEP", "mesh")).toBe("cad");
+    expect(modeForFile("A.STEP", "cad")).toBe("cad");
+    expect(modeForFile("A.STEP", "mesh")).toBe("mesh");
     expect(modeForFile("A.MDPA", "cad")).toBe("mesh");
   });
 });

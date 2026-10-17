@@ -1,4 +1,32 @@
+# Kratos applications this case needs; checked before anything is read or written.
+import importlib.util as _kkss_find
+import sys as _kkss_sys
+
+_KKSS_REQUIRED_APPLICATIONS = ["StructuralMechanicsApplication"]
+
+
+def _kkss_missing_applications():
+    if _kkss_find.find_spec("KratosMultiphysics") is None:
+        return ["KratosMultiphysics"]
+    missing = []
+    for name in _KKSS_REQUIRED_APPLICATIONS:
+        try:
+            found = _kkss_find.find_spec("KratosMultiphysics." + name) is not None
+        except (ImportError, ValueError):
+            found = False
+        if not found:
+            missing.append(name)
+    return missing
+
+
+_kkss_missing = _kkss_missing_applications()
+if _kkss_missing:
+    print("Missing Kratos applications: " + ", ".join(_kkss_missing), file=_kkss_sys.stderr)
+    print("Install them (pip install Kratos<Name>, e.g. KratosFluidDynamicsApplication) or point kratos.installPath at a build that has them.", file=_kkss_sys.stderr)
+    _kkss_sys.exit(3)
+
 import sys
+import os
 import time
 import importlib
 import json
@@ -6,6 +34,21 @@ import os
 import math
 
 import KratosMultiphysics
+
+def StopRequested():
+    # Cooperative stop: the launcher names a file (KRATOS_PREVIEW_STOP_FILE) and
+    # the run it addresses (KRATOS_PREVIEW_RUN_ID). Only a file holding THIS
+    # run's id counts, so a leftover from an earlier run cannot stop this one.
+    # Standalone launches set neither variable and this is a no-op.
+    stop_file = os.environ.get("KRATOS_PREVIEW_STOP_FILE")
+    run_id = os.environ.get("KRATOS_PREVIEW_RUN_ID")
+    if not stop_file or not run_id:
+        return False
+    try:
+        with open(stop_file, "r") as handle:
+            return handle.read().strip() == run_id
+    except OSError:
+        return False
 
 def CreateAnalysisStageWithFlushInstance(cls, global_model, parameters):
     class AnalysisStageWithFlush(cls):
@@ -94,6 +137,17 @@ def CreateAnalysisStageWithFlushInstance(cls, global_model, parameters):
                 if now - self.last_flush > self.flush_frequency:
                     sys.stdout.flush()
                     self.last_flush = now
+
+        def KeepAdvancingSolutionLoop(self):
+            if not super().KeepAdvancingSolutionLoop():
+                return False
+            if StopRequested():
+                # Leaving the loop here runs the normal Finalize, which closes
+                # the last result file instead of truncating it.
+                print("[stop requested - finalizing]")
+                sys.stdout.flush()
+                return False
+            return True
 
     return AnalysisStageWithFlush(global_model, parameters)
 

@@ -20,11 +20,6 @@
         },
         "echo_level": 0,
         "compute_reactions": false,
-        "maximum_iterations": 20,
-        "relative_velocity_tolerance": 0.001,
-        "absolute_velocity_tolerance": 0.00001,
-        "relative_pressure_tolerance": 0.001,
-        "absolute_pressure_tolerance": 0.00001,
         "volume_model_part_name": "FluidModelPart.Domain",
         "skin_parts": [
             "FluidModelPart.Inlet",
@@ -37,11 +32,18 @@
             "automatic_time_step": false,
             "time_step": 0.1
         },
+        "maximum_iterations": 20,
+        "relative_velocity_tolerance": 0.001,
+        "absolute_velocity_tolerance": 0.00001,
+        "relative_pressure_tolerance": 0.001,
+        "absolute_pressure_tolerance": 0.00001,
+        "time_scheme": "bossak",
         "formulation": {
             "element_type": "vms",
             "use_orthogonal_subscales": false,
             "dynamic_tau": 1
-        }
+        },
+        "reform_dofs_at_each_step": false
     },
     "processes": {
         "constraints_process_list": [
@@ -92,7 +94,8 @@
             }
         ],
         "loads_process_list": [],
-        "list_other_processes": []
+        "list_other_processes": [],
+        "initial_conditions_process_list": []
     },
     "output_processes": {
         "gid_output": [],

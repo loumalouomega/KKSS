@@ -9,12 +9,13 @@
     "algorithm3D": 1,
     "elementOrder": 1,
     "elementShape": "simplex",
-    "optimize": true,
+    "optimize": "default",
     "stlAngle": 40,
     "engine": "gmsh",
     "ftetwildEpsRel": 0.001,
     "ftetwildManifoldSurface": false,
     "ftetwildCoarsen": false,
-    "ftetwildDisableFiltering": false
+    "ftetwildDisableFiltering": false,
+    "conformal": true
   }
 }

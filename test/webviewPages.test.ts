@@ -44,6 +44,10 @@ describe.skipIf(!built)("generated webview pages", () => {
     // cad 3.18.0's Printability panel: main.ts binds it by id, so a stale page
     // would leave its checks inert.
     expect(html).toContain('id="printability-panel"');
+    // cad 3.19.0's Mesh Health ▸ Fit to CAD… button (meshio++ fitCad): same
+    // binding-by-id contract as the panel itself, and the host's
+    // fitMeshToCadButtonClicked handler is what makes the click do anything.
+    expect(html).toContain('id="mesh-health-fit"');
   });
 
   it("carries the mesh provider skeleton", () => {

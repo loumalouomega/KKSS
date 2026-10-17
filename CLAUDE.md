@@ -303,9 +303,9 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**17.2.0**, the version mesh locks and the one
-  KKSS stages; CAD declares `^16.42.0` and resolves that same staged tree, so the
-  pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
+  `@meshioplusplus/wasm` package (**17.3.0**, the version both submodules lock
+  and the one KKSS stages; cad 3.20.0 and mesh 5.14.0 declare the same `^17.3.0`,
+  so the pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
   rather than by the pins agreeing — re-run both after either bump, and prefer
   re-aligning CAD over letting the skew grow;
   since 10.20 the package has the field-only `.dex`/`.ip`/`.mff` formats —
@@ -324,9 +324,13 @@ resubmitted automatically.
   auto-selects the threaded one under Node — i.e. in the main process and
   `out/mcpServer.js` — so shipping only the old pair makes *every* extended
   format die with an opaque `LinkError`. The submodule's copy plugin emits all
-  four and `copyArtifacts()` mirrors the tree wholesale, so nothing parent-side
-  enumerates them; verify `out/meshio/dist/meshioplusplus_wasm*` lists four
-  files after a bump. Like pyodide/flowgraph it ships verbatim as
+  of them and `copyArtifacts()` mirrors the tree wholesale, so nothing parent-side
+  enumerates them; since mesh 5.13.0 the shipped set is **eight** files — the
+  lean pair, both `_mt` flavours and the **full pair** `_full`/`_full_mt`
+  (OpenCASCADE for STEP/IGES reads and cad's `fitCad`, the zstd/lz4 VTK XML
+  codecs, bzip2; ~80 MB raw, beside `THIRD_PARTY_NOTICES.md`) — after a bump
+  verify the full list and that a staged `fit` path resolves the full build.
+  Like pyodide/flowgraph it ships verbatim as
   `mesh/dist/meshio/`; `copyArtifacts()` mirrors it to a single **`out/meshio/`**
   tree beside `out/main.js` — `mesh/src/parser/meshio.ts`'s `packageDir()` falls
   back to `__dirname/meshio`, and since `meshio.ts` is bundled into **both**
@@ -340,9 +344,10 @@ resubmitted automatically.
   `out/cad-runtime/dist/../../meshio`. That is why KKSS's
   `cadMeshioLoader.ts` shim and its esbuild alias are gone, and why ONE version
   serves both consumers: the staged tree wins at runtime regardless of what
-  either `package.json` declares. mesh 5.12.0 moved to 17.2.0 while cad still
-  declares `^16.42.0`, so the two pins differ again — the runtime parity tests
-  are the gate, not the pins. It loads the `.wasm` via meshio++'s
+  either `package.json` declares. cad 3.20.0 and mesh 5.14.0 both declare
+  `^17.3.0`, so the pins match again (the 16.42→17.2→17.3 skew window is
+  closed) — the runtime parity tests are still the gate, not the pins. It
+  loads the `.wasm` via meshio++'s
   `locateFile` hook (the `wasmBinary` buffer hook MMG uses is pruned from this
   build), so the tree must exist on disk — another reason for `asar: false`.
   `@meshioplusplus/wasm` (and `@meshioplusplus/wasm/*`) is in `mainConfig.external`
@@ -383,11 +388,21 @@ resubmitted automatically.
   `public/`+`views/`, its `LICENSE`, and our `vscode-bridge.js`) must sit
   beside `out/main.js`.
 - **Custom schemes replace VS Code webview plumbing.** `kkss://app/...`
-  serves out/ assets; `kkss-file://local/<enc>` serves user files from
-  allow-listed roots only (`app/main/protocol.ts` — the `localResourceRoots`
-  equivalent). cad's `loadUrl` strategy fetches `kkss-file:` URLs; the CSP in
-  each generated page must keep allowing that (and `worker-src blob:` for
-  vtk.js).
+  serves out/ assets; `kkss://docs/...` serves the in-app manual (Help ▸
+  KKSS Manual…: the built docs site staged to `out/docs/` — everything but
+  the ~100 MB `examples/` tree, whose links esbuild rewrites to the
+  published site; the URL keeps the site's own `/KKSS/` base because
+  VitePress's router 404s without it, the handler strips it before mapping
+  to disk — `app/main/services/docsServe.ts` owns both rules and
+  `test/docsServe.test.ts` pins them); `kkss-file://local/<enc>` serves
+  user files from allow-listed roots only (`app/main/protocol.ts` — the
+  `localResourceRoots` equivalent). cad's `loadUrl` strategy fetches
+  `kkss-file:` URLs; the CSP in each generated page must keep allowing
+  that (and `worker-src blob:` for vtk.js). Help's other windows follow
+  the About singleton pattern: License (`services/license.ts`, the
+  `LICENSE` file beside `CHANGELOG.md` pushed in one `license:init`) and
+  the manual (`services/manual.ts`, which opens any off-`kkss://docs`
+  navigation in the OS browser).
 - **The mesh page is the ONE asset the host rewrites on the way out.**
   `kkss://app/renderer/mesh/index.html` is read as text and passed through
   `app/main/mesh/rendererPage.ts` before it is served; everything else — the
@@ -1106,7 +1121,7 @@ resubmitted automatically.
   what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 285-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
+  `test/chatToolPolicy.test.ts` pins the exact 290-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1450,8 +1465,80 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 77 CAD + 51 mesh + 4 aggregation + 31 app-owned
+discovery (current sets: 81 CAD + 52 mesh + 4 aggregation + 31 app-owned
 workflow tools).
+
+**The cad 3.18.0 → 3.20.0 + mesh 5.12.0 → 5.14.0 jump (KKSS 2.15.0, the
+meshio++ 17.2.0 **mesh → CAD** release and its 17.3.0 binary-writer follow-up)
+needed one host port, one worker alias pair, five policy rows, two packaging
+rows and a new worked-example page; both submodules now pin `^17.3.0`, closing
+the 17.2-era skew.**
+
+- **cad: the Mesh Health panel's "Fit to CAD…" button, ported
+  message-for-message.** cad 3.19.0's `fitMeshToCadButtonClicked` →
+  `handleFitMeshToCad` (always a STEP, no format/unit picks — `fitCad` writes
+  AP214 in the mesh's own coordinates): the host gate, the one
+  `showSaveDialog`, then `cadCompute.fitMeshToCad` → write → status post
+  carrying the fit's report (`N faces (…), volume ratio, max deviation`) or the
+  invalid-solid error (the file is still written; `valid:false` must be said),
+  exactly as `provider.ts` does. `handlePromoteToBrep`/`handleRepairMesh` were
+  the templates; the app adds no `assertMeshingJobActive` equivalent because
+  its compute RPC path already serialises per call. Plumbing:
+  `cadCompute.worker.ts` spreads the new `meshFitCad` module beside
+  `printabilityHost` (`assertNoCollisions` guards the new `fitMeshToCad` name),
+  and `cadComputeClient.ts` binds it (first non-`extensionPath` meshio-layer
+  call — it takes `(bytes, format, options, external)` and resolves the staged
+  tree itself through `runtimePackage.ts`, app-side too).
+- **cad: no other host port.** libMesh `.xda`/`.xdr` (+gz/bz2) and `.cad.json`
+  open, the FE Mesh panel gains the 17.3.0 solver-result export targets, and
+  the `iga_*` tools are MCP-only — all webview/kernel-side, so apart from the
+  Fit-to-CAD button (whose `#mesh-health-fit` markup flows through
+  `viewerBodyHtml()` wholesale and is anchored in `webviewPages.test.ts`) the
+  3.19/3.20 changes need no further `cadHost.ts` code. meshio++ 17.3.0 grew
+  +558 KB with a byte-identical loader surface, so no staged-tree logic
+  changed.
+- **mesh: reclassification, not a port.** mesh 5.13.0's STEP/IGES/glTF reads,
+  auto-fitting `.step` writer, igaRefine/igaSample derive kinds and lazy
+  full-artifact loads run entirely inside the submodule's own
+  providers/workers behind the shim; 5.14.0's `case_optimization_cad` and its
+  Runs command/panel button ride `showQuickPick`/`showInputBox`/
+  `showSaveDialog`/`showInformationMessage`, all pre-existing shim surface, and
+  the CAD export-group glyph arrives with `FILE_MENU_HTML`. **Policy grew five
+  rows** (81 CAD + 52 mesh = 290 total): `cad__fit_mesh_to_cad` (write: STEP +
+  optional `cadJsonPath`), `cad__iga_refine` (write: a new `.cad.json` always),
+  `cad__iga_sample`/`cad__iga_evaluate` (read), `mesh__case_optimization_cad`
+  (write); `toolPaths.ts` scopes the write trio (`cadJsonPath` included;
+  `meshPath`+`outputPath` for the optimization tool) and the write-tool list in
+  `chatToolPolicy.test.ts` grew with them, plus the new
+  `mesh__case_optimization_cad` prompt sentence. **Routing reclassified**:
+  STEP/IGES/glTF are no longer CAD-only — `SUPPORTED_MESH_EXTENSIONS` claims
+  them, so per the overlap rule (cad's own occt/three pipelines → the active
+  mode wins; cad's meshio bridge → mesh wins) a `.step` double-click from OS
+  launch still lands in CAD (`launch.ts` pins `activeMode: "cad"`) while an
+  open from a mesh tab reads its skin; `.plt` stays CAD-only (no mesh reader
+  key) and the six 17.3.0 result formats route to mesh through both sides'
+  meshio bridges. The two `test/router.test.ts` blocks pin exactly that.
+- **Packaging grew by two rows**: `plt` and `meshb` joined the
+  `fileAssociations` (108 total); everything else of the new suffix set
+  (step/stp/igs/iges/glb/gltf/xda/xdr/…, cad.json, d3plot, t19, xplt, rst) was
+  already there from earlier bumps. The staged `out/meshio/` tree now lists
+  **eight** wasm files (lean, `_mt`, `_full`, `_full_mt`) plus
+  `THIRD_PARTY_NOTICES.md` — `doc/guide/development.md`'s checklist says so.
+- **Examples and docs carry the feature**: `guide/tutorial-mesh-to-cad.md`
+  (built, linked in the VitePress nav) plus `doc/public/examples/fit-cad/` — a
+  100k-triangle sphere fitted live to one exact spherical face
+  (`volume ratio 1.0002, deviation 0.2964 mm`) and refined
+  ([7,5]/35 → [10,7]/70 control points) through the bundled servers; the
+  format tables, `cad-mode.md`/`mesh-mode.md`/`file-formats.md`/`README.md`
+  and the counts (64/53 readable/writable, 88/62 suffixes) all re-derive from
+  `tools/format-registry.mjs`.
+- **Verified:** `typecheck`; full unit suite (922 passed + both MCP runtime
+  gates); `check:packaging` (64/53, 108 associations); live `tools/list` of
+  both bundled servers (81 CAD + 52 mesh, the five new names, policy equal);
+  live `fit_mesh_to_cad` → STEP+`.cad.json` → `iga_refine` on the STL cube and
+  sphere fixtures, and mesh-side `.step` export auto-fit re-read through
+  `mesh_info`'s NURBS counts followed by `mesh_derive igaRefine` (6 patches →
+  1548 cells); theme guard and `docs:build`.
 
 **The cad 3.17.0 → 3.18.0 + mesh 5.11.0 → 5.12.0 jump needed one host port,
 one new picker mode, three policy rows and one packaging row; meshio++ moved to
@@ -2325,8 +2412,10 @@ extended-format time-series readers.
 
 `tools/format-registry.mjs` shares the packaging source parse and derives separate
 counts from unique values in `MESHIO_READ_CANDIDATES` and `MESHIO_WRITE_FORMAT`.
-At the current gitlinks: 61 readable and 49 writable extended formats, with 81
-read and 57 write suffixes. Native formats remain separate; field-only formats
+At the current gitlinks: 64 readable and 53 writable extended formats, with 88
+read and 62 write suffixes (108 packaged associations — the electron-builder
+`fileAssociations` rows track the routers, `tools/check-package-associations.mjs`
+is the gate). Native formats remain separate; field-only formats
 are included, and writable figures SVG/TikZ count only on write. Packaging CI
 rejects mismatched or ambiguous counts in the landing page and format/start guides.
 Regenerate the Home form capture with

@@ -53,6 +53,12 @@ export const SCOPED_TOOL_PATH_ARGS: Readonly<Record<string, readonly string[]>> 
   cad__export_technical_drawing: ["path", "outputPath"],
   cad__export_tessellated_stl: ["path", "outputPath", "libraryPath"],
   cad__fit_mesh_region: ["path"],
+  // cad 3.19.0's mesh → analytic CAD: the fitted solid's STEP at outputPath and,
+  // when requested, the B-rep side channel beside it.
+  cad__fit_mesh_to_cad: ["path", "outputPath", "cadJsonPath"],
+  // cad 3.19.0 IGA refine always writes a NEW .cad.json at outputPath
+  // (iga_sample/iga_evaluate are facts-only and get no row).
+  cad__iga_refine: ["path", "outputPath"],
   cad__generate_prep_report: ["path", "outputDir", "manifestPath"],
   cad__import_svg: ["path", "svgPath"],
   cad__load_preprocess: ["zipPath", "outputPath"],
@@ -81,6 +87,10 @@ export const SCOPED_TOOL_PATH_ARGS: Readonly<Record<string, readonly string[]>> 
   mesh__case_export_results: ["meshPath", "folder"],
   mesh__case_monitors: ["meshPath", "outputPath", "resultPath", "run.recordPath"],
   mesh__case_optimization: ["meshPath", "outputPath"],
+  // mesh 5.14.0's Export Optimized Geometry as CAD: the run's final
+  // design-field frame through the .step pipeline (auto-fit + .cad.json
+  // companion); outputPath defaults beside the case folder when omitted.
+  mesh__case_optimization_cad: ["meshPath", "outputPath"],
   mesh__case_material_assign: ["meshPath", "smpPath", "casePath"],
   mesh__case_write_state: ["meshPath"],
   mesh__material_preset_import: ["path"],

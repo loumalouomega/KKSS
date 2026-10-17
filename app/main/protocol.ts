@@ -10,6 +10,15 @@
  *                               bakes in while building a preview's HTML and
  *                               KKSS — whose page is a build artifact — makes
  *                               per load here. See mesh/rendererPage.ts.
+ *  kkss://docs/<path>         — the in-app manual (Help ▸ KKSS Manual…): the
+ *                               documentation site built into out/docs/
+ *                               (doc/.vitepress/dist, staged by esbuild —
+ *                               the ~100 MB examples tree stays an
+ *                               online-only concern, its links rewritten to
+ *                               the published site per docsServe.ts). Host
+ *                               label `docs` under the kkss scheme, so the
+ *                               manual window is a distinct origin from
+ *                               the app pages.
  *  kkss-file://local/<enc>    — user files, served only from registered
  *                               allowed roots (the open document's directory).
  *                               Electron's replacement for VS Code's
@@ -22,6 +31,7 @@ import * as path from "path";
 import { pathToFileURL } from "url";
 import { isInsideRoot, isPathAllowed } from "./pathGuard";
 import { meshPage } from "./mesh/rendererPage";
+import { manualFallbackHtml, resolveDocsPath, SITE_BASE } from "./services/docsServe";
 
 /** The one generated page the host rewrites on the way out. */
 const MESH_PAGE = "/renderer/mesh/index.html";
@@ -55,6 +65,29 @@ export function installProtocolHandlers(outDir: string): void {
 
   protocol.handle("kkss", (request) => {
     const url = new URL(request.url);
+
+    // The manual: kkss://docs/<site path> serves the built docs site. The
+    // built pages carry the site's public base (SITE_BASE, `/KKSS/`) in every
+    // asset and page link, so requests arrive with it; strip it before
+    // resolving inside out/docs. The request is refused outright for anything
+    // `resolveDocsPath` will not keep inside the tree; a missing file (or a
+    // checkout with no manual at all) gets the one-command fallback page
+    // instead of a bare 404.
+    if (url.host === "docs") {
+      const pathname = url.pathname.startsWith(`${SITE_BASE}/`)
+        ? url.pathname.slice(SITE_BASE.length)
+        : url.pathname;
+      const fsPath = resolveDocsPath(path.join(appRoot, "docs"), pathname);
+      if (!fsPath) return new Response("Forbidden", { status: 403 });
+      if (!fs.existsSync(fsPath)) {
+        return new Response(manualFallbackHtml(), {
+          status: 404,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+      return net.fetch(pathToFileURL(fsPath).toString());
+    }
+
     const rel = decodeURIComponent(url.pathname);
     const fsPath = path.normalize(path.join(appRoot, rel));
     if (!isInsideRoot(appRoot, fsPath)) {

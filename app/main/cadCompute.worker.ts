@@ -31,6 +31,9 @@ import * as brepHealth from "../../cad/src/brepHealth";
 import * as passageAnalysis from "../../cad/src/passageAnalysisHost";
 import * as meshDeviation from "../../cad/src/meshDeviationHost";
 import * as printabilityHost from "../../cad/src/printabilityHost";
+// cad 3.19.0's Fit to CAD: meshio++ fitCad over a segmented, primitive-fitted
+// closed skin — the analytic counterpart of meshHeal's promotion.
+import * as meshFitCad from "../../cad/src/meshFitCad";
 // cad 3.14.0 compressed glTF: Draco/meshopt geometry expansion runs in the
 // kernel worker (WASM decoders never run in the host process).
 import * as gltfDecode from "../../cad/src/gltfDecode";
@@ -67,6 +70,7 @@ const modules: Array<[string, object]> = [
   ["passageAnalysisHost", passageAnalysis],
   ["meshDeviationHost", meshDeviation],
   ["printabilityHost", printabilityHost],
+  ["meshFitCad", meshFitCad],
   ["gltfDecode", gltfDecode],
   ["cadBRepCache", brepCache],
 ];

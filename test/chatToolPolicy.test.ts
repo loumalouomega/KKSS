@@ -221,18 +221,18 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 77 cad + 51 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
+    // 81 cad + 52 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
     // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(285);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(290);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
-    expect(cad).toHaveLength(77);
-    expect(mesh).toHaveLength(51);
+    expect(cad).toHaveLength(81);
+    expect(mesh).toHaveLength(52);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
@@ -432,7 +432,9 @@ describe("the table itself", () => {
       "cad__export_technical_drawing",
       "cad__export_tessellated_stl",
       "cad__fit_mesh_region",
+      "cad__fit_mesh_to_cad",
       "cad__generate_prep_report",
+      "cad__iga_refine",
       "cad__import_svg",
       "cad__job_cancel",
       "cad__load_preprocess",
@@ -461,6 +463,7 @@ describe("the table itself", () => {
       "mesh__case_material_assign",
       "mesh__case_monitors",
       "mesh__case_optimization",
+      "mesh__case_optimization_cad",
       "mesh__case_run",
       "mesh__case_stop",
       "mesh__case_write_state",

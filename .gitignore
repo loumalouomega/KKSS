@@ -10,3 +10,4 @@ doc/.vitepress/cache/
 
 # Live Electron acceptance diagnostics
 /test-results/
+.vitepress/cache/

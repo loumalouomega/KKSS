@@ -12,7 +12,6 @@
         "model_part_name": "Structure",
         "domain_size": 3,
         "echo_level": 1,
-        "analysis_type": "non_linear",
         "model_import_settings": {
             "input_type": "mdpa",
             "input_filename": "mesh_case"
@@ -23,7 +22,14 @@
         "time_stepping": {
             "time_step": 0.125
         },
-        "rotation_dofs": false
+        "rotation_dofs": false,
+        "analysis_type": "non_linear",
+        "convergence_criterion": "residual_criterion",
+        "residual_relative_tolerance": 0.0001,
+        "residual_absolute_tolerance": 1e-9,
+        "max_iteration": 10,
+        "line_search": false,
+        "use_old_stiffness_in_first_iteration": false
     },
     "processes": {
         "constraints_process_list": [

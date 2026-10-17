@@ -304,7 +304,12 @@ def verify_mok(directory):
 
 
 def verify(case, directory):
-    recipe = json.loads((pathlib.Path(directory) / 'recipe.json').read_text())
+    # recipe.json is the generator's recipe (generate.mjs writes it): only fsi
+    # uses `mok` for dispatch, and the published/generated coupled dirs always
+    # carry it. Tool-only flows (the scripted AI tutorial stages a case in the
+    # app directly) have none — treat that as "no fsi/mok recipe".
+    recipe_path = pathlib.Path(directory) / 'recipe.json'
+    recipe = json.loads(recipe_path.read_text()) if recipe_path.exists() else {}
     if case == 'fsi' and recipe.get('mok'):
         return verify_mok(directory)
     if case in ('fsi', 'cosim'):

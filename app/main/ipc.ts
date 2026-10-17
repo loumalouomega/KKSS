@@ -351,6 +351,16 @@ export interface AboutInit {
   platform: NodeJS.Platform;
 }
 
+/** Static facts sent to the License window once its page has loaded. */
+export interface LicenseInit {
+  version: string;
+  /** The repo LICENSE text beside the bundle (empty when it cannot be read). */
+  text: string;
+}
+
+/** Messages posted by the License window's renderer. */
+export type LicenseToHost = | { type: "close" };
+
 /** Messages posted by the About dialog renderer. */
 export type AboutToHost =
   | { type: "checkUpdates" }

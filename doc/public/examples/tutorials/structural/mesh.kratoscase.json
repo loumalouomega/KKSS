@@ -6,8 +6,27 @@
       "solverType": "static",
       "analysisType": "non_linear",
       "elementBase": "SmallDisplacementElement",
+      "schemeType": "bossak",
+      "startTime": 0,
       "timeStep": 0.125,
       "endTime": 1,
+      "convergenceCriterion": "residual_criterion",
+      "residualRelTol": 0.0001,
+      "residualAbsTol": 1e-9,
+      "displacementRelTol": 0.0001,
+      "displacementAbsTol": 1e-9,
+      "maxIteration": 10,
+      "lineSearch": false,
+      "useOldStiffness": false,
+      "rayleighAlpha": 0,
+      "rayleighBeta": 0,
+      "eigenCount": 5,
+      "eigenMaxIteration": 1000,
+      "eigenTolerance": 0.000001,
+      "linearSolver": "automatic",
+      "linearMaxIteration": 200,
+      "linearTolerance": 1e-7,
+      "preconditioner": "none",
       "echoLevel": 1
     }
   },
@@ -42,7 +61,7 @@
       "smpPath": "Solid",
       "lawId": "linear_elastic_3d",
       "values": {
-        "DENSITY": 0,
+        "DENSITY": 7850,
         "YOUNG_MODULUS": 210000000000,
         "POISSON_RATIO": 0.3
       }

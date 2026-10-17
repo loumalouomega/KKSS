@@ -234,6 +234,7 @@ const preloadConfig = {
     "app/preload/homePreload.ts",
     "app/preload/aboutPreload.ts",
     "app/preload/whatsNewPreload.ts",
+    "app/preload/licensePreload.ts",
     "app/preload/terminalPreload.ts",
     "app/preload/editorPreload.ts",
     "app/preload/chatPreload.ts",
@@ -258,6 +259,7 @@ const shellRendererConfig = {
     "app/renderer/home/home.ts",
     "app/renderer/about/about.ts",
     "app/renderer/whatsnew/whatsnew.ts",
+    "app/renderer/license/license.ts",
     "app/renderer/terminal/terminal.ts",
     "app/renderer/editor/editor.ts",
     "app/renderer/chat/chat.ts",
@@ -286,7 +288,7 @@ const shimConfigs = ["cad", "mesh"].map((mode) => ({
   logLevel: "silent",
 }));
 
-function copyArtifacts() {
+async function copyArtifacts() {
   const copies = [
     // Submodule webview bundles + styles, untouched.
     ["cad/media/viewer.js", out("renderer/cad/viewer.js")],
@@ -386,9 +388,13 @@ function copyArtifacts() {
     ["app/renderer/about/about.css", out("renderer/about/about.css")],
     ["app/renderer/whatsnew/whatsnew.html", out("renderer/whatsnew/whatsnew.html")],
     ["app/renderer/whatsnew/whatsnew.css", out("renderer/whatsnew/whatsnew.css")],
+    ["app/renderer/license/license.html", out("renderer/license/license.html")],
+    ["app/renderer/license/license.css", out("renderer/license/license.css")],
     // Read by services/whatsNew.ts (__dirname/CHANGELOG.md) to populate the
     // "What's New" dialog — the repo-root file, copied verbatim.
     ["CHANGELOG.md", out("CHANGELOG.md")],
+    // Read by services/license.ts for Help ▸ License… — same pattern.
+    ["LICENSE", out("LICENSE")],
     ["app/renderer/terminal/index.html", out("renderer/terminal/index.html")],
     ["app/renderer/terminal/terminal.css", out("renderer/terminal/terminal.css")],
     ["node_modules/@xterm/xterm/css/xterm.css", out("renderer/terminal/xterm.css")],
@@ -469,7 +475,62 @@ function copyArtifacts() {
         "  Run `npm run vtkwasm:prepare --prefix mesh` to prepare the runtime, or set KRATOS_VTK_WASM=skip to accept the fallback."
     );
   }
+
+  // The in-app manual (Help ▸ KKSS Manual…) is the documentation site, built
+  // by `npm run docs:build` into doc/.vitepress/dist and staged to out/docs/
+  // — the examples tree (~100 MB of downloadable tutorial cases) is left to
+  // the published site, and its links are rewritten to the site URL here, so
+  // the manual window's rewritten-example links open in the OS browser (that
+  // rewrite is what test/docsServe.test.ts pins in services/docsServe.ts).
+  // Optional like vtk-wasm: a dev checkout without the build gets the
+  // fallback page served for kkss://docs; packagers build it first.
+  const docsDist = path.join(__dirname, "doc", ".vitepress", "dist");
+  if (fs.existsSync(docsDist)) {
+    const { rewriteExampleLinks } = await importDocsServe();
+    const docsOut = out("docs");
+    fs.rmSync(docsOut, { recursive: true, force: true });
+    for (const entry of fs.readdirSync(docsDist)) {
+      if (entry === "examples") continue;
+      fs.cpSync(path.join(docsDist, entry), path.join(docsOut, entry), { recursive: true });
+    }
+    let rewritten = 0;
+    const walk = (dir) => {
+      for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, item.name);
+        if (item.isDirectory()) walk(p);
+        else if (item.name.endsWith(".html")) {
+          const before = fs.readFileSync(p, "utf8");
+          const fixed = rewriteExampleLinks(before);
+          if (fixed !== before) {
+            fs.writeFileSync(p, fixed);
+            rewritten++;
+          }
+        }
+      }
+    };
+    walk(docsOut);
+    console.log(`esbuild: staged the manual into out/docs (${rewritten} pages' example links rewritten)`);
+  } else {
+    console.warn(
+      "esbuild: doc/.vitepress/dist absent — Help ▸ KKSS Manual… will serve its fallback page.\n" +
+        "  Run `npm run docs:build` to build the manual site."
+    );
+  }
+
   console.log(`Copied ${copies.length} artifacts into out/`);
+}
+
+/**
+ * services/docsServe.ts pins the manual-staging rules (the `/examples/`
+ * rewrite and the fallback page) in unit tests; the build uses THAT code, so
+ * a test change cannot drift from what the app builds: the module is TS, so
+ * it is transformed here (esbuild itself, no deps) and imported from a data
+ * URL instead of duplicating its regex inline.
+ */
+async function importDocsServe() {
+  const source = fs.readFileSync(path.join(__dirname, "app/main/services/docsServe.ts"), "utf8");
+  const { code } = await esbuild.transform(source, { loader: "ts", format: "esm", target: "node20" });
+  return await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
 }
 
 const configs = [
@@ -484,9 +545,9 @@ const configs = [
 if (watch) {
   const contexts = await Promise.all(configs.map((c) => esbuild.context(c)));
   await Promise.all(contexts.map((c) => c.watch()));
-  copyArtifacts();
+  await copyArtifacts();
   console.log("esbuild: watching…");
 } else {
   await Promise.all(configs.map((c) => esbuild.build(c)));
-  copyArtifacts();
+  await copyArtifacts();
 }
