@@ -11,7 +11,13 @@ for (const language of ['en', 'es']) await scenario(`accessibility-${language}`,
   const home = await c.page(app, 'home');
   const shell = await c.page(app, 'shell');
   const scan = async (page, name) => {
-    assert.equal(await page.locator('html').getAttribute('lang'), language, `${name} language`);
+    // The page's own localize() sets <html lang> at DOMContentLoaded; a slow
+    // CI start (or a view still finishing its first load) can carry the
+    // static "en" when the scan arrives — wait for the language to land
+    // instead of asserting one immediate read (the same CI-only load race the
+    // focusKey re-sends below exist for: run 39031742791's es leg read the
+    // freshly opened jobs page before its localize had run).
+    await until(async () => (await page.locator('html').getAttribute('lang')) === language, `${name} language`);
     await page.evaluate(axe.source);
     const result = await page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } })).violations.map(v => ({id: v.id, targets: v.nodes.map(n => n.target)})));
     console.log(`SCAN ${language} ${name}`);
