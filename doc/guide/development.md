@@ -512,6 +512,7 @@ git clone --recurse-submodules https://github.com/loumalouomega/KKSS.git
 cd KKSS
 npm ci
 npm run submodules:install   # npm ci in cad/ and mesh/
+npm ci --prefix doc          # VitePress deps for docs:dev / docs:build (the manual)
 npm run build                # submodule bundles → app bundles → HTML gen → theme guard
 npm start                    # build + launch
 npm run dist                 # package installers into release/
