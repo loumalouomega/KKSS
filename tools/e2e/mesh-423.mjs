@@ -107,7 +107,9 @@ export const mesh423Scenario = (screenshotDir) => scenario('mesh-423', async c =
   await fixtureTools(c.dir, async call => {
     await call('mesh_convert', { path: file, outputPath: foam });
   });
-  fs.mkdirSync(path.join(foamDir, '0'));
+  // meshio++ 17.3.0 writes the time directory itself (OpenFOAM export puts
+  // each field in `0/`), so the harness's own `0` may already exist.
+  fs.mkdirSync(path.join(foamDir, '0'), { recursive: true });
   for (const [name, dims, value] of [['p', '0 2 -2 0 0 0 0', 1], ['rho', '1 -3 0 0 0 0 0', 1000]]) {
     fs.writeFileSync(path.join(foamDir, '0', name), `FoamFile { version 2.0; format ascii; class volScalarField; object ${name}; }
 dimensions [${dims}];

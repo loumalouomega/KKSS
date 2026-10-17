@@ -17,7 +17,7 @@ export default defineConfig({
 
   // localhost URLs (e.g. the Docker/noVNC quickstart) are runtime endpoints,
   // not site pages — don't fail the build on them.
-  ignoreDeadLinks: [/^https?:\/\/localhost/, /^\/examples\/kratos\/.*\.(?:mdpa|py|vtk)$/],
+  ignoreDeadLinks: [/^https?:\/\/localhost/, /^\/examples\/kratos\/.*\.(?:mdpa|py|vtk)$/, /^\/examples\/fit-cad\//],
 
   themeConfig: {
     nav: [
@@ -57,6 +57,7 @@ export default defineConfig({
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Pre-Processing (CAD) Mode', link: '/guide/cad-mode' },
           { text: 'Post-Processing (Mesh) Mode', link: '/guide/mesh-mode' },
+          { text: 'Mesh to CAD (Fit to CAD)', link: '/guide/tutorial-mesh-to-cad' },
           { text: 'Kratos Problemtypes', link: '/guide/problemtypes' },
           { text: 'Scientific Plots & FEM Analysis', link: '/guide/scientific-plots' },
           { text: 'Geometry to Results Tutorials', link: '/guide/tutorial-geometry-to-results' },

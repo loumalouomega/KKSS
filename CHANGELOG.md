@@ -7,6 +7,36 @@ full auto-generated compare links.
 
 ## Unreleased
 
+## [2.15.0] - 2026-10-17
+
+- feat: **mesh → CAD** (the meshioplusplus 17.2.0/17.3.0 update, embedded at CAD
+  Preview 3.20.0 and Mesh Preview 5.14.0). CAD mode's Mesh Health panel gains
+  **Fit to CAD…**: a clean closed skin is segmented and each patch replaced with
+  an exact analytic face (plane/sphere/cylinder/cone/torus, rolling-ball fillets
+  and blends, chamfers, vertex blends, threads) or a freeform B-spline where
+  nothing fits — sewn and B-rep-checked by OpenCASCADE and saved as a new AP214
+  STEP, with the fit's own report on the status line. The `cad__fit_mesh_to_cad`
+  MCP tool runs the same chain with the solid's `.cad.json` B-rep side channel,
+  which the new `iga_sample`/`iga_refine`/`iga_evaluate` tools read and refine
+  exactly. Mesh mode's `.step` export **auto-fits** the same way (with a
+  `<stem>.cad.json` companion and a kernel-defaults/analytic-only/skip-fitting
+  ask), optimization runs gain **Export Optimized Geometry as CAD…**, and a
+  **mesh → CAD** walkthrough with downloadable example files ships in the docs.
+- feat: expanded format surface on meshio++ 17.3.0 (64 readable / 53 writable
+  extended formats; 108 packaged associations): STEP/IGES reads and a
+  `.step`-with-fitting writer in Post-Processing, glTF/GLB reads, binary Medit
+  `.meshb`, libMesh `.xda`/`.xdr` (+ gz/bz2) and Kratos CAD JSON in CAD mode,
+  and the new solver-result pair — Marc `.t19`, FEBio `.xplt`, MAPDL `.rst`,
+  Tecplot binary `.plt`, Abaqus `.fil`, LS-DYNA `.d3plot` — as both imports and
+  FE-mesh export targets. Zstd/lz4-compressed `.vtu` files and bzip2 libMesh
+  reads fall back to the full wasm artifact (staged beside the lean one) with a
+  stated diagnostic; OpenFOAM exports keep their Nodal fields in time-zero.
+- feat: a new [Mesh to CAD walkthrough](doc/guide/tutorial-mesh-to-cad.md) with
+  `doc/public/examples/fit-cad/` example files (100,000-triangle sphere →
+  one exact spherical face → refined NURBS), generated live through the
+  bundled servers and linked from the mode guides; new README/Index feature
+  rows, format counts updated across the guides.
+
 ## [2.14.0] - 2026-10-16
 
 - feat: the FSI tutorial reproduces the **Mok benchmark** (Mok 2001, Valdés 2007;

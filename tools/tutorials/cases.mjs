@@ -38,7 +38,13 @@ export const cases = [
   {
     id: 'fluid', title: 'Laminar flow around an obstacle', problemtype: 'fluid', planar: true, planarGeometry: 'obstacle',
     obstacle: { widthMm: 2000, heightMm: 600, centerMm: [500, 300], radiusMm: 60, sides: 32 },
-    problem: { timeStep: 0.1, endTime: 5, echoLevel: 0, maxIterations: 20 },
+    // Section-keyed solver values, as published with the case (monolithic vms);
+    // classic VMS + Bossak — the BDF2 scheme SEGVs in the tier4 runtime's
+    // Kratos 10.4.3 (fluid_solver.py Predict, first solution step, any thread
+    // count; vms with the default or Bossak scheme and vms+no time_scheme key
+    // all finish), so the case pins Bossak the same way the FSI case pins
+    // its published fluid section.
+    problem: { timeStep: 0.1, endTime: 5, echoLevel: 0, maxIterations: 20, elementType: 'vms', timeScheme: 'bossak' },
     assignments: [assignment('parts', 'Domain'), assignment('inlet', 'Inlet', { modulus: 0.1, direction: 'x' }), assignment('outlet', 'Outlet', { value: 0 }), assignment('slip', 'Walls'), assignment('noSlip', 'Obstacle')],
     materials: [material('Domain', 'newtonian_2d', { DENSITY: 1000, DYNAMIC_VISCOSITY: 0.6 })], field: 'VELOCITY',
   },

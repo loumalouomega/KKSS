@@ -3,15 +3,41 @@
   "problemtypeId": "fluid",
   "values": {
     "problem": {
+      "strategy": "monolithic",
+      "elementType": "vms",
+      "timeScheme": "bossak",
+      "oss": false,
+      "dynamicTau": 1,
+      "timeStepMode": "fixed",
+      "startTime": 0,
       "timeStep": 0.1,
+      "courantTarget": 1,
+      "minDeltaTime": 0.0001,
+      "maxDeltaTime": 0.1,
+      "refVelocity": 1,
       "endTime": 5,
-      "echoLevel": 0,
       "maxIterations": 20,
       "relVelTol": 0.001,
       "absVelTol": 0.00001,
       "relPresTol": 0.001,
       "absPresTol": 0.00001,
-      "dynamicTau": 1
+      "velocityTolerance": 0.001,
+      "maxVelocityIterations": 4,
+      "predictorCorrector": false,
+      "pressureTolerance": 0.001,
+      "maxPressureIterations": 4,
+      "gravityValue": 0,
+      "gravityDirection": [
+        0,
+        -1,
+        0
+      ],
+      "linearSolver": "automatic",
+      "linearMaxIteration": 200,
+      "linearTolerance": 1e-7,
+      "preconditioner": "none",
+      "echoLevel": 0,
+      "computeReactions": false
     }
   },
   "assignments": [

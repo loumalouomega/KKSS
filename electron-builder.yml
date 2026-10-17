@@ -104,6 +104,8 @@ fileAssociations:
     name: KKSS SU2 document
   - ext: mesh
     name: KKSS Medit document
+  - ext: meshb
+    name: KKSS Medit binary document
   - ext: post.msh
     name: KKSS GiD document
     mimeType: application/x-kkss-post-msh
@@ -179,6 +181,8 @@ fileAssociations:
     name: KKSS MSC Nastran result document
   - ext: pcd
     name: KKSS point cloud document
+  - ext: plt
+    name: KKSS Tecplot binary result document
   - ext: pvd
     name: KKSS VTK time series document
   - ext: pf3
