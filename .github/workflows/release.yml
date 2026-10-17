@@ -50,11 +50,17 @@ jobs:
             package-lock.json
             cad/package-lock.json
             mesh/package-lock.json
+            doc/package-lock.json
 
       - run: npm ci
 
       - name: Install submodule dependencies
         run: npm run submodules:install
+
+      # The manual is a separate npm project (doc/) that the installs above
+      # don't reach; docs.yml installs it the same way before its VitePress build.
+      - name: Install manual dependencies
+        run: npm ci --prefix doc
 
       # Before the app build: esbuild stages the built site into out/docs/ as
       # the in-app manual (Help ▸ KKSS Manual…), so it ships in every package.

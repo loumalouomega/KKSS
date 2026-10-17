@@ -27,7 +27,7 @@ npm run check:packaging # verify native associations match CAD/mesh routing tabl
 npm run flatpak:probe   # inspect Flatpak feasibility without publishing an artifact
 npm run build:icons    # TikZ → SVG/PNG icons (needs pdflatex + pdftocairo)
 npm run docs:screenshots  # regenerate doc screenshots from the live app (see below)
-npm run docs:dev / docs:build  # VitePress site in doc/
+npm run docs:dev / docs:build  # VitePress site in doc/ (first: npm ci --prefix doc)
 ```
 
 Headless/CI gotchas: launch Electron with `env -u ELECTRON_RUN_AS_NODE` (that
