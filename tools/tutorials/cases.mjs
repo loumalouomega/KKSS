@@ -189,6 +189,134 @@ export const cases = [
     field: 'VELOCITY', structureField: 'DISPLACEMENT',
     driver: 'MainKratosCoSim.py', primaryDocument: 'ProjectParametersCoSim.json', benchmark: false, timeout: 600000,
   },
+  {
+    // Same obstacle channel as the laminar case, but air at 1 m/s: the
+    // Reynolds number based on the 120 mm obstacle diameter is about 7900,
+    // so the wake is turbulent and the case runs the RANS k-epsilon model
+    // with the logarithmic wall function on the obstacle. The channel walls
+    // stay slip (no boundary layer grows there); only the obstacle carries
+    // the wall function, and it is the only wall part RANS accepts. The
+    // first wall-adjacent row lands at y+ ~ 33 (log layer) on the 16-sided
+    // obstacle with 25 mm wall grading.
+    id: 'rans', title: 'Turbulent flow around an obstacle (RANS k-epsilon)', problemtype: 'rans', planar: true, planarGeometry: 'obstacle',
+    // 16 obstacle sides, not the laminar 32: Gmsh sizes the wall-adjacent
+    // row from the boundary edges (11.8 mm chords at 32 sides pin the first
+    // cell there whatever sizeAtWall says), and the wall function needs the
+    // first row near 25 mm for a log-layer y+. The 16-gon sags 1.1 mm from
+    // the r = 60 mm circle; the grading below is quoted against its 23.4 mm
+    // chords.
+    obstacle: { widthMm: 2000, heightMm: 600, centerMm: [500, 300], radiusMm: 60, sides: 16 },
+    // Twice the laminar wall grading (measured, not derived: the
+    // wall-adjacent row follows the obstacle boundary edges, so the grading
+    // only takes effect past the chord length — the 16 sides below are what
+    // move the first row, not this number alone).
+    obstacleWallGrading: { sizeAtWall: 25, sizeFar: 60, distNear: 25, distFar: 350 },
+    // The background mesh floors the grading: Gmsh takes the minimum of the
+    // wall-grading field and the global sizes, so sizeMin must clear the
+    // 25 mm wall target or the first row lands at ~12 mm (y+ ~ 18).
+    meshOptions: { dimension: 2, sizeMin: 25, sizeMax: 70 },
+    // Bossak transient: the BDF2 default of the fluid formulation segfaults
+    // the tier4 runtime's Kratos 10.4.3 at the first solution step (same
+    // branch as the laminar case's pin), so the case pins Bossak.
+    problem: {
+      scheme: 'bossak', timeStep: 0.1, endTime: 5, echoLevel: 0,
+      flowSolver: 'monolithic', elementType: 'vms', turbulenceModel: 'k_epsilon',
+      freestreamSpeed: 1, turbulenceIntensity: 0.01, turbulenceLength: 0.01,
+      maxIterations: 20,
+    },
+    assignments: [
+      assignment('parts', 'Domain'),
+      assignment('inlet', 'Inlet', { modulus: 1, direction: 'x' }),
+      assignment('outlet', 'Outlet', { value: 0 }),
+      assignment('slip', 'Walls'),
+      assignment('ransWall', 'Obstacle'),
+      assignment('yPlus', 'Obstacle'),
+      assignment('flowForces', 'Obstacle', { referencePoint: [0.5, 0.3, 0] }),
+    ],
+    materials: [
+      material('Domain', 'rans_newtonian_2d', { DENSITY: 1.204, DYNAMIC_VISCOSITY: 0.00001825 }),
+      material('Obstacle', 'rans_wall', {}),
+    ],
+    field: 'VELOCITY', timeout: 600000,
+  },
+  {
+    // The laminar cantilever's own geometry, solved for its free-vibration
+    // modes instead of its static deflection: solverType eigen_value with
+    // the Spectra shift-invert eigensolver. Only the clamped support is
+    // constrained; no load is needed (a free vibration has none). Checked
+    // against the Euler-Bernoulli cantilever frequencies, with the tolerance
+    // a 6:1 solid-mesh aspect ratio earns.
+    id: 'eigen', title: 'Structural eigenvalue (cantilever modes)', problemtype: 'structural',
+    source: 'cad/examples/STP/block.stp', geometry: 'cantilever.stp',
+    ops: [{ op: 'scale', targets: ['solid-0'], center: [0, 0, 0], factors: [6, 1, 1] }],
+    parts: [{ name: 'Solid', volumes: ['solid-0'] }, { name: 'Support', surfaces: ['face-3'] }],
+    options: { dimension: 3, sizeMin: 0.8, sizeMax: 0.8 },
+    problem: { solverType: 'eigen_value', eigenCount: 3, eigenMaxIteration: 1000, eigenTolerance: 1e-6, eigenSolver: 'eigen_eigensystem' },
+    assignments: [assignment('parts', 'Solid'), assignment('displacement', 'Support', { value: [0, 0, 0], constrained: true })],
+    materials: [material('Solid', 'linear_elastic_3d', { DENSITY: 7850, YOUNG_MODULUS: 210000000000, POISSON_RATIO: 0.3 })],
+    field: 'DISPLACEMENT', eigen: true, manual: 'setup', timeout: 600000,
+  },
+  {
+    // A 2D dam break: a 4 x 1 m tank whose left metre is water, the rest air.
+    // The interface is the zero of the mesh's nodal DISTANCE field, computed
+    // after export with the sdfDistance op against the Water part (the water
+    // column face). Both fluid materials live on the same Domain part, water
+    // first then air, in solver order. Generation-verified only: the stock
+    // Kratos 10.4.3 serial Two Fluids solver cannot start (upstream wrapper
+    // bug, recorded in failure.log), so no solver results are published.
+    id: 'two-fluids', title: 'Two-fluid dam break (level set)', problemtype: 'twoFluids', twoFluids: true,
+    source: 'cad/examples/BREP/blank.brep', geometry: 'tank.brep',
+    tank: { widthMm: 4000, heightMm: 1000, waterWidthMm: 1000 },
+    ops: [
+      { op: 'addRectangleProfile', center: [500, 500, 0], normal: [0, 0, 1], up: [1, 0, 0], width: 1000, height: 1000 },
+      { op: 'addRectangleProfile', center: [2500, 500, 0], normal: [0, 0, 1], up: [1, 0, 0], width: 3000, height: 1000 },
+    ],
+    options: { dimension: 2, sizeMin: 50, sizeMax: 50 },
+    problem: { timeStep: 0.005, endTime: 0.5 },
+    assignments: [
+      assignment('parts', 'Domain'),
+      assignment('noSlip', 'Walls'),
+      assignment('massConservationCheck', 'Domain', { perform: false, frequency: 20, log: false }),
+    ],
+    materials: [
+      material('Domain', 'phase_1_2d', { DENSITY: 1000, DYNAMIC_VISCOSITY: 0.001 }),
+      material('Domain', 'phase_2_2d', { DENSITY: 1.0, DYNAMIC_VISCOSITY: 0.000018 }),
+    ],
+    distanceFrom: 'Water', blockedSolver: 'navier_stokes_two_fluid_solver', manual: 'geometry',
+    field: 'VELOCITY', timeout: 600000,
+  },
+  {
+    // The wizard's own pipeline as a tutorial: a CAD sphere (r = 400 mm)
+    // skinned to an STL, a read-only plan, then the graded tunnel mesh, the
+    // carved body, the wall layer and the prepared steady RANS k-omega SST
+    // case. Sphere diameter 0.8 m at 10 m/s in air is Re 5.3e5; the plan's
+    // first-layer y+ 150 lands the first row in the outer log layer while
+    // keeping the wall-layer build cheap.
+    id: 'wind-tunnel', title: 'Virtual wind tunnel (sphere, RANS k-omega SST)', problemtype: 'rans',
+    source: 'cad/examples/BREP/blank.brep', geometry: 'sphere.brep', ops: [],
+    windTunnel: {
+      // The body STL is meshed fine on purpose (15/30 mm on D = 0.8 m):
+      // the wizard carves and snaps the tunnel wall to that surface, so a
+      // chunky body STL bakes facets into the wall the y+ check measures.
+      // The tunnel lattice itself stays coarse (see plan below).
+      radiusMm: 400, sizeMinMm: 15, sizeMaxMm: 30, stem: 'tunnel',
+      plan: {
+        // Small and coarse by design: a steady RANS run stops when it
+        // converges, and a coarse mesh is both fast per step and dissipative
+        // enough to settle instead of shedding resolved vortices for 300
+        // steps. The y+ plan (first-layer height) does not depend on these
+        // sizes. Full model: the half-model symmetry plane meets the wall
+        // layer in sliver cells where k-omega SST blows up within three
+        // steps, while the full tunnel runs (measured). D = 0.8 m at 10 m/s
+        // keeps Re above the planner's 5e5 laminar/turbulent switch (below
+        // it the Blasius first height explodes the mesh).
+        flow: { speed: 10, turbulence: 'k_omega_sst' },
+        tunnel: { upstream: 1.5, downstream: 2.5, side: 1.5, top: 2.5, bottom: 2.5 },
+        mesh: { surfaceSize: 0.35, farSize: 3.0, wakeLength: 0.5, wakeSize: 0.5, yPlus: 150 },
+      },
+    },
+    field: 'VELOCITY', manual: 'geometry', timeout: 18000000,
+  },
 ].map(c => !c.planar ? c : {
   ...c,
   source: 'cad/examples/BREP/blank.brep',

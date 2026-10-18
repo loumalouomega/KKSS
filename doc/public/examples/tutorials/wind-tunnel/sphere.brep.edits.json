@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "source": "sphere.brep",
+  "ops": [
+    {
+      "op": "addSphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 400
+    }
+  ]
+}

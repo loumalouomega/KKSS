@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "wake",
+      "type": "probe",
+      "path": "../vtk_output/FluidModelPart_0_51.vtk",
+      "points": [
+        [
+          0.565,
+          0.3,
+          0
+        ],
+        [
+          0.85,
+          0.3,
+          0
+        ]
+      ],
+      "variable": "VELOCITY",
+      "samples": 80,
+      "timeStep": 50,
+      "followTimeline": false
+    }
+  ],
+  "series": [
+    {
+      "id": "wake",
+      "source": "wake",
+      "name": "Axial velocity",
+      "x": "distance",
+      "y": "v0",
+      "transforms": [
+        {
+          "op": "convert",
+          "factor": 1,
+          "unit": "m/s"
+        }
+      ]
+    }
+  ],
+  "presentation": {
+    "family": "line",
+    "title": "Axial velocity through the near wake",
+    "lineMode": "lines+markers",
+    "xLabel": "Distance along probe [m; supplied by SI case]",
+    "yLabel": "Axial velocity [m/s]"
+  }
+}

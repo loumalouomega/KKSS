@@ -64,6 +64,7 @@ import { HOME_RECENT_LIMIT } from "./services/recentFilesCore";
 import { recentDescription, recentLabel } from "../../mesh/src/recentMeshesCore";
 import { __configureVscodeShim } from "./vscodeShim";
 import { openMesh } from "../../mesh/src/meshExport";
+import { previewMaterialTables } from "../../mesh/src/materialsPreview";
 import { latestResultFile } from "../../mesh/src/problemtype/runCore";
 import { groupVtkFiles, findGroupForFile } from "../../mesh/src/parser/vtkFileGroup";
 import { TIMELINE_EXTENSIONS } from "../../mesh/src/parser/meshFormats";
@@ -1364,6 +1365,12 @@ app.whenReady().then(() => {
         }
       }
     },
+    // mesh 5.15.0's kratos.materials.previewTables — the Materials form's
+    // Preview tables button routes here through ptController. mesh's own host
+    // half (materialsPreview.ts) reads the request or picks a file and opens
+    // one plot panel per table over the plot-builder route the Scientific
+    // plots menu entry uses, so it gets the same fake ExtensionContext.
+    previewMaterialTables: (arg) => previewMaterialTables(createMeshExtensionContext(__dirname), arg),
   });
 
   for (const mode of ["cad", "mesh"] as Mode[]) {

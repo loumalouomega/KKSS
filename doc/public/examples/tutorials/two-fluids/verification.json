@@ -1,0 +1,46 @@
+{
+  "case": "two-fluids",
+  "python": "3.12.14",
+  "kratos": "10.4.3",
+  "threads": 2,
+  "nodes": 1977,
+  "elements": 0,
+  "fields": [
+    "DISTANCE"
+  ],
+  "result": "mesh_case.mdpa",
+  "frames": 0,
+  "checks": {
+    "water_nodes": 514,
+    "water_distance_max_abs": 0,
+    "air_distance_maximum": 3,
+    "material_order": [
+      "phase_1_2d",
+      "phase_2_2d"
+    ]
+  },
+  "blocked": true,
+  "upstream": "navier_stokes_two_fluid_solver",
+  "log": "solver.log records the reproducible ModuleNotFoundError: No module named 'KratosMultiphysics.FluidDynamicsApplication.navier_stokes_two_fluid_solver'",
+  "files": {
+    "BLOCKED.txt": "b3f40df6af928135e82dac2631a8d9a415e9cd5ccef040858939650f320af14c",
+    "FluidMaterials.json": "6a4f04096f7f0804c48aa3ab38b21047bfa845289eecab2ab92b4a21c3878ca3",
+    "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
+    "MainKratos.py": "7e796046fbc0eb088dc1e7522bf6a14c945d1ce2d2fe6be00f5b3575c2473ad2",
+    "mesh_case.mdpa": "aef107b2c76911db050c5c8ae995e3064b09cb329456aa3e21e311525cb33218",
+    "mesh.kratoscase.json": "7b16ebc7daf49eb4565cdfefc708579f8d1e4fc5c5550654422d57595787375c",
+    "mesh.mdpa": "4e6ed979ecff3ff497affea38964e9cbba047c2e782e8e959d92f5147f6e775c",
+    "ProjectParameters.json": "7e4b4aa1f547b1068d6f2b39dc6a210223708820d2f7a9e8811ffe684df0c269",
+    "recipe.json": "8dea53f998737ef47d6c3b542597390709b519b63c01879cd5143d2b9c0140cd",
+    "solver.log": "0ecb86b40a9968c6dbcfc60da32c58c80d77a7545d0844622885b04eeb4c1480",
+    "tank.brep": "d94d6764f1a229976a427da3d54079d14917079076fe7de18881302f3f5820d7",
+    "tank.brep.edits.json": "731eb68e4c12ab44159b643ac7691e1514c8d76da9052b99523b3181632d90f9",
+    "tank.brep.mesh.json": "a2bc1575b8c898854cd79b58e2cca911b201536ccba5eacf5ad60f1fc227b9d7",
+    "tank.brep.parts.json": "b98492225f7e720243d2069dc78fde39b7840c803a5f268082a736a2a540cd5c"
+  },
+  "source": "cad/examples/BREP/blank.brep",
+  "revisions": {
+    "cad": "7c51565f2388edbba04a7b9637e827df550851f0",
+    "mesh": "cab0b4f77355aa3dd1290b370aca98b222be660b"
+  }
+}

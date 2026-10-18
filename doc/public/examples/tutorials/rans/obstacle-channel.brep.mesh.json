@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "source": "obstacle-channel.brep",
+  "options": {
+    "dimension": 2,
+    "sizeMin": 25,
+    "sizeMax": 70,
+    "algorithm2D": 6,
+    "algorithm3D": 1,
+    "elementOrder": 1,
+    "elementShape": "simplex",
+    "optimize": "default",
+    "stlAngle": 40,
+    "engine": "gmsh",
+    "ftetwildEpsRel": 0.001,
+    "ftetwildManifoldSurface": false,
+    "ftetwildCoarsen": false,
+    "ftetwildDisableFiltering": false,
+    "conformal": true
+  }
+}

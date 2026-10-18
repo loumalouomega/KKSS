@@ -1,6 +1,20 @@
 # Geometry to results
 
-These seven tutorials join the CAD and mesh guides into one complete Kratos workflow: make or import geometry, preserve named regions in an MDPA mesh, configure a built-in Problemtype, run a solver and inspect its VTK fields. Each worked case was run with Kratos 10.4.3 and is downloadable with its solver-produced results and provenance.
+These eleven tutorials join the CAD and mesh guides into one complete Kratos workflow: make or import geometry, preserve named regions in an MDPA mesh, configure a built-in Problemtype, run a solver and inspect its VTK fields. Each worked case was run with Kratos 10.4.3 and is downloadable with its solver-produced results and provenance (the two-fluids dam break is generation-verified with its solver run blocked upstream).
+
+| Physics | Worked case | Check |
+|---|---|---|
+| Structural mechanics | [Cantilever](tutorial-structural) | Deformed shape, free-end displacement and von Mises stress |
+| Structural mechanics | [Cantilever eigenmodes](tutorial-eigen) | First bending frequencies vs Euler–Bernoulli |
+| Fluid dynamics | [Laminar obstacle flow](tutorial-fluid) | Resolved wake, no-slip obstacle, pressure variation and balanced flux |
+| Fluid dynamics | [Turbulent obstacle flow (RANS)](tutorial-rans) | Log-layer wall y+, turbulence monitors, drag vs momentum balance |
+| Convection-diffusion | [Stationary heat conduction](tutorial-thermal) | Linear 300–400 K profile |
+| Potential flow | [Uniform flow](tutorial-potential-flow) | Potential gradient equals free-stream velocity |
+| Shallow water | [Still-water basin](tutorial-shallow-water) | Depth, momentum and volume conservation |
+| Fluid-structure interaction | [Mok benchmark wall](tutorial-fsi) | Wall-tip motion vs the published benchmark, inlet profile and coupling history |
+| Partitioned coupling | [Weak CoSimulation channel-slab coupling](tutorial-cosimulation) | Interface motion, flux balance and coupling history |
+| Virtual wind tunnel | [Sphere in a wind tunnel](tutorial-wind-tunnel) | Planned vs solved wall y+, recorded drag |
+| Two Fluids | [Dam break (generation-verified)](tutorial-two-fluids) | Interface DISTANCE field, material order; solver blocked upstream | into one complete Kratos workflow: make or import geometry, preserve named regions in an MDPA mesh, configure a built-in Problemtype, run a solver and inspect its VTK fields. Each worked case was run with Kratos 10.4.3 and is downloadable with its solver-produced results and provenance.
 
 | Physics | Worked case | Check |
 |---|---|---|
@@ -22,4 +36,4 @@ Start from [CAD mode](cad-mode) and [mesh mode](mesh-mode) if you need a tour of
 4. Set `kratos.pythonPath` to a local Python that imports Kratos and the relevant application. KKSS does not bundle Kratos. **Generate case files**, check the generated input JSON (`ProjectParameters.json`, or `ProjectParametersCoSim.json` for the coupled CoSimulation case), then **Run case** in the embedded terminal.
 5. **Open results**, choose a field from the Field panel, and inspect its range and time steps. A successful process exit alone does not establish numerical correctness; each worked case includes a separate physical check.
 
-For the full input deck, VTK timeline and SHA-256 file manifest, [download all seven cases](/examples/tutorials/tutorial-cases.zip) or download one case from its page. They are tutorial checks with documented tolerances, not formal solver certification.
+For the full input deck, VTK timeline and SHA-256 file manifest, [download all ten solver-verified cases](/examples/tutorials/tutorial-cases.zip) or download one case from its page. They are tutorial checks with documented tolerances, not formal solver certification.

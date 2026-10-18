@@ -69,6 +69,12 @@
  * - `mesh__case_export_results` (mesh 5.12.0) — **write**: converts a run's
  *   result frames into other meshio++ formats under `folder` (default
  *   `converted`).
+ * - `mesh__wind_tunnel_plan` (mesh 5.15.0) — **read**: measures a body surface
+ *   and returns the tunnel extents, boundary-layer numbers, sizes and an
+ *   estimate without meshing anything (its own description says "Read-only").
+ * - `mesh__wind_tunnel_generate` (mesh 5.15.0) — **write**: builds the graded
+ *   tunnel mesh, the placed body, the recipe, the case state and — with
+ *   `generateCase` — the solver files, all under `outputFolder`.
  *
  * - `kratos__results_time_history`, `kratos__results_compare`,
  *   `kratos__study_results` — **write**: each takes an optional `csv_file`.
@@ -325,6 +331,10 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__problem_unpack: "write",
   mesh__material_preset_list: "read",
   mesh__material_preset_import: "write",
+  // mesh 5.15.0's virtual wind tunnel: the plan is pure measurement, the
+  // generate writes the mesh, the placed body, the recipe and the case files.
+  mesh__wind_tunnel_plan: "read",
+  mesh__wind_tunnel_generate: "write",
 
   // ---- the aggregation layer's own synthetic tools (4) --------------------
   // Served in-process by McpManager.callMetaTool; they only ever list or read.

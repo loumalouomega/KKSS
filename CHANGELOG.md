@@ -7,6 +7,10 @@ full auto-generated compare links.
 
 ## Unreleased
 
+- feat: tutorial physics for the new problemtypes, solver-verified end to end where the stock solver allows: **turbulent obstacle flow (RANS k-epsilon)** — the laminar channel with a 16-sided obstacle at 1 m/s in air (Re 7917), log-law wall function (mean wall y+ 32.8, Cd 1.77, drag vs momentum balance 11.7%); **cantilever eigenmodes** — the laminar cantilever's first bending frequencies vs Euler–Bernoulli (3.7%/0.5%, 10% tolerance); **virtual wind tunnel** — the wizard's sphere tunnel as a pipeline case (steady k-omega SST, planned vs solved y+, recorded Cd); and the **two-fluid dam break** as generation-verified with its solver run blocked by the upstream Kratos bug it records (`navier_stokes_two_fluid_solver` doesn't ship; kept out of `tutorial-cases.zip`). New `tutorial-rans`, `tutorial-eigen`, `tutorial-wind-tunnel` and `tutorial-two-fluids` pages (geometry/setup/results captures via the manual flow), eleven rows on the landing page, and the RANS/LinearSolvers wheels in the Kratos lockfile, Dockerfile and license check.
+- feat: Tier 0 integration for cad 3.22.0 + mesh 5.15.0: mmgs heal auto-decimate, remesh field adaptation, Manifold boolean kernel staged to all three runtimes (probed live: a headless mesh-hole bake closes at the analytic volume), the Materials table-preview command, and the `wind_tunnel_plan`/`wind_tunnel_generate` chat tools (292 policy rows).
+- fix: mesh skin extraction no longer doubles triangles where boundary Conditions meet volume faces (opposite winding, zero-volume soup) — the wind-tunnel body carve and STEP fidelity measurement both depend on the single-covered skin.
+
 ## [2.16.0] - 2026-10-17
 
 - feat: the **Help menu** gains the two windows it was missing: **KKSS Manual…**

@@ -22,7 +22,9 @@ const nearest = (model, xyz) => {
   return { id: model.nodeIds[best], xyz: Array.from(model.coords.slice(3*best, 3*best+3)) };
 };
 
-export async function publishTutorialPlots() {
+export async function publishTutorialPlots(only = new Set()) {
+  const selected = cases.filter(c => !only.size || only.has(c.id));
+  const plotted = [];
   const scratch = await fs.access('/tmp/opencode').then(() => '/tmp/opencode', () => os.tmpdir());
   const temporary = await fs.mkdtemp(path.join(scratch, 'kkss-tutorial-plots-'));
   try {
@@ -32,8 +34,12 @@ export async function publishTutorialPlots() {
     await build({ entryPoints: [path.join(root, 'tools/tutorials/plotData.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: entry,
       external: ['@meshioplusplus/wasm', '@meshioplusplus/wasm/*'] });
     const { parseMeshFile, collectPlot, resolvePlotPaths, validatePlotRecipe, plotCsvRows, plotManifest } = createRequire(import.meta.url)(entry);
-    for (const c of cases) {
+    for (const c of selected) {
       const dir = path.join(output, c.id), plots = path.join(dir, 'plots');
+      // Eigen, the blocked case and the wizard tunnel carry no plottable VTK
+      // timeline of their own (modes, no solver, steady pseudo-steps).
+      if (c.eigen || c.blockedSolver || c.windTunnel) continue;
+      plotted.push(c.id);
       await fs.mkdir(plots, { recursive: true });
       const isCoupled = c.id === 'fsi' || c.id === 'cosim';
       const parameters = JSON.parse(await fs.readFile(path.join(dir, c.primaryDocument ?? 'ProjectParameters.json'), 'utf8'));
@@ -62,7 +68,7 @@ export async function publishTutorialPlots() {
       const series = (id, component, unit, name = id, factor = 1, x = 'time') => ({ id, source: id, name, x, y: `v${component}`, transforms: [{ op: 'convert', factor, unit }] });
       const recipe = (title, sources, curves, labels = {}) => ({ version: 1, sources, series: curves, presentation: { family: 'line', title, lineMode: 'lines+markers', ...labels } });
       const recipes = {};
-      if (c.id === 'fluid') {
+      if (c.id === 'fluid' || c.id === 'rans') {
         const front = nearest(model, [0.44, 0.3, 0]), back = nearest(model, [0.56, 0.3, 0]);
         recipes['pressure-history'] = recipe('Obstacle pressure: upstream and downstream', [history('front', front, 'PRESSURE'), history('back', back, 'PRESSURE')],
           [series('front', 0, 'Pa', `Upstream node ${front.id}`), series('back', 0, 'Pa', `Downstream node ${back.id}`)], { xLabel: 'Reconstructed solver time [s]', yLabel: 'Pressure [Pa]' });
@@ -148,8 +154,13 @@ export async function publishTutorialPlots() {
       for (const file of await fs.readdir(plots)) verification.files['plots/'+file] = hash(await fs.readFile(path.join(plots,file)));
       await fs.writeFile(verificationPath, JSON.stringify(verification,null,2)+'\n');
     }
+    // Per-case zips refresh the cases plotted just now; the combined archive
+    // is rebuilt only on a full run (a partial run must not narrow it), with
+    // the blocked case kept out of it.
+    const combined = only.size ? [] : cases.filter(c => !c.blockedSolver).map(c => c.id);
     await promisify(execFile)(process.env.KKSS_TUTORIAL_ARCHIVE_PYTHON ?? 'python3', ['-c', `import pathlib,sys,zipfile
 root=pathlib.Path(sys.argv[1])
+names=[a for a in sys.argv[2:] if not a.startswith('--')]
 def archive(source,target,prefix):
  with zipfile.ZipFile(target,'w',zipfile.ZIP_DEFLATED) as z:
   for p in sorted(source.rglob('*')):
@@ -157,9 +168,18 @@ def archive(source,target,prefix):
     info=zipfile.ZipInfo(str(pathlib.Path(prefix)/p.relative_to(source)),(2026,10,5,0,0,0))
     info.compress_type=zipfile.ZIP_DEFLATED
     z.writestr(info,p.read_bytes())
-for name in sys.argv[2:]: archive(root/name,root/(name+'.zip'),name)
-archive(root,root/'tutorial-cases.zip','')`, output, ...cases.map(c=>c.id)]);
+for name in names:
+ archive(root/name,root/(name+'.zip'),name)
+` + (combined.length ? `allowed=set(${JSON.stringify(combined)})
+with zipfile.ZipFile(root/'tutorial-cases.zip','w',zipfile.ZIP_DEFLATED) as z:
+ for p in sorted(root.rglob('*')):
+  if p.is_file() and p.suffix != '.zip' and (p.relative_to(root).parts[0] in allowed or len(p.relative_to(root).parts) == 1):
+   info=zipfile.ZipInfo(str(p.relative_to(root)),(2026,10,5,0,0,0))
+   info.compress_type=zipfile.ZIP_DEFLATED
+   z.writestr(info,p.read_bytes())
+` : ''), output, ...plotted]);
   } finally { await fs.rm(temporary, { recursive: true, force: true }); }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await publishTutorialPlots();
+const onlyPlots = new Set(process.argv.slice(1).flatMap(a => a.startsWith('--only=') ? a.slice('--only='.length).split(',') : []));
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await publishTutorialPlots(onlyPlots);

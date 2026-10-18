@@ -24,6 +24,38 @@ try {
       if (c.ops.length) await mcp.call('cad__apply_edit_ops', { path: geometry, ops: c.ops });
       let inventory = await mcp.call('cad__load_model', { path: geometry });
       let parts = c.parts;
+      if (c.windTunnel) {
+        // The wizard builds the mesh and the case itself: the body is a CAD
+        // sphere (unit m) skinned to an STL, then plan + generate. Nothing
+        // below applies; the whole case is this branch.
+        const sphere = await mcp.call('cad__apply_edit_ops', { path: geometry, ops: [{ op: 'addSphere', center: [0, 0, 0], radius: c.windTunnel.radiusMm }] });
+        if (!sphere.report?.every(row => row.accepted && row.applied !== false)) throw Error('CAD did not build the wind-tunnel sphere');
+        inventory = await mcp.call('cad__load_model', { path: geometry });
+        const solid = (inventory.solids ?? [])[0]?.id ?? 'solid-0';
+        await mcp.call('cad__set_part', { path: geometry, name: 'Body', volumes: [solid] });
+        await mcp.call('cad__set_mesh_options', { path: geometry, options: { dimension: 3, sizeMin: c.windTunnel.sizeMinMm, sizeMax: c.windTunnel.sizeMaxMm } });
+        const bodyVol = path.join(dir, 'body-vol.mdpa');
+        await mcp.call('cad__export_mesh', { path: geometry, outputPath: bodyVol, format: 'mdpaElements', unit: 'm', options: { dimension: 3, sizeMin: c.windTunnel.sizeMinMm, sizeMax: c.windTunnel.sizeMaxMm } });
+        const bodyStl = path.join(dir, `${c.windTunnel.stem}_body_src.stl`);
+        await mcp.call('mesh__mesh_extract_skin', { path: bodyVol, outputPath: bodyStl });
+        const plan = await mcp.call('mesh__wind_tunnel_plan', { bodyPath: bodyStl, unit: 'm', ...c.windTunnel.plan });
+        if ((plan.errors ?? []).length) throw Error(`Wind-tunnel plan refused: ${(plan.errors ?? []).join('; ')}`);
+        const generated = await mcp.call('mesh__wind_tunnel_generate', {
+          bodyPath: bodyStl, unit: 'm', ...c.windTunnel.plan,
+          outputFolder: dir, stem: c.windTunnel.stem, generateCase: true,
+        });
+        await fs.writeFile(path.join(dir, 'recipe.json'), JSON.stringify({ ...c, plan, report: generated.report, problemtype: generated.problemtype, caseNotes: generated.caseNotes }, null, 2));
+        console.log(`${c.id}: generated; solving`);
+        const { stdout, stderr } = await exec(python, ['MainKratos.py'], { cwd: dir, env: { ...process.env, OMP_NUM_THREADS: '2' }, timeout: c.timeout ?? 180000, maxBuffer: 16 * 1024 * 1024 });
+        await fs.writeFile(path.join(dir, 'solver.log'), stdout + stderr);
+        const verification = await exec(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { maxBuffer: 1024 * 1024 });
+        const report = JSON.parse(verification.stdout);
+        const inputs = {};
+        for (const name of await fs.readdir(dir)) if (/\.(mdpa|json|py|stp|brep|svg|stl)$/.test(name) && !name.includes('preparation') && name !== 'recipe.json') inputs[name] = createHash('sha256').update(await fs.readFile(path.join(dir, name))).digest('hex');
+        await fs.writeFile(path.join(dir, 'verification.json'), JSON.stringify({ ...report, inputs }, null, 2) + '\n');
+        console.log(`${c.id}: ${JSON.stringify(report.checks)}`);
+        continue; // the wizard wrote its own mesh and case; the shared path below does not apply.
+      }
       if (c.coupled3d) {
         // Two touching boxes sharing the y = 0 face: the fluid channel above,
         // the structure slab below. Faces are classified by outward normal and
@@ -72,6 +104,25 @@ try {
           // domain meshes. Both interface conditions address it.
           { name: 'Interface', surfaces: [fluidInterface] },
           { name: 'Fixed', surfaces: fixed },
+        ];
+      } else if (c.twoFluids) {
+        // The dam-break tank: two rectangles sharing the water column's right
+        // edge (x = waterWidth) tile the tank, so every boundary edge midpoint
+        // lies on the outer box and the shared interior edge is interior-only.
+        // The water column face doubles as the Water part the DISTANCE field
+        // is measured against after export.
+        const { widthMm: W, heightMm: H, waterWidthMm: Ww } = c.tank;
+        const at = (v, target) => Math.abs(v - target) < 1e-6;
+        const walls = [];
+        for (let n = 0; n < 8; n++) {
+          const { center: [x, y] } = await mcp.call('cad__inspect', { path: geometry, entityId: `edge-${n}` });
+          if (at(x, 0) || at(x, W) || at(y, 0) || at(y, H)) walls.push(`edge-${n}`);
+        }
+        if (walls.length !== 6) throw Error(`Unexpected tank boundary topology (${walls.length} outer edges, shared edge unaccounted)`);
+        parts = [
+          { name: 'Domain', surfaces: ['face-0', 'face-1'] },
+          { name: 'Water', surfaces: ['face-0'] },
+          { name: 'Walls', lines: walls },
         ];
       } else if (c.mok) {
         // The Mok channel: classify every edge of the model the ops built by
@@ -126,7 +177,7 @@ try {
           parts = [
             { name: 'Domain', surfaces: ['face-0'] },
             { name: 'Inlet', lines: inlet }, { name: 'Outlet', lines: outlet }, { name: 'Walls', lines: walls },
-            { name: 'Obstacle', lines: obstacle, meshGrading: { sizeAtWall: 12, sizeFar: 60, distNear: 25, distFar: 350 } },
+            { name: 'Obstacle', lines: obstacle, meshGrading: c.obstacleWallGrading ?? { sizeAtWall: 12, sizeFar: 60, distNear: 25, distFar: 350 } },
           ];
         } else {
           const edges = [];
@@ -142,8 +193,8 @@ try {
         }
       }
       for (const part of parts) await mcp.call('cad__set_part', { path: geometry, ...part });
-      await mcp.call('cad__set_mesh_options', { path: geometry, options: c.options });
-      const exported = await mcp.call('cad__export_mesh', { path: geometry, outputPath: meshPath, format: 'mdpaElements', unit: 'm', options: c.options });
+      await mcp.call('cad__set_mesh_options', { path: geometry, options: c.meshOptions ?? c.options });
+      const exported = await mcp.call('cad__export_mesh', { path: geometry, outputPath: meshPath, format: 'mdpaElements', unit: 'm', options: c.meshOptions ?? c.options });
       const described = await mcp.call('mesh__problemtype_describe', { problemtype: c.problemtype });
       const state = described.defaultState;
       if (c.values) {
@@ -156,6 +207,15 @@ try {
       state.assignments = c.assignments;
       state.materials = c.materials;
       if (c.output) state.output = { ...state.output, ...c.output };
+      if (c.distanceFrom) {
+        // The level-set interface lives in the mesh: measure the signed
+        // distance to the water region into DISTANCE before the case state is
+        // written, so the solver's requiresFields check sees it. Winding
+        // sign tolerates the shared-edge seam; the transform overwrites the
+        // mesh in place, exactly File ▸ Save.
+        const transformed = await mcp.call('mesh__mesh_transform', { path: meshPath, ops: [{ op: 'sdfDistance', part: c.distanceFrom, output: 'DISTANCE', sign: 'winding' }] });
+        if (!JSON.stringify(transformed).includes('DISTANCE')) throw Error(`sdfDistance against ${c.distanceFrom} produced no DISTANCE field`);
+      }
       await mcp.call('mesh__case_write_state', { meshPath, state });
       await mcp.call('mesh__case_generate', { meshPath });
       // mesh 5.5.0 structured preflight: record the finding set beside the
@@ -172,8 +232,27 @@ try {
         : c.ops, exportUnit: 'm', inventory, exported, preflight }, null, 2));
       console.log(`${c.id}: generated; solving`);
       const driver = c.driver ?? 'MainKratos.py';
-      const { stdout, stderr } = await exec(python, [driver], { cwd: dir, env: { ...process.env, OMP_NUM_THREADS: '2' }, timeout: c.timeout ?? 180000, maxBuffer: 16 * 1024 * 1024 });
-      await fs.writeFile(path.join(dir, 'solver.log'), stdout + stderr);
+      let solverStdout = '', solverStderr = '', solveFailed = null;
+      try {
+        ({ stdout: solverStdout, stderr: solverStderr } = await exec(python, [driver], { cwd: dir, env: { ...process.env, OMP_NUM_THREADS: '2' }, timeout: c.timeout ?? 180000, maxBuffer: 16 * 1024 * 1024 }));
+      } catch (e) { solveFailed = e; solverStdout = e.stdout ?? ''; solverStderr = e.stderr ?? ''; }
+      await fs.writeFile(path.join(dir, 'solver.log'), solverStdout + solverStderr);
+      if (solveFailed && c.blockedSolver && (solverStdout + solverStderr).includes(c.blockedSolver)) {
+        // Generation-verified, solver-blocked: the generation checks still
+        // run (mesh, DISTANCE, materials), and the upstream bug is recorded
+        // reproducibly beside them. Not a pipeline failure, and kept out of
+        // the solver-verified archives by publish.mjs.
+        const verification = await exec(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { maxBuffer: 1024 * 1024 });
+        const report = JSON.parse(verification.stdout);
+        const inputs = {};
+        for (const name of await fs.readdir(dir)) if (/\.(mdpa|json|py|stp|brep|svg)$/.test(name) && !name.includes('preparation') && name !== 'recipe.json') inputs[name] = createHash('sha256').update(await fs.readFile(path.join(dir, name))).digest('hex');
+        const blocked = { ...report, inputs, blocked: true, upstream: c.blockedSolver, log: `solver.log records the reproducible ${(solverStdout + solverStderr).split('\n').find(l => l.includes(c.blockedSolver))?.trim()}` };
+        await fs.writeFile(path.join(dir, 'verification.json'), JSON.stringify(blocked, null, 2) + '\n');
+        await fs.writeFile(path.join(dir, 'BLOCKED.txt'), `${c.title}\n\nGeneration-verified; solver blocked upstream.\n${blocked.log}\nSee verification.json and recipe.json.\n`);
+        console.log(`${c.id}: generation-verified; solver blocked (${c.blockedSolver})`);
+        continue;
+      }
+      if (solveFailed) throw solveFailed;
       const verification = await exec(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { maxBuffer: 1024 * 1024 });
       const report = JSON.parse(verification.stdout);
       const inputs = {};

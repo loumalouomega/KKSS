@@ -112,6 +112,10 @@ describe("classifyTool", () => {
     // convergence (optional .csv export). ROM results have no output path.
     expect(classifyTool("mesh__case_optimization")).toBe("write");
     expect(classifyTool("mesh__case_rom")).toBe("read");
+    // mesh 5.15.0's virtual wind tunnel: the plan only measures, the generate
+    // writes the mesh, body, recipe and case files under its output folder.
+    expect(classifyTool("mesh__wind_tunnel_plan")).toBe("read");
+    expect(classifyTool("mesh__wind_tunnel_generate")).toBe("write");
   });
 
   it("treats anything the table does not name as unknown", () => {
@@ -221,18 +225,18 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 81 cad + 52 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
+    // 81 cad + 54 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
     // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(290);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(292);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
     expect(cad).toHaveLength(81);
-    expect(mesh).toHaveLength(52);
+    expect(mesh).toHaveLength(54);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
@@ -490,6 +494,7 @@ describe("the table itself", () => {
       "mesh__problem_unpack",
       "mesh__problemtype_describe",
       "mesh__problemtype_list",
+      "mesh__wind_tunnel_generate",
     ]);
   });
 

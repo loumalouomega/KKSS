@@ -119,6 +119,16 @@ export interface VscodeShimHooks {
    * rejection; a path no open mesh tab owns resolves without doing anything.
    */
   saveMesh(fsPath: string): Promise<void>;
+  /**
+   * Implements "kratos.materials.previewTables" (mesh 5.15.0): the Materials
+   * form's **Preview tables** button and the palette/context-menu command open
+   * one scientific plot per table of a materials JSON, grouped by input/output
+   * variable pair. `arg` is the form's `{read, label}` request (the webview
+   * posts `ptPreviewTables`, ptController forwards it here); without it the
+   * command picks a file, which needs only dialog support the shim already has.
+   * Opening the panels is mesh's own host half over the plot-builder route.
+   */
+  previewMaterialTables(arg: unknown): void | Promise<void>;
 }
 
 
@@ -134,6 +144,9 @@ let hooks: VscodeShimHooks = {
   },
   projectRoot: () => undefined,
   saveMesh: () => {
+    throw new Error("vscodeShim: hooks not configured");
+  },
+  previewMaterialTables: () => {
     throw new Error("vscodeShim: hooks not configured");
   },
 };
@@ -646,6 +659,13 @@ export const commands = {
         const caseDir = String(args[0] ?? "");
         const options = args[1] as { excludeNewest?: boolean } | undefined;
         hooks.openLatestResults(caseDir, options);
+        return;
+      }
+      // mesh 5.15.0's "Preview Material Tables" (ptController's Preview tables
+      // button on the Materials form, and the command itself). mesh's host half
+      // opens one plot panel per table, so this must not throw.
+      case "kratos.materials.previewTables": {
+        await hooks.previewMaterialTables(args[0]);
         return;
       }
       default:

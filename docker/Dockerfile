@@ -185,7 +185,7 @@ RUN test "$TARGETARCH" = amd64 \
  && UV_PYTHON_INSTALL_DIR=/opt/python /opt/uv/uv python install 3.12 \
  && UV_PYTHON_INSTALL_DIR=/opt/python /opt/uv/uv venv --python 3.12 /opt/kkss-kratos \
  && /opt/uv/uv pip install --python /opt/kkss-kratos/bin/python --require-hashes --only-binary :all: -r /opt/kratos-requirements.lock \
- && /opt/kkss-kratos/bin/python -c "import KratosMultiphysics; import KratosMultiphysics.StructuralMechanicsApplication; import KratosMultiphysics.FluidDynamicsApplication; import KratosMultiphysics.ConvectionDiffusionApplication; import KratosMultiphysics.CompressiblePotentialFlowApplication; import KratosMultiphysics.ShallowWaterApplication" \
+ && /opt/kkss-kratos/bin/python -c "import KratosMultiphysics; import KratosMultiphysics.StructuralMechanicsApplication; import KratosMultiphysics.FluidDynamicsApplication; import KratosMultiphysics.ConvectionDiffusionApplication; import KratosMultiphysics.CompressiblePotentialFlowApplication; import KratosMultiphysics.ShallowWaterApplication; import KratosMultiphysics.RANSApplication; import KratosMultiphysics.LinearSolversApplication" \
  && chmod -R a+rX /opt/python /opt/kkss-kratos
 COPY docker/kratos/check-licenses.py /opt/check-kratos-licenses.py
 RUN /opt/kkss-kratos/bin/python /opt/check-kratos-licenses.py > /opt/kratos-licenses.json

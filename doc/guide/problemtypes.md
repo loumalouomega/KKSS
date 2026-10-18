@@ -6,7 +6,7 @@ Your form choices are auto-saved to `<name>.kratoscase.json` beside the mesh and
 
 ## The built-in catalog
 
-Eighteen built-ins ship with the app, grouped by family in the Problemtype dropdown. Single-physics problemtypes track [GiDInterface](https://github.com/KratosMultiphysics/GiDInterface); the coupled, reduced-order and optimization families are described in their own sections below.
+Eighteen built-ins ship with the app, grouped by family in the Problemtype dropdown. Single-physics problemtypes track [GiDInterface](https://github.com/KratosMultiphysics/GiDInterface); the coupled, reduced-order and optimization families are described in their own sections below. `structural` additionally covers eigenvalue and harmonic analyses through its solver-type field, and `rans` adds the k-epsilon, k-omega and k-omega SST wall-function models.
 
 | Family | Problemtype (`id`) | Kratos application(s) |
 |---|---|---|
@@ -15,6 +15,8 @@ Eighteen built-ins ship with the app, grouped by family in the Problemtype dropd
 | Fluids | **Compressible Fluid** (`compressibleFluid`) | FluidDynamicsApplication |
 | Fluids | **Embedded Fluid** (`embeddedFluid`) | FluidDynamicsApplication |
 | Fluids | **Free Surface** (`freeSurface`) | FreeSurfaceApplication |
+| Fluids | **Turbulent Flow (RANS)** (`rans`) | RANSApplication (+ LinearSolversApplication for the coupled solve) |
+| Fluids | **Two Fluids** (`twoFluids`) | FluidDynamicsApplication |
 | Fluids | **Potential Flow** (`potentialFlow`) | CompressiblePotentialFlowApplication |
 | Fluids | **Shallow Water** (`shallowWater`) | ShallowWaterApplication |
 | Thermal | **Convection-Diffusion** (`convectionDiffusion`) | ConvectionDiffusionApplication |
@@ -32,7 +34,7 @@ Eighteen built-ins ship with the app, grouped by family in the Problemtype dropd
 A coupled problemtype has several **domains** (for example *Fluid* and *Structure*). Each domain has its own Parts condition, conditions, materials and mesh: Generate writes one `ProjectParameters.json` plus one mesh per physics (`<name>_Fluid.mdpa`, `<name>_Structural.mdpa`, …) sliced from the mesh you have open, and one materials file per domain.
 
 ::: warning First-run rule for the newer families
-The five tutorial physics (structural, fluid, thermal, potential flow, shallow water) are solver-verified end to end — see the [geometry-to-results tutorials](./tutorial-geometry-to-results) — and the Structural Optimization problemtype has a runnable real-world worked case in the section below. The compressible, embedded, free-surface, buoyancy, conjugate-heat-transfer, FSI, CoSimulation and ROM problemtypes follow their Kratos writers and applications, but no case of those was run here. Treat the first run as a check of the generated files: every generated driver checks that the Kratos applications the case needs can be imported before it starts, and **Run** asks the configured Python first, refusing with the missing applications named. MPM and DEM are not provided.
+Ten worked cases are solver-verified end to end — structural, fluid, thermal, potential flow, shallow water, FSI, CoSimulation, RANS obstacle flow, cantilever eigenmodes and the virtual wind tunnel — see the [geometry-to-results tutorials](./tutorial-geometry-to-results) — and the Structural Optimization problemtype has a runnable real-world worked case in the section below. The two-fluids dam break is published generation-verified with its solver run blocked by an upstream Kratos bug it names. The compressible, embedded, free-surface, buoyancy, conjugate-heat-transfer and ROM problemtypes follow their Kratos writers and applications, but no case of those was run here. Treat the first run as a check of the generated files: every generated driver checks that the Kratos applications the case needs can be imported before it starts, and **Run** asks the configured Python first, refusing with the missing applications named. MPM and DEM are not provided.
 :::
 
 ## Setting up any case

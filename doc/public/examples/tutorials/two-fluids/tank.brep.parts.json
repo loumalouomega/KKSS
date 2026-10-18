@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "source": "tank.brep",
+  "parts": [
+    {
+      "name": "Domain",
+      "color": "#e6194b",
+      "volumes": [],
+      "surfaces": [
+        "face-0",
+        "face-1"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Water",
+      "color": "#3cb44b",
+      "volumes": [],
+      "surfaces": [
+        "face-0"
+      ],
+      "lines": [],
+      "points": []
+    },
+    {
+      "name": "Walls",
+      "color": "#4363d8",
+      "volumes": [],
+      "surfaces": [],
+      "lines": [
+        "edge-0",
+        "edge-2",
+        "edge-3",
+        "edge-4",
+        "edge-5",
+        "edge-6"
+      ],
+      "points": []
+    }
+  ]
+}

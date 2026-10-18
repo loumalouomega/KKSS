@@ -6,7 +6,7 @@ import { validatePlotRecipe } from "../mesh/src/parser/plot/recipe";
 import { parsePlotTable } from "../mesh/src/parser/plot/importTable";
 
 const directory = path.resolve(__dirname, "../doc/public/examples/tutorials");
-const cases = ["structural", "fluid", "thermal", "potential-flow", "shallow-water"];
+const cases = ["structural", "fluid", "rans", "thermal", "potential-flow", "shallow-water"];
 const json = (file: string) => JSON.parse(fs.readFileSync(file, "utf8"));
 const hash = (file: string) => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 

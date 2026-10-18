@@ -1,0 +1,174 @@
+{
+  "case": "rans",
+  "python": "3.12.14",
+  "kratos": "10.4.3",
+  "threads": 2,
+  "nodes": 654,
+  "elements": 1202,
+  "fields": [
+    "VELOCITY",
+    "PRESSURE",
+    "TURBULENT_KINETIC_ENERGY",
+    "TURBULENT_VISCOSITY",
+    "RANS_Y_PLUS",
+    "TURBULENT_ENERGY_DISSIPATION_RATE",
+    "Y_PLUS"
+  ],
+  "result": "vtk_output/FluidModelPart_0_51.vtk",
+  "frames": 51,
+  "end_time": 5,
+  "checks": {
+    "inlet_velocity_error_m_per_s": {
+      "measured": 0,
+      "maximum": 0.000001
+    },
+    "outlet_pressure_error_Pa": {
+      "measured": 0,
+      "maximum": 0.000001
+    },
+    "flux_imbalance_m2_per_s": {
+      "measured": 0.000022967673883877993,
+      "maximum": 0.001
+    },
+    "inlet_flux_m2_per_s": 0.60000002,
+    "outlet_flux_m2_per_s": 0.6000229876738838,
+    "obstacle_boundary_nodes": 16,
+    "wall_y_plus_stations": 6,
+    "wall_y_plus_min": 18.936752963406644,
+    "wall_y_plus_max": 40.89591409309037,
+    "mean_wall_y_plus": {
+      "measured": 32.82782913887406,
+      "minimum": 30
+    },
+    "mean_wall_y_plus_limit": {
+      "measured": 32.82782913887406,
+      "maximum": 300
+    },
+    "wall_y_plus_log_layer_share": 0.6666666666666666,
+    "turbulent_kinetic_energy_maximum": {
+      "measured": 3.3619616,
+      "minimum": 0.000001
+    },
+    "turbulent_kinetic_energy_undershoot_ratio": {
+      "measured": 0.05314920313188587,
+      "maximum": 0.1
+    },
+    "turbulent_viscosity_maximum": {
+      "measured": 0.088001773,
+      "minimum": 0
+    },
+    "turbulent_viscosity_minimum": {
+      "measured": -9.3990354e-13,
+      "maximum": 1e-12
+    },
+    "drag_x_N_per_m": {
+      "measured": 0.127592646,
+      "minimum": 0
+    },
+    "drag_steps": 51,
+    "drag_final_N_per_m": 0.13978027,
+    "drag_coefficient": 1.7662326411960134,
+    "drag_coefficient_minimum": {
+      "measured": 1.7662326411960134,
+      "minimum": 1.5
+    },
+    "drag_coefficient_maximum": {
+      "measured": 1.7662326411960134,
+      "maximum": 4.5
+    },
+    "momentum_predicted_drag_N_per_m": 0.14257087943363744,
+    "drag_vs_momentum_relative_error": {
+      "measured": 0.11739104018296978,
+      "maximum": 0.15
+    },
+    "near_wake_velocity_deficit_m_per_s": {
+      "measured": 1.33045956,
+      "minimum": 0.025
+    },
+    "pressure_range_Pa": {
+      "measured": 1.4196050100000002,
+      "minimum": 0.05
+    },
+    "reynolds_number": 7916.712328767123,
+    "wake_sample_nodes": 10,
+    "minimum_near_wake_axial_velocity_m_per_s": -0.33045956
+  },
+  "files": {
+    "FluidMaterials.json": "fbfe771275a8f1fa9519fb2594f684ef1bcc7ad97ac40bfde411b8383041b096",
+    "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
+    "MainKratos.py": "2edb07babca83ecb68158f4a9995c58789d9f26e71c2bd2240bf9b855af31aa2",
+    "mesh_case.mdpa": "28ce1300a43547cb2e859d943949a26a420bfff3042243cea15e52b4246775f7",
+    "mesh.kratoscase.json": "093c296d990db0a0e66d733aeafa270699381ff5068079c7bfe2bd6d73044157",
+    "mesh.mdpa": "419e1b8e5254b3a6108f7b2ba44e39efc8f4fe3dd8813a0ecbf1002a27ef63c1",
+    "obstacle-channel.brep": "d94d6764f1a229976a427da3d54079d14917079076fe7de18881302f3f5820d7",
+    "obstacle-channel.brep.edits.json": "e4e1b47afb6ee64a1a36a0b18f808497f6520a02fd699a7aeded484e20efb0f1",
+    "obstacle-channel.brep.mesh.json": "d74538f8fd1d07b57aead58a2c7c794c9489bbea7795be0b7838f8acad008182",
+    "obstacle-channel.brep.parts.json": "3047e9f93b863ead9d03611be283044aa99c9dec8e7fdbe6bdb5c1548f2c9209",
+    "obstacle-channel.svg": "bae623776f22d89533719ed1eb314f634d5c1d45cc3ee5e8ee66d4b4ad22dee0",
+    "ProjectParameters.json": "e0dff1ee1ff9df59fef7750858cf7a917e9ee17c0a8f52a14f9ee81e1b68600b",
+    "recipe.json": "81dabbd16c59f6492fd8e281ff6f7a289f6b50620c6e7abf88ab53b93b03b84c",
+    "vtk_output/FluidModelPart_0_1.vtk": "fb25539b4199d82c9506863b43aed7ee45e1149891352adeb573bbc7403cdd63",
+    "vtk_output/FluidModelPart_0_10.vtk": "2ac6194d83274a3dcec0a0837a232d53762601f2657c035b3a8ce3fab5373ed7",
+    "vtk_output/FluidModelPart_0_11.vtk": "2bee792c2c2d61546d873a371a11781c213d0342f3b53d165681b1188b389104",
+    "vtk_output/FluidModelPart_0_12.vtk": "97f5c0724c16e33586e6480441397c74d2530d2ff34f37417f98cd895265b66e",
+    "vtk_output/FluidModelPart_0_13.vtk": "66695a36fe6ff43733591fceed4d8f4bd0249331ad53f36a3c9d4ff54428a5ac",
+    "vtk_output/FluidModelPart_0_14.vtk": "09a24a7aa4f2030e5546366027f40b4c1f2a53a3974ffec9f5b3ca13188fe173",
+    "vtk_output/FluidModelPart_0_15.vtk": "f67c7cf7e938da0f74e3b241cf3a854b7198e830d638f4ffc9b176a8a60ee0d3",
+    "vtk_output/FluidModelPart_0_16.vtk": "980a2e274da746eac443da482bf4506238b53135f5f1103447e0b9ba1eb50951",
+    "vtk_output/FluidModelPart_0_17.vtk": "3d85d87852cb15d0c0e4bbf47e4cd86bf3c3d389e3aa3be1395733edee88bc6f",
+    "vtk_output/FluidModelPart_0_18.vtk": "82dff49e99d98b0d48a548c6722075c4b3020ab290cf1437e1534563cf5e4ec8",
+    "vtk_output/FluidModelPart_0_19.vtk": "61c859d26502c7fc6f54f122e13bd497e5c542c43cb9e712d5eb8ea19a356c2f",
+    "vtk_output/FluidModelPart_0_2.vtk": "c8104acbba10468e55ec3333708b0e27da17db0f7d9dbc5a706e66fcfcbf59ca",
+    "vtk_output/FluidModelPart_0_20.vtk": "9f838e321bd2086f74e0eea2438561e1bb541e036246be8809d79e3f9cf8aa6a",
+    "vtk_output/FluidModelPart_0_21.vtk": "066235fa61cfb99bc955ca1876f22c28dd26adb4b381604bf4e89479142d1730",
+    "vtk_output/FluidModelPart_0_22.vtk": "82e8d33c585cf6da571186378f8b629f36faf20f7e907858d585582101e09089",
+    "vtk_output/FluidModelPart_0_23.vtk": "aef331203572b05e1e1448fd9cb7706d9414ae88d7f7ee7cb2846fd3825715a1",
+    "vtk_output/FluidModelPart_0_24.vtk": "106fbf0e26c74eee7a2e66f74e8d9e8f3ee6e9e32f3101eaf130f7b50466072e",
+    "vtk_output/FluidModelPart_0_25.vtk": "18b6d0fff2b18b343a776836cfdc742903a2fe31706f2712cec2789dd01177be",
+    "vtk_output/FluidModelPart_0_26.vtk": "5042cea35767f66fae1e3e5d7ef45544d104dd370d4de563392ea5b974559884",
+    "vtk_output/FluidModelPart_0_27.vtk": "ae33fe21fe13022d0e88e402538416d6dd0ccae6b8be55c021b613a42cc74440",
+    "vtk_output/FluidModelPart_0_28.vtk": "7cd091112fca83cc0acebb206400fb16da8b8952464f67da1d9485128566d771",
+    "vtk_output/FluidModelPart_0_29.vtk": "bfd54c9d8e359df02071cefa051267551864099217c84686406113d2ea21e145",
+    "vtk_output/FluidModelPart_0_3.vtk": "65235824d65ad51472f3c0d356c07e01c0037eafa89fe01a55f2b22ad283cfee",
+    "vtk_output/FluidModelPart_0_30.vtk": "4332e466ccda0f6569e8a484f2ca48b3e3bc9ce68b3527ab1f18ddf42fd0567f",
+    "vtk_output/FluidModelPart_0_31.vtk": "a899cdce13cb7deb477169a5974915641a3141a370ac15518ee3f18cd3489a52",
+    "vtk_output/FluidModelPart_0_32.vtk": "9c0d19a3cf13367279cba19bcc6d551d5ca234da8b4956ccfc284445d0cf7ec9",
+    "vtk_output/FluidModelPart_0_33.vtk": "8e33ca4d7f1f5db8b7001467cdbf8da2f869c59fd6b598a9ae0ad52a3553904d",
+    "vtk_output/FluidModelPart_0_34.vtk": "24b97f299552090e5178623ffd9ac043c0a62b2d033b0154bf31eef914efc024",
+    "vtk_output/FluidModelPart_0_35.vtk": "23d27f8325991d9a6af2958967a5e6201520088ee82e3e27859bec7e3364b8e8",
+    "vtk_output/FluidModelPart_0_36.vtk": "813fd190aaa4e9278ec401cf7b211c610d43acdcfd1c61939e1524ccdcbcf96e",
+    "vtk_output/FluidModelPart_0_37.vtk": "fcd1cb9c4dee8b0bf47947e315f52bfb3a3edf81b8b7c5c5b5b3365d9a2cc84c",
+    "vtk_output/FluidModelPart_0_38.vtk": "bd1ca25e8c6b88606deaf999e708be3d30c00abaa23bc18e474026c00cd27cbd",
+    "vtk_output/FluidModelPart_0_39.vtk": "bcd559cb9d1a98389270fe40b6069eb452f8d2c4f931592020ae95ba282b9239",
+    "vtk_output/FluidModelPart_0_4.vtk": "79a080d712b5cdeef7dd03b8f93eb5d9afc5c637b58d97a82fcbcb2ea870e5fd",
+    "vtk_output/FluidModelPart_0_40.vtk": "ac8b6c5e37c0a089006b0c15c843de8f17b64b46c58b3601bcfc949020b8af14",
+    "vtk_output/FluidModelPart_0_41.vtk": "1e7a671ec344ba207e859effd3074a211811c0bfd580de8a90d0515755b6c8f8",
+    "vtk_output/FluidModelPart_0_42.vtk": "06bcd938e6b4db385441214ab61aa8a20ad411c739a78e35943d6d30452c61cd",
+    "vtk_output/FluidModelPart_0_43.vtk": "fdfc59afeadc1c54e041e3d0e611894b857d678ed285e12c2af6d76635e44438",
+    "vtk_output/FluidModelPart_0_44.vtk": "7372d4b6f078a81cd66286d8277e2e6c1fdf742be937725e4f8352323060a751",
+    "vtk_output/FluidModelPart_0_45.vtk": "9cef5fc8b75a5d7500af7e1589819c1468220b6cf54e6723241334128b734e03",
+    "vtk_output/FluidModelPart_0_46.vtk": "97ff00a5479a29361099250bd3c0a51751d2cbd2b320324aca438d591028176c",
+    "vtk_output/FluidModelPart_0_47.vtk": "740b21dc38e9441b67d6b2527a587ea4cc42512f960abd59c5f1d9ebeb57bec3",
+    "vtk_output/FluidModelPart_0_48.vtk": "5bdf4256fdf90ff9fb73a8709735ab204952efd96051c152bda0c0ac40a235ac",
+    "vtk_output/FluidModelPart_0_49.vtk": "178835f1c23fcfed6ebad16d8c746eee02b34292f4d2cabfa6fe4693cc28e987",
+    "vtk_output/FluidModelPart_0_5.vtk": "4371e4d02fb6d59b17461f49b41db074362257b98efac73e60e5c329b407dd14",
+    "vtk_output/FluidModelPart_0_50.vtk": "b7ab646fa30ca1ad922d96e651b9305ba176b7f0da67832c0ddd71ff54b7f629",
+    "vtk_output/FluidModelPart_0_51.vtk": "545e48bc1ffcf1885c84eb7d1eaa59790a100d9cd04540afe5254fa18bbaba2b",
+    "vtk_output/FluidModelPart_0_6.vtk": "6463b5b19f04be1d686b1b0a311069b45f4691810538924b349d8c962d353297",
+    "vtk_output/FluidModelPart_0_7.vtk": "6449ea47771115d788f7867d35d6264e5631b457602a2069e06685a4c4baae64",
+    "vtk_output/FluidModelPart_0_8.vtk": "8ce2924d09f0f1b84c5a9e7c6d0b3a8a871ad538f8c0aac88902022a81994c47",
+    "vtk_output/FluidModelPart_0_9.vtk": "4cc8b94b13582d1beb10b6a5377490899cb5f28f112ecc94d657e748968ce232",
+    "plots/pressure-history.csv": "3ff649e773e12ccca2649dd3c9be5e7b4bd33ed8b2cf9b2e3950d0c1896504ee",
+    "plots/pressure-history.csv.kratosplot.json": "4f9beabc2dcbd2d6d84d014160e0932ec514288176cd74509047587f0ab67b17",
+    "plots/pressure-history.json": "dc7d3439b8966c29eb9fedbca598fa6ede893e98e6c4c5320e61e953686ca533",
+    "plots/verification.json": "98944eaf800923cc2dcf3ce0708abaeeced904c3d47daa7809ed3bcfae9cf85a",
+    "plots/wake-profile.csv": "635d7bbe7852811fbdc13862c65fa10b35a78bcb35ab98b27c5469bfef8d5874",
+    "plots/wake-profile.csv.kratosplot.json": "49350cd2296c1a561428c2bc4f82e01492a60c5d978c2748fd5d959174d1a83a",
+    "plots/wake-profile.json": "8e45502ee76c4e524813d23e4f8353414d1b8e1b2d295df0d021854af7368082"
+  },
+  "source": "cad/examples/BREP/blank.brep",
+  "revisions": {
+    "cad": "7c51565f2388edbba04a7b9637e827df550851f0",
+    "mesh": "cab0b4f77355aa3dd1290b370aca98b222be660b"
+  }
+}
