@@ -456,6 +456,7 @@ The geometry-to-results tutorials are illustrated from the real app. Solver outp
 | `npm run tutorials:docs` | Renders the generated sections of each tutorial page from its verification record. `tutorials:docs:check` fails if any is stale. |
 | `node tools/tutorials/manual.mjs --wizard wind-tunnel` | The six virtual wind tunnel wizard steps, shot in the mesh viewer on the published body. |
 | `node tools/tutorials/manual.mjs --fe-mesh` | The CAD window after FE Mesh Generate for each case (`tutorial-<id>-fe-mesh.png`). |
+| `node tools/tutorials/manual.mjs --fit-cad` | The mesh → CAD example's two CAD shots: the STL skin (`fit-cad-source.png`) and the fitted STEP reopened (`fit-cad-fitted.png`). Both run inside `npm run docs:screenshots` (with a `--fit-cad-only` shortcut); the files already exist, so no fit runs at capture time. |
 
 `tools/tutorials/shots.mjs` is the catalog of every file under `doc/public/screenshots/`: which producer writes it, and the field, range, step and view it uses. `test/tutorialDocs.test.ts` checks the catalog against the files on disk and the pages against the catalog.
 

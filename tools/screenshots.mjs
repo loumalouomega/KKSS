@@ -26,7 +26,7 @@ import { launchApp, waitForMarkers, appWindow, closeApp, sleep, root } from "./e
 
 import { jobsScenario } from "./jobs.e2e.mjs";
 import { kratosStartupScenario } from "./kratosStartup.e2e.mjs";
-import { manualTutorials } from "./tutorials/manual.mjs";
+import { manualTutorials, fitCadTutorials } from "./tutorials/manual.mjs";
 import { captureAnimations } from "./tutorials/animations.mjs";
 import { scriptedCapture } from "./tutorials/assistant.mjs";
 import { mesh423Scenario } from "./e2e/mesh-423.mjs";
@@ -601,6 +601,11 @@ if (process.argv.includes("--optimization-run-only")) {
   finally { cleanupDirs(); }
   process.exit(0);
 }
+if (process.argv.includes("--fit-cad-only")) {
+  try { await fitCadTutorials(OUT); }
+  finally { cleanupDirs(); }
+  process.exit(0);
+}
 if (!meshOnly) await sessionCad();
 await sessionMdpa();
 await sessionVtk();
@@ -621,6 +626,8 @@ if (!meshOnly) {
   // interpreter and actual solver-produced tutorial results. The companion uses
   // a local OpenAI-compatible fixture but routes every tool call through KKSS.
   await manualTutorials(OUT);
+  // The mesh → CAD example's two CAD shots (committed STL skin + fitted STEP, no solver run).
+  await fitCadTutorials(OUT);
   // Timeline GIFs from the tutorials' VTK series (no solver run; a series missing locally is skipped with a warning and its committed GIF stands).
   await captureAnimations(OUT);
   await scriptedCapture(OUT);

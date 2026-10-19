@@ -19,6 +19,10 @@ Download all four into one folder and follow along.
 
 Open `large-sphere.stl` in CAD mode — the file routes to the 🔷 Pre-Processing tab. Fold open **Advanced ▸ Mesh Health** and click **Check Healability**. Fit to CAD shares Promote's gate — the skin must be closed and consistently wound — and the report says exactly that: **1 component, closed** (a holed or inconsistently wound skin names its open edges instead; `repair_mesh` can rebuild one first).
 
+![The 100,000-triangle sphere skin in CAD](/screenshots/fit-cad-source.png)
+
+*The source skin in Pre-Processing: 100,000 triangles, one closed component.*
+
 ## 2. Fit to CAD
 
 Click **Fit to CAD…**, pick where the STEP goes, and wait a few seconds. The status line carries the fit's own report:
@@ -32,6 +36,10 @@ Click **Fit to CAD…**, pick where the STEP goes, and wait a few seconds. The s
 - An orange error line instead means the solid **failed OpenCASCADE's own B-rep check** — the file is still written, but inspect it before relying on it.
 
 Open the written `large-sphere.step` (**File ▸ Open…**): the viewer tessellates a true B-rep solid, and measure/mass-properties now answer from exact geometry — one face, one radius, editable like any STEP model.
+
+![The fitted solid reopened in CAD](/screenshots/fit-cad-fitted.png)
+
+*The fitted STEP solid: one face, one exact sphere, editable like any STEP model.*
 
 ## 3. The same thing through the assistant
 
@@ -62,7 +70,7 @@ These tools are read/write-classified like everything else: `iga_sample` and `ig
 
 ## 5. From an optimization run
 
-The chain works where geometry *changes during a solve*: a finished Structural Optimization case's **Export Optimized Geometry as CAD…** (Kratos Runs row, or the Optimization panel's **Export CAD**) writes the run's final shape through the same `.step` auto-fit pipeline — **Shape** writes the moved design-field frame; **topology** contours the density field at a threshold first, and an Euler_topology result's threshold is always reported because it defines the solid. The assistant calls the same through `case_optimization_cad`.
+The chain works where geometry *changes during a solve*: a finished Structural Optimization case's **Export Optimized Geometry as CAD…** (Kratos Runs row, or the Optimization panel's **Export CAD**) writes the run's final shape through the same `.step` auto-fit pipeline — **Shape** writes the moved design-field frame; **topology** contours the density field at a threshold first, and an Euler_topology result's threshold is always reported because it defines the solid. The assistant calls the same through `case_optimization_cad`. The [Structural Optimization guide](problemtypes)'s worked 3D-hook run ends exactly this way.
 
 ## Notes and limits
 
