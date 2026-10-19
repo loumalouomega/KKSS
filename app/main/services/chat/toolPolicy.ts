@@ -75,6 +75,9 @@
  * - `mesh__wind_tunnel_generate` (mesh 5.15.0) — **write**: builds the graded
  *   tunnel mesh, the placed body, the recipe, the case state and — with
  *   `generateCase` — the solver files, all under `outputFolder`.
+ * - `mesh__case_compare` (mesh 5.16.0) — **read**: compares two saved
+ *   isolated run directories (or their `.kkss-execution.json`) by receipt +
+ *   preparation manifest. `left`/`right` only, never writes.
  *
  * - `kratos__results_time_history`, `kratos__results_compare`,
  *   `kratos__study_results` — **write**: each takes an optional `csv_file`.
@@ -256,7 +259,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__compare_mesh_refinement: "write",
   cad__load_preprocess: "write",
 
-  // ---- kratos-mdpa (52) ---------------------------------------------------
+  // ---- kratos-mdpa (55) ---------------------------------------------------
   mesh__mesh_resample: "write",
   mesh__mesh_periodic: "write",
   mesh__mesh_info: "read",
@@ -309,6 +312,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // frame through mesh's own .step pipeline (auto-fit + .cad.json companion)
   // beside the exported STEP — write-shaped like every mesh__* file target.
   mesh__case_optimization_cad: "write",
+  mesh__case_compare: "read",
   mesh__case_evaluate_quantity: "read",
   mesh__case_estimate_timestep: "read",
   mesh__mesh_select: "write",

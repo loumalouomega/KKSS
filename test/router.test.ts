@@ -54,8 +54,9 @@ describe("modeForFile", () => {
     // cad 3.20.0 routed the remaining meshio++ 17.3.0 writers as imports
     // (.plt/.xplt/.meshb/.t19/.fil/.rst/.d3plot) — strategy "meshio", the
     // geometry-only bridge, so they belong to the post-processing mode that
-    // reads fields and SubModelParts, exactly like .mdpa above.
-    for (const f of ["a.xplt", "a.meshb", "a.t19", "a.fil", "a.rst", "a.d3plot"]) {
+    // reads fields and SubModelParts, exactly like .mdpa above. cad 3.24.0
+    // adds meshio++ 17.4.0's Nastran OP2 result writer (.op2) the same way.
+    for (const f of ["a.xplt", "a.meshb", "a.t19", "a.fil", "a.rst", "a.d3plot", "a.op2"]) {
       expect(routeFile(f)?.strategy).toBe("meshio"); // cad really does claim it
       expect(modeForFile(f, "cad")).toBe("mesh");
       expect(modeForFile(f, "mesh")).toBe("mesh");
