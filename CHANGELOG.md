@@ -5,7 +5,7 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
-## Unreleased
+## [2.18.0] - 2026-10-19
 
 - docs: the tutorial figures are regenerated from the solver output that b9f83b1 stopped shipping. A capture pipeline in `tools/tutorials/` (results provider, screenshot catalog, viewer capture helpers, gallery) produces field and plot shots from the recovered frames and the restored plot recipes (each checked against its published CSV); setup cards, the exported mesh and the case's problemtype setup are captured by `manual.mjs` with no solver run.
 - docs: the tutorial pages are rewritten around one skeleton (At a glance, the physical model, the setup, how to read the results, verification, troubleshooting), with a shared guide to reading a result in KKSS. The verification and glance sections are generated from each case's published record by `writeDocs.mjs`, which `test/tutorialDocs.test.ts` checks for currency, image references, alt text, the catalog and links.
@@ -326,6 +326,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.18.0]: https://github.com/loumalouomega/KKSS/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/loumalouomega/KKSS/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/loumalouomega/KKSS/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/loumalouomega/KKSS/compare/v2.14.0...v2.15.0
