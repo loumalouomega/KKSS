@@ -48,6 +48,10 @@ The geometry is one CAD operation on the blank model `cad/examples/BREP/blank.br
 
 Boundary must hold all four edges, because the far-field condition acts on the whole outer boundary. A missing edge would leave part of the boundary without the free stream, and the check would show the error.
 
+![The Parts panel with the named Parts](/screenshots/tutorial-potential-flow-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts: Domain and Boundary.*
+
 ## Mesh
 
 In **FE Mesh**, set **Dimension** to 2D, **Element order** to first order, **Element shape** to simplex, and **Size min** and **Size max** to 200 mm. Click **Generate**. Set **Export format** to **Kratos MDPA — Elements + Conditions (.mdpa)**, set **Export unit** to **m**, and export `mesh.mdpa`.

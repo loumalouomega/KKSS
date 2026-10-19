@@ -48,6 +48,10 @@ In the **Parts** panel, use the entity tree and the selection highlights to crea
 
 The mesh export turns each Part into a SubModelPart of the same name, and the Problemtype cards refer to those names. If Cold and Hot are swapped, the solver still converges, but to the reversed profile, and the check fails.
 
+![The Parts panel with the named Parts](/screenshots/tutorial-thermal-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts: Domain, Cold and Hot.*
+
 ## Mesh
 
 In **FE Mesh**, use the Gmsh mesher, the one the published record used. Set **Dimension** to 3D, **Element order** to first order, **Element shape** to simplex, and **Size min** and **Size max** to 0.8 (millimetres). Click **Generate**.

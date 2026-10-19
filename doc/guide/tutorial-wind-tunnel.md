@@ -52,6 +52,10 @@ The recipe's body is a closed surface of 5,434 triangles.
 
 The wizard names the tunnel faces and the fluid. Only `Body` comes from your model, so its name in step 3 must match.
 
+![The Parts panel with the named Parts](/screenshots/tutorial-wind-tunnel-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts.*
+
 ## Mesh
 
 The wizard has five steps: **Body**, **Tunnel**, **Flow**, **Mesh** and **Generate**. Mesh sets a surface size of 0.35 m, a far-field size of 3.0 m, a 0.5 m wake box behind the body and a first-layer target of y+ 150. The plan appears on the last step, with the tunnel extents, the boundary-layer estimate and the mesh size. It is read-only until you press Generate, and a plan with errors cannot be built.

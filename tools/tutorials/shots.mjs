@@ -8,6 +8,7 @@
 //   gallery    tools/tutorials/gallery.mjs: one field on the recovered frames
 //   eigen      tools/tutorials/gallery.mjs: one mode shape of the GiD eigen result
 //   fe-mesh    tools/tutorials/manual.mjs --fe-mesh: the CAD window after FE Mesh Generate
+//   parts      tools/tutorials/manual.mjs --parts: the CAD window with the case's Parts applied
 //   wizard     tools/tutorials/manual.mjs --wizard: one step of the virtual wind tunnel wizard
 //   plot       tools/tutorials/gallery.mjs: a restored recipe, checked against its CSV
 //   animation  tools/tutorials/animations.mjs: a GIF of one field over the steps
@@ -45,6 +46,10 @@ const eigenShot = (caseId, name, field, extra = {}) => ({
 /** The CAD window after FE Mesh > Generate, framed (manual.mjs --fe-mesh). */
 const feMeshShot = (caseId) => ({
   file: `tutorial-${caseId}-fe-mesh.png`, case: caseId, producer: 'fe-mesh',
+});
+/** The CAD window with the case's Parts applied and the Parts panel expanded (manual.mjs --parts). */
+const partsShot = (caseId) => ({
+  file: `tutorial-${caseId}-parts.png`, case: caseId, producer: 'parts',
 });
 const wizardShot = (caseId, name, step, extra = {}) => ({
   file: `tutorial-${caseId}-${name}.png`, case: caseId, producer: 'wizard', step, ...extra,
@@ -169,6 +174,7 @@ export const CATALOG = [
 
   // ---- CAD-side FE mesh of every case (the geometry shots already show the Parts panel, so no separate parts shots) ----
   ...['structural', 'fluid', 'thermal', 'potential-flow', 'shallow-water', 'fsi', 'cosim', 'rans', 'eigen', 'two-fluids', 'wind-tunnel'].map(feMeshShot),
+  ...['structural', 'fluid', 'thermal', 'potential-flow', 'shallow-water', 'fsi', 'cosim', 'rans', 'eigen', 'two-fluids', 'wind-tunnel'].map(partsShot),
 ];
 
 /** Entries for one tutorial, in catalog order. */

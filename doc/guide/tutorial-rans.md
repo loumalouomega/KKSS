@@ -54,6 +54,10 @@ The 16 sides matter. Their chords, 23.4 mm long, set the spacing of the wall-adj
 
 The wall function applies to a single wall Part, so all 16 hole edges belong to `Obstacle`, and the Wall y+ and Forces conditions read the same Part.
 
+![The Parts panel with the named Parts](/screenshots/tutorial-rans-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts: Domain, Inlet, Outlet, Walls and Obstacle.*
+
 ## Mesh
 
 Under **FE Mesh**, set Dimension to 2D, Element order to Linear, Size min to 25 mm and Size max to 70 mm. On the **Obstacle** row, press **Grade** and enter Wall 25 mm, Far 60 mm, Near dist 25 mm and Far dist 350 mm, so the element size grows from 25 mm at the wall to 60 mm at 350 mm. Export with Export format **Kratos MDPA — Elements + Conditions (.mdpa)** in unit **m**, saving `mesh.mdpa`.

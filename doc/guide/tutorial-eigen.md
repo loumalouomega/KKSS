@@ -48,6 +48,10 @@ Add no load and no other boundary. A free vibration has none, so the clamp is th
 
 *The cantilever in CAD. The Parts list shows Solid (one volume) and Support (one face), and the Edits list shows the scale.*
 
+![The Parts panel with the named Parts](/screenshots/tutorial-eigen-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts: Solid and Support.*
+
 ## Mesh
 
 1. Under **FE Mesh**, choose Gmsh, 3D and first-order tetrahedra, and set the global size minimum and maximum to 0.8 mm.

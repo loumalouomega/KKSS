@@ -43,6 +43,10 @@ The obstacle is a 32-sided polygon by design. Gmsh sizes the first row of cells 
 
 Each name becomes a SubModelPart that conditions attach to. A Part missing from the mesh is a Preflight error.
 
+![The Parts panel with the named Parts](/screenshots/tutorial-fluid-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts: Domain, Inlet, Outlet, Walls and Obstacle.*
+
 ## Mesh
 
 4. Under **FE Mesh**, choose Gmsh, 2D, first order, and set the global size min/max to **15/70 mm**. In the `Obstacle` Part's **Grade** controls, set the size at wall to **12 mm**, the size far to **60 mm**, the distance near to **25 mm** and the distance far to **350 mm**. Choose **MDPA Elements**, export units **m**, and export as `mesh.mdpa`.

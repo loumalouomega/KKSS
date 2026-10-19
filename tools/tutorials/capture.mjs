@@ -3,6 +3,7 @@
 // field, a colour range, a clip plane or a time step, and one canvas-only
 // screenshot that waits for the frame to stop changing.
 import fs from 'node:fs';
+import path from 'node:path';
 import assert from 'node:assert/strict';
 import { launchApp, appWindow, closeApp, selectFile, softwareGL, sleep, until } from '../e2eShared.mjs';
 
@@ -342,4 +343,36 @@ export async function feMeshShot(cad, file, timeout = 300_000) {
   await sleep(1200);
   await cad.screenshot({ path: file, timeout: 60_000 });
   return (await cad.locator('#meshing-status').innerText()).replace(/\s+/g, ' ').trim();
+}
+
+const PLANAR = new Set(['fluid', 'potential-flow', 'shallow-water', 'fsi', 'rans', 'two-fluids']);
+/**
+ * Writes `<geometry>.view.json` (cad's ViewState sidecar, version 1) beside a scratch copy of a case so the CAD
+ * camera, display mode and collapsed sidebar panels are fixed: a front view for planar (z = 0) cases, an
+ * isometric one (y up) otherwise. `expanded` lists the collapsible panels to leave open; every other one is collapsed.
+ */
+export function seedView(geometryPath, caseId, expanded = ['parts-panel']) {
+  const panels = ['tree-panel', 'parts-panel', 'layers-panel', 'edits-panel', 'scad-panel', 'meshing-panel', 'advanced-group'];
+  const planar = PLANAR.has(caseId);
+  fs.writeFileSync(`${geometryPath}.view.json`, JSON.stringify({
+    version: 1,
+    source: path.basename(geometryPath),
+    view: {
+      viewDirection: planar ? [0, 0, 1] : [1, 0.8, 1],
+      cameraUp: [0, 1, 0],
+      orthographic: false,
+      displayMode: 'shaded',
+      clip: null,
+    },
+    collapsedPanels: panels.filter((p) => !expanded.includes(p)),
+  }, null, 2) + '\n');
+}
+
+/** CAD window with the Parts panel expanded (names visible), model framed, mouse parked. */
+export async function partsShot(cad, file) {
+  await cad.locator('#fit').click();
+  await cad.mouse.move(2, 2);
+  await sleep(1200);
+  await cad.screenshot({ path: file, timeout: 60_000 });
+  return (await cad.locator('#parts-body .part-name, #parts-body').first().innerText()).replace(/\s+/g, ' ').trim();
 }

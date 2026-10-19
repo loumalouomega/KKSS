@@ -49,6 +49,10 @@ The geometry is the same as in the potential-flow case: a **Rectangle** profile 
 - **Domain**: the face `face-0`, the water.
 - **Boundary**: the four edges `edge-0`, `edge-1`, `edge-2` and `edge-3`. Boundary receives a slip wall, so no water leaves through the edges.
 
+![The Parts panel with the named Parts](/screenshots/tutorial-shallow-water-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts: Domain and Boundary.*
+
 ## Mesh
 
 Use the potential-flow settings: **FE Mesh** with Dimension 2D, first order, simplex, and **Size min** and **Size max** of 200 mm. Click **Generate**, then export `mesh.mdpa` in the Kratos MDPA format with **Export unit** set to **m**. The published mesh is the same file as the potential-flow case, with 150 nodes and 248 triangles.

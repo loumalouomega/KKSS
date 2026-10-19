@@ -46,6 +46,10 @@ Weak coupling accounts for the mass balance. The interface moves once per step f
 
 Name the upper volume `Fluid` and the lower volume `Structure`. On the fluid, name the x = 0 face `Inlet`, the x = 2000 mm face `Outlet`, and the top, front and back faces `Walls`. Name the shared y = 0 face `Interface` once, marked as the coupling surface on both sides. Name the slab's two end faces `Fixed`. Use **Solid** selection for the bodies and **Surf** for boundaries.
 
+![The Parts panel with the named Parts](/screenshots/tutorial-cosim-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts.*
+
 ## Mesh
 
 Under **FE Mesh**, choose Gmsh, 3D, first-order tetrahedra, with global size min/max **100/100 mm**. The size is uniform on purpose: the shared face must mesh identically from both volumes, so it cannot be graded. Choose **MDPA Elements**, set the export units to **m**, and export as `mesh.mdpa`. The published mesh files hold 392 fluid nodes with 1055 tetrahedra and 169 structure nodes with 381 tetrahedra: 561 nodes and 1436 cells in all.

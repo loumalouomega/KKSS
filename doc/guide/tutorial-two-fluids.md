@@ -45,6 +45,10 @@ Open `cad/examples/BREP/blank.brep` in CAD mode and add one rectangle profile on
 
 Both fluids belong to the one Domain part. The materials are assigned per node by the level set, not by part. A separate Water face would have been the obvious choice, but CAD parts are exclusive: assigning the water face to a Water part took its elements out of Domain, and the solver then saw only the air.
 
+![The Parts panel with the named Parts](/screenshots/tutorial-two-fluids-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts: Domain, Walls and Outlet.*
+
 ## Mesh
 
 Use a uniform 45 mm size (`sizeMin = sizeMax = 45 mm`). The mesh has 2475 nodes and 4724 triangles. The size is chosen against the geometry: at 50 mm the bottom wall has a node exactly at x = 1 m, the foot of the free surface, where the level set would be exactly zero. At 45 mm the foot falls between nodes.

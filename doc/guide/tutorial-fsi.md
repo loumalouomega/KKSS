@@ -47,6 +47,10 @@ The benchmark defines its ramp only by its mesh, so the 28 stations are read off
 
 Name the channel face `Fluid` and the wall face `Structure`, then set `Structure`'s mesh size to **1.5 mm**. Name the lines `Inlet` (x = 0), `Outlet` (x = 1750 mm), `Walls` (base, ramp and flat bottom), `Slip` (the top) and `Fixed` (the wall's clamped bottom line). Name the three slot edges `Interface` once and mark them as the coupling surface on both sides, so one Part serves both solvers. Its grading is 2 mm within 12 mm of the wall, rising to 30 mm at 150 mm. Use **Surf** selection for faces and **Line** selection for boundaries.
 
+![The Parts panel with the named Parts](/screenshots/tutorial-fsi-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts.*
+
 ## Mesh
 
 Under **FE Mesh**, choose Gmsh, 2D, first order, with global size min/max **2/40 mm**. Choose **MDPA Elements**, set the export units to **m**, and export as `mesh.mdpa`. One mesh holds both faces. The export fragments the touching faces, so the slot edges mesh once and both solvers see the same interface nodes.

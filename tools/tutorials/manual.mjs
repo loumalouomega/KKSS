@@ -15,7 +15,7 @@ import { closeApp, appWindow, selectFile, sleep, until, diagnostics } from '../e
 import { root, python } from './mcp.mjs';
 import { cases } from './cases.mjs';
 import { CATALOG } from './shots.mjs';
-import { canvasShot, command, feMeshShot, fit, launchWindow, resetView, waitForDocument } from './capture.mjs';
+import { canvasShot, command, feMeshShot, fit, launchWindow, partsShot, seedView, resetView, waitForDocument } from './capture.mjs';
 
 const screenshots = path.join(root, 'doc/public/screenshots');
 
@@ -376,15 +376,19 @@ async function windTunnelWizard(out, entries, log) {
   }
 }
 
-/** The CAD FE-mesh shots (tutorial-<id>-fe-mesh.png): each case's geometry in CAD, FE Mesh > Generate. */
-export async function feMeshTutorials(out = screenshots, selected = []) {
+/**
+ * The CAD-side shots (tutorial-<id>-fe-mesh.png, tutorial-<id>-parts.png): each case's geometry opens in CAD from a
+ * scratch copy with a seeded <geometry>.view.json (fixed camera, collapsed panels) and its published Parts sidecar.
+ */
+export async function cadTutorials(kind, out = screenshots, selected = []) {
   const failures = [];
   for (const c of cases.filter((c) => !selected.length || selected.includes(c.id))) {
-    const entry = CATALOG.find((s) => s.case === c.id && s.producer === 'fe-mesh');
+    const entry = CATALOG.find((s) => s.case === c.id && s.producer === kind);
     if (!entry) continue;
-    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kkss-femesh-'));
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kkss-cad-'));
     const dir = path.join(temp, c.id);
     fs.cpSync(path.join(root, 'doc/public/examples/tutorials', c.id), dir, { recursive: true });
+    seedView(path.join(dir, c.geometry), c.id, kind === 'fe-mesh' ? ['parts-panel', 'meshing-panel'] : ['parts-panel']);
     const profile = path.join(temp, 'profile');
     fs.mkdirSync(profile);
     fs.writeFileSync(path.join(profile, 'state.json'), JSON.stringify({ uiTheme: 'dark', uiLanguage: 'en' }));
@@ -396,8 +400,9 @@ export async function feMeshTutorials(out = screenshots, selected = []) {
       await until(() => launched.output().includes('[cad] host → webview: geometry'), 'CAD geometry', 120_000);
       await cad.locator('#doc-chip-name').getByText(c.geometry, { exact: true }).waitFor();
       await sleep(1200);
-      const text = await feMeshShot(cad, path.join(out, entry.file));
-      console.log(`${entry.file}: ${fs.statSync(path.join(out, entry.file)).size} bytes; status: ${text}`);
+      const file = path.join(out, entry.file);
+      const text = kind === 'fe-mesh' ? await feMeshShot(cad, file) : await partsShot(cad, file);
+      console.log(`${entry.file}: ${fs.statSync(file).size} bytes; ${text}`);
     } catch (error) {
       failures.push(`${c.id}: ${error.message.split('\n')[0]}`);
       console.log(`${c.id}: FAILED ${error.message.split('\n')[0]}`);
@@ -435,7 +440,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   const only = args.find((a) => a.startsWith('--shot='));
   if (only) onlyShot = only.slice('--shot='.length);
   const names = args.filter((a) => !a.startsWith('--'));
-  if (args.includes('--fe-mesh')) await feMeshTutorials(screenshots, names);
+  if (args.includes('--fe-mesh')) await cadTutorials('fe-mesh', screenshots, names);
+  else if (args.includes('--parts')) await cadTutorials('parts', screenshots, names);
   else if (args.includes('--wizard')) await wizardTutorials(screenshots, names);
   else await manualTutorials(screenshots, names);
 }

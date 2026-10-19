@@ -43,6 +43,10 @@ Scaling only in X keeps the section and centres the bar. That puts the support f
 
 The Support Part is the clamp, with 61 nodes at zero displacement. The Load Part carries the pressure on 171 nodes. The Problemtype finds Parts by name, and a missing one is a Preflight error.
 
+![The Parts panel with the named Parts](/screenshots/tutorial-structural-parts.png)
+
+*The CAD window with the Parts panel open, showing the named Parts: Solid, Support and Load.*
+
 ## Mesh
 
 4. Under **FE Mesh**, choose Gmsh, dimension 3D, first order, and set the size min and max both to **0.8 mm**. Choose **MDPA Elements**, export units **m (convert from CAD mm)**, and export as `mesh.mdpa`.
