@@ -437,8 +437,22 @@ export async function fitCadTutorials(out = screenshots) {
       const launched = await launchWindow(copy, { profile, renderer: '/renderer/cad/', width: 1440, height: 1100 });
       app = launched.app;
       const cad = await appWindow(app, '/renderer/cad/', Date.now() + 120_000);
-      await until(() => launched.output().includes('[cad] host → webview: geometry'), `fit-cad ${file}`, 120_000);
       await cad.locator('#doc-chip-name').getByText(file, { exact: true }).waitFor();
+      if (file.endsWith('.step')) {
+        await until(() => launched.output().includes('[cad] host → webview: geometry'), `fit-cad ${file}`, 120_000);
+      } else {
+        // A three.js-native mesh (STL) loads entirely in the viewer (fetch +
+        // parse + render) — the host never posts `geometry`, so the load is
+        // read from the status line instead: it must start, then stop saying
+        // so. Anything else is either too early or a load failure, surfaced.
+        const statusText = async () => (await cad.locator('#status').textContent().catch(() => '')) ?? '';
+        await until(async () => (await statusText()).includes('Loading model'), `fit-cad ${file} starts loading`, 120_000);
+        await until(async () => {
+          const text = await statusText();
+          if (text.startsWith('Failed to load model')) throw new Error(`fit-cad ${file}: ${text}`);
+          return !text.includes('Loading model');
+        }, `fit-cad ${file} finishes loading`, 300_000);
+      }
       await sleep(1200);
       const text = await partsShot(cad, path.join(out, shot));
       console.log(`${shot}: ${fs.statSync(path.join(out, shot)).size} bytes; ${text}`);
