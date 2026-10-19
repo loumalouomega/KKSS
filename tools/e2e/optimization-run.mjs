@@ -25,6 +25,7 @@
  *   problemtype-optimization-progress.png        — panel over the real summary (verdict: finished)
  *   problemtype-optimization-design-fields.png   — hook, design-fields timeline
  *   problemtype-optimization-evolution.gif       — the shape morphing per iteration
+ *   problemtype-optimization-cad.png             — the exported solid reopened in CAD
  * plus, in the staged case folder (not committed): hook_optimized.step and its
  * .cad.json companion — the final frame exported as CAD, proving the run ends
  * in a real solid (see doc/guide/problemtypes.md's worked-run section).
@@ -39,7 +40,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { launchApp, appWindow, waitForMarkers, closeApp, diagnostics, sleep, root, until } from "../e2eShared.mjs";
+import { launchApp, appWindow, waitForMarkers, closeApp, diagnostics, selectFile, sleep, root, until } from "../e2eShared.mjs";
 import { encodeGif } from "../lib/gif.mjs";
 
 /** Every GIF must stay under this, so doc/public does not balloon (shared budget). */
@@ -338,6 +339,61 @@ export async function optimizationRunScenario(out) {
         assert.ok(fs.existsSync(outputPath), "the optimized STEP was written");
         const { frame, frameStep, companions, notes } = exported;
         console.log(`optimization-run: optimized CAD hook_optimized.step (${fs.statSync(outputPath).size} bytes, frame ${frame} at step ${frameStep}, companions: ${(companions ?? []).map((c) => path.basename(c)).join(", ") || "none"}): ${(notes ?? []).join(" ")}`);
+
+        // The user's last step: reopen the written solid. A STEP routes to CAD,
+        // so the figure shows the optimizer's own final geometry as a B-rep,
+        // not the design-field mesh it was fitted from. Seed the view sidecar
+        // first: the hook's U lies in XZ, and the CAD default is a corner view
+        // that foreshortens it, so frame the face with enough Y for depth.
+        fs.writeFileSync(`${outputPath}.view.json`, JSON.stringify({
+          version: 1,
+          source: path.basename(outputPath),
+          view: {
+            viewDirection: [0.45, -1, 0.15],
+            cameraUp: [0, 0, 1],
+            orthographic: false,
+            displayMode: "shaded",
+            clip: null,
+          },
+          // Keep the tree/parts/layers visible instead of the tall, empty
+          // editing panels: this figure is about the exported solid.
+          collapsedPanels: ["edits-panel", "scad-panel", "meshing-panel", "advanced-group"],
+        }, null, 2) + "\n");
+        const shell = await appWindow(app, "/renderer/shell/", deadline);
+        // A STEP opens through meshio too, so the router lets the active mode
+        // decide. Switch to Pre-Processing first: the shell's Open button then
+        // uses the CAD dialog and the file lands in the CAD viewer.
+        await shell.locator("#mode-cad").click();
+        await until(async () => ((await shell.locator("#mode-cad").getAttribute("class")) ?? "").includes("active"), "CAD mode is active", 60_000);
+        const cad = await appWindow(app, "/renderer/cad/", deadline);
+        // The profile's saved session may already hold the previous capture's
+        // STEP, so wait for this open's reload rather than matching the old
+        // chip. The same tab is reused, and its page object survives reload.
+        const reloaded = cad.waitForEvent("domcontentloaded", { timeout: 600_000 });
+        await selectFile(app, outputPath);
+        await shell.locator("#open-btn").click();
+        await reloaded;
+        await until(async () => {
+          const state = await cad.evaluate(() => {
+            const status = document.getElementById("status");
+            return {
+              chip: document.getElementById("doc-chip-name")?.textContent ?? "",
+              display: status ? getComputedStyle(status).display : "block",
+              text: status?.textContent ?? "",
+              error: status?.classList.contains("error") ?? false,
+              rows: document.querySelectorAll("#tree-body .tree-row").length,
+            };
+          }).catch(() => ({ chip: "", display: "block", text: "not ready", error: false, rows: 0 }));
+          if (state.error) throw new Error(`CAD failed to load the optimized STEP: ${state.text}`);
+          return state.chip.includes("hook_optimized.step") && state.display === "none" && state.rows > 0;
+        }, "the optimized STEP finishes loading in CAD", 600_000);
+        await sleep(1_500); // tessellate the fitted B-rep and settle the camera
+        await cad.locator("#fit").click();
+        await sleep(1_500);
+        await cad.mouse.move(0, 0);
+        await sleep(300);
+        await cad.screenshot({ path: path.join(out, "problemtype-optimization-cad.png"), timeout: 600_000 });
+        console.log("optimization-run: problemtype-optimization-cad.png — the exported solid reopened in CAD");
       } finally {
         await mcp.close();
       }

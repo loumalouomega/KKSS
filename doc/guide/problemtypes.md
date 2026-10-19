@@ -168,6 +168,8 @@ Worked inputs: `https://github.com/KratosMultiphysics/Examples/blob/master/optim
 
 A finished run ends in a real solid: the Optimization panel's **Export CAD** button (or the Kratos Runs row's **Export Optimized Geometry as CAD…**, or the assistant's `case_optimization_cad` tool) writes the run's final shape as STEP through the same `.step` auto-fit pipeline as a mesh export — **shape** mode writes the moved final design-field frame; **topology** contours the density field at a threshold first — with the `<stem>.cad.json` B-rep companion beside it. See [Mesh to CAD](tutorial-mesh-to-cad#5-from-an-optimization-run).
 
+![The optimized hook exported as STEP and reopened in CAD: the run's final design-field frame as a fitted B-rep solid](/screenshots/problemtype-optimization-cad.png)
+
 ## Assistant and MCP
 
 The chat sidebar drives case setup through the same servers the viewer uses. `problemtype_list` enumerates the built-ins with families and domains (loading a workspace problemtype *executes* it, so it asks for approval like a write); `problemtype_describe` details one. `case_validate` (read, with optional `checkInstall`), `case_status` (read, carrying compact optimization/ROM briefs), `case_evaluate_quantity` (read) and `case_estimate_timestep` (read) run unasked; `case_generate`, `case_run`, `case_stop`, `case_convergence`, `case_monitors` and `case_optimization` (each able to write files) ask first. `case_rom` (bounded lists, no output path) runs unasked.
