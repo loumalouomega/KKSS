@@ -158,13 +158,15 @@ The figures below come from a **real run**: OptimizationApplication's own 3D-hoo
 
 ![The shape morphing from the initial design through the five iterations](/screenshots/problemtype-optimization-evolution.gif)
 
-The run ends in a real solid: the finished shape exports as STEP through the Optimization panel's **Export CAD** button (or the Kratos Runs row's **Export Optimized Geometry as CAD…**, or the assistant's `case_optimization_cad` tool) — shape mode writes the final design-field frame through the same `.step` auto-fit pipeline, with the `<stem>.cad.json` B-rep companion beside it. See [Mesh to CAD](tutorial-mesh-to-cad#5-from-an-optimization-run).
-
 ![ROM · Structural Mechanics over the 3D hook: the Reduced-order model stages, projection, POD basis, HROM and Sampling cards beside the hook mesh](/screenshots/problemtype-rom.png)
 
 ![ROM Parameters: one range entry whose Varies target is the materials file's Young modulus, with its minimum and maximum](/screenshots/problemtype-rom-parameters.png)
 
 Worked inputs: `https://github.com/KratosMultiphysics/Examples/blob/master/optimization_application/use_cases/archara/shape_only/` (`archara.mdpa`, `ProjectParameters.json`, `implicit_vertex_morphing/optimization_parameters.json`) is a shape-optimization starting point; `https://github.com/KratosMultiphysics/Examples/blob/master/optimization_application/use_cases/3d_hook/` (`hook.mdpa`, `materials_3D.json`, `primal_parameters_main.json`) is the 3D equivalent.
+
+## Exporting the optimized shape as CAD
+
+A finished run ends in a real solid: the Optimization panel's **Export CAD** button (or the Kratos Runs row's **Export Optimized Geometry as CAD…**, or the assistant's `case_optimization_cad` tool) writes the run's final shape as STEP through the same `.step` auto-fit pipeline as a mesh export — **shape** mode writes the moved final design-field frame; **topology** contours the density field at a threshold first — with the `<stem>.cad.json` B-rep companion beside it. See [Mesh to CAD](tutorial-mesh-to-cad#5-from-an-optimization-run).
 
 ## Assistant and MCP
 
