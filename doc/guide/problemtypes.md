@@ -10,31 +10,31 @@ Eighteen built-ins ship with the app, grouped by family in the Problemtype dropd
 
 | Family | Problemtype (`id`) | Kratos application(s) |
 |---|---|---|
-| Solids & structures | **Structural Mechanics** (`structural`) | StructuralMechanicsApplication |
-| Fluids | **Fluid Dynamics** (`fluid`) | FluidDynamicsApplication |
-| Fluids | **Compressible Fluid** (`compressibleFluid`) | FluidDynamicsApplication |
-| Fluids | **Embedded Fluid** (`embeddedFluid`) | FluidDynamicsApplication |
-| Fluids | **Free Surface** (`freeSurface`) | FreeSurfaceApplication |
-| Fluids | **Turbulent Flow (RANS)** (`rans`) | RANSApplication (+ LinearSolversApplication for the coupled solve) |
-| Fluids | **Two Fluids** (`twoFluids`) | FluidDynamicsApplication |
-| Fluids | **Potential Flow** (`potentialFlow`) | CompressiblePotentialFlowApplication |
-| Fluids | **Shallow Water** (`shallowWater`) | ShallowWaterApplication |
-| Thermal | **Convection-Diffusion** (`convectionDiffusion`) | ConvectionDiffusionApplication |
-| Coupled physics | **Buoyancy** (`buoyancy`) — Boussinesq natural convection | ConvectionDiffusionApplication + FluidDynamicsApplication |
-| Coupled physics | **Conjugate Heat Transfer** (`conjugateHeatTransfer`) — fluid + solid | ConvectionDiffusionApplication (+ fluid/solid participants) |
-| Coupled physics | **Fluid-Structure Interaction** (`fsi`) | FluidDynamics, StructuralMechanics, MeshMoving, Mapping |
-| Coupled physics | **Generic Coupling (CoSimulation)** (`cosim`) | CoSimulation, FluidDynamics, StructuralMechanics, Mapping (+ MeshMoving with ALE) |
-| Reduced-order models | **ROM · Structural Mechanics** (`romStructural`) | StructuralMechanicsApplication + RomApplication |
-| Reduced-order models | **ROM · Convection-diffusion** (`romThermal`) | ConvectionDiffusionApplication + RomApplication |
-| Reduced-order models | **ROM · Fluid Dynamics** (`romFluid`) | FluidDynamicsApplication + RomApplication |
-| Reduced-order models | **ROM · Potential Flow** (`romPotentialFlow`) | CompressiblePotentialFlowApplication + RomApplication |
-| Optimization | **Structural Optimization** (`optimization`) | OptimizationApplication |
-| Workflow | **Flowgraph** (`flowgraph`) — node editor, UI-only | — |
+| Solids & structures | [**Structural Mechanics**](tutorial-structural) (`structural`) | StructuralMechanicsApplication |
+| Fluids | [**Fluid Dynamics**](tutorial-fluid) (`fluid`) | FluidDynamicsApplication |
+| Fluids | [**Compressible Fluid**](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/FluidDynamicsApplication) (`compressibleFluid`) | FluidDynamicsApplication |
+| Fluids | [**Embedded Fluid**](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/FluidDynamicsApplication) (`embeddedFluid`) | FluidDynamicsApplication |
+| Fluids | [**Free Surface**](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/FreeSurfaceApplication) (`freeSurface`) | FreeSurfaceApplication |
+| Fluids | [**Turbulent Flow (RANS)**](tutorial-rans) (`rans`) | RANSApplication (+ LinearSolversApplication for the coupled solve) |
+| Fluids | [**Two Fluids**](tutorial-two-fluids) (`twoFluids`) | FluidDynamicsApplication |
+| Fluids | [**Potential Flow**](tutorial-potential-flow) (`potentialFlow`) | CompressiblePotentialFlowApplication |
+| Fluids | [**Shallow Water**](tutorial-shallow-water) (`shallowWater`) | ShallowWaterApplication |
+| Thermal | [**Convection-Diffusion**](tutorial-thermal) (`convectionDiffusion`) | ConvectionDiffusionApplication |
+| Coupled physics | [**Buoyancy**](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/ConvectionDiffusionApplication) (`buoyancy`) — Boussinesq natural convection | ConvectionDiffusionApplication + FluidDynamicsApplication |
+| Coupled physics | [**Conjugate Heat Transfer**](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/ConvectionDiffusionApplication) (`conjugateHeatTransfer`) — fluid + solid | ConvectionDiffusionApplication (+ fluid/solid participants) |
+| Coupled physics | [**Fluid-Structure Interaction**](#coupled-simulations-fsi-and-cosimulation) (`fsi`) — see also the [Mok tutorial](tutorial-fsi) | FluidDynamics, StructuralMechanics, MeshMoving, Mapping |
+| Coupled physics | [**Generic Coupling (CoSimulation)**](#coupled-simulations-fsi-and-cosimulation) (`cosim`) — see also the [weak-coupling tutorial](tutorial-cosimulation) | CoSimulation, FluidDynamics, StructuralMechanics, Mapping (+ MeshMoving with ALE) |
+| Reduced-order models | [**ROM · Structural Mechanics**](#reduced-order-models) (`romStructural`) | StructuralMechanicsApplication + RomApplication |
+| Reduced-order models | [**ROM · Convection-diffusion**](#reduced-order-models) (`romThermal`) | ConvectionDiffusionApplication + RomApplication |
+| Reduced-order models | [**ROM · Fluid Dynamics**](#reduced-order-models) (`romFluid`) | FluidDynamicsApplication + RomApplication |
+| Reduced-order models | [**ROM · Potential Flow**](#reduced-order-models) (`romPotentialFlow`) | CompressiblePotentialFlowApplication + RomApplication |
+| Optimization | [**Structural Optimization**](#structural-optimization) (`optimization`) | OptimizationApplication |
+| Workflow | [**Flowgraph**](mesh-mode#problemtypes-kratos-case-setup) (`flowgraph`) — node editor, UI-only | — |
 
 A coupled problemtype has several **domains** (for example *Fluid* and *Structure*). Each domain has its own Parts condition, conditions, materials and mesh: Generate writes one `ProjectParameters.json` plus one mesh per physics (`<name>_Fluid.mdpa`, `<name>_Structural.mdpa`, …) sliced from the mesh you have open, and one materials file per domain.
 
 ::: warning First-run rule for the newer families
-Eleven worked cases are solver-verified end to end — structural, fluid, thermal, potential flow, shallow water, FSI, CoSimulation, RANS obstacle flow, cantilever eigenmodes, the two-fluid dam break and the virtual wind tunnel — see the [geometry-to-results tutorials](./tutorial-geometry-to-results) — and the Structural Optimization problemtype has a runnable real-world worked case in the section below. The two-fluid dam break needs a one-file alias for the stock Kratos 10.4.3 serial wrapper, which its page gives. The compressible, embedded, free-surface, buoyancy, conjugate-heat-transfer and ROM problemtypes follow their Kratos writers and applications, but no case of those was run here. Treat the first run as a check of the generated files: every generated driver checks that the Kratos applications the case needs can be imported before it starts, and **Run** asks the configured Python first, refusing with the missing applications named. MPM and DEM are not provided.
+Eleven worked cases are solver-verified end to end — [structural](tutorial-structural), [fluid](tutorial-fluid), [thermal](tutorial-thermal), [potential flow](tutorial-potential-flow), [shallow water](tutorial-shallow-water), [FSI](tutorial-fsi), [CoSimulation](tutorial-cosimulation), [RANS obstacle flow](tutorial-rans), [cantilever eigenmodes](tutorial-eigen), the [two-fluid dam break](tutorial-two-fluids) and the [virtual wind tunnel](tutorial-wind-tunnel) — see the [geometry-to-results tutorials](./tutorial-geometry-to-results) — and the Structural Optimization problemtype has a runnable real-world worked case in the section below. The two-fluid dam break needs a one-file alias for the stock Kratos 10.4.3 serial wrapper, which its page gives. The compressible, embedded, free-surface, buoyancy, conjugate-heat-transfer and ROM problemtypes follow their Kratos writers and applications, but no case of those was run here. Treat the first run as a check of the generated files: every generated driver checks that the Kratos applications the case needs can be imported before it starts, and **Run** asks the configured Python first, refusing with the missing applications named. MPM and DEM are not provided.
 :::
 
 ## Setting up any case
@@ -62,7 +62,7 @@ The newer problemtypes configure repeatable lists — optimization **responses**
 
 ## Coupled simulations: FSI and CoSimulation
 
-**Fluid-Structure Interaction** (`fsi`, over the FSIApplication) nests both solvers in one `FsiAnalysis`; **Generic Coupling** (`cosim`, over the CoSimulationApplication) drives two separate solvers. Both are built from the Fluid and Structural Mechanics problemtypes, so their fluid and structure fields, conditions and materials are the same ones those problemtypes use, prefixed per physics.
+**Fluid-Structure Interaction** (`fsi`, over the FSIApplication) nests both solvers in one `FsiAnalysis`; **Generic Coupling** (`cosim`, over the CoSimulationApplication) drives two separate solvers. Both are built from the [Fluid](tutorial-fluid) and [Structural Mechanics](tutorial-structural) problemtypes, so their fluid and structure fields, conditions and materials are the same ones those problemtypes use, prefixed per physics.
 
 | | Fluid-Structure Interaction | Generic Coupling (CoSimulation) |
 |---|---|---|
@@ -116,7 +116,7 @@ Worked inputs: `https://github.com/KratosMultiphysics/Examples/blob/master/rom_a
 
 ## Structural Optimization
 
-The **Structural Optimization** problemtype writes a case for Kratos' [OptimizationApplication](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/OptimizationApplication): the algorithm-based optimizer driven by `optimization_parameters.json` and `OptimizationAnalysis`. The primal analysis is set up exactly as in the Structural Mechanics problemtype, and the Setup lists on top of it describe the optimization problem: the **responses** it can measure, the **controls** it may change, and the **constraints** that must hold. The older ShapeOptimizationApplication is not targeted.
+The **Structural Optimization** problemtype writes a case for Kratos' [OptimizationApplication](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/OptimizationApplication): the algorithm-based optimizer driven by `optimization_parameters.json` and `OptimizationAnalysis`. The primal analysis is set up exactly as in the [Structural Mechanics](tutorial-structural) problemtype, and the Setup lists on top of it describe the optimization problem: the **responses** it can measure, the **controls** it may change, and the **constraints** that must hold. The older ShapeOptimizationApplication is not targeted.
 
 The primal must be **static**, and a **linear strain energy** response needs a **linear** primal with at least one load; Generate refuses the case otherwise. A new case has two responses: `mass` and `strain_energy`.
 
