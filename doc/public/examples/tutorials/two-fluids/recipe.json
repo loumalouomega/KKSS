@@ -8,33 +8,14 @@
   "tank": {
     "widthMm": 4000,
     "heightMm": 1000,
-    "waterWidthMm": 1000
+    "waterWidthMm": 1000,
+    "waterHeightMm": 800
   },
   "ops": [
     {
       "op": "addRectangleProfile",
       "center": [
-        500,
-        500,
-        0
-      ],
-      "normal": [
-        0,
-        0,
-        1
-      ],
-      "up": [
-        1,
-        0,
-        0
-      ],
-      "width": 1000,
-      "height": 1000
-    },
-    {
-      "op": "addRectangleProfile",
-      "center": [
-        2500,
+        2000,
         500,
         0
       ],
@@ -48,18 +29,22 @@
         0,
         0
       ],
-      "width": 3000,
+      "width": 4000,
       "height": 1000
     }
   ],
   "options": {
     "dimension": 2,
-    "sizeMin": 50,
-    "sizeMax": 50
+    "sizeMin": 45,
+    "sizeMax": 45
   },
   "problem": {
     "timeStep": 0.005,
-    "endTime": 0.5
+    "endTime": 0.5,
+    "gravityValue": 9.81
+  },
+  "output": {
+    "interval": 5
   },
   "assignments": [
     {
@@ -71,6 +56,13 @@
       "conditionId": "noSlip",
       "smpPath": "Walls",
       "values": {}
+    },
+    {
+      "conditionId": "outlet",
+      "smpPath": "Outlet",
+      "values": {
+        "value": 0
+      }
     },
     {
       "conditionId": "massConservationCheck",
@@ -100,20 +92,20 @@
       }
     }
   ],
-  "distanceFrom": "Water",
-  "blockedSolver": "navier_stokes_two_fluid_solver",
+  "signedDistance": {
+    "expr": "sqrt(max(abs(x) - 1, 0)^2 + max(abs(y + 0.1) - 0.9, 0)^2) + min(max(abs(x) - 1, abs(y + 0.1) - 0.9), 0)",
+    "output": "DISTANCE"
+  },
+  "solverAlias": {
+    "name": "navier_stokes_two_fluid_solver",
+    "target": "navier_stokes_two_fluids_solver"
+  },
+  "manual": "geometry",
   "field": "VELOCITY",
   "timeout": 600000,
   "parts": [
     {
       "name": "Domain",
-      "surfaces": [
-        "face-0",
-        "face-1"
-      ]
-    },
-    {
-      "name": "Water",
       "surfaces": [
         "face-0"
       ]
@@ -122,11 +114,14 @@
       "name": "Walls",
       "lines": [
         "edge-0",
-        "edge-2",
-        "edge-3",
-        "edge-4",
-        "edge-5",
-        "edge-6"
+        "edge-1",
+        "edge-3"
+      ]
+    },
+    {
+      "name": "Outlet",
+      "lines": [
+        "edge-2"
       ]
     }
   ],
@@ -134,27 +129,19 @@
   "preflight": {
     "ok": true,
     "problemtype": "twoFluids",
-    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-yYhMcj/two-fluids/mesh.kratoscase.json",
+    "source": "generated/two-fluids/mesh.kratoscase.json",
     "warnings": [],
     "applications": [
       "FluidDynamicsApplication"
     ],
     "issues": [],
-    "advisories": [
-      "1 SubModelPart(s) are not used by any assignment or material: \"Water\"."
-    ],
+    "advisories": [],
     "counts": {
       "error": 0,
       "warning": 0,
-      "info": 1
+      "info": 0
     },
-    "findings": [
-      {
-        "severity": "info",
-        "code": "part-unused",
-        "message": "1 SubModelPart(s) are not used by any assignment or material: \"Water\"."
-      }
-    ],
+    "findings": [],
     "state": {
       "version": 1,
       "problemtypeId": "twoFluids",
@@ -173,7 +160,7 @@
           "absVelTol": 0.00001,
           "relPresTol": 0.001,
           "absPresTol": 0.00001,
-          "gravityValue": 0,
+          "gravityValue": 9.81,
           "gravityDirection": [
             0,
             -1,
@@ -218,6 +205,13 @@
           "values": {}
         },
         {
+          "conditionId": "outlet",
+          "smpPath": "Outlet",
+          "values": {
+            "value": 0
+          }
+        },
+        {
           "conditionId": "massConservationCheck",
           "smpPath": "Domain",
           "values": {
@@ -248,7 +242,7 @@
       "output": {
         "format": "ascii",
         "controlType": "step",
-        "interval": 1,
+        "interval": 5,
         "nodalVariables": [
           "VELOCITY",
           "PRESSURE",

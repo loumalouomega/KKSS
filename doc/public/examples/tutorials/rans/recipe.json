@@ -307,7 +307,7 @@
   "preflight": {
     "ok": true,
     "problemtype": "rans",
-    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-VthoPI/rans/mesh.kratoscase.json",
+    "source": "generated/rans/mesh.kratoscase.json",
     "warnings": [],
     "applications": [
       "FluidDynamicsApplication",

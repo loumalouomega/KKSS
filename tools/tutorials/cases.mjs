@@ -251,38 +251,58 @@ export const cases = [
     ops: [{ op: 'scale', targets: ['solid-0'], center: [0, 0, 0], factors: [6, 1, 1] }],
     parts: [{ name: 'Solid', volumes: ['solid-0'] }, { name: 'Support', surfaces: ['face-3'] }],
     options: { dimension: 3, sizeMin: 0.8, sizeMax: 0.8 },
-    problem: { solverType: 'eigen_value', eigenCount: 3, eigenMaxIteration: 1000, eigenTolerance: 1e-6, eigenSolver: 'eigen_eigensystem' },
+    // One time step, so the driver solves once: the modes do not depend on time,
+    // and the default run repeated the identical solve at eleven pseudo-steps.
+    problem: { solverType: 'eigen_value', eigenCount: 3, eigenMaxIteration: 1000, eigenTolerance: 1e-6, eigenSolver: 'eigen_eigensystem', timeStep: 1, endTime: 1 },
     assignments: [assignment('parts', 'Solid'), assignment('displacement', 'Support', { value: [0, 0, 0], constrained: true })],
     materials: [material('Solid', 'linear_elastic_3d', { DENSITY: 7850, YOUNG_MODULUS: 210000000000, POISSON_RATIO: 0.3 })],
     field: 'DISPLACEMENT', eigen: true, manual: 'setup', timeout: 600000,
   },
   {
-    // A 2D dam break: a 4 x 1 m tank whose left metre is water, the rest air.
-    // The interface is the zero of the mesh's nodal DISTANCE field, computed
-    // after export with the sdfDistance op against the Water part (the water
-    // column face). Both fluid materials live on the same Domain part, water
-    // first then air, in solver order. Generation-verified only: the stock
-    // Kratos 10.4.3 serial Two Fluids solver cannot start (upstream wrapper
-    // bug, recorded in failure.log), so no solver results are published.
+    // A 2D dam break: a 1 m x 0.8 m water column against the left wall of a
+    // 4 x 1 m tank, open at the top to the atmosphere, under gravity 9.81 m/s^2
+    // along -Y. The interface is the zero of the nodal DISTANCE field, the exact
+    // signed distance to the column (negative in the water), set from the
+    // geometry by signedDistance. Both fluid materials live on the same Domain
+    // part, water first then air, in solver order. The top is an outlet at zero
+    // pressure, which gives the pressure its reference (a closed tank drifts).
+    // The stock Kratos 10.4.3 serial wrapper imports the singular module name
+    // navier_stokes_two_fluid_solver, which the package does not ship (its file
+    // is navier_stokes_two_fluids_solver.py); solverAlias writes that one-file
+    // alias before the solve, and the published case README tells users to
+    // create the same file.
     id: 'two-fluids', title: 'Two-fluid dam break (level set)', problemtype: 'twoFluids', twoFluids: true,
     source: 'cad/examples/BREP/blank.brep', geometry: 'tank.brep',
-    tank: { widthMm: 4000, heightMm: 1000, waterWidthMm: 1000 },
-    ops: [
-      { op: 'addRectangleProfile', center: [500, 500, 0], normal: [0, 0, 1], up: [1, 0, 0], width: 1000, height: 1000 },
-      { op: 'addRectangleProfile', center: [2500, 500, 0], normal: [0, 0, 1], up: [1, 0, 0], width: 3000, height: 1000 },
-    ],
-    options: { dimension: 2, sizeMin: 50, sizeMax: 50 },
-    problem: { timeStep: 0.005, endTime: 0.5 },
+    tank: { widthMm: 4000, heightMm: 1000, waterWidthMm: 1000, waterHeightMm: 800 },
+    ops: [{ op: 'addRectangleProfile', center: [2000, 500, 0], normal: [0, 0, 1], up: [1, 0, 0], width: 4000, height: 1000 }],
+    // 45 mm, not 50: at 50 mm the 4 m edges hold 80 segments, so the free
+    // surface x = 1 m lands exactly on a boundary node and the level set has
+    // exact zeros on element edges. At 45 mm the surface falls between nodes.
+    options: { dimension: 2, sizeMin: 45, sizeMax: 45 },
+    problem: { timeStep: 0.005, endTime: 0.5, gravityValue: 9.81 },
+    output: { interval: 5 },
     assignments: [
       assignment('parts', 'Domain'),
       assignment('noSlip', 'Walls'),
+      assignment('outlet', 'Outlet', { value: 0 }),
       assignment('massConservationCheck', 'Domain', { perform: false, frequency: 20, log: false }),
     ],
     materials: [
       material('Domain', 'phase_1_2d', { DENSITY: 1000, DYNAMIC_VISCOSITY: 0.001 }),
       material('Domain', 'phase_2_2d', { DENSITY: 1.0, DYNAMIC_VISCOSITY: 0.000018 }),
     ],
-    distanceFrom: 'Water', blockedSolver: 'navier_stokes_two_fluid_solver', manual: 'geometry',
+    // The exact signed distance to the water column [0, 1] x [0, 0.8] m, taken
+    // from a box that reaches past the walls to [-1, 1] x [-1, 0.8] (centre
+    // (0, -0.1), half sizes (1, 0.9)). Its faces at x = 1 and y = 0.8 are the
+    // free surface; the faces on the walls would put exact zeros on the wall
+    // nodes the column touches. Negative inside the water, positive in the air.
+    signedDistance: {
+      expr: 'sqrt(max(abs(x) - 1, 0)^2 + max(abs(y + 0.1) - 0.9, 0)^2) + min(max(abs(x) - 1, abs(y + 0.1) - 0.9), 0)',
+      output: 'DISTANCE',
+    },
+    solverAlias: { name: 'navier_stokes_two_fluid_solver', target: 'navier_stokes_two_fluids_solver' },
+    // The setup cards and mesh shot are replayed like eigen's (manual.mjs stops after geometry only for 'geometry').
+    manual: 'setup',
     field: 'VELOCITY', timeout: 600000,
   },
   {

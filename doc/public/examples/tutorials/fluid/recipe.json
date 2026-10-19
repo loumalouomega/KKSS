@@ -381,7 +381,7 @@
   "preflight": {
     "ok": true,
     "problemtype": "fluid",
-    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-PW5ANY/fluid/mesh.kratoscase.json",
+    "source": "generated/fluid/mesh.kratoscase.json",
     "warnings": [],
     "applications": [
       "FluidDynamicsApplication"

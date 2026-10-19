@@ -10,6 +10,7 @@
     "REACTION",
     "VON_MISES_STRESS"
   ],
+  "result": "vtk_output/Structure_0_8.vtk",
   "frames": 8,
   "end_time": 1,
   "checks": {
@@ -33,12 +34,12 @@
     "mesh.kratoscase.json": "e347c71c4ad458a0af1db1ffdd693eb0e6c2531e54485ab673f4cc060c281c3a",
     "mesh.mdpa": "0c5622909c240fe94afa6e9f1894fb91afcf9b448d36299a9217c5afc9111da2",
     "ProjectParameters.json": "d13941045492b198dd63c218f9ee4f783701b5c5ed67b78b6b19f1096f8a457e",
-    "recipe.json": "537a40249e4cd1e071cde6a29ccb4e4fa142cba857871af71853b9b914abc6df",
+    "recipe.json": "32fea1ed9140e5570eeea40468c95432fb0058fe6f004ef8da4bbd952e34eb8c",
     "StructuralMaterials.json": "cbc3beb1b9f1beafd4159c741c060a88a94f8e2eedb8f693c982c6f37968804f"
   },
   "source": "cad/examples/STP/block.stp",
   "revisions": {
-    "cad": "ad045a840dc3faa32d3842cc4ab378d67754ee66",
-    "mesh": "6b7ffa16e00ca8bead8786c68f8099b1d9a15c46"
+    "cad": "7c51565f2388edbba04a7b9637e827df550851f0",
+    "mesh": "545f8407aaa0e88feb4d2d6cde579f3a4279833b"
   }
 }

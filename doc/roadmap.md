@@ -43,7 +43,7 @@ Read the parent app at `0d4a0d9` (2.5.0): `app/main/` (hosts, window/tab orchest
 
 *Admission: behavior that is wrong today, whatever the effort. Fix before anything below.*
 
-1. **The downloadable structural tutorial case is refused by Generate** (**S**). `doc/public/examples/tutorials/structural/` (and `structural.zip`, `tutorial-cases.zip`) still carries `DENSITY: 0` in `mesh.kratoscase.json`, `recipe.json` and `StructuralMaterials.json`, from before mesh 5.3.0 refused non-positive densities; `tools/tutorials/cases.mjs` was corrected to 7850 in `5de6f84` but the case was never republished, so `mesh__case_run` on the fixture fails with "Density must be greater than zero". The inputs are SHA-256-pinned in `verification.json`, so the fix is a real republish (`generate.mjs` → `publish.mjs`, then `tutorials:plots` and the docs checks), not a hand edit; a static load ramp should keep the verified displacement. *Chat parity: none* (docs fixtures).
+1. **Done: the downloadable structural tutorial case is accepted by Generate** (**S**). `doc/public/examples/tutorials/structural/` (and `structural.zip`, `tutorial-cases.zip`) now carries the physical steel density (`DENSITY: 7850`) in `mesh.kratoscase.json`, `recipe.json` and `StructuralMaterials.json`: `tools/tutorials/cases.mjs` was corrected in `5de6f84` and the case was republished in `1577a85`, so `mesh__case_run` on the fixture no longer fails with "Density must be greater than zero". *Chat parity: none* (docs fixtures).
 
 ### Tier 1 — Submodules stay current
 

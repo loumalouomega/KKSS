@@ -188,7 +188,7 @@ build compose file defaults to the repo's `mesh/example/` so there is something
 to open out of the box.
 
 App settings (`state.json` — theme, zoom, LLM provider, …) persist across
-restarts through a named volume at `/home/kkss/.config/kkss`. Operator-managed
+restarts through a named volume at `~kkss/.config/kkss`. Operator-managed
 values such as `KKSS_LLM_API_KEY_FILE`, `KKSS_PROJECT_ROOT`,
 `KKSS_RESTORE_SESSION`, `KKSS_THEME`, `KKSS_UI_THEME`, `KKSS_ZOOM`, and `KKSS_META_*` override
 the stored value, are shown as “set by the environment” in Settings, and are

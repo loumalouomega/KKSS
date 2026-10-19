@@ -122,8 +122,8 @@ Thread previews freeze a concrete `kratos.threads` allocation (`0` means Auto,
 manual runner's `SetNumThreads`/`GetNumThreads` APIs before dispatch, apply the
 requested count before constructing the simulation, and fail if the effective
 count cannot be verified. Receipts and run provenance retain requested and
-effective counts. `tools/workflows/benchmark.mjs` runs the five tutorial cases
-at 1, 2, 4 and all available CPUs, three repetitions each; raw timings and
+effective counts. `tools/workflows/benchmark.mjs` runs every tutorial case not marked
+`benchmark: false` (the recorded run covers the five single-physics cases) at 1, 2, 4 and all available CPUs, three repetitions each; raw timings and
 coordinator-delay samples live in `doc/public/benchmarks/thread-benchmark.json`.
 Treat them as machine-specific observations, not evidence that more threads
 improve solve time.
@@ -225,11 +225,7 @@ resubmitted automatically.
   `PLOT_PANE_HTML` and `#preview-main`'s lazy local library URL; stage `plots.js`,
   `plots.css`, Plotly + license and `out/plotWorker.js` (beside main/MCP, sharing
   `out/meshio/`). `vscode.openWith` preserves Beside by revealing an owning tab
-  or opening a new one, never replacing unrelated work. `tools/e2e/mesh-plots.mjs`
-  verifies real plots/exports and generates captures (`docs:screenshots -- --plots-only`).
-  `tutorials:plots` derives recipes/CSV/provenance from unchanged solver bytes,
-  supplies SI units/fixed-step time reconstruction and refreshes archives; do
-  not fabricate initial frames, adaptive times or isolated-run ownership.
+  or opening a new one, never replacing unrelated work. The `tools/e2e/mesh-plots.mjs` scenario and the `tutorials:plots` pipeline were removed with the published plot recipes (`b9f83b1`), and plot shots are now captured by `tools/tutorials/gallery.mjs`. Recipes still take SI units and fixed-step time reconstruction from the case settings, and must not fabricate initial frames, adaptive times or isolated-run ownership.
   The `kratos.exportReport` route still requires explicitly
   disabled scripts: `services/staticReport.ts` opens upstream escaped HTML
   in a sandboxed, JavaScript-disabled window with no Node/preload and blocked
@@ -390,7 +386,7 @@ resubmitted automatically.
 - **Custom schemes replace VS Code webview plumbing.** `kkss://app/...`
   serves out/ assets; `kkss://docs/...` serves the in-app manual (Help ▸
   KKSS Manual…: the built docs site staged to `out/docs/` — everything but
-  the ~100 MB `examples/` tree, whose links esbuild rewrites to the
+  the ~28 MB `examples/` tree, whose links esbuild rewrites to the
   published site; the URL keeps the site's own `/KKSS/` base because
   VitePress's router 404s without it, the handler strips it before mapping
   to disk — `app/main/services/docsServe.ts` owns both rules and
@@ -2182,16 +2178,14 @@ formal certification or manual screen-reader sign-off.
 
 ## Geometry-to-results tutorials (Tier 1, verified)
 
-`doc/guide/tutorial-geometry-to-results.md` is the landing page for seven manual
-CAD → MDPA → Problemtype → Kratos → VTK walkthroughs (five single-physics plus
-the partitioned FSI Mok benchmark and weak CoSimulation channel-slab coupling); each has a
-downloadable case and solver-produced results. Shared definitions live in
+`doc/guide/tutorial-geometry-to-results.md` is the landing page for eleven manual
+CAD → MDPA → Problemtype → Kratos → VTK walkthroughs, all eleven solver-verified (structural statics and eigenmodes, laminar and RANS flow, thermal, potential flow, shallow water, the partitioned FSI Mok benchmark, weak CoSimulation channel-slab coupling, the two-fluid dam break and a virtual wind tunnel). Each has a downloadable case and verification record. Solver output is not shipped (`b9f83b1` removed it), so rerun a case to reproduce its VTK. The tutorial figures are captured by `tools/tutorials/gallery.mjs` from the recovered output that `tools/tutorials/results.mjs` locates, and by `tools/tutorials/manual.mjs`, which reruns each case in the app; the catalog `tools/tutorials/shots.mjs` is the source of truth. `tools/tutorials/writeDocs.mjs` renders the page islands (the same staleness check runs in `test/tutorialDocs.test.ts`), and the rest of each page is hand-written. `runtimeAlias.mjs` writes the two-fluid solver's one-file alias into the tier-4 runtime before its solve, and `publish.mjs` scrubs machine paths from the text it ships. The eigenmode figures come from `eigenModes.py`, which rewrites the solver's raw eigenvector records as VTK: this build's GiD binary reader misreads their vector values (most nodes come back as zero or another node's value), so do not capture modes from `EigenResults/*.post.bin`. `KKSS_TUTORIAL_SOLVE=1` lets `results.mjs` solve a missing case into a scratch generation. Shared definitions live in
 `tools/tutorials/cases.mjs`; `generate.mjs` creates clean cases through the
 real CAD and mesh MCP servers, runs Kratos, and invokes `verify.py` for
 physical checks. `publish.mjs` freezes measured results, input hashes and
 CAD/mesh revisions into the archives. Verified on Python 3.12.14 / Kratos
 10.4.3 with two threads: structural 1048 nodes / 3896 elements and 1.786%
-beam-reference displacement error (25% limit); fluid 150 / 248, zero flux
+beam-reference displacement error (25% limit); fluid 945 / 1766, zero flux
 imbalance; thermal 263 / 814, 0.000019 K maximum linear-profile error
 (0.001 K limit); potential flow 150 / 248, 0.0000328 m/s maximum gradient
 error (0.001 m/s limit); shallow water 150 / 248, 4.0 m³ volume with zero
@@ -2224,10 +2218,8 @@ pressure exactly, the ALE mass balance (outlet flux against inlet flux plus the
 sweeping slab; error ≤ 0.35 of the delivered volume) and at least one coupling
 iteration per step; the outlet's mean axial speed is informational — an
 incompressible solve pushes the inflow straight through, so the older quiescence
-premise was wrong. `writeDocs.mjs` regenerates the pages from the definitions while
-preserving the hand-written `## Plot` and `## Post-run checks and batch` sections;
-its plot extraction must stop at both `## Post-run checks and batch` and
-`## Verified result`, or every run duplicates the batch section.
+premise was wrong. `writeDocs.mjs` rewrites only the islands between
+`<!-- tutorial:NAME:begin -->` and `<!-- tutorial:NAME:end -->` markers (`glance` and `verified`, from `docIslands.mjs`) and never touches the hand-written prose.
 
 **Kratos MCP background-run acceptance (item 10's last bullet).** Driving the pinned
 `kratos-mcp-server@0.9.0` over stdio (the app's launch line, `KRATOS_PYTHONPATH` at
@@ -2253,7 +2245,7 @@ case in the sidebar, clicks **Run**, checks the terminal receipt and solver
 fields, then opens results and captures the selected field/timeline. The
 cantilever additionally verifies the display-only displacement warp at 1000×
 and captures both its deformed shape and von Mises stress. The full
-`npm run docs:screenshots` pipeline runs those seven sessions and
+`npm run docs:screenshots` pipeline runs those eleven case sessions and
 `assistant.mjs`; its local scripted OpenAI-compatible provider performs real
 tool calls and a solver run, tests dry-run/denial/approval and snapshot output,
 then reopens the persisted conversation without repeating tool calls. The
@@ -2292,14 +2284,13 @@ first three sessions are what populate its recents list.
 
 **Timeline GIFs follow the same rule.** `tools/tutorials/animations.mjs`
 (`npm run docs:screenshots -- --animations-only`, also part of the full run)
-captures the fluid tutorial's committed `vtk_output` series — no solver run —
+captures the fluid, FSI and CoSimulation `vtk_output` series from the examples tree — no solver run; the published archives no longer ship them, so a missing series is skipped with a warning and its committed GIF stands —
 with the Field panel's Range pinned, via a dependency-free GIF89a encoder
 (`tools/lib/gif.mjs`; node-pty stays the only native module). Budget 1.5 MB per
 GIF, asserted; first/last frames must differ. Shallow water is deliberately not
 animated (a still basin: every frame identical) and fluid pressure starts at
-step 5 because the impulsive start would flatten a fixed colour scale. If the
-tutorial figures change, update both `doc/guide/tutorial-fluid.md` and
-`tools/tutorials/writeDocs.mjs`, which regenerates them.
+step 5 because the impulsive start would flatten a fixed colour scale. The GIF lines of
+`doc/guide/tutorial-fluid.md` are hand-written: `writeDocs.mjs` does not regenerate them, so update them by hand when the figures change.
 
 ## Icons — TikZ pipeline (never hand-edit generated files)
 

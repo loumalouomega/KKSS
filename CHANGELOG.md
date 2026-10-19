@@ -5,7 +5,19 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
-## Unreleased
+## [2.18.0] - 2026-10-19
+
+- docs: the tutorial figures are regenerated from the solver output that b9f83b1 stopped shipping. A capture pipeline in `tools/tutorials/` (results provider, screenshot catalog, viewer capture helpers, gallery) produces field and plot shots from the recovered frames and the restored plot recipes (each checked against its published CSV); setup cards, the exported mesh and the case's problemtype setup are captured by `manual.mjs` with no solver run.
+- docs: the tutorial pages are rewritten around one skeleton (At a glance, the physical model, the setup, how to read the results, verification, troubleshooting), with a shared guide to reading a result in KKSS. The verification and glance sections are generated from each case's published record by `writeDocs.mjs`, which `test/tutorialDocs.test.ts` checks for currency, image references, alt text, the catalog and links.
+- fix: the eigenmode verification reports each relative frequency error as the error (3.7 % and 0.5 %) rather than the frequency.
+- docs: the two-fluid dam break is solved, not generation-only. It is a 1 m x 0.8 m water column against the wall of a 4 x 1 m tank, open at the top (an atmospheric outlet at zero pressure), under gravity. The level set is the exact signed distance to the column, set from its geometry, because measuring against the water face put zero on every water node. A one-file alias (`navier_stokes_two_fluid_solver.py`) lets the stock Kratos 10.4.3 serial wrapper start; the published README says how to create it. The record checks the water area (within 0.53 %), the front (1.15 m in 0.5 s), the outlet pressure (exactly zero) and finite fields over 20 frames.
+- docs: the eigenmode tutorial solves once. The published case had repeated the identical solve eleven times; its time step is now one second, so the run writes one `EigenResults` file with the same three modes and frequencies.
+- docs: the eigenmode figures come from the solver's raw eigenvector records, written as VTK by `tools/tutorials/eigenModes.py`. The viewer's GiD binary reader misreads those records in this build (most nodes come back as zero or another node's value); the reader fix belongs upstream, so the eigenmode page says so.
+- docs: every tutorial shows its CAD window after FE Mesh Generate, the wind tunnel adds mid-plane velocity and pressure figures, and `results.mjs` can solve a missing case into a scratch folder (`KKSS_TUTORIAL_SOLVE=1`).
+- docs: the two-fluid dam break and the virtual wind tunnel tutorials show their own figures from the app: the two-fluid velocity, DISTANCE and pressure fields with an animation, and the six wind tunnel wizard steps.
+- fix: the FSI and CoSimulation verifier keeps the structure displacement minimum (a later assignment erased it), so both records carry the minimum and the maximum.
+- fix: the tutorial publish step removes absolute machine paths from the published recipes, records and README files, and keeps the verification input hashes in step with the scrubbed bytes.
+- docs: the tutorials are grouped in the sidebar; the RANS, wind-tunnel, two-fluid and eigenmode pages describe the physics, the setup choices and the results that the published records support.
 
 ## [2.17.0] - 2026-10-18
 
@@ -314,6 +326,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.18.0]: https://github.com/loumalouomega/KKSS/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/loumalouomega/KKSS/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/loumalouomega/KKSS/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/loumalouomega/KKSS/compare/v2.14.0...v2.15.0

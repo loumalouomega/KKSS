@@ -94,7 +94,7 @@
   "preflight": {
     "ok": true,
     "problemtype": "structural",
-    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-TkC8Uk/structural/mesh.kratoscase.json",
+    "source": "generated/structural/mesh.kratoscase.json",
     "warnings": [],
     "applications": [
       "StructuralMechanicsApplication"

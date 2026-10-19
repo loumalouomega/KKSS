@@ -13,7 +13,7 @@
       "harmonicDamping": false,
       "harmonicAssembleDamping": false,
       "startTime": 0,
-      "timeStep": 0.1,
+      "timeStep": 1,
       "endTime": 1,
       "convergenceCriterion": "residual_criterion",
       "residualRelTol": 0.0001,

@@ -13,24 +13,25 @@
     "VELOCITY",
     "VON_MISES_STRESS"
   ],
+  "result": "vtk_output/FluidModelPart_0_500.vtk",
   "structure_result": "vtk_output/Structure_0_500.vtk",
   "frames": 50,
   "end_time": 25,
   "checks": {
     "inlet_profile_error_m_per_s": {
-      "measured": 2.573965394991884e-09,
-      "maximum": 1e-06
+      "measured": 2.573965394991884e-9,
+      "maximum": 0.000001
     },
     "outlet_pressure_error_Pa": {
       "measured": 0,
-      "maximum": 1e-06
+      "maximum": 0.000001
     },
     "ale_area_balance_error": {
       "measured": 0.0015027323613356512,
       "maximum": 0.02
     },
     "delivered_area_m2": 0.4042855017279996,
-    "fluid_area_change_m2": 1.898079449169643e-08,
+    "fluid_area_change_m2": 1.898079449169643e-8,
     "tip_ux_peak_m": 0.077933304,
     "tip_ux_peak_time_s": 8.5,
     "tip_ux_final_m": 0.058053106,
@@ -65,12 +66,12 @@
     "mok-channel.brep.mesh.json": "3e0fbf9d996a1222dffc2e642a09a77738a06a083bf137a998a3d4ced3e5d19f",
     "mok-channel.brep.parts.json": "faf730137441552d6222c90d92965235770506af5b6bf871b8eeb7dd64033a76",
     "ProjectParameters.json": "b9d2dfc46388d6d72b2361abb602f99b8b0f26cbc83109f2f8e97b8c07276e0f",
-    "recipe.json": "84284f2aae6fd5ae9b4f9abccc4e9e7dcf26fbc30146e6f8b85370c5dd62818a",
+    "recipe.json": "8ddf932dcdd08fa11b89701365898737cbfa6e93397ae07ff27bb096e851cbde",
     "StructuralMaterials.json": "a3251c4c21804c455c380e7e84df53c05ce45b40f0516a886287a80824e438bf"
   },
   "source": "cad/examples/BREP/blank.brep",
   "revisions": {
-    "cad": "bdd247c858f50dfdcc529073e5f3657cad623a1e",
-    "mesh": "1ec65441ee5428488562b5a19acb438523b27a43"
+    "cad": "7c51565f2388edbba04a7b9637e827df550851f0",
+    "mesh": "545f8407aaa0e88feb4d2d6cde579f3a4279833b"
   }
 }

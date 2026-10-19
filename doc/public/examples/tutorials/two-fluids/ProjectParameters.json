@@ -32,7 +32,8 @@
         "absolute_pressure_tolerance": 0.00001,
         "volume_model_part_name": "FluidModelPart.Domain",
         "skin_parts": [
-            "FluidModelPart.Walls"
+            "FluidModelPart.Walls",
+            "FluidModelPart.Outlet"
         ],
         "no_skin_parts": [],
         "assign_neighbour_elements_to_conditions": true,
@@ -69,6 +70,18 @@
                 "Parameters": {
                     "model_part_name": "FluidModelPart.Walls"
                 }
+            },
+            {
+                "python_module": "apply_outlet_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Outlet",
+                    "variable_name": "PRESSURE",
+                    "constrained": true,
+                    "value": 0,
+                    "hydrostatic_outlet": false,
+                    "h_top": 0
+                }
             }
         ],
         "loads_process_list": [],
@@ -87,6 +100,24 @@
                     "log_file_name": "mass_conservation.log"
                 }
             }
+        ],
+        "gravity": [
+            {
+                "python_module": "assign_vector_by_direction_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "AssignVectorByDirectionProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Domain",
+                    "variable_name": "BODY_FORCE",
+                    "modulus": 9.81,
+                    "constrained": false,
+                    "direction": [
+                        0,
+                        -1,
+                        0
+                    ]
+                }
+            }
         ]
     },
     "output_processes": {
@@ -100,7 +131,7 @@
                 "Parameters": {
                     "model_part_name": "FluidModelPart",
                     "output_control_type": "step",
-                    "output_interval": 1,
+                    "output_interval": 5,
                     "file_format": "ascii",
                     "output_precision": 7,
                     "output_sub_model_parts": false,

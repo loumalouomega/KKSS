@@ -211,9 +211,9 @@
       "Snap: quality pass before the top-up.",
       "Snap polish 1: raw sub-step 1 applied (residual about 0.000% of L).",
       "Snap: wall gap 4.751% → 0.000% of the body length.",
-      "Build the wall layer: Computed d from \"/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel/tunnel_body.stl\" — 439 of 10951 node(s) inside.",
+      "Build the wall layer: Computed d from \"generated/wind-tunnel/tunnel_body.stl\" — 439 of 10951 node(s) inside.",
       "Build the wall layer: Remeshed (wall layer) (mmg3d): 10,951 → 14,840 nodes, 58,942 → 82,804 tetrahedra, 2,750 → 4,028 triangles. 2750 boundary cell(s) have no gradient; their nodes use the other cells' wall direction. Mapped 1 field(s) onto the new mesh (Nodal:d).",
-      "Measure the wall: Computed d from \"/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel/tunnel_body.stl\" — 828 of 14840 node(s) inside."
+      "Measure the wall: Computed d from \"generated/wind-tunnel/tunnel_body.stl\" — 828 of 14840 node(s) inside."
     ],
     "warnings": [
       "The case uses the k-omega-sst RANS model with the logarithmic wall function (Re = 5.28e+5): keep the first node row at y+ 30–100, and expect a steady solution only where the flow is steady."

@@ -15,13 +15,13 @@ Both workspaces use the same upstream controller. Chart styling does not change 
 
 ## Worked examples
 
-Run a tutorial case first — Generate writes the solver input beside the mesh, Run executes it in the embedded terminal, and **Open results** loads the VTK timeline into the viewer. Then build plots from your own output: histories over the saved steps, spatial profiles along a probe line, regional quantities over a SubModelPart. Recipes are saved from the builder (**Save recipe**) and reload later against the same result files; the tutorial archives carry the case files, not prebuilt recipes or result frames.
+Run a tutorial case first — Generate writes the solver input beside the mesh, Run executes it in the embedded terminal, and **Open results** loads the VTK timeline into the viewer. Then build plots from your own output: histories over the saved steps, spatial profiles along a probe line, regional quantities over a SubModelPart. Recipes are saved from the builder (**Save recipe**) and reload later against the same result files; the tutorial archives carry the case files, not prebuilt plot recipes or result frames.
 
 ## Time, units and correspondence
 
 **A filename step is not a timestamp.** Histories show step labels unless the reader supplies time or you enter one **Physical times** value per frame and a **Time unit**. For fixed-step Kratos runs, a recipe can reconstruct `start_time + STEP × time_step` from the case settings and the Kratos VTK step suffix — these are not recorded solver timestamps, and a settling chart is not proof of solver convergence. Adaptive-step results require actual saved times.
 
-Legacy VTK outputs here do not record field/coordinate units. Recipes explicitly supply tutorial SI field units using **Convert** transformations; displacement additionally multiplies metres by 1000 for mm. Original export columns retain `unknown` units. Probe distance labels state metres from the case setup, while extraction metadata retains unknown coordinate units. Changing a label alone never converts numbers.
+Legacy VTK outputs here do not record field/coordinate units. A recipe you build for a tutorial result must supply its SI field units explicitly with **Convert** transformations (no tutorial archive ships a prebuilt plot recipe); displacement additionally multiplies metres by 1000 for mm. Original export columns retain `unknown` units. Probe distance labels state metres from the case setup, while extraction metadata retains unknown coordinate units. Changing a label alone never converts numbers.
 
 Histories read disk values, not replayed geometry edits. Current mesh/region/probe sources can use the owning preview's edited model. Missing fields, absent entities and uncovered samples remain gaps, not zeros. Topology changes do not establish correspondence between different meshes or runs.
 

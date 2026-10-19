@@ -14,19 +14,20 @@
     "TURBULENT_ENERGY_DISSIPATION_RATE",
     "Y_PLUS"
   ],
+  "result": "vtk_output/FluidModelPart_0_51.vtk",
   "frames": 51,
   "end_time": 5,
   "checks": {
     "inlet_velocity_error_m_per_s": {
       "measured": 0,
-      "maximum": 1e-06
+      "maximum": 0.000001
     },
     "outlet_pressure_error_Pa": {
       "measured": 0,
-      "maximum": 1e-06
+      "maximum": 0.000001
     },
     "flux_imbalance_m2_per_s": {
-      "measured": 2.2967673883877993e-05,
+      "measured": 0.000022967673883877993,
       "maximum": 0.001
     },
     "inlet_flux_m2_per_s": 0.60000002,
@@ -46,7 +47,7 @@
     "wall_y_plus_log_layer_share": 0.6666666666666666,
     "turbulent_kinetic_energy_maximum": {
       "measured": 3.3619616,
-      "minimum": 1e-06
+      "minimum": 0.000001
     },
     "turbulent_kinetic_energy_undershoot_ratio": {
       "measured": 0.05314920313188587,
@@ -105,11 +106,11 @@
     "obstacle-channel.brep.parts.json": "3047e9f93b863ead9d03611be283044aa99c9dec8e7fdbe6bdb5c1548f2c9209",
     "obstacle-channel.svg": "bae623776f22d89533719ed1eb314f634d5c1d45cc3ee5e8ee66d4b4ad22dee0",
     "ProjectParameters.json": "e0dff1ee1ff9df59fef7750858cf7a917e9ee17c0a8f52a14f9ee81e1b68600b",
-    "recipe.json": "81dabbd16c59f6492fd8e281ff6f7a289f6b50620c6e7abf88ab53b93b03b84c"
+    "recipe.json": "2a418e7452aefc43fa9d34d0bf0a5d8be14c0fcad05fc127e67d017edcd17da7"
   },
   "source": "cad/examples/BREP/blank.brep",
   "revisions": {
     "cad": "7c51565f2388edbba04a7b9637e827df550851f0",
-    "mesh": "cab0b4f77355aa3dd1290b370aca98b222be660b"
+    "mesh": "545f8407aaa0e88feb4d2d6cde579f3a4279833b"
   }
 }

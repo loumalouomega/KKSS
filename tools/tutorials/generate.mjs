@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { cases } from './cases.mjs';
 import { root, python, servers } from './mcp.mjs';
+import { ensureSolverAlias } from './runtimeAlias.mjs';
 
 const exec = promisify(execFile);
 const selected = process.argv.slice(2);
@@ -106,23 +107,25 @@ try {
           { name: 'Fixed', surfaces: fixed },
         ];
       } else if (c.twoFluids) {
-        // The dam-break tank: two rectangles sharing the water column's right
-        // edge (x = waterWidth) tile the tank, so every boundary edge midpoint
-        // lies on the outer box and the shared interior edge is interior-only.
-        // The water column face doubles as the Water part the DISTANCE field
-        // is measured against after export.
-        const { widthMm: W, heightMm: H, waterWidthMm: Ww } = c.tank;
+        // The dam-break tank is one rectangle. Two rectangles split at the water
+        // edge would put a mesh line on x = waterWidth, with nodes exactly on the
+        // free surface (signed distance exactly 0); the level set is set from
+        // the geometry (signedDistance) instead, so the tank stays one face. The
+        // top is an atmospheric outlet at zero pressure: a closed tank has no
+        // pressure reference, and its gauge drifts without one.
+        const { widthMm: W, heightMm: H } = c.tank;
         const at = (v, target) => Math.abs(v - target) < 1e-6;
-        const walls = [];
-        for (let n = 0; n < 8; n++) {
+        const walls = [], top = [];
+        for (let n = 0; n < 4; n++) {
           const { center: [x, y] } = await mcp.call('cad__inspect', { path: geometry, entityId: `edge-${n}` });
-          if (at(x, 0) || at(x, W) || at(y, 0) || at(y, H)) walls.push(`edge-${n}`);
+          if (at(y, H)) top.push(`edge-${n}`);
+          else if (at(x, 0) || at(x, W) || at(y, 0)) walls.push(`edge-${n}`);
         }
-        if (walls.length !== 6) throw Error(`Unexpected tank boundary topology (${walls.length} outer edges, shared edge unaccounted)`);
+        if (walls.length !== 3 || top.length !== 1) throw Error(`Unexpected tank boundary topology (${walls.length} walls, ${top.length} top edges)`);
         parts = [
-          { name: 'Domain', surfaces: ['face-0', 'face-1'] },
-          { name: 'Water', surfaces: ['face-0'] },
+          { name: 'Domain', surfaces: ['face-0'] },
           { name: 'Walls', lines: walls },
+          { name: 'Outlet', lines: top },
         ];
       } else if (c.mok) {
         // The Mok channel: classify every edge of the model the ops built by
@@ -207,14 +210,17 @@ try {
       state.assignments = c.assignments;
       state.materials = c.materials;
       if (c.output) state.output = { ...state.output, ...c.output };
-      if (c.distanceFrom) {
-        // The level-set interface lives in the mesh: measure the signed
-        // distance to the water region into DISTANCE before the case state is
-        // written, so the solver's requiresFields check sees it. Winding
-        // sign tolerates the shared-edge seam; the transform overwrites the
-        // mesh in place, exactly File ▸ Save.
-        const transformed = await mcp.call('mesh__mesh_transform', { path: meshPath, ops: [{ op: 'sdfDistance', part: c.distanceFrom, output: 'DISTANCE', sign: 'winding' }] });
-        if (!JSON.stringify(transformed).includes('DISTANCE')) throw Error(`sdfDistance against ${c.distanceFrom} produced no DISTANCE field`);
+      if (c.signedDistance) {
+        // The level set is a nodal field written before the case state, so the
+        // solver's requiresFields check sees it. The free surface is the faces
+        // of a box, so the exact signed distance is the 2D box formula: negative
+        // in the water, zero on its faces, positive in the air. Measured against
+        // the water face instead (sdfDistance), every water node sat at exactly
+        // 0, which the two-fluid solver cannot divide. The transform overwrites
+        // the mesh in place, exactly File ▸ Save.
+        const { expr, output } = c.signedDistance;
+        const transformed = await mcp.call('mesh__mesh_transform', { path: meshPath, ops: [{ op: 'fieldCalc', expr, location: 'Nodal', output }] });
+        if (!JSON.stringify(transformed).includes(output)) throw Error(`fieldCalc ${expr} produced no ${output} field`);
       }
       await mcp.call('mesh__case_write_state', { meshPath, state });
       await mcp.call('mesh__case_generate', { meshPath });
@@ -231,27 +237,15 @@ try {
         ? [...c.ops, { op: 'addSurfaceFromLines', edges: Array.from({ length: 4 + c.obstacle.sides }, (_, n) => `edge-${n}`) }]
         : c.ops, exportUnit: 'm', inventory, exported, preflight }, null, 2));
       console.log(`${c.id}: generated; solving`);
+      // A case whose stock solver wrapper imports a module name the package
+      // does not ship gets the documented one-file alias first (idempotent).
+      if (c.solverAlias) await ensureSolverAlias(c.solverAlias);
       const driver = c.driver ?? 'MainKratos.py';
       let solverStdout = '', solverStderr = '', solveFailed = null;
       try {
         ({ stdout: solverStdout, stderr: solverStderr } = await exec(python, [driver], { cwd: dir, env: { ...process.env, OMP_NUM_THREADS: '2' }, timeout: c.timeout ?? 180000, maxBuffer: 16 * 1024 * 1024 }));
       } catch (e) { solveFailed = e; solverStdout = e.stdout ?? ''; solverStderr = e.stderr ?? ''; }
       await fs.writeFile(path.join(dir, 'solver.log'), solverStdout + solverStderr);
-      if (solveFailed && c.blockedSolver && (solverStdout + solverStderr).includes(c.blockedSolver)) {
-        // Generation-verified, solver-blocked: the generation checks still
-        // run (mesh, DISTANCE, materials), and the upstream bug is recorded
-        // reproducibly beside them. Not a pipeline failure, and kept out of
-        // the solver-verified archives by publish.mjs.
-        const verification = await exec(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { maxBuffer: 1024 * 1024 });
-        const report = JSON.parse(verification.stdout);
-        const inputs = {};
-        for (const name of await fs.readdir(dir)) if (/\.(mdpa|json|py|stp|brep|svg)$/.test(name) && !name.includes('preparation') && name !== 'recipe.json') inputs[name] = createHash('sha256').update(await fs.readFile(path.join(dir, name))).digest('hex');
-        const blocked = { ...report, inputs, blocked: true, upstream: c.blockedSolver, log: `solver.log records the reproducible ${(solverStdout + solverStderr).split('\n').find(l => l.includes(c.blockedSolver))?.trim()}` };
-        await fs.writeFile(path.join(dir, 'verification.json'), JSON.stringify(blocked, null, 2) + '\n');
-        await fs.writeFile(path.join(dir, 'BLOCKED.txt'), `${c.title}\n\nGeneration-verified; solver blocked upstream.\n${blocked.log}\nSee verification.json and recipe.json.\n`);
-        console.log(`${c.id}: generation-verified; solver blocked (${c.blockedSolver})`);
-        continue;
-      }
       if (solveFailed) throw solveFailed;
       const verification = await exec(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { maxBuffer: 1024 * 1024 });
       const report = JSON.parse(verification.stdout);

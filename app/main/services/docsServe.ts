@@ -5,7 +5,7 @@
  *
  * The manual is the built documentation site (VitePress `dist/`), staged by
  * `esbuild.mjs`'s `copyArtifacts()` into `out/docs/` — everything but the
- * `examples/` tree, whose ~100 MB of downloadable tutorial cases stay a
+ * `examples/` tree, whose ~28 MB of downloadable tutorial cases stay a
  * website concern (their links are rewritten to the published site, see
  * `rewriteExampleLinks`). `out/**` is what the packaged app ships, so the
  * manual is always present in an installer; in a dev checkout it exists once
@@ -63,7 +63,7 @@ const SITE_URL = "https://loumalouomega.github.io/KKSS";
 export const SITE_BASE = "/KKSS";
 
 /**
- * The site's `dist` skips the 100 MB of downloadable tutorial/karatos cases
+ * The site's `dist` skips the ~28 MB of downloadable tutorial/kratos cases
  * (the `examples/` tree), so its pages carry example links that do not
  * resolve inside the app. This rewrite sends them to the published site —
  * the manual window intercepts external navigations and opens them in the

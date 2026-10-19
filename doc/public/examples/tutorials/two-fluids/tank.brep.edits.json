@@ -4,30 +4,10 @@
   "ops": [
     {
       "op": "addRectangleProfile",
-      "width": 1000,
+      "width": 4000,
       "height": 1000,
       "center": [
-        500,
-        500,
-        0
-      ],
-      "normal": [
-        0,
-        0,
-        1
-      ],
-      "up": [
-        1,
-        0,
-        0
-      ]
-    },
-    {
-      "op": "addRectangleProfile",
-      "width": 3000,
-      "height": 1000,
-      "center": [
-        2500,
+        2000,
         500,
         0
       ],

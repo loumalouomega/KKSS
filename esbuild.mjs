@@ -494,7 +494,7 @@ async function copyArtifacts() {
 
   // The in-app manual (Help ▸ KKSS Manual…) is the documentation site, built
   // by `npm run docs:build` into doc/.vitepress/dist and staged to out/docs/
-  // — the examples tree (~100 MB of downloadable tutorial cases) is left to
+  // — the examples tree (~28 MB of downloadable tutorial cases) is left to
   // the published site, and its links are rewritten to the site URL here, so
   // the manual window's rewritten-example links open in the OS browser (that
   // rewrite is what test/docsServe.test.ts pins in services/docsServe.ts).
