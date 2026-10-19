@@ -60,6 +60,10 @@ Set **Export format** to **Kratos MDPA — Elements + Conditions (.mdpa)** and *
 
 *The exported mesh of the block, opened in Post-Processing.*
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-thermal-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 263 nodes and 819 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 Open `mesh.mdpa` in **Post-Processing**, and select **Convection-Diffusion (thermal)**:

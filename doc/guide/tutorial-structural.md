@@ -53,6 +53,10 @@ The uniform mesh has 1048 nodes and 3896 tetrahedra. At 0.8 mm only five or six 
 
 *The uniform 0.8 mm tetrahedral mesh.*
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-structural-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 1,043 nodes and 3,872 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 5. Open `mesh.mdpa` in Post-Processing and select **Structural Mechanics**. Enter the setup below.

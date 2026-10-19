@@ -590,12 +590,15 @@ The geometry-to-results tutorials are illustrated from the real app. Solver outp
 | `npm run tutorials:animations` | The animated GIFs listed in the catalog. |
 | `npm run tutorials:docs` | Renders the generated sections of each tutorial page from its verification record. `tutorials:docs:check` fails if any is stale. |
 | `node tools/tutorials/manual.mjs --wizard wind-tunnel` | The six virtual wind tunnel wizard steps, shot in the mesh viewer on the published body. |
+| `node tools/tutorials/manual.mjs --fe-mesh` | The CAD window after FE Mesh Generate for each case (`tutorial-<id>-fe-mesh.png`). |
 
 `tools/tutorials/shots.mjs` is the catalog of every file under `doc/public/screenshots/`: which producer writes it, and the field, range, step and view it uses. `test/tutorialDocs.test.ts` checks the catalog against the files on disk and the pages against the catalog.
 
 The results provider (`tools/tutorials/results.mjs`) reads, in order: `KKSS_TUTORIAL_RESULTS/<case>/vtk_output`; a cache under `node_modules/.cache/kkss-tutorial-results/` filled byte for byte from the last commit that shipped the frames; and a local generation whose `mesh.mdpa` hashes to the published record. A case with none of these fails with the command that would produce it.
 
 **Eigenmode figures.** The eigenvalue run writes its modes to `EigenResults/*.post.bin`, and this build's GiD binary reader misreads their vector records (most nodes come back as zero or another node's value). `tools/tutorials/eigenModes.py` reads the raw records, checks their layout on every block and writes the same three modes as `eigen-modes.vtu` for the viewer, into the generation's scratch folder. The eigen figures come from that file; nothing is published from it.
+
+**No solver output at hand.** With `KKSS_TUTORIAL_SOLVE=1`, `results.mjs` runs `generate.mjs <case>` into a scratch generation when no override, git or local source exists; its mesh can differ slightly from the published one.
 
 **Solver runs and publishing.** `generate.mjs` runs the tier-4 Kratos runtime on each case. A case whose stock wrapper imports a module the package does not ship sets `solverAlias` in `cases.mjs`, and `runtimeAlias.mjs` writes the one-line re-export beside the package before the solve (idempotent). The two-fluid case needs it: the serial wrapper imports `navier_stokes_two_fluid_solver`, and the package file is `navier_stokes_two_fluids_solver.py`. `publish.mjs` ships the text files with machine paths scrubbed (the repository is relative, the generation folder is `generated/`, the home directory is `~`) and refuses to publish a file that still names one.
 

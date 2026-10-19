@@ -57,6 +57,10 @@ Use the potential-flow settings: **FE Mesh** with Dimension 2D, first order, sim
 
 *The exported mesh, opened in Post-Processing.*
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-shallow-water-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 149 nodes and 246 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 Open `mesh.mdpa` in **Post-Processing** and select **Shallow Water**:

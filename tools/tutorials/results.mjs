@@ -139,7 +139,31 @@ export function resultsDir(id) {
     if (!fs.existsSync(path.join(dir, 'vtk_output'))) continue;
     return describe(dir, 'local', id);
   }
-  throw new Error(`${id}: no solver output. Either set KKSS_TUTORIAL_RESULTS to a folder holding ${id}/vtk_output, or generate the case with \`node tools/tutorials/generate.mjs ${id}\`.`);
+  if (process.env.KKSS_TUTORIAL_SOLVE === '1') return solveScratch(id);
+  throw new Error(`${id}: no solver output. Either set KKSS_TUTORIAL_RESULTS to a folder holding ${id}/vtk_output, generate the case with \`node tools/tutorials/generate.mjs ${id}\`, or set KKSS_TUTORIAL_SOLVE=1 to solve it into a scratch folder.`);
+}
+
+/** Working directory a generate.mjs run announced ("Working directory: <dir>"), or null. */
+export function workingDirectoryFrom(output) {
+  const m = /^Working directory: (.+)$/m.exec(output);
+  return m ? m[1].trim() : null;
+}
+
+/**
+ * Opt-in last resort (KKSS_TUTORIAL_SOLVE=1): generates and solves the case
+ * into a fresh scratch generation. The mesh may differ slightly from the
+ * published one, so the frame count is checked but the mesh hash is not.
+ */
+function solveScratch(id) {
+  const output = execFileSync(process.execPath, [path.join(root, 'tools/tutorials/generate.mjs'), id], {
+    cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024,
+  });
+  const work = workingDirectoryFrom(output);
+  const dir = work && path.join(work, id);
+  if (!dir || !fs.existsSync(path.join(dir, 'vtk_output'))) {
+    throw new Error(`${id}: the scratch solve produced no vtk_output (generate.mjs output follows)\n${output.slice(-2000)}`);
+  }
+  return describe(dir, 'scratch', id);
 }
 
 /**

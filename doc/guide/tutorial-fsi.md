@@ -57,6 +57,10 @@ The published mesh files hold 5116 fluid nodes with 9795 triangles, and 516 stru
 
 *The fluid is finest at the slot, where the interface is 2 mm, and coarsens toward the outlet.*
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-fsi-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 5,386 nodes and 10,585 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 Open `mesh.mdpa` in Post-Processing and select **Fluid-Structure Interaction**. The Problemtype section fills from the mesh's SubModelParts. The case's settings are:

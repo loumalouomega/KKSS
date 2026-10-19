@@ -64,6 +64,10 @@ The global minimum must match the wall target. The mesher takes the smaller of t
 
 *The exported mesh, 654 nodes and 1202 triangles. Look for the finer cells hugging the obstacle, coarsening toward the walls and the outlet.*
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-rans-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 650 nodes and 1,194 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 Open `mesh.mdpa` in the mesh viewer and choose **Turbulent Flow (RANS)** in the Problemtype section. **Domain** and **Materials** hold the air: density 1.204 kg/m³ and dynamic viscosity 1.825 × 10⁻⁵ Pa·s.

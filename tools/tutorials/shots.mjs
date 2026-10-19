@@ -7,6 +7,7 @@
 //              after Generate (setup, setup-solver) and the exported mesh (mesh)
 //   gallery    tools/tutorials/gallery.mjs: one field on the recovered frames
 //   eigen      tools/tutorials/gallery.mjs: one mode shape of the GiD eigen result
+//   fe-mesh    tools/tutorials/manual.mjs --fe-mesh: the CAD window after FE Mesh Generate
 //   wizard     tools/tutorials/manual.mjs --wizard: one step of the virtual wind tunnel wizard
 //   plot       tools/tutorials/gallery.mjs: a restored recipe, checked against its CSV
 //   animation  tools/tutorials/animations.mjs: a GIF of one field over the steps
@@ -41,6 +42,10 @@ const eigenShot = (caseId, name, field, extra = {}) => ({
   view: 'front', zoomOut: 1, tipMm: 4.5, ...extra,
 });
 /** One step of the virtual wind tunnel wizard, shot in the mesh viewer (manual.mjs, windTunnelWizard). */
+/** The CAD window after FE Mesh > Generate, framed (manual.mjs --fe-mesh). */
+const feMeshShot = (caseId) => ({
+  file: `tutorial-${caseId}-fe-mesh.png`, case: caseId, producer: 'fe-mesh',
+});
 const wizardShot = (caseId, name, step, extra = {}) => ({
   file: `tutorial-${caseId}-${name}.png`, case: caseId, producer: 'wizard', step, ...extra,
 });
@@ -138,6 +143,9 @@ export const CATALOG = [
 
   // ---- Virtual wind tunnel (sphere, RANS k-omega SST) ----
   manualShot('wind-tunnel', 'geometry'),
+  // Mid-plane (y = 0 is 0.5 of the extent) of the last recovered frame, seen along y; flipped so the cut face is the near one.
+  fieldShot('wind-tunnel', 'velocity', 'VELOCITY', { frame: 'last', range: [0, 16], clip: { axis: 'y', pos: 0.5, flip: true }, view: 'top', bar: true, edges: false, zoomOut: 1 }),
+  fieldShot('wind-tunnel', 'pressure', 'PRESSURE', { frame: 'last', range: [-75, 65], clip: { axis: 'y', pos: 0.5, flip: true }, view: 'top', bar: true, edges: false, zoomOut: 1 }),
   // The wizard's steps in the mesh viewer (manual.mjs --wizard). Step 5 is shot before and after Generate.
   wizardShot('wind-tunnel', 'wizard-body', 0),
   wizardShot('wind-tunnel', 'wizard-tunnel', 1),
@@ -158,6 +166,9 @@ export const CATALOG = [
   fieldShot('two-fluids', 'interface', 'DISTANCE', { frame: 8, range: [-0.5, 0.5], view: 'front', bar: true, zoomOut: 1 }),
   fieldShot('two-fluids', 'pressure', 'PRESSURE', { frame: 'last', range: [0, 8000], view: 'front', bar: true, zoomOut: 1 }),
   gif('two-fluids', 'interface', 'DISTANCE', { range: [-0.5, 0.5], stride: 1, zoomOut: 1 }),
+
+  // ---- CAD-side FE mesh of every case (the geometry shots already show the Parts panel, so no separate parts shots) ----
+  ...['structural', 'fluid', 'thermal', 'potential-flow', 'shallow-water', 'fsi', 'cosim', 'rans', 'eigen', 'two-fluids', 'wind-tunnel'].map(feMeshShot),
 ];
 
 /** Entries for one tutorial, in catalog order. */

@@ -115,7 +115,7 @@ async function fieldShots(caseId, entries, caseDir, results, stage, log) {
         else await resetRange(page);
         await setScalarBar(page, shot.bar !== false);
         if (shot.clip) {
-          await command(page, `clip on axis=${shot.clip.axis} pos=${shot.clip.pos}`);
+          await command(page, `clip on axis=${shot.clip.axis} pos=${shot.clip.pos}${shot.clip.flip ? ' flip=true' : ''}`);
           clipOn = true;
         } else if (clipOn) {
           await command(page, 'clip off');
@@ -123,6 +123,7 @@ async function fieldShots(caseId, entries, caseDir, results, stage, log) {
         }
         await resetView(page);
         if (shot.view) await command(page, `view ${shot.view}`);
+        if (shot.edges === false) await command(page, 'edges off');
         await fit(page);
         // Pull the camera back so a wide model clears the Field panel (it is cropped out of the shot, not hidden).
         for (let i = 0; i < (shot.zoomOut ?? 0); i++) await page.locator('#nav-zoom-out').click();

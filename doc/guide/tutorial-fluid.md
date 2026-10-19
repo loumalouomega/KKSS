@@ -53,6 +53,10 @@ The grade keeps cells small at the obstacle. The export has 945 nodes and 1766 t
 
 *Small triangles hug the obstacle and grow toward the outlet.*
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-fluid-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 952 nodes and 1,780 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 5. Open `mesh.mdpa` in Post-Processing and select **Fluid Dynamics**. Enter the setup below.

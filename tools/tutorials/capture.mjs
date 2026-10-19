@@ -328,3 +328,18 @@ export function pngSize(file) {
   assert.equal(bytes.subarray(1, 4).toString('latin1'), 'PNG', `${file} is not a PNG`);
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20), bytes: bytes.length };
 }
+
+/**
+ * CAD window after FE Mesh > Generate: waits for the status line, frames the model, parks the mouse on empty
+ * canvas and writes the window to `file`. Returns the status text (counts) for captions.
+ */
+export async function feMeshShot(cad, file, timeout = 300_000) {
+  await cad.locator('#meshing-generate').click();
+  await until(async () => /\d/.test(await cad.locator('#meshing-status').innerText().catch(() => '')), 'FE mesh status', timeout);
+  await sleep(1500);
+  await cad.locator('#fit').click();
+  await cad.mouse.move(2, 2);
+  await sleep(1200);
+  await cad.screenshot({ path: file, timeout: 60_000 });
+  return (await cad.locator('#meshing-status').innerText()).replace(/\s+/g, ' ').trim();
+}

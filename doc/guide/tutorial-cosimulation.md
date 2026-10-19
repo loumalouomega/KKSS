@@ -54,6 +54,10 @@ Under **FE Mesh**, choose Gmsh, 3D, first-order tetrahedra, with global size min
 
 *The uniform 100 mm tetrahedral mesh of both bodies, with the shared interface face between them.*
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-cosim-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 501 nodes and 1,432 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 Select **Generic Coupling (CoSimulation)** and set:

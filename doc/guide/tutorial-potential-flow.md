@@ -58,6 +58,10 @@ At 200 mm (0.2 m) the mesh has 150 nodes and 248 triangles. Linear triangles rep
 
 *The exported mesh, opened in Post-Processing.*
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-potential-flow-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 149 nodes and 246 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 Open `mesh.mdpa` in **Post-Processing** and select **Potential Flow**:

@@ -53,6 +53,10 @@ Use a uniform 45 mm size (`sizeMin = sizeMax = 45 mm`). The mesh has 2475 nodes 
 
 *The exported mesh of the tank: 2475 nodes and 4724 triangles.*
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-two-fluids-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 2,478 nodes and 4,730 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 Choose **Two Fluids** in the Problemtype section and set:

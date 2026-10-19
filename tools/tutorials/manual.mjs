@@ -15,7 +15,7 @@ import { closeApp, appWindow, selectFile, sleep, until, diagnostics } from '../e
 import { root, python } from './mcp.mjs';
 import { cases } from './cases.mjs';
 import { CATALOG } from './shots.mjs';
-import { canvasShot, command, fit, launchWindow, resetView, waitForDocument } from './capture.mjs';
+import { canvasShot, command, feMeshShot, fit, launchWindow, resetView, waitForDocument } from './capture.mjs';
 
 const screenshots = path.join(root, 'doc/public/screenshots');
 
@@ -55,7 +55,7 @@ async function valueRow(container, key, value) {
  * boxes, after scrolling the first into view) with a page-level clip. Only
  * the sidebar is in the clip, so the canvas never moves.
  */
-async function sectionShot(page, locators, file) {
+async function sectionShot(page, locators, file, zoom = 1) {
   await locators[0].scrollIntoViewIfNeeded();
   await sleep(300);
   const boxes = [];
@@ -72,7 +72,8 @@ async function sectionShot(page, locators, file) {
   const side = await page.locator('#sidebar').boundingBox();
   const clipTop = Math.max(side ? side.y : 0, top - 6);
   const clipBottom = Math.min(side ? side.y + side.height : bottom, bottom + 6);
-  const clip = { x: left - 6, y: clipTop, width: right - left + 12, height: clipBottom - clipTop };
+  // page.screenshot takes its clip in zoom-independent units, boundingBox in zoomed ones.
+  const clip = { x: (left - 6) * zoom, y: clipTop * zoom, width: (right - left + 12) * zoom, height: (clipBottom - clipTop) * zoom };
   let previous = null;
   for (let i = 0; i < 8; i++) {
     const png = await page.screenshot({ clip, timeout: 30_000 });
@@ -228,7 +229,7 @@ async function setupCase(c, shots, log) {
         // At 1500 px the stack is taller than the sidebar, so the Generate button sits below its edge: the viewer's
         // zoom is stepped down until the whole stack is inside, and restored after the capture.
         const zoom = await fitStackByZoom(app, mesh, cards);
-        log(`${c.id}: ${shot.file} ${await sectionShot(mesh, cards, file)} bytes${zoom ? ` (zoom ${zoom})` : ''}`);
+        log(`${c.id}: ${shot.file} ${await sectionShot(mesh, cards, file, zoom ?? 1)} bytes${zoom ? ` (zoom ${zoom})` : ''}`);
         await setMeshZoom(app, 1);
         await sleep(800);
       } else if (shot.file.endsWith('-mesh.png')) {
@@ -297,7 +298,12 @@ async function windTunnelWizard(out, entries, log) {
   ).first();
   const text = (label, value) => field(label).locator('input[type="text"]').fill(value);
   const step = (index) => panel.locator('.meshsize-mode-btn').nth(index).click();
+  // The scratch paths stay out of the figures: the inputs only display neutral names (the form keeps the real paths).
+  const mask = () => panel.locator('input[type="text"]').evaluateAll((els) => els.forEach((e) => {
+    if (e.value.includes('kkss-wind-tunnel-tutorial')) e.value = e.value.endsWith('.stl') ? 'tunnel_body.stl' : 'wind-tunnel';
+  }));
   const shot = async (index, phase) => {
+    await mask();
     const entry = entries.find((e) => e.step === index && e.phase === phase);
     const file = path.join(out, entry.file);
     await panel.screenshot({ path: file, timeout: 60_000 });
@@ -370,6 +376,39 @@ async function windTunnelWizard(out, entries, log) {
   }
 }
 
+/** The CAD FE-mesh shots (tutorial-<id>-fe-mesh.png): each case's geometry in CAD, FE Mesh > Generate. */
+export async function feMeshTutorials(out = screenshots, selected = []) {
+  const failures = [];
+  for (const c of cases.filter((c) => !selected.length || selected.includes(c.id))) {
+    const entry = CATALOG.find((s) => s.case === c.id && s.producer === 'fe-mesh');
+    if (!entry) continue;
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kkss-femesh-'));
+    const dir = path.join(temp, c.id);
+    fs.cpSync(path.join(root, 'doc/public/examples/tutorials', c.id), dir, { recursive: true });
+    const profile = path.join(temp, 'profile');
+    fs.mkdirSync(profile);
+    fs.writeFileSync(path.join(profile, 'state.json'), JSON.stringify({ uiTheme: 'dark', uiLanguage: 'en' }));
+    let app;
+    try {
+      const launched = await launchWindow(path.join(dir, c.geometry), { profile, renderer: '/renderer/cad/', width: 1440, height: 1100 });
+      app = launched.app;
+      const cad = await appWindow(app, '/renderer/cad/', Date.now() + 120_000);
+      await until(() => launched.output().includes('[cad] host → webview: geometry'), 'CAD geometry', 120_000);
+      await cad.locator('#doc-chip-name').getByText(c.geometry, { exact: true }).waitFor();
+      await sleep(1200);
+      const text = await feMeshShot(cad, path.join(out, entry.file));
+      console.log(`${entry.file}: ${fs.statSync(path.join(out, entry.file)).size} bytes; status: ${text}`);
+    } catch (error) {
+      failures.push(`${c.id}: ${error.message.split('\n')[0]}`);
+      console.log(`${c.id}: FAILED ${error.message.split('\n')[0]}`);
+    } finally {
+      if (app) await closeApp(app);
+      fs.rmSync(temp, { recursive: true, force: true });
+    }
+  }
+  if (failures.length) process.exitCode = 1;
+}
+
 /** The wizard shots (tutorial-*-wizard-*.png) for each case that declares them. */
 export async function wizardTutorials(out = screenshots, selected = []) {
   const failures = [];
@@ -396,6 +435,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   const only = args.find((a) => a.startsWith('--shot='));
   if (only) onlyShot = only.slice('--shot='.length);
   const names = args.filter((a) => !a.startsWith('--'));
-  if (args.includes('--wizard')) await wizardTutorials(screenshots, names);
+  if (args.includes('--fe-mesh')) await feMeshTutorials(screenshots, names);
+  else if (args.includes('--wizard')) await wizardTutorials(screenshots, names);
   else await manualTutorials(screenshots, names);
 }

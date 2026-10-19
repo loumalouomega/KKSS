@@ -59,6 +59,10 @@ The mesh has 1048 nodes, 3896 linear tetrahedra and 1520 surface triangles. At 0
 
 *The exported mesh seen from the front. The viewer draws the outer skin of the tetrahedra, so the triangles are the boundary of the beam.*
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-eigen-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 1,043 nodes and 3,872 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 Select **Structural mechanics** in the Problemtype section. The Domain and Materials cards hold the solid and its material.

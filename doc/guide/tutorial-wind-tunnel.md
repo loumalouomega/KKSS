@@ -86,6 +86,10 @@ The flat-plate estimate for y+ 150 asks for a first row of 5.11 mm. The mesh ach
 
 The build takes 25.6 s. Its log shows a 144-node lattice refined twice towards the body, a carve that removes 36,083 tetrahedra inside the body, a snap that closes a 4.75 % wall gap to zero, and a wall layer that brings the mesh to 14,840 nodes. Over the 1,594 body nodes, the wall fit has a largest gap of 0.80 mm and a mean of 0.09 mm. The mesh has no inverted or degenerate cells.
 
+![The CAD window after FE Mesh Generate, with the Parts panel open](/screenshots/tutorial-wind-tunnel-fe-mesh.png)
+
+*The CAD window after FE Mesh ▸ Generate: 8,734 nodes and 45,734 elements in this run, with the Parts panel open.*
+
 ## Configure the problemtype
 
 The wizard writes a Turbulent Flow (RANS) case, so you do not enter these values by hand. The Problemtype section shows them: a steady scheme of up to 300 pseudo-steps, k-omega SST, the logarithmic wall function on Body, and a 1 % inlet intensity with an 8.0 mm length scale. Set the interpreter once under **Settings ▸ Kratos ▸ Python Interpreter**, with RANSApplication and LinearSolversApplication, and confirm it with Home ▸ **Check environment**.
@@ -102,7 +106,15 @@ This run used all 300 pseudo-steps. The drag monitor has one row per step and th
 
 ## Inspect the results
 
-The field figures for this case are not included in this revision. The results the record supports are the checks in Verify: the wall y+, the flux balance, the drag and the drag coefficient, over 12 output frames through t = 300. The output lists Y_PLUS but not RANS_Y_PLUS, so the wall y+ check reconstructs y+ from the velocity.
+![Velocity magnitude on the y = 0 mid-plane](/screenshots/tutorial-wind-tunnel-velocity.png)
+
+*|VELOCITY| on the y = 0 mid-plane at the last output step (t = 300), colour range 0 to 16 m/s. Flow is along +X, to the right; the cut face shows the mesh edges and the sphere is the uncoloured surface.*
+
+![Pressure on the y = 0 mid-plane](/screenshots/tutorial-wind-tunnel-pressure.png)
+
+*PRESSURE on the same plane and step, colour range −75 to 65 Pa.*
+
+No streamline figure is included: the viewer's streamline lines did not render over the cut face in this capture. The results the record supports are the checks in Verify: the wall y+, the flux balance, the drag and the drag coefficient, over 12 output frames through t = 300. The output lists Y_PLUS but not RANS_Y_PLUS, so the wall y+ check reconstructs y+ from the velocity.
 
 To look at the output yourself, press **Open results** and read the fields with the [Reading a Kratos result in KKSS](tutorial-reading-results) page.
 
