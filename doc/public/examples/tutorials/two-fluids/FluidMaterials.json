@@ -1,0 +1,34 @@
+{
+    "properties": [
+        {
+            "model_part_name": "FluidModelPart.Domain",
+            "properties_id": 1,
+            "Material": {
+                "Variables": {
+                    "DENSITY": 1000.0,
+                    "DYNAMIC_VISCOSITY": 0.001,
+                    "SURFACE_TENSION_COEFFICIENT": 0.0
+                },
+                "Tables": {},
+                "constitutive_law": {
+                    "name": "Newtonian2DLaw"
+                }
+            }
+        },
+        {
+            "model_part_name": "FluidModelPart.Domain",
+            "properties_id": 2,
+            "Material": {
+                "Variables": {
+                    "DENSITY": 1.0,
+                    "DYNAMIC_VISCOSITY": 0.000018,
+                    "SURFACE_TENSION_COEFFICIENT": 0.0
+                },
+                "Tables": {},
+                "constitutive_law": {
+                    "name": "Newtonian2DLaw"
+                }
+            }
+        }
+    ]
+}

@@ -94,9 +94,16 @@ describe("script-free export report panel", () => {
   });
   it("preserves explicit open-beside navigation", async () => {
     const openWith = vi.fn();
-    __configureVscodeShim({ openWith, openTextDocument() {}, openLatestResults() {}, projectRoot: () => undefined, saveMesh: async () => {} });
+    __configureVscodeShim({ openWith, openTextDocument() {}, openLatestResults() {}, projectRoot: () => undefined, saveMesh: async () => {}, previewMaterialTables() {} });
     await commands.executeCommand("vscode.openWith", Uri.file("/run/result.vtk"), "kratos.vtkPreview", ViewColumn.Beside);
     expect(openWith).toHaveBeenCalledWith("/run/result.vtk", "kratos.vtkPreview", true);
+  });
+  it("routes mesh 5.15.0's material table preview to its hook", async () => {
+    const previewMaterialTables = vi.fn();
+    __configureVscodeShim({ openWith: vi.fn(), openTextDocument() {}, openLatestResults() {}, projectRoot: () => undefined, saveMesh: async () => {}, previewMaterialTables });
+    const request = { read: { tables: [] }, label: "Materials.json" };
+    await commands.executeCommand("kratos.materials.previewTables", request);
+    expect(previewMaterialTables).toHaveBeenCalledWith(request);
   });
   it("supports only the upstream report's explicitly script-disabled panel", () => {
     expect(window.createWebviewPanel("kratos.exportReport", "Export report", 2, { enableScripts: false })).toEqual({ webview: { html: "" } });

@@ -7,7 +7,7 @@ Mesh Preview 5.1 brings a **Plots** workspace into KKSS. Plot point histories, c
 - In Post-Processing, click **Plots**, or **Advanced → Plot builder…**. The pane belongs to that mesh tab. **Dock below / Dock beside**, the keyboard-resizable separator, and **Hide / Plots** adjust the split without discarding curves. Plots and Flowgraph share the auxiliary space.
 - Use **Inspect → Plot** beside a field, **Plot over time**, or **Add points from mesh** to overlay histories. Choose quantity and scalar/component/magnitude explicitly.
 - **Analyze / plot this SubModelPart** in Layers opens regional controls. Node IDs and element/condition IDs remain separate associations.
-- **File → Scientific Plot Builder…** opens a separate workspace, available even without a mesh. Use **Add source → Browse… → Inspect source** for CSV/TSV, or **Load recipe** for a tutorial recipe.
+- **File → Scientific Plot Builder…** opens a separate workspace, available even without a mesh. Use **Add source → Browse… → Inspect source** for CSV/TSV, or **Load recipe** for a saved recipe JSON.
 
 ![Standalone scientific plot builder showing two actual CFD pressure histories](/screenshots/scientific-plot-builder.png)
 
@@ -15,25 +15,11 @@ Both workspaces use the same upstream controller. Chart styling does not change 
 
 ## Worked examples
 
-Download and **extract the complete case archive** before loading a recipe. Keep `plots/` beside `vtk_output/`: paths are relative to the recipe, not the active mesh. A JSON downloaded alone does not include its result files. Open a VTK result, click **Plots → Load recipe**, and select the JSON; the standalone builder can load it too.
-
-| Case | Recipe inside its archive | What to inspect |
-| --- | --- | --- |
-| [Cylinder/obstacle flow](tutorial-fluid#plot-pressure-evolution-and-the-wake) | `plots/pressure-history.json`, `plots/wake-profile.json` | Two pressure histories, startup overshoot and a timeline-following wake profile |
-| [Structural cantilever](tutorial-structural#plot-displacement-and-reactions) | `plots/displacement-history.json`, `plots/reaction-history.json` | Tip displacement and signed nodal reaction sum over static steps |
-| [Stationary conduction](tutorial-thermal#plot-the-temperature-profile) | `plots/temperature-profile.json` | Temperature versus distance, not a fabricated transient |
-| [Potential flow](tutorial-potential-flow#plot-potential-versus-distance) | `plots/potential-profile.json` | Potential versus distance and the uniform-flow slope |
-| [Still-water basin](tutorial-shallow-water#plot-water-depth-over-time) | `plots/depth-history.json` | A deliberately flat depth history |
-| [Partitioned FSI](tutorial-fsi#plot-interface-motion-and-wall-pressure) | `plots/interface-displacement-history.json`, `plots/pressure-history.json` | Interface displacement and wall pressure over three coupled steps |
-| [Weak CoSimulation](tutorial-cosimulation#plot-the-single-exchange-oscillation) | `plots/interface-displacement-history.json`, `plots/pressure-history.json` | The single-exchange leapfrog: interface displacement and wall pressure |
-
-Each `plots/` directory includes full-resolution CSV, a `.csv.kratosplot.json` provenance companion and `verification.json` with selected node coordinates, input SHA-256 hashes, unit conventions and time reconstruction. These supplement—not replace—the solver verification. Regenerate with `npm run tutorials:plots` after building; no solver rerun is required.
+Run a tutorial case first — Generate writes the solver input beside the mesh, Run executes it in the embedded terminal, and **Open results** loads the VTK timeline into the viewer. Then build plots from your own output: histories over the saved steps, spatial profiles along a probe line, regional quantities over a SubModelPart. Recipes are saved from the builder (**Save recipe**) and reload later against the same result files; the tutorial archives carry the case files, not prebuilt recipes or result frames.
 
 ## Time, units and correspondence
 
-**A filename step is not a timestamp.** Histories show step labels unless the reader supplies time or you enter one **Physical times** value per frame and a **Time unit**. For the fixed-step Kratos tutorials, recipes explicitly reconstruct `start_time + STEP × time_step` from case settings and the Kratos VTK step suffix. These are not recorded solver timestamps. Adaptive-step results require actual saved times.
-
-The cylinder archive has **51 steps** despite a configured end time of **5 s**. Its explicit mapping is **0.1…5.1 s**, with no invented initial frame. This discrepancy is disclosed in exports and the tutorial. A settling chart is not proof of solver convergence.
+**A filename step is not a timestamp.** Histories show step labels unless the reader supplies time or you enter one **Physical times** value per frame and a **Time unit**. For fixed-step Kratos runs, a recipe can reconstruct `start_time + STEP × time_step` from the case settings and the Kratos VTK step suffix — these are not recorded solver timestamps, and a settling chart is not proof of solver convergence. Adaptive-step results require actual saved times.
 
 Legacy VTK outputs here do not record field/coordinate units. Recipes explicitly supply tutorial SI field units using **Convert** transformations; displacement additionally multiplies metres by 1000 for mm. Original export columns retain `unknown` units. Probe distance labels state metres from the case setup, while extraction metadata retains unknown coordinate units. Changing a label alone never converts numbers.
 

@@ -42,6 +42,13 @@ async function openParticipant(app, dir, family, deadline) {
 
 export async function manualTutorials(out, selected = []) {
   for (const c of cases.filter(c => !selected.length || selected.includes(c.id))) {
+    // Capture depth per case: the standard flow replays mesh export, sidebar
+    // setup, Generate, Run and results. Eigen stops after Generate (its
+    // solver writes modes, not a VTK timeline, so there is no results tab to
+    // open). The blocked two-fluids case and the wizard-built wind tunnel
+    // capture the authored geometry only — their meshes come from a DISTANCE
+    // transform and the wind-tunnel wizard respectively, not the CAD export
+    // this flow replays.
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kkss-tutorial-'));
     const dir = path.join(temp, c.id), profile = path.join(temp, 'profile');
     fs.cpSync(path.join(root, 'doc/public/examples/tutorials', c.id), dir, { recursive: true });
@@ -58,6 +65,7 @@ export async function manualTutorials(out, selected = []) {
       await cad.locator('#doc-chip-name').getByText(c.geometry, { exact: true }).waitFor();
       await sleep(1200); // allow the WebGL frame to settle before capturing
       if (out) await cad.screenshot({ path: path.join(out, `tutorial-${c.id}-geometry.png`) });
+      if (c.manual === 'geometry') continue; // wizard- or transform-built mesh: nothing to replay here.
       await cad.locator('#meshing-toggle').click();
       await cad.selectOption('#meshing-export-format', 'mdpaElements');
       await cad.selectOption('#meshing-export-unit', 'm');
@@ -114,6 +122,7 @@ export async function manualTutorials(out, selected = []) {
       await until(() => fs.existsSync(path.join(dir, c.primaryDocument ?? 'ProjectParameters.json')), 'Generate case files');
       await mesh.locator('#pt-select').scrollIntoViewIfNeeded();
       if (out) await mesh.screenshot({ path: path.join(out, `tutorial-${c.id}-setup.png`) });
+      if (c.manual === 'setup') continue; // no VTK timeline to open results from.
       await until(async () => await mesh.locator('#pt-run').isEnabled(), 'manual interpreter ready', 60000);
       await mesh.locator('#pt-run').click();
       await until(() => {

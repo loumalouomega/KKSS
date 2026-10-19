@@ -1121,7 +1121,7 @@ resubmitted automatically.
   what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 290-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
+  `test/chatToolPolicy.test.ts` pins the exact 292-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1465,8 +1465,18 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 81 CAD + 52 mesh + 4 aggregation + 31 app-owned
+discovery (current sets: 81 CAD + 54 mesh + 4 aggregation + 31 app-owned
 workflow tools).
+
+**The cad 3.20.0 → 3.22.0 + mesh 5.14.0 → 5.15.0 jump (new tutorial physics: RANS, eigenmodes, wind tunnel, two fluids) needed one heal-port, one remesh guard, a Manifold staging trio, one shim hook, two policy rows, a mesh skin-dedup fix and four tutorial cases.**
+
+- **cad: heal auto-decimate ported onto mmgs.** 3.22.0 replaced meshio++ quadric `decimate` with `coarsenStlBoundary` (Hausdorff-bisected mmgs, target ~1000 triangles) and the report block with `decimatedInfo` (`method/hausd/hausdFraction/volumeDeltaPct`). `cadHost.ts` ports the `meshHealRequest` path message-for-message (ratio math deleted), importing `decimatedInfo` from `meshioService` as before; `cadComputeClient.ts` binds `coarsenStlBoundary` (new `mmgCoarsen` type import) and the worker spreads `mmgCoarsen` beside `meshioService`. Pinned by `test/cadMeshBakeRuntime.test.ts`'s 100k-sphere coarsen run (866 triangles, volume preserved) and the new `test/cadManifoldRuntime.test.ts`: a drilled-cube `save_model` through the bundled server bakes the hole through manifold (no `manifold`-fallback warning) into a closed solid at the analytic volume.
+- **cad: remesh `adapt` rides through.** 3.21.0's `adaptField` validation lives in `validateMmgOptions` (imported, not reimplemented); the host adds only the generated-mode guard and the `adapt` passthrough on `remeshResult`, with the submodule's wording.
+- **cad: Manifold staged three times.** `dist/manifold/` (`manifold.wasm` + Apache-2.0 LICENSE) lands in `out/manifold/` (compute worker `__dirname`), `out/cad-runtime/dist/manifold/` (kernel worker `manifoldNode.ts` + headless `media/viewer.js`) and `out/renderer/dist/manifold/` (interactive `manifoldBrowser.ts`) — same `../dist/` contract as Draco. `esbuild.mjs` preflights the wasm; `doc/guide/development.md`'s checklist names all three.
+- **mesh: one shim hook, no panel work.** `kratos.materials.previewTables` routes through a new `previewMaterialTables` hook (form `{read,label}` request or a picked file) implemented in `index.ts` over `createMeshExtensionContext(__dirname)`, the plots-menu pattern. The wind-tunnel wizard needs nothing host-side (in-page `uiAction` flow). **Policy grew two rows** (81 CAD + 54 mesh = 292): `mesh__wind_tunnel_plan` (read — pure measurement) and `mesh__wind_tunnel_generate` (write, scoped to `bodyPath`/`bodies.path`/`outputFolder` in `toolPaths.ts` + tests); the chat prompt names RANS, two fluids, the wind-tunnel tools and table preview.
+- **mesh: skin dedup fixed upstream-side.** A volume mesh carrying its boundary as Conditions (every CAD export) skinned every triangle twice with opposite winding — `extractSkinModel` and `surfaceTriangles` now cross-dedup volume faces against surface cells (volumeOnly callers unchanged). Regenerated `exportFidelityTable.ts` (STEP hex/simplicial now measurable instead of non-manifold-unmeasured) plus a Conditions-doubling regression test; full mesh suite green.
+- **Tutorial runtime:** `KratosRANSApplication==10.4.3` + `KratosLinearSolversApplication==10.4.3` join `requirements.in`/lock, the Dockerfile import check and `check-licenses.py` (BSD-4-Clause), and the tier4 venv. Four cases in `tools/tutorials/cases.mjs`: `rans` (obstacle channel, k-epsilon/Bossak, 16-sided obstacle so the first row lands at y+ ~33 — Gmsh sizes the wall row from the boundary edges, verified live), `eigen` (cantilever, `eigen_value`, Euler–Bernoulli-checked), `two-fluids` (tank + Water part, DISTANCE via `sdfDistance`, generation-verified with the solver blocked upstream — `navier_stokes_two_fluid_solver` doesn't ship), `wind-tunnel` (wizard sphere tunnel, steady k-omega SST). `generate.mjs`/`verify.py`/`publish.mjs`/`writeDocs.mjs`/plots/manual all extended; the blocked case stays out of `tutorial-cases.zip`.
+- **Verified:** `typecheck`; full unit suite (938 passed); `check:packaging`; smoke; live manifold + coarsen runtime probes; the mesh suite with `--test-concurrency=2`.
 
 **The cad 3.18.0 → 3.20.0 + mesh 5.12.0 → 5.14.0 jump (KKSS 2.15.0, the
 meshio++ 17.2.0 **mesh → CAD** release and its 17.3.0 binary-writer follow-up)

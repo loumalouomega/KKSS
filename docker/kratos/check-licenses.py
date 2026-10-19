@@ -3,7 +3,8 @@ import importlib.metadata as m
 import json
 names = ['KratosMultiphysics', 'KratosStructuralMechanicsApplication',
          'KratosFluidDynamicsApplication', 'KratosConvectionDiffusionApplication',
-         'KratosCompressiblePotentialFlowApplication', 'KratosShallowWaterApplication']
+         'KratosCompressiblePotentialFlowApplication', 'KratosShallowWaterApplication',
+         'KratosRANSApplication', 'KratosLinearSolversApplication']
 result = []
 for name in names:
     dist = m.distribution(name)

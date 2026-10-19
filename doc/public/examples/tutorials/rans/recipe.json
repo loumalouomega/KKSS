@@ -1,0 +1,461 @@
+{
+  "id": "rans",
+  "title": "Turbulent flow around an obstacle (RANS k-epsilon)",
+  "problemtype": "rans",
+  "planar": true,
+  "planarGeometry": "obstacle",
+  "obstacle": {
+    "widthMm": 2000,
+    "heightMm": 600,
+    "centerMm": [
+      500,
+      300
+    ],
+    "radiusMm": 60,
+    "sides": 16
+  },
+  "obstacleWallGrading": {
+    "sizeAtWall": 25,
+    "sizeFar": 60,
+    "distNear": 25,
+    "distFar": 350
+  },
+  "meshOptions": {
+    "dimension": 2,
+    "sizeMin": 25,
+    "sizeMax": 70
+  },
+  "problem": {
+    "scheme": "bossak",
+    "timeStep": 0.1,
+    "endTime": 5,
+    "echoLevel": 0,
+    "flowSolver": "monolithic",
+    "elementType": "vms",
+    "turbulenceModel": "k_epsilon",
+    "freestreamSpeed": 1,
+    "turbulenceIntensity": 0.01,
+    "turbulenceLength": 0.01,
+    "maxIterations": 20
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Domain",
+      "values": {}
+    },
+    {
+      "conditionId": "inlet",
+      "smpPath": "Inlet",
+      "values": {
+        "modulus": 1,
+        "direction": "x"
+      }
+    },
+    {
+      "conditionId": "outlet",
+      "smpPath": "Outlet",
+      "values": {
+        "value": 0
+      }
+    },
+    {
+      "conditionId": "slip",
+      "smpPath": "Walls",
+      "values": {}
+    },
+    {
+      "conditionId": "ransWall",
+      "smpPath": "Obstacle",
+      "values": {}
+    },
+    {
+      "conditionId": "yPlus",
+      "smpPath": "Obstacle",
+      "values": {}
+    },
+    {
+      "conditionId": "flowForces",
+      "smpPath": "Obstacle",
+      "values": {
+        "referencePoint": [
+          0.5,
+          0.3,
+          0
+        ]
+      }
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Domain",
+      "lawId": "rans_newtonian_2d",
+      "values": {
+        "DENSITY": 1.204,
+        "DYNAMIC_VISCOSITY": 0.00001825
+      }
+    },
+    {
+      "smpPath": "Obstacle",
+      "lawId": "rans_wall",
+      "values": {}
+    }
+  ],
+  "field": "VELOCITY",
+  "timeout": 600000,
+  "source": "cad/examples/BREP/blank.brep",
+  "geometry": "obstacle-channel.brep",
+  "ops": [
+    {
+      "op": "addPolyline",
+      "points": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          2000,
+          0,
+          0
+        ],
+        [
+          2000,
+          600,
+          0
+        ],
+        [
+          0,
+          600,
+          0
+        ]
+      ],
+      "closed": true
+    },
+    {
+      "op": "addPolyline",
+      "points": [
+        [
+          560,
+          300,
+          0
+        ],
+        [
+          555.4327719506772,
+          277.0389940580946,
+          0
+        ],
+        [
+          542.4264068711929,
+          257.57359312880715,
+          0
+        ],
+        [
+          522.9610059419053,
+          244.5672280493228,
+          0
+        ],
+        [
+          500,
+          240,
+          0
+        ],
+        [
+          477.0389940580946,
+          244.5672280493228,
+          0
+        ],
+        [
+          457.57359312880715,
+          257.57359312880715,
+          0
+        ],
+        [
+          444.5672280493228,
+          277.0389940580946,
+          0
+        ],
+        [
+          440,
+          300,
+          0
+        ],
+        [
+          444.5672280493228,
+          322.9610059419054,
+          0
+        ],
+        [
+          457.57359312880715,
+          342.42640687119285,
+          0
+        ],
+        [
+          477.0389940580946,
+          355.4327719506772,
+          0
+        ],
+        [
+          500,
+          360,
+          0
+        ],
+        [
+          522.9610059419055,
+          355.4327719506772,
+          0
+        ],
+        [
+          542.4264068711929,
+          342.42640687119285,
+          0
+        ],
+        [
+          555.4327719506772,
+          322.9610059419054,
+          0
+        ]
+      ],
+      "closed": true
+    },
+    {
+      "op": "addSurfaceFromLines",
+      "edges": [
+        "edge-0",
+        "edge-1",
+        "edge-2",
+        "edge-3",
+        "edge-4",
+        "edge-5",
+        "edge-6",
+        "edge-7",
+        "edge-8",
+        "edge-9",
+        "edge-10",
+        "edge-11",
+        "edge-12",
+        "edge-13",
+        "edge-14",
+        "edge-15",
+        "edge-16",
+        "edge-17",
+        "edge-18",
+        "edge-19"
+      ]
+    }
+  ],
+  "options": {
+    "dimension": 2,
+    "sizeMin": 15,
+    "sizeMax": 70
+  },
+  "parts": [
+    {
+      "name": "Domain",
+      "surfaces": [
+        "face-0"
+      ]
+    },
+    {
+      "name": "Inlet",
+      "lines": [
+        "edge-3"
+      ]
+    },
+    {
+      "name": "Outlet",
+      "lines": [
+        "edge-1"
+      ]
+    },
+    {
+      "name": "Walls",
+      "lines": [
+        "edge-0",
+        "edge-2"
+      ]
+    },
+    {
+      "name": "Obstacle",
+      "lines": [
+        "edge-4",
+        "edge-5",
+        "edge-6",
+        "edge-7",
+        "edge-8",
+        "edge-9",
+        "edge-10",
+        "edge-11",
+        "edge-12",
+        "edge-13",
+        "edge-14",
+        "edge-15",
+        "edge-16",
+        "edge-17",
+        "edge-18",
+        "edge-19"
+      ],
+      "meshGrading": {
+        "sizeAtWall": 25,
+        "sizeFar": 60,
+        "distNear": 25,
+        "distFar": 350
+      }
+    }
+  ],
+  "exportUnit": "m",
+  "preflight": {
+    "ok": true,
+    "problemtype": "rans",
+    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-VthoPI/rans/mesh.kratoscase.json",
+    "warnings": [],
+    "applications": [
+      "FluidDynamicsApplication",
+      "RANSApplication"
+    ],
+    "issues": [],
+    "advisories": [
+      "Material \"rans_wall\" on \"Obstacle\" is not on any computing part of its domain."
+    ],
+    "counts": {
+      "error": 0,
+      "warning": 1,
+      "info": 0
+    },
+    "findings": [
+      {
+        "severity": "warning",
+        "code": "material-outside-parts",
+        "message": "Material \"rans_wall\" on \"Obstacle\" is not on any computing part of its domain.",
+        "target": {
+          "smpPath": "Obstacle",
+          "lawId": "rans_wall"
+        }
+      }
+    ],
+    "state": {
+      "version": 1,
+      "problemtypeId": "rans",
+      "values": {
+        "problem": {
+          "considerPeriodic": false,
+          "timeStepMode": "fixed",
+          "startTime": 0,
+          "timeStep": 0.1,
+          "courantTarget": 1,
+          "minDeltaTime": 0.0001,
+          "maxDeltaTime": 0.1,
+          "refVelocity": 1,
+          "endTime": 5,
+          "gravityValue": 0,
+          "gravityDirection": [
+            0,
+            -1,
+            0
+          ],
+          "linearSolver": "automatic",
+          "linearMaxIteration": 200,
+          "linearTolerance": 1e-7,
+          "preconditioner": "none",
+          "echoLevel": 0,
+          "computeReactions": false,
+          "flowSolver": "monolithic",
+          "turbulenceModel": "k_epsilon",
+          "elementType": "vms",
+          "oss": false,
+          "dynamicTau": 0.01,
+          "scheme": "bossak",
+          "bossakAlpha": -0.3,
+          "stabilization": "algebraic_flux_corrected",
+          "wallFrictionMethod": "velocity_based",
+          "freestreamSpeed": 1,
+          "turbulenceIntensity": 0.01,
+          "turbulenceLength": 0.01,
+          "maxIterations": 20,
+          "velocityTolerance": 0.001,
+          "pressureTolerance": 0.001,
+          "maxVelocityIterations": 20,
+          "maxPressureIterations": 1,
+          "turbulenceTolerance": 0.001,
+          "turbulenceIterations": 3,
+          "couplingIterations": 1
+        }
+      },
+      "assignments": [
+        {
+          "conditionId": "parts",
+          "smpPath": "Domain",
+          "values": {}
+        },
+        {
+          "conditionId": "inlet",
+          "smpPath": "Inlet",
+          "values": {
+            "modulus": 1,
+            "direction": "x"
+          }
+        },
+        {
+          "conditionId": "outlet",
+          "smpPath": "Outlet",
+          "values": {
+            "value": 0
+          }
+        },
+        {
+          "conditionId": "slip",
+          "smpPath": "Walls",
+          "values": {}
+        },
+        {
+          "conditionId": "ransWall",
+          "smpPath": "Obstacle",
+          "values": {}
+        },
+        {
+          "conditionId": "yPlus",
+          "smpPath": "Obstacle",
+          "values": {}
+        },
+        {
+          "conditionId": "flowForces",
+          "smpPath": "Obstacle",
+          "values": {
+            "referencePoint": [
+              0.5,
+              0.3,
+              0
+            ]
+          }
+        }
+      ],
+      "materials": [
+        {
+          "smpPath": "Domain",
+          "lawId": "rans_newtonian_2d",
+          "values": {
+            "DENSITY": 1.204,
+            "DYNAMIC_VISCOSITY": 0.00001825
+          }
+        },
+        {
+          "smpPath": "Obstacle",
+          "lawId": "rans_wall",
+          "values": {}
+        }
+      ],
+      "output": {
+        "format": "ascii",
+        "controlType": "step",
+        "interval": 1,
+        "nodalVariables": [
+          "VELOCITY",
+          "PRESSURE",
+          "TURBULENT_KINETIC_ENERGY",
+          "TURBULENT_VISCOSITY",
+          "RANS_Y_PLUS"
+        ]
+      }
+    }
+  }
+}

@@ -225,6 +225,7 @@ import {
   describeMeshioFieldFailure,
   isHealableSizeError,
   stlBytesForHeal,
+  decimatedInfo,
   AUTO_DECIMATE_TARGET_TRIANGLES,
 } from "../../cad/src/meshioService";
 import { cadCompute, kernelState, onKernelState, runOwnedJob, jobStatus, cancelOwnedJob } from "./cadComputeClient";
@@ -2331,15 +2332,18 @@ export class CadHost {
           // unparseable content) rethrows untouched.
           if (!msg.autoDecimate || !isHealableSizeError(err)) throw err;
           const forHeal = stlBytesForHeal(bytes, format, external);
-          const ratio = Math.min(1, AUTO_DECIMATE_TARGET_TRIANGLES / forHeal.fromTriangles);
-          const decimated = await cadCompute.decimateStlBoundary(forHeal.stlBytes, ratio);
+          const decimated = await cadCompute.coarsenStlBoundary(
+            this.runtimePath,
+            forHeal.stlBytes,
+            AUTO_DECIMATE_TARGET_TRIANGLES
+          );
           const report = await cadCompute.checkMeshHealth(this.runtimePath, decimated.bytes, "stl");
           this.post({
             type: "meshHealResult",
             requestId: msg.requestId,
             report: {
               ...report,
-              decimated: { fromTriangles: decimated.fromTriangles, toTriangles: decimated.toTriangles, ratio },
+              decimated: decimatedInfo(decimated, forHeal.fromTriangles),
             },
           });
         }
@@ -2444,6 +2448,14 @@ export class CadHost {
           let format: string;
           let name: string | undefined;
           let companions: MeshioCompanion[] | undefined;
+          // cad 3.21.0: adapting to a field reads the source mesh's result
+          // fields, so a freshly generated mesh (which carries none) is refused
+          // with the submodule's own wording rather than rebuilt fieldless.
+          if (options.adaptField && msg.source === "generated") {
+            throw new Error(
+              "Adapting to a field needs the original FE mesh file — a freshly generated mesh carries no result fields"
+            );
+          }
           if (msg.source === "generated") {
             const input = await this.resolveMeshInput(msg.stl);
             if (!input) throw new Error("No geometry to generate a mesh from");
@@ -2482,6 +2494,7 @@ export class CadHost {
             type: "remeshResult",
             requestId: msg.requestId,
             report: result.report,
+            adapt: "adapt" in result ? result.adapt : undefined,
             written: savePath,
             warnings: [...warnings, ...result.warnings, ...rebound.warnings],
           });

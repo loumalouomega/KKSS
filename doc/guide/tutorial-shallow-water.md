@@ -24,13 +24,9 @@ Click **Generate case files**. This writes `ProjectParameters.json`, the materia
 
 When the run finishes, click **Open results**. In the VTK tab, click **Field**, select the listed field, and use the timeline to choose the final step. The values below came from the verified final frame.
 
-## Plot water depth over time
+## Scientific plots
 
-Extract [shallow-water.zip](/examples/tutorials/shallow-water.zip), open a VTK result, and choose **Plots → Load recipe → plots/depth-history.json**. It selects the published node nearest **(2, 0.5, 0) m** and plots all **eight `HEIGHT` samples**, remaining at **1 m**. The exact result ID/coordinates are recorded in `plots/verification.json`; remeshing requires a new point selection.
-
-The recipe explicitly reconstructs **0.015625…0.125 s** from the fixed-step setup and supplies metres from the case convention. Add more points with **Add points from mesh** to compare basin locations, and export **CSV + metadata** or **PNG / SVG**. These nearly flat curves demonstrate the still-water case, not a propagating wave. A nodal sum/mean of height is not water volume: the **4 m³** check below uses element areas. The archive includes CSV and provenance; see [scientific plots](scientific-plots).
-
-![Eight-frame still-water depth history in KKSS](/screenshots/tutorial-shallow-water-depth-plot.png)
+Build plots from your own run in the app: open a result, choose **Plots → New recipe**, and see [scientific plots](scientific-plots) for the builder, units and CSV export.
 
 ## Post-run checks and batch
 
@@ -40,7 +36,7 @@ Before generating, the Problemtype sidebar preflights the setup as structured er
 
 At t = 0.125 s, the basin retains 1 m depth. Momentum is below 3 × 10⁻¹⁵ m²/s, and the computed water volume is 4.000000 m³ (error below 10⁻¹⁵ m³).
 
-Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 150 nodes and 248 cells. The run wrote 8 output frame(s) through t = 0.125 s. [Download this runnable case](/examples/tutorials/shallow-water.zip); the folder contains the CAD source, sketch SVG, edit/parts/mesh sidecars, generated case, VTK output and SHA-256 provenance. Downloaded cases are starting points: rerunning overwrites their generated outputs.
+Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 150 nodes and 248 cells. The run wrote 8 output frame(s) through t = 0.125 s. [Download this runnable case](/examples/tutorials/shallow-water.zip); the folder contains the CAD source, generation setup and generated case, with SHA-256 provenance and the solver verification record. Run the case to reproduce its VTK timeline locally. Downloaded cases are starting points: rerunning overwrites their generated outputs.
 
 ![CAD geometry and named parts](/screenshots/tutorial-shallow-water-geometry.png)
 

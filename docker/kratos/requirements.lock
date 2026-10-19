@@ -278,6 +278,7 @@ kratoslinearsolversapplication==10.4.3 \
     --hash=sha256:dcbfd12ff383d43d5315848098a1a7a6e5984abe386f78a8eb92d0df471fd0cb \
     --hash=sha256:f30477c40b44b7117b4b1854a7321a9284286d6fa01f0112862781bb56305451
     # via
+    #   -r docker/kratos/requirements.in
     #   kratosfluiddynamicsapplication
     #   kratosstructuralmechanicsapplication
 kratosmultiphysics==10.4.3 \
@@ -301,8 +302,25 @@ kratosmultiphysics==10.4.3 \
     #   kratosconvectiondiffusionapplication
     #   kratosfluiddynamicsapplication
     #   kratoslinearsolversapplication
+    #   kratosransapplication
     #   kratosshallowwaterapplication
     #   kratosstructuralmechanicsapplication
+kratosransapplication==10.4.3 \
+    --hash=sha256:01a2d24e06a78163014ba97574640a5a2b25672e55b61ab1739e682687ac753d \
+    --hash=sha256:1183f59587146e1705788278907c76d9c86b7ff805d3c0699ad07413f38cb5ee \
+    --hash=sha256:2a26711f7aee0666784c30f48399be4b42da1115ddc9e23b06940bbb84770db6 \
+    --hash=sha256:3c52b2f00d95f0ba19b87585d5859ee4c0984c482848f16adf1a92198b379e41 \
+    --hash=sha256:46435840c49c6add0b49388add02121c1ab3d72fd794642301d3f54156645f3b \
+    --hash=sha256:6083e642895f4cd9c28e27b1992e5ba10fcf87c57ebeeae78b35a55b631cafb5 \
+    --hash=sha256:7415cc973c361b93c40ba8f3edca4fcf8aa0220e13ce3b6e231b2616116c1fba \
+    --hash=sha256:7ba476e7f292fa7cc0853524f983d43661f3478d10b65b35e606982cd305c90c \
+    --hash=sha256:8828eb17a0457f90a380dc75ef7f9fc31f47678deb3f3962ee5ec5e69d53b38b \
+    --hash=sha256:8b1b9e4333e135c36323b5e682b95ded72fa191ba76f50bc1656d45bb275768a \
+    --hash=sha256:a2311ad8dec1f227b4bd32ff78ed873e88f6538258717a21964ee763e4057cd3 \
+    --hash=sha256:d1c03abe04f91fab741ced1386cbd815613f9898d659669c367f5b0af45e4172 \
+    --hash=sha256:df2fecdeb11d1540be83f505b11df66459c866ce6faad6f3ebba7d173e0bea97 \
+    --hash=sha256:f59fef3195fc290d50d7b403be25f589c3452b7139a8655150823bac09568511
+    # via -r docker/kratos/requirements.in
 kratosshallowwaterapplication==10.4.3 \
     --hash=sha256:1e20d05f22d162707193e611031e0dea0dba349926ad9ba08aabbef49b6afc7f \
     --hash=sha256:2b9d7dd66f103594e9d75ea1bb5fb2d6703f33edc50bd7ae072f98f97fb1150e \

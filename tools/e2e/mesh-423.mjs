@@ -230,7 +230,9 @@ internalField uniform ${value};
   await mesh.locator('#pt-generate').click();
   await until(() => fs.existsSync(path.join(c.dir, 'ProjectParameters.json')), 'valid adaptive case generated');
   const stepping = JSON.parse(fs.readFileSync(path.join(c.dir, 'ProjectParameters.json'), 'utf8')).solver_settings.time_stepping;
-  assert.deepEqual(stepping, { automatic_time_step: true, CFL_number: 1, minimum_delta_time: 0.0001, maximum_delta_time: 0.1, time_step: 0.01 });
+  // mesh 5.15.0 adaptive stepping carries no time_step: Kratos' step
+  // estimator rejects keys outside its defaults and starts from the minimum.
+  assert.deepEqual(stepping, { automatic_time_step: true, CFL_number: 1, minimum_delta_time: 0.0001, maximum_delta_time: 0.1 });
 
   const series = await openDocument(c, app, seriesFiles[0]);
   observe(series);

@@ -112,6 +112,9 @@ export const SCOPED_TOOL_PATH_ARGS: Readonly<Record<string, readonly string[]>> 
   mesh__mesh_transform: ["path", "recipePath", "outputPath"],
   mesh__problem_pack: ["meshPath", "outputPath", "recipePath"],
   mesh__problem_unpack: ["archivePath", "destDir"],
+  // mesh 5.15.0's virtual wind tunnel: the body surface (one or several) is
+  // read, everything else is written under the output folder.
+  mesh__wind_tunnel_generate: ["bodyPath", "bodies.path", "outputFolder"],
   // ---- kratos-mcp-server (reviewed at KRATOS_TOOLS_REVIEWED_VERSION) ----
   // Nested-document tools (project_add/update_process, project_set_setting,
   // project_update_solver, create_cosim/fsi_project) and the executing session

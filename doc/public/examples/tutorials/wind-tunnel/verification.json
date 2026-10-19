@@ -1,0 +1,69 @@
+{
+  "case": "wind-tunnel",
+  "python": "3.12.14",
+  "kratos": "10.4.3",
+  "threads": 2,
+  "nodes": 14840,
+  "elements": 82804,
+  "fields": [
+    "VELOCITY",
+    "PRESSURE",
+    "TURBULENT_KINETIC_ENERGY",
+    "TURBULENT_SPECIFIC_ENERGY_DISSIPATION_RATE",
+    "TURBULENT_VISCOSITY",
+    "PRESSURE_COEFFICIENT",
+    "Y_PLUS"
+  ],
+  "frames": 12,
+  "end_time": 300,
+  "checks": {
+    "wall_y_plus_nodes": 1616,
+    "wall_y_plus_mean": 52.00232555918805,
+    "wall_y_plus_planned": 110.14209063383704,
+    "wall_y_plus_measured_over_planned": 0.47213853722885735,
+    "wall_y_plus_ratio_limit": {
+      "measured": 0.47213853722885735,
+      "maximum": 2.5
+    },
+    "wall_y_plus_ratio_minimum": {
+      "measured": 0.47213853722885735,
+      "minimum": 0.4
+    },
+    "wall_y_plus_log_layer_share": 0.9013824884792627,
+    "inlet_flux_m3_per_s": -153.5200383966681,
+    "outlet_flux_m3_per_s": 154.06782848667154,
+    "flux_imbalance_relative": {
+      "measured": 0.0035681992769442564,
+      "maximum": 0.05
+    },
+    "drag_x_N": {
+      "measured": 6.774687366,
+      "minimum": 0
+    },
+    "drag_coefficient_informational": 0.22413578239636062,
+    "drag_steps": 300,
+    "drag_final_N": 6.14535811
+  },
+  "files": {
+    "body-vol.mdpa": "6ca7a4bc9417c8b24072894e103129058106be07c891b435bf4398c843d2093f",
+    "FluidMaterials.json": "c56be8b4bd672fe7d1a21d6e4a62bb4942ea9b4c009ca570bac0882d81590c6a",
+    "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
+    "MainKratos.py": "2edb07babca83ecb68158f4a9995c58789d9f26e71c2bd2240bf9b855af31aa2",
+    "ProjectParameters.json": "10b3d6b208d6c4a9e2790af2035c4654c6e13391e800a3f5ebafdfe505e89541",
+    "recipe.json": "1fa2f24f490553f01a08e095f0e2a22b57e3c6a427fad1feb31f7790f8c33a58",
+    "sphere.brep": "d94d6764f1a229976a427da3d54079d14917079076fe7de18881302f3f5820d7",
+    "sphere.brep.edits.json": "fc5b8640fa3eccd3df1cbfd7d8d4fc4ffd5626eb12913ee2d5a2a31408df1f85",
+    "sphere.brep.mesh.json": "7f50d3ab421e874c601b3af665d0e907e5f59ef22bc6770b0167918eee0d7d6f",
+    "sphere.brep.parts.json": "9babbe20ffb1e75ad1865083889c697fb073885c11853de201e988a79901129b",
+    "tunnel_body.stl": "0c7e7ef0b714c503d35b5c57b35423b7992f62362a23089cfdc50d99f3a2e5ea",
+    "tunnel_case.mdpa": "52779e25a0d7c39ed0bc47b197ddf08c8660932a2909ba7cc8899ca3a55bcc00",
+    "tunnel.kratoscase.json": "f73094055c0bba39956e10274f18be274c5fabe032a7f354a45f064405817ce3",
+    "tunnel.kratosvwt.json": "a19ef4948fe5752e0cabbc5b1941d21e0e82c288a2705f9d605ba387ac8cd820",
+    "tunnel.mdpa": "8b8a5d0decc389006e4882a6d874c9cd4514ae3e77e8f8e153821fedd749ddcb"
+  },
+  "source": "cad/examples/BREP/blank.brep",
+  "revisions": {
+    "cad": "7c51565f2388edbba04a7b9637e827df550851f0",
+    "mesh": "cab0b4f77355aa3dd1290b370aca98b222be660b"
+  }
+}

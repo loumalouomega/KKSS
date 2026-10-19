@@ -25,20 +25,9 @@ Click **Generate case files**. This writes `ProjectParameters.json`, the materia
 
 When the run finishes, click **Open results**. In the VTK tab, click **Field**, select the listed field, and use the timeline to choose the final step. The values below came from the verified final frame.
 
-## Plot pressure evolution and the wake
+## Scientific plots
 
-1. Extract [fluid.zip](/examples/tutorials/fluid.zip), open `vtk_output/FluidModelPart_0_1.vtk`, and click **Plots → Load recipe**. Select `plots/pressure-history.json`. Keep the complete directory so relative paths resolve.
-2. The chart overlays upstream **node 21**, at approximately **(0.44, 0.30, 0) m**, and downstream **node 5**, at **(0.56, 0.30, 0) m**. These IDs belong to the published VTK mesh. For a regenerated mesh use Inspect and choose new points, not matching IDs.
-3. Each curve has **51 disk samples**. Upstream pressure starts at **2697.7852 Pa**, then **−1258.8506 Pa**, before approaching **9.2801962 Pa**; downstream ends at **−4.189086 Pa**. Zoom into later steps to inspect settling, retaining early overshoot in the full CSV. These numerical startup results are not a convergence certificate or validated transient benchmark. At **Re = 20**, this case does not demonstrate periodic vortex shedding.
-4. The recipe supplies Pa from the SI setup and reconstructs time as `STEP × 0.1 s`, giving **0.1…5.1 s**. The configured end time is **5 s**, but the archive includes step 51. No sample is silently removed and no initial frame invented. Adaptive runs need actual timestamps. `plots/verification.json` records the mapping and hashes.
-5. Open `FluidModelPart_0_51.vtk`, explicitly scrub to the last frame, and load `plots/wake-profile.json`. It samples `VELOCITY X` at **80 positions** from **(0.565, 0.30, 0)** to **(0.85, 0.30, 0) m**. The final interpolated minimum is approximately **−0.00469437 m/s**, different from the node-only minimum below. **Follow timeline** updates the fixed spatial line as the owning preview steps; **Fix frame** retains it for comparison.
-6. Export **CSV + metadata**, **PNG / SVG**, or **Save recipe**. The archive includes CSV and provenance companions; **File → Scientific Plot Builder…** can load the same recipes.
-
-![Pressure histories with the mesh in the real KKSS app](/screenshots/tutorial-fluid-pressure-history.png)
-
-![Axial wake profile alongside its owning result](/screenshots/tutorial-fluid-wake-profile.png)
-
-**Boundary loads:** these VTK files contain volume cells and nodal fields, not the MDPA's named boundary Conditions. Do not request an `Obstacle` pressure force from them or interpret an unweighted nodal mean as boundary pressure. Results that genuinely retain Conditions and coverage support boundary means and pressure forces/moments with explicit normal/offset/thickness conventions. See [scientific plots](scientific-plots#regions-and-boundary-quantities).
+Build plots from your own run in the app: open a result, choose **Plots → New recipe**, and see [scientific plots](scientific-plots) for the builder, units and CSV export.
 
 ## Post-run checks and batch
 
@@ -48,7 +37,7 @@ Before generating, the Problemtype sidebar preflights the setup as structured er
 
 In the final saved frame, the near-wake sample has a minimum axial velocity of −0.00475046 m/s against the +0.1 m/s inlet, and 32 obstacle boundary nodes satisfy no-slip exactly. Pressure ranges from −7.23421 to 9.28020 Pa with the outlet fixed at 0 Pa. Inlet/outlet fluxes are 0.0600000020 and 0.0600000018 m²/s per metre of depth (difference 2.40 × 10⁻¹⁰ m²/s). The acceptance limits are a near-wake velocity deficit ≥ 0.025 m/s, pressure range ≥ 0.05 Pa, no-slip speed ≤ 2 × 10⁻⁵ m/s, and flux imbalance ≤ 0.001 m²/s.
 
-Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 945 nodes and 1766 cells. The run wrote 51 output frame(s) with configured end time 5 s. [Download this runnable case](/examples/tutorials/fluid.zip); the folder contains the CAD source, sketch SVG, edit/parts/mesh sidecars, generated case, VTK output and SHA-256 provenance. Downloaded cases are starting points: rerunning overwrites their generated outputs.
+Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 945 nodes and 1766 cells. The run wrote 51 output frame(s) with configured end time 5 s. [Download this runnable case](/examples/tutorials/fluid.zip); the folder contains the CAD source, generation setup and generated case, with SHA-256 provenance and the solver verification record. Run the case to reproduce its VTK timeline locally. Downloaded cases are starting points: rerunning overwrites their generated outputs.
 
 ![CAD geometry and named parts](/screenshots/tutorial-fluid-geometry.png)
 

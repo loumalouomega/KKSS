@@ -55,6 +55,10 @@ const required = [
   ["cad/dist/draco/draco_decoder.wasm", "npm run build --prefix cad"],
   ["cad/dist/draco/node/draco_decoder.wasm", "npm run build --prefix cad"],
   ["cad/dist/draco/LICENSE", "npm run build --prefix cad"],
+  // cad 3.22.0's Manifold boolean kernel (copyManifold): the webview fetches
+  // it from a URL derived from its own script URL and manifoldNode.ts reads it
+  // as wasmBinary — same "a real file, not an inline bundle" reason as Draco.
+  ["cad/dist/manifold/manifold.wasm", "npm run build --prefix cad"],
   // cad 3.11.0's MMG remeshing kernel (mmgService.ts getMmg joins
   // extensionPath/dist/mmg-core.wasm) — built by cad's own esbuild copy.
   ["cad/dist/mmg-core.wasm", "npm run build --prefix cad"],
@@ -454,6 +458,18 @@ async function copyArtifacts() {
       out("renderer/dist/draco", name)
     );
   }
+  // cad 3.22.0's Manifold boolean kernel (manifold-3d, Apache-2.0). Both
+  // consumers derive the path from their own bundle: the webview
+  // (manifoldBrowser.ts) fetches `../dist/manifold/manifold.wasm` from its
+  // script URL, and the Node half (manifoldNode.ts) reads
+  // `<dirname>/manifold/manifold.wasm` — hence the same three landing places
+  // as Draco: out/cad-runtime/dist/ serves the kernel worker AND the headless
+  // render_snapshot page at out/cad-runtime/media/viewer.js, out/renderer/dist/
+  // serves the interactive viewer at out/renderer/cad/viewer.js, and
+  // out/manifold/ is what the compute worker's __dirname (out/) resolves.
+  fs.cpSync(path.join(__dirname, "cad/dist/manifold"), out("cad-runtime/dist/manifold"), { recursive: true });
+  fs.cpSync(path.join(__dirname, "cad/dist/manifold"), out("manifold"), { recursive: true });
+  fs.cpSync(path.join(__dirname, "cad/dist/manifold"), out("renderer/dist/manifold"), { recursive: true });
   // mesh 4.8.0's experimental VTK-wasm renderer runtime (roadmap item 18):
   // the hash-verified, eval-free patched glue, its .wasm and both licence
   // notices, staged by mesh's production build. Served from beside the mesh

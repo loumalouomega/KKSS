@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "problemtypeId": "rans",
+  "values": {
+    "problem": {
+      "considerPeriodic": false,
+      "timeStepMode": "fixed",
+      "startTime": 0,
+      "timeStep": 1,
+      "courantTarget": 2,
+      "minDeltaTime": 7.99805e-7,
+      "maxDeltaTime": 0.00399902,
+      "refVelocity": 10,
+      "endTime": 300,
+      "gravityValue": 0,
+      "gravityDirection": [
+        0,
+        -1,
+        0
+      ],
+      "linearSolver": "automatic",
+      "linearMaxIteration": 200,
+      "linearTolerance": 1e-7,
+      "preconditioner": "none",
+      "echoLevel": 0,
+      "computeReactions": true,
+      "flowSolver": "monolithic",
+      "turbulenceModel": "k_omega_sst",
+      "elementType": "vms",
+      "oss": false,
+      "dynamicTau": 0.01,
+      "scheme": "steady",
+      "bossakAlpha": -0.3,
+      "stabilization": "algebraic_flux_corrected",
+      "wallFrictionMethod": "velocity_based",
+      "freestreamSpeed": 10,
+      "turbulenceIntensity": 0.01,
+      "turbulenceLength": 0.00799805,
+      "maxIterations": 20,
+      "velocityTolerance": 0.001,
+      "pressureTolerance": 0.001,
+      "maxVelocityIterations": 20,
+      "maxPressureIterations": 1,
+      "turbulenceTolerance": 0.001,
+      "turbulenceIterations": 3,
+      "couplingIterations": 1
+    }
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Fluid",
+      "values": {}
+    },
+    {
+      "conditionId": "inlet",
+      "smpPath": "Inlet",
+      "values": {
+        "modulus": 10,
+        "direction": "x"
+      }
+    },
+    {
+      "conditionId": "outlet",
+      "smpPath": "Outlet",
+      "values": {
+        "value": 0,
+        "hydrostatic": false
+      }
+    },
+    {
+      "conditionId": "slip",
+      "smpPath": "Ceiling",
+      "values": {}
+    },
+    {
+      "conditionId": "slip",
+      "smpPath": "SideLow",
+      "values": {}
+    },
+    {
+      "conditionId": "slip",
+      "smpPath": "SideHigh",
+      "values": {}
+    },
+    {
+      "conditionId": "slip",
+      "smpPath": "Floor",
+      "values": {}
+    },
+    {
+      "conditionId": "ransWall",
+      "smpPath": "Body",
+      "values": {}
+    },
+    {
+      "conditionId": "flowForces",
+      "smpPath": "Body",
+      "values": {
+        "referencePoint": [
+          0,
+          0,
+          0
+        ],
+        "writeMoments": true
+      }
+    },
+    {
+      "conditionId": "aerodynamicCoefficients",
+      "smpPath": "Body",
+      "values": {
+        "referenceArea": 0.502087,
+        "referenceChord": 0.799805,
+        "dynamicPressure": 60.2,
+        "referencePoint": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "conditionId": "pressureCoefficient",
+      "smpPath": "Body",
+      "values": {
+        "freestreamDensity": 1.204,
+        "freestreamVelocity": 10,
+        "freestreamPressure": 0
+      }
+    },
+    {
+      "conditionId": "yPlus",
+      "smpPath": "Body",
+      "values": {}
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Fluid",
+      "lawId": "rans_newtonian_3d",
+      "values": {
+        "DENSITY": 1.204,
+        "DYNAMIC_VISCOSITY": 0.00001825
+      }
+    },
+    {
+      "smpPath": "Body",
+      "lawId": "rans_wall",
+      "values": {}
+    }
+  ],
+  "output": {
+    "format": "ascii",
+    "controlType": "step",
+    "interval": 25,
+    "nodalVariables": [
+      "VELOCITY",
+      "PRESSURE"
+    ]
+  }
+}

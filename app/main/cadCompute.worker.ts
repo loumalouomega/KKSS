@@ -13,6 +13,9 @@ import * as gmsh from "../../cad/src/gmshService";
 import * as massProps from "../../cad/src/massProperties";
 import * as entityFacts from "../../cad/src/entityFacts";
 import * as meshio from "../../cad/src/meshioService";
+// cad 3.22.0 moved auto-decimate off meshio++'s quadric `decimate` onto mmgs
+// (coarsenStlBoundary, Hausdorff-bisected) — an MMG run, hence worker-only.
+import * as mmgCoarsen from "../../cad/src/mmgCoarsen";
 // CPU-only, but it pulls in three + the webview facet segmenter — keep that
 // out of the main bundle.
 import * as meshioParts from "../../cad/src/meshioRegionParts";
@@ -56,6 +59,7 @@ const modules: Array<[string, object]> = [
   ["massProperties", massProps],
   ["entityFacts", entityFacts],
   ["meshioService", meshio],
+  ["mmgCoarsen", mmgCoarsen],
   ["meshioRegionParts", meshioParts],
   ["meshEditBake", meshEditBake],
   ["hitTestService", hitTestService],

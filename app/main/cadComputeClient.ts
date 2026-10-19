@@ -16,6 +16,7 @@ import type * as gmsh from "../../cad/src/gmshService";
 import type * as massProps from "../../cad/src/massProperties";
 import type * as entityFacts from "../../cad/src/entityFacts";
 import type * as meshio from "../../cad/src/meshioService";
+import type * as mmgCoarsen from "../../cad/src/mmgCoarsen";
 import type * as meshioParts from "../../cad/src/meshioRegionParts";
 import type * as meshEditBake from "../../cad/src/meshEditBake";
 import type * as hitTestService from "../../cad/src/hitTestService";
@@ -295,7 +296,9 @@ export const cadCompute = {
   readMeshioDataInfo: rpc<typeof meshio.readMeshioDataInfo>("readMeshioDataInfo"),
   readMeshioFieldValues: rpc<typeof meshio.readMeshioFieldValues>("readMeshioFieldValues"),
   readMeshioProvenance: rpc<typeof meshio.readMeshioProvenance>("readMeshioProvenance"),
-  decimateStlBoundary: rpc<typeof meshio.decimateStlBoundary>("decimateStlBoundary"),
+  // cad 3.22.0: mmgs coarsening under a Hausdorff bound replaced meshio++'s
+  // quadric decimate (mmgCoarsen.ts — the worker spreads that module too).
+  coarsenStlBoundary: rpc<typeof mmgCoarsen.coarsenStlBoundary>("coarsenStlBoundary"),
   runMeshioOps: rpc<typeof meshio.runMeshioOps>("runMeshioOps"),
   exportViaMeshio: rpc<typeof meshio.exportViaMeshio>("exportViaMeshio"),
   // cad 3.11.0 MMG remeshing (meshioService.remeshMesh → mmgService).

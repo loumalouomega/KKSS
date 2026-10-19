@@ -1,0 +1,353 @@
+{
+    "analysis_stage": "KratosMultiphysics.RANSApplication.rans_analysis",
+    "problem_data": {
+        "problem_name": "tunnel_case",
+        "parallel_type": "OpenMP",
+        "echo_level": 0,
+        "start_time": 0,
+        "end_time": 300
+    },
+    "solver_settings": {
+        "model_part_name": "FluidModelPart",
+        "domain_size": 3,
+        "solver_type": "CoupledRANS",
+        "model_import_settings": {
+            "input_type": "mdpa",
+            "input_filename": "tunnel_case"
+        },
+        "material_import_settings": {
+            "materials_filename": "FluidMaterials.json"
+        },
+        "volume_model_part_name": "FluidModelPart.Fluid",
+        "skin_parts": [
+            "FluidModelPart.Inlet",
+            "FluidModelPart.Outlet",
+            "FluidModelPart.Ceiling",
+            "FluidModelPart.SideLow",
+            "FluidModelPart.SideHigh",
+            "FluidModelPart.Floor",
+            "FluidModelPart.Body"
+        ],
+        "no_skin_parts": [],
+        "time_stepping": {
+            "automatic_time_step": false,
+            "time_step": 1
+        },
+        "echo_level": 0,
+        "assign_neighbour_elements_to_conditions": true,
+        "move_mesh": false,
+        "time_scheme_settings": {
+            "scheme_type": "steady"
+        },
+        "wall_function_settings": {
+            "wall_function_region_type": "logarithmic_region_only",
+            "wall_friction_velocity_calculation_method": "velocity_based"
+        },
+        "formulation_settings": {
+            "formulation_name": "monolithic_k_omega_sst",
+            "incompressible_potential_flow_initialization_settings": {},
+            "monolithic_flow_solver_settings": {
+                "maximum_iterations": 20,
+                "echo_level": 0,
+                "compute_reactions": true,
+                "reform_dofs_at_each_step": false,
+                "relative_velocity_tolerance": 0.001,
+                "absolute_velocity_tolerance": 0.00001,
+                "relative_pressure_tolerance": 0.001,
+                "absolute_pressure_tolerance": 0.00001,
+                "velocity_relaxation": 0.9,
+                "pressure_relaxation": 0.9,
+                "linear_solver_settings": {
+                    "solver_type": "amgcl"
+                },
+                "move_mesh_strategy": 0,
+                "move_mesh_flag": false,
+                "flow_solver_formulation": {
+                    "element_type": "vms",
+                    "use_orthogonal_subscales": false,
+                    "dynamic_tau": 0.01
+                }
+            },
+            "k_omega_sst_solver_settings": {
+                "stabilization_method": "algebraic_flux_corrected",
+                "turbulent_kinetic_energy_solver_settings": {
+                    "relative_tolerance": 0.001,
+                    "absolute_tolerance": 0.00001,
+                    "max_iterations": 3,
+                    "echo_level": 0,
+                    "relaxation_factor": 0.9,
+                    "linear_solver_settings": {
+                        "solver_type": "amgcl"
+                    }
+                },
+                "turbulent_specific_energy_dissipation_rate_solver_settings": {
+                    "relative_tolerance": 0.001,
+                    "absolute_tolerance": 0.00001,
+                    "max_iterations": 3,
+                    "echo_level": 0,
+                    "relaxation_factor": 0.9,
+                    "linear_solver_settings": {
+                        "solver_type": "amgcl"
+                    }
+                },
+                "echo_level": 0,
+                "coupling_settings": {
+                    "relative_tolerance": 0.001,
+                    "absolute_tolerance": 0.00001,
+                    "max_iterations": 1
+                },
+                "auxiliar_process_list": []
+            }
+        }
+    },
+    "processes": {
+        "constraints_process_list": [
+            {
+                "python_module": "apply_inlet_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Inlet",
+                    "variable_name": "VELOCITY",
+                    "modulus": 10,
+                    "direction": [
+                        1,
+                        0,
+                        0
+                    ],
+                    "interval": [
+                        0,
+                        "End"
+                    ]
+                }
+            },
+            {
+                "python_module": "apply_outlet_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Outlet",
+                    "variable_name": "PRESSURE",
+                    "constrained": true,
+                    "value": 0,
+                    "hydrostatic_outlet": false,
+                    "h_top": 0
+                }
+            },
+            {
+                "python_module": "apply_slip_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "process_name": "ApplySlipProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Ceiling"
+                }
+            },
+            {
+                "python_module": "apply_slip_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "process_name": "ApplySlipProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.SideLow"
+                }
+            },
+            {
+                "python_module": "apply_slip_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "process_name": "ApplySlipProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.SideHigh"
+                }
+            },
+            {
+                "python_module": "apply_slip_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "process_name": "ApplySlipProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Floor"
+                }
+            },
+            {
+                "python_module": "apply_wall_function_process",
+                "kratos_module": "KratosMultiphysics.RANSApplication",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Body"
+                }
+            },
+            {
+                "python_module": "cpp_process_factory",
+                "kratos_module": "KratosMultiphysics.RANSApplication",
+                "process_name": "KTurbulentIntensityInletProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Inlet",
+                    "turbulent_intensity": 0.01
+                }
+            },
+            {
+                "python_module": "cpp_process_factory",
+                "kratos_module": "KratosMultiphysics.RANSApplication",
+                "process_name": "OmegaTurbulentMixingLengthInletProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Inlet",
+                    "turbulent_mixing_length": 0.00799805
+                }
+            }
+        ],
+        "loads_process_list": [],
+        "list_other_processes": [],
+        "initial_conditions_process_list": [
+            {
+                "python_module": "process_factory",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "ApplyConstantScalarValueProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart",
+                    "variable_name": "TURBULENT_KINETIC_ENERGY",
+                    "value": 0.015000000000000003
+                }
+            },
+            {
+                "python_module": "process_factory",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "ApplyConstantScalarValueProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart",
+                    "variable_name": "TURBULENT_SPECIFIC_ENERGY_DISSIPATION_RATE",
+                    "value": 27.95766439944474
+                }
+            },
+            {
+                "python_module": "process_factory",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "ApplyConstantScalarValueProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart",
+                    "variable_name": "VISCOSITY",
+                    "value": 0.0000151578073089701
+                }
+            },
+            {
+                "python_module": "process_factory",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "ApplyConstantScalarValueProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart",
+                    "variable_name": "TURBULENT_VISCOSITY",
+                    "value": 0.0005365255046232657
+                }
+            },
+            {
+                "python_module": "process_factory",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "ApplyConstantScalarValueProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart",
+                    "variable_name": "DENSITY",
+                    "value": 1.204
+                }
+            }
+        ],
+        "auxiliar_process_list": [
+            {
+                "python_module": "compute_body_fitted_flow_forces_and_moments_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "process_name": "ComputeBodyFittedFlowForcesAndMomentsProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Body",
+                    "interval": [
+                        0,
+                        "End"
+                    ],
+                    "print_to_screen": false,
+                    "write_forces_output_file": true,
+                    "write_moments_output_file": true,
+                    "reference_point": [
+                        0,
+                        0,
+                        0
+                    ]
+                }
+            },
+            {
+                "python_module": "compute_aerodynamic_coefficients_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "process_name": "ComputeAerodynamicCoefficientsProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Body",
+                    "interval": [
+                        0,
+                        "End"
+                    ],
+                    "print_coefficients_to_screen": false,
+                    "write_output_file": true,
+                    "is_embedded": false,
+                    "reference_point": [
+                        0,
+                        0,
+                        0
+                    ],
+                    "reference_area": 0.502087,
+                    "reference_chord": 0.799805,
+                    "dynamic_pressure": 60.2
+                }
+            },
+            {
+                "python_module": "compute_pressure_coefficient_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "process_name": "ComputePressureCoefficientProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Body",
+                    "freestream_density": 1.204,
+                    "freestream_velocity": 10,
+                    "freestream_pressure": 0,
+                    "pressure_is_historical": true,
+                    "execution_step": "ExecuteBeforeOutputStep"
+                }
+            },
+            {
+                "python_module": "compute_y_plus_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "process_name": "ComputeYPlusProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Body",
+                    "output_variable_name": "Y_PLUS",
+                    "output_to_elements": false,
+                    "calculate_normals_every_time_step": false,
+                    "echo_level": 0
+                }
+            }
+        ]
+    },
+    "output_processes": {
+        "gid_output": [],
+        "vtk_output": [
+            {
+                "python_module": "vtk_output_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "VtkOutputProcess",
+                "help": "This process writes postprocessing files for Paraview",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart",
+                    "output_control_type": "step",
+                    "output_interval": 25,
+                    "file_format": "ascii",
+                    "output_precision": 7,
+                    "output_sub_model_parts": false,
+                    "output_path": "vtk_output",
+                    "save_output_files_in_folder": true,
+                    "nodal_solution_step_data_variables": [
+                        "VELOCITY",
+                        "PRESSURE",
+                        "TURBULENT_KINETIC_ENERGY",
+                        "TURBULENT_SPECIFIC_ENERGY_DISSIPATION_RATE",
+                        "TURBULENT_VISCOSITY"
+                    ],
+                    "nodal_data_value_variables": [
+                        "PRESSURE_COEFFICIENT",
+                        "Y_PLUS"
+                    ],
+                    "element_data_value_variables": [],
+                    "condition_data_value_variables": [],
+                    "gauss_point_variables_extrapolated_to_nodes": []
+                }
+            }
+        ]
+    }
+}

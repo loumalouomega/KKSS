@@ -24,12 +24,9 @@ Click **Generate case files**. This writes `ProjectParameters.json`, both materi
 
 When the run finishes, click **Open results**. Two VTK tabs open, one per participant. In each, click **Field**, select `VELOCITY` (fluid) or `DISPLACEMENT` (structure), and use the timeline to choose the final step. The values below came from the verified final frame.
 
-## Plot the wall-tip history against the benchmark
+## Scientific plots
 
-1. Extract [`fsi.zip`](/examples/tutorials/fsi.zip), open `vtk_output/Structure_0_10.vtk`, and click **Plots → Load recipe**. Select `plots/tip-displacement-history.json`. Keep the complete directory: recipe paths are relative, and the history source walks all fifty `Structure_0_*.vtk` frames.
-2. The curve tracks point A, the wall tip at approximately **(0.5, 0.25, 0) m** (recipe node **2**). The recipe converts SI metres to millimetres: the tip rises to **77.93 mm at 8.5 s** and settles to **58.05 mm at 25 s**, against the published **83 mm at about 9.5 s** and **62 mm at 25 s**. The exported CSV keeps both the original metres and the converted millimetres.
-3. For the wall load, open `vtk_output/FluidModelPart_0_10.vtk` and load `plots/pressure-history.json`: pressure just upstream of the wall, rising with the ramp and steady after t = 10 s.
-4. The x axis is reconstructed from the saved step labels at 0.05 s per step with every 10th step saved, giving **0.5, 1.0, …, 25.0 s**. Fifty disk samples cover the ramp, the peak and the settled oscillation: read the benchmark comparison, not a periodic regime.
+Build plots from your own run in the app: open a result, choose **Plots → New recipe**, and see [scientific plots](scientific-plots) for the builder, units and CSV export.
 
 ## Post-run checks and batch
 
@@ -39,7 +36,7 @@ Before generating, the Problemtype sidebar preflights the setup as structured er
 
 The 25 s run bends the wall downstream and lets it settle: point A, the wall tip at (0.500, 0.250) m, reaches 7.793 cm at t = 8.5 s against the published 8.3 cm at about 9.5 s (error 5.1 mm), and settles to 5.805 cm at t = 25 s against the published 6.2 cm (error 3.9 mm). The final frame holds the steady inlet parabola exactly (error 2.6 × 10⁻⁹ m/s) and the 0 Pa outlet (error 0); the ALE area balance — net inlet/outlet flux against the moving-domain area change — closes to 0.15 % of the delivered area, and the MVQN coupling converged all 500 steps (mean 4.1 interface iterations, at most 10, none unconverged). Acceptance limits: inlet profile error ≤ 1e-6 m/s, outlet pressure error ≤ 1e-6 Pa, area-balance error ≤ 0.02 of the delivered area, tip peak within 20 mm of 8.3 cm, tip final within 15 mm of 6.2 cm. The case runs Δt = 0.05 s: at Δt = 0.1 s the structure Newton stops converging at t ≈ 4 s on this Kratos build (the upstream Kratos-7.0 files diverge here too, at t ≈ 6.7 s). In **Field**, open the final fluid frame for `VELOCITY`; open the final structure frame, enable **Deformed** on `DISPLACEMENT` at **Warp scale** 1× — the centimetre bend needs no exaggeration — and press `5` for the front view.
 
-Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 5632 nodes and 10569 cells. The run wrote 50 output frame(s) through t = 25 s. [Download this runnable case](/examples/tutorials/fsi.zip); the folder contains the CAD source, sketch SVG, edit/parts/mesh sidecars, generated case, VTK output and SHA-256 provenance. Downloaded cases are starting points: rerunning overwrites their generated outputs.
+Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 5632 nodes and 10569 cells. The run wrote 50 output frame(s) through t = 25 s. [Download this runnable case](/examples/tutorials/fsi.zip); the folder contains the CAD source, generation setup and generated case, with SHA-256 provenance and the solver verification record. Run the case to reproduce its VTK timeline locally. Downloaded cases are starting points: rerunning overwrites their generated outputs.
 
 ![CAD geometry and named parts](/screenshots/tutorial-fsi-geometry.png)
 

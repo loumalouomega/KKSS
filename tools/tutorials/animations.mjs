@@ -77,7 +77,15 @@ export async function captureAnimations(out, selected = []) {
 
 async function captureSeries(temp, out, s) {
   const dir = fs.mkdtempSync(path.join(temp, `${s.case}-`)), profile = path.join(dir, 'profile');
-  fs.cpSync(path.join(root, 'doc/public/examples/tutorials', s.case, 'vtk_output'), path.join(dir, 'vtk_output'), { recursive: true });
+  // Published tutorials ship no VTK timelines (only case files and the
+  // verification record), so GIFs cannot be regenerated from the archive;
+  // the committed GIFs stand. Regeneration needs a local run's vtk_output.
+  const published = path.join(root, 'doc/public/examples/tutorials', s.case, 'vtk_output');
+  if (!fs.existsSync(published)) {
+    console.warn(`animations: skipping ${s.file} (no published VTK for ${s.case}; regenerate from a local run)`);
+    return;
+  }
+  fs.cpSync(published, path.join(dir, 'vtk_output'), { recursive: true });
   const first = fs.readdirSync(path.join(dir, 'vtk_output')).filter(n => n.startsWith(s.family) && n.endsWith('.vtk')).sort()[0];
   assert.ok(first, `${s.file}: no ${s.family} VTK family in ${s.case}/vtk_output`);
   fs.mkdirSync(profile);

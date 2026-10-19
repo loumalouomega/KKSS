@@ -1,0 +1,115 @@
+{
+  "case": "rans",
+  "python": "3.12.14",
+  "kratos": "10.4.3",
+  "threads": 2,
+  "nodes": 654,
+  "elements": 1202,
+  "fields": [
+    "VELOCITY",
+    "PRESSURE",
+    "TURBULENT_KINETIC_ENERGY",
+    "TURBULENT_VISCOSITY",
+    "RANS_Y_PLUS",
+    "TURBULENT_ENERGY_DISSIPATION_RATE",
+    "Y_PLUS"
+  ],
+  "frames": 51,
+  "end_time": 5,
+  "checks": {
+    "inlet_velocity_error_m_per_s": {
+      "measured": 0,
+      "maximum": 1e-06
+    },
+    "outlet_pressure_error_Pa": {
+      "measured": 0,
+      "maximum": 1e-06
+    },
+    "flux_imbalance_m2_per_s": {
+      "measured": 2.2967673883877993e-05,
+      "maximum": 0.001
+    },
+    "inlet_flux_m2_per_s": 0.60000002,
+    "outlet_flux_m2_per_s": 0.6000229876738838,
+    "obstacle_boundary_nodes": 16,
+    "wall_y_plus_stations": 6,
+    "wall_y_plus_min": 18.936752963406644,
+    "wall_y_plus_max": 40.89591409309037,
+    "mean_wall_y_plus": {
+      "measured": 32.82782913887406,
+      "minimum": 30
+    },
+    "mean_wall_y_plus_limit": {
+      "measured": 32.82782913887406,
+      "maximum": 300
+    },
+    "wall_y_plus_log_layer_share": 0.6666666666666666,
+    "turbulent_kinetic_energy_maximum": {
+      "measured": 3.3619616,
+      "minimum": 1e-06
+    },
+    "turbulent_kinetic_energy_undershoot_ratio": {
+      "measured": 0.05314920313188587,
+      "maximum": 0.1
+    },
+    "turbulent_viscosity_maximum": {
+      "measured": 0.088001773,
+      "minimum": 0
+    },
+    "turbulent_viscosity_minimum": {
+      "measured": -9.3990354e-13,
+      "maximum": 1e-12
+    },
+    "drag_x_N_per_m": {
+      "measured": 0.127592646,
+      "minimum": 0
+    },
+    "drag_steps": 51,
+    "drag_final_N_per_m": 0.13978027,
+    "drag_coefficient": 1.7662326411960134,
+    "drag_coefficient_minimum": {
+      "measured": 1.7662326411960134,
+      "minimum": 1.5
+    },
+    "drag_coefficient_maximum": {
+      "measured": 1.7662326411960134,
+      "maximum": 4.5
+    },
+    "momentum_predicted_drag_N_per_m": 0.14257087943363744,
+    "drag_vs_momentum_relative_error": {
+      "measured": 0.11739104018296978,
+      "maximum": 0.15
+    },
+    "near_wake_velocity_deficit_m_per_s": {
+      "measured": 1.33045956,
+      "minimum": 0.025
+    },
+    "pressure_range_Pa": {
+      "measured": 1.4196050100000002,
+      "minimum": 0.05
+    },
+    "reynolds_number": 7916.712328767123,
+    "wake_sample_nodes": 10,
+    "minimum_near_wake_axial_velocity_m_per_s": -0.33045956
+  },
+  "files": {
+    "FluidMaterials.json": "fbfe771275a8f1fa9519fb2594f684ef1bcc7ad97ac40bfde411b8383041b096",
+    "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
+    "MainKratos.py": "2edb07babca83ecb68158f4a9995c58789d9f26e71c2bd2240bf9b855af31aa2",
+    "mesh_case.mdpa": "28ce1300a43547cb2e859d943949a26a420bfff3042243cea15e52b4246775f7",
+    "mesh.kratoscase.json": "093c296d990db0a0e66d733aeafa270699381ff5068079c7bfe2bd6d73044157",
+    "mesh.mdpa": "419e1b8e5254b3a6108f7b2ba44e39efc8f4fe3dd8813a0ecbf1002a27ef63c1",
+    "obstacle-channel.brep": "d94d6764f1a229976a427da3d54079d14917079076fe7de18881302f3f5820d7",
+    "obstacle-channel.brep.edits.json": "e4e1b47afb6ee64a1a36a0b18f808497f6520a02fd699a7aeded484e20efb0f1",
+    "obstacle-channel.brep.mesh.json": "d74538f8fd1d07b57aead58a2c7c794c9489bbea7795be0b7838f8acad008182",
+    "obstacle-channel.brep.parts.json": "3047e9f93b863ead9d03611be283044aa99c9dec8e7fdbe6bdb5c1548f2c9209",
+    "obstacle-channel.svg": "bae623776f22d89533719ed1eb314f634d5c1d45cc3ee5e8ee66d4b4ad22dee0",
+    "ProjectParameters.json": "e0dff1ee1ff9df59fef7750858cf7a917e9ee17c0a8f52a14f9ee81e1b68600b",
+    "recipe.json": "81dabbd16c59f6492fd8e281ff6f7a289f6b50620c6e7abf88ab53b93b03b84c"
+  },
+  "source": "cad/examples/BREP/blank.brep",
+  "revisions": {
+    "cad": "7c51565f2388edbba04a7b9637e827df550851f0",
+    "mesh": "cab0b4f77355aa3dd1290b370aca98b222be660b"
+  }
+}

@@ -1,0 +1,122 @@
+{
+    "analysis_stage": "KratosMultiphysics.FluidDynamicsApplication.fluid_dynamics_analysis",
+    "problem_data": {
+        "problem_name": "mesh_case",
+        "parallel_type": "OpenMP",
+        "echo_level": 0,
+        "start_time": 0,
+        "end_time": 0.5
+    },
+    "solver_settings": {
+        "model_part_name": "FluidModelPart",
+        "domain_size": 2,
+        "solver_type": "TwoFluids",
+        "model_import_settings": {
+            "input_type": "mdpa",
+            "input_filename": "mesh_case"
+        },
+        "material_import_settings": {
+            "materials_filename": "FluidMaterials.json"
+        },
+        "distance_reading_settings": {
+            "import_mode": "from_mdpa"
+        },
+        "maximum_iterations": 7,
+        "echo_level": 0,
+        "time_order": 2,
+        "compute_reactions": false,
+        "reform_dofs_at_each_step": false,
+        "relative_velocity_tolerance": 0.001,
+        "absolute_velocity_tolerance": 0.00001,
+        "relative_pressure_tolerance": 0.001,
+        "absolute_pressure_tolerance": 0.00001,
+        "volume_model_part_name": "FluidModelPart.Domain",
+        "skin_parts": [
+            "FluidModelPart.Walls"
+        ],
+        "no_skin_parts": [],
+        "assign_neighbour_elements_to_conditions": true,
+        "time_stepping": {
+            "automatic_time_step": false,
+            "time_step": 0.005
+        },
+        "move_mesh_flag": false,
+        "acceleration_limitation": true,
+        "formulation": {
+            "dynamic_tau": 1,
+            "surface_tension": false,
+            "mass_source": false,
+            "momentum_correction": false
+        },
+        "levelset_convection_settings": {
+            "max_CFL": 1,
+            "max_substeps": 0,
+            "eulerian_error_compensation": false
+        },
+        "distance_reinitialization": "variational",
+        "distance_smoothing": false,
+        "distance_modification_settings": {
+            "distance_threshold": 0.00001,
+            "avoid_almost_empty_elements": false,
+            "deactivate_full_negative_elements": false
+        }
+    },
+    "processes": {
+        "constraints_process_list": [
+            {
+                "python_module": "apply_noslip_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Walls"
+                }
+            }
+        ],
+        "loads_process_list": [],
+        "list_other_processes": [],
+        "initial_conditions_process_list": [],
+        "auxiliar_process_list": [
+            {
+                "python_module": "apply_mass_conservation_check_process",
+                "kratos_module": "KratosMultiphysics.FluidDynamicsApplication",
+                "process_name": "ApplyMassConservationCheckProcess",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart.Domain",
+                    "perform_corrections": false,
+                    "correction_frequency_in_time_steps": 20,
+                    "write_to_log_file": false,
+                    "log_file_name": "mass_conservation.log"
+                }
+            }
+        ]
+    },
+    "output_processes": {
+        "gid_output": [],
+        "vtk_output": [
+            {
+                "python_module": "vtk_output_process",
+                "kratos_module": "KratosMultiphysics",
+                "process_name": "VtkOutputProcess",
+                "help": "This process writes postprocessing files for Paraview",
+                "Parameters": {
+                    "model_part_name": "FluidModelPart",
+                    "output_control_type": "step",
+                    "output_interval": 1,
+                    "file_format": "ascii",
+                    "output_precision": 7,
+                    "output_sub_model_parts": false,
+                    "output_path": "vtk_output",
+                    "save_output_files_in_folder": true,
+                    "nodal_solution_step_data_variables": [
+                        "VELOCITY",
+                        "PRESSURE",
+                        "DISTANCE"
+                    ],
+                    "nodal_data_value_variables": [],
+                    "element_data_value_variables": [],
+                    "condition_data_value_variables": [],
+                    "gauss_point_variables_extrapolated_to_nodes": []
+                }
+            }
+        ]
+    }
+}

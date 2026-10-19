@@ -1,0 +1,28 @@
+{
+    "properties": [
+        {
+            "model_part_name": "FluidModelPart.Domain",
+            "properties_id": 1,
+            "Material": {
+                "Variables": {
+                    "DENSITY": 1.204,
+                    "DYNAMIC_VISCOSITY": 0.00001825
+                },
+                "Tables": {},
+                "constitutive_law": {
+                    "name": "RansNewtonian2DLaw"
+                }
+            }
+        },
+        {
+            "model_part_name": "FluidModelPart.Obstacle",
+            "properties_id": 2,
+            "Material": {
+                "Variables": {
+                    "WALL_SMOOTHNESS_BETA": 5.2
+                },
+                "Tables": {}
+            }
+        }
+    ]
+}

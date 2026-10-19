@@ -1,0 +1,227 @@
+{
+  "id": "wind-tunnel",
+  "title": "Virtual wind tunnel (sphere, RANS k-omega SST)",
+  "problemtype": "rans",
+  "source": "cad/examples/BREP/blank.brep",
+  "geometry": "sphere.brep",
+  "ops": [],
+  "windTunnel": {
+    "radiusMm": 400,
+    "sizeMinMm": 15,
+    "sizeMaxMm": 30,
+    "stem": "tunnel",
+    "plan": {
+      "flow": {
+        "speed": 10,
+        "turbulence": "k_omega_sst"
+      },
+      "tunnel": {
+        "upstream": 1.5,
+        "downstream": 2.5,
+        "side": 1.5,
+        "top": 2.5,
+        "bottom": 2.5
+      },
+      "mesh": {
+        "surfaceSize": 0.35,
+        "farSize": 3,
+        "wakeLength": 0.5,
+        "wakeSize": 0.5,
+        "yPlus": 150
+      }
+    }
+  },
+  "field": "VELOCITY",
+  "manual": "geometry",
+  "timeout": 18000000,
+  "plan": {
+    "mode": "bodyFitted",
+    "runnable": true,
+    "errors": [],
+    "warnings": [
+      "The case uses the k-omega-sst RANS model with the logarithmic wall function (Re = 5.28e+5): keep the first node row at y+ 30–100, and expect a steady solution only where the flow is steady."
+    ],
+    "body": {
+      "triangles": 5434,
+      "size": [
+        0.7998,
+        0.79958,
+        0.8
+      ],
+      "surfaceArea": 2.0083,
+      "frontalArea": 0.50209,
+      "volume": 0.26754,
+      "closed": true,
+      "problems": [],
+      "unitScale": 1
+    },
+    "tunnel": {
+      "min": [
+        -1.5996,
+        -1.5992,
+        -2.4
+      ],
+      "max": [
+        2.3994,
+        1.5992,
+        2.4
+      ],
+      "blockage": 0.032705,
+      "volume": 61.125,
+      "halfModel": false,
+      "ground": "free"
+    },
+    "flow": {
+      "speed": 10,
+      "density": 1.204,
+      "viscosity": 0.00001825,
+      "turbulenceIntensity": 0.01,
+      "turbulence": "k_omega_sst",
+      "turbulenceLength": 0.007998049259185791,
+      "reynolds": 527650,
+      "regime": "turbulent",
+      "dynamicPressure": 60.2
+    },
+    "boundaryLayer": {
+      "firstHeight": 0.0051109,
+      "layers": 4,
+      "thickness": 0.021219,
+      "frictionVelocity": 0.44487,
+      "basis": "turbulent flat plate, Cf = 0.026 Re^(-1/7), target y+ = 150"
+    },
+    "sizes": {
+      "surface": 0.35,
+      "far": 3,
+      "core": 0.7,
+      "wake": 0.5,
+      "hausd": 0.0023994,
+      "gradation": 0.25
+    },
+    "refinement": [
+      "wake box, 0.5 body lengths, size 0.5 m"
+    ],
+    "estimate": {
+      "expectedTetrahedra": 11149,
+      "nodes": 2027,
+      "memoryMb": 1000,
+      "seconds": 0,
+      "limit": 3000000,
+      "notes": [
+        "An ideal-tetrahedron integral of the sizing law, scaled by the factor fitted on a sphere test; expect it within about a factor of two."
+      ]
+    },
+    "reference": {
+      "area": 0.50209,
+      "length": 0.7998
+    },
+    "steps": [
+      {
+        "id": "body",
+        "label": "Place the body in the tunnel frame"
+      },
+      {
+        "id": "lattice",
+        "label": "Build the background lattice"
+      },
+      {
+        "id": "size-0",
+        "label": "Refine towards the body (pass 1 of 2)"
+      },
+      {
+        "id": "size-1",
+        "label": "Refine towards the body (pass 2 of 2)"
+      },
+      {
+        "id": "carve",
+        "label": "Carve the body out of the tunnel"
+      },
+      {
+        "id": "tidy",
+        "label": "Name the parts and drop the body interior"
+      },
+      {
+        "id": "snap",
+        "label": "Snap the wall onto the surface"
+      },
+      {
+        "id": "wall",
+        "label": "Build the wall layer"
+      },
+      {
+        "id": "check",
+        "label": "Check the mesh"
+      },
+      {
+        "id": "write",
+        "label": "Write the mesh and the recipe"
+      }
+    ],
+    "case": [
+      "The body wall uses the RANS logarithmic wall function; its first node row is 5.11087 mm.",
+      "Force coefficients use the frontal area 0.502087 m², the body length 0.799805 m and the dynamic pressure 60.2 Pa.",
+      "The run is steady: up to 300 pseudo-time steps, stopping earlier when the solver converges. Raise the end time if it has not."
+    ]
+  },
+  "report": {
+    "version": 1,
+    "mode": "bodyFitted",
+    "tetrahedra": 82804,
+    "nodes": 14840,
+    "estimate": {
+      "expectedTetrahedra": 11149.283984668977,
+      "ratio": 7.426844639876528
+    },
+    "check": {
+      "tetrahedra": 82804,
+      "nodes": 14840,
+      "inverted": 0,
+      "degenerate": 0,
+      "minVolume": 3.0233151498067047e-7,
+      "minAngle": 2.4001271700046964,
+      "maxEdgeRatio": 15.392417404143583,
+      "maxAspect": 15.392417404143583,
+      "unnamedBoundaryFaces": 0,
+      "problems": []
+    },
+    "wallFit": {
+      "max": 0.0007972444220335679,
+      "mean": 0.00008953589868285966,
+      "nodes": 1594
+    },
+    "snap": {
+      "before": 0.04750957373448919,
+      "after": 2.4469108296596637e-8,
+      "fraction": 1,
+      "applied": true
+    },
+    "firstLayer": {
+      "requested": 0.005110872957259,
+      "achieved": 0.003752814883176317,
+      "yPlus": 110.14209063383704
+    },
+    "removedTetrahedra": 36083,
+    "seconds": 25.608,
+    "log": [
+      "Dropped 36,083 tetrahedra inside the body.",
+      "Snap: size-preserving quality pass before the move.",
+      "Snap: the exact projection folds cells — smoothing the displacement instead.",
+      "Snap pass 1: smoothed sub-step 1 applied.",
+      "Snap pass 2: smoothed sub-step 1 applied.",
+      "Snap pass 3: smoothed sub-step 1 applied.",
+      "Snap: quality pass before the top-up.",
+      "Snap polish 1: raw sub-step 1 applied (residual about 0.000% of L).",
+      "Snap: wall gap 4.751% → 0.000% of the body length.",
+      "Build the wall layer: Computed d from \"/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel/tunnel_body.stl\" — 439 of 10951 node(s) inside.",
+      "Build the wall layer: Remeshed (wall layer) (mmg3d): 10,951 → 14,840 nodes, 58,942 → 82,804 tetrahedra, 2,750 → 4,028 triangles. 2750 boundary cell(s) have no gradient; their nodes use the other cells' wall direction. Mapped 1 field(s) onto the new mesh (Nodal:d).",
+      "Measure the wall: Computed d from \"/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel/tunnel_body.stl\" — 828 of 14840 node(s) inside."
+    ],
+    "warnings": [
+      "The case uses the k-omega-sst RANS model with the logarithmic wall function (Re = 5.28e+5): keep the first node row at y+ 30–100, and expect a steady solution only where the flow is steady."
+    ]
+  },
+  "caseNotes": [
+    "The body wall uses the RANS logarithmic wall function; its first node row is 5.11087 mm.",
+    "Force coefficients use the frontal area 0.502087 m², the body length 0.799805 m and the dynamic pressure 60.2 Pa.",
+    "The run is steady: up to 300 pseudo-time steps, stopping earlier when the solver converges. Raise the end time if it has not."
+  ]
+}

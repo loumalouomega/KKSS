@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "source": "sphere.brep",
+  "parts": [
+    {
+      "name": "Body",
+      "color": "#e6194b",
+      "volumes": [
+        "solid-0"
+      ],
+      "surfaces": [],
+      "lines": [],
+      "points": []
+    }
+  ]
+}

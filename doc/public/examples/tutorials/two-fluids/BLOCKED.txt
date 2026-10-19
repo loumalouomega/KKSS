@@ -1,0 +1,5 @@
+Two-fluid dam break (level set)
+
+Generation-verified; solver blocked upstream.
+solver.log records the reproducible ModuleNotFoundError: No module named 'KratosMultiphysics.FluidDynamicsApplication.navier_stokes_two_fluid_solver'
+See verification.json and recipe.json.

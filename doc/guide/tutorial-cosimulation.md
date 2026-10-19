@@ -24,12 +24,9 @@ Click **Generate case files**. This writes `ProjectParametersCoSim.json`, `Proje
 
 When the run finishes, click **Open results**. Two VTK tabs open, one per participant. In each, click **Field**, select `VELOCITY` (fluid) or `DISPLACEMENT` (structure), and use the timeline to choose the final step. The values below came from the verified final frame.
 
-## Plot the single-exchange oscillation
+## Scientific plots
 
-1. Extract [`cosim.zip`](/examples/tutorials/cosim.zip), open `vtk_output/Structure_0_1.vtk`, and click **Plots → Load recipe**; select `plots/interface-displacement-history.json`. Keep the complete directory so relative paths resolve.
-2. Interface node **89** at approximately **(1.05, 0, 0.05) m** reads **−1.904**, **−0.417** then **+1.543 mm**: the slab drops on the first exchange, springs back and overshoots its rest position. The [partitioned FSI run](tutorial-fsi), which sub-iterates every step to convergence, stays below zero instead.
-3. For the wall load, open `vtk_output/FluidModelPart_0_1.vtk` and load `plots/pressure-history.json`: fluid node **121** reads **2869 Pa**, essentially zero (**−0.05 Pa**), then **−1581 Pa** — the load reverses as the slab crosses back through its rest position.
-4. The x axis is reconstructed from the saved step labels at 0.05 s per step — **0.05, 0.10 and 0.15 s**. Three samples show the weak-coupling signature; they are not a period estimate.
+Build plots from your own run in the app: open a result, choose **Plots → New recipe**, and see [scientific plots](scientific-plots) for the builder, units and CSV export.
 
 ## Post-run checks and batch
 
@@ -39,7 +36,7 @@ Before generating, the Problemtype sidebar preflights the setup as structured er
 
 One weak data exchange per step gives the same case a leapfrog oscillation: the mid-interface node swings −1.904, −0.417 then +1.543 mm, against a wall pressure of 2869 Pa at the first frame and −1581 Pa at the last (peak final-frame displacement 1.555 mm). The inlet profile (error 0) and the 0 Pa outlet (error 0) still hold, and the ALE mass balance closes to 19.6 % of the delivered volume — looser than the strongly coupled run, which sub-iterates the interface to convergence. The coupling log carries one iteration per step and no convergence criterion, by design: weak coupling exchanges the interface data once and does not iterate. Acceptance limits: inlet velocity error ≤ 1e-6 m/s, outlet pressure error ≤ 1e-6 Pa, mass-balance error ≤ 0.35 of the delivered volume, peak structure displacement in [1e-7, 0.02] m, and at least one coupling iteration per step. In **Field**, press `5` for the front view, enable **Deformed** on `DISPLACEMENT` and set **Warp scale** 200× to show the millimetre bend (display only).
 
-Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 561 nodes and 1436 cells. The run wrote 3 output frame(s) through t = 0.15 s. [Download this runnable case](/examples/tutorials/cosim.zip); the folder contains the CAD source, sketch SVG, edit/parts/mesh sidecars, generated case, VTK output and SHA-256 provenance. Downloaded cases are starting points: rerunning overwrites their generated outputs.
+Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 561 nodes and 1436 cells. The run wrote 3 output frame(s) through t = 0.15 s. [Download this runnable case](/examples/tutorials/cosim.zip); the folder contains the CAD source, generation setup and generated case, with SHA-256 provenance and the solver verification record. Run the case to reproduce its VTK timeline locally. Downloaded cases are starting points: rerunning overwrites their generated outputs.
 
 ![CAD geometry and named parts](/screenshots/tutorial-cosim-geometry.png)
 

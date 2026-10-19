@@ -1,0 +1,260 @@
+{
+  "id": "two-fluids",
+  "title": "Two-fluid dam break (level set)",
+  "problemtype": "twoFluids",
+  "twoFluids": true,
+  "source": "cad/examples/BREP/blank.brep",
+  "geometry": "tank.brep",
+  "tank": {
+    "widthMm": 4000,
+    "heightMm": 1000,
+    "waterWidthMm": 1000
+  },
+  "ops": [
+    {
+      "op": "addRectangleProfile",
+      "center": [
+        500,
+        500,
+        0
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ],
+      "width": 1000,
+      "height": 1000
+    },
+    {
+      "op": "addRectangleProfile",
+      "center": [
+        2500,
+        500,
+        0
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ],
+      "width": 3000,
+      "height": 1000
+    }
+  ],
+  "options": {
+    "dimension": 2,
+    "sizeMin": 50,
+    "sizeMax": 50
+  },
+  "problem": {
+    "timeStep": 0.005,
+    "endTime": 0.5
+  },
+  "assignments": [
+    {
+      "conditionId": "parts",
+      "smpPath": "Domain",
+      "values": {}
+    },
+    {
+      "conditionId": "noSlip",
+      "smpPath": "Walls",
+      "values": {}
+    },
+    {
+      "conditionId": "massConservationCheck",
+      "smpPath": "Domain",
+      "values": {
+        "perform": false,
+        "frequency": 20,
+        "log": false
+      }
+    }
+  ],
+  "materials": [
+    {
+      "smpPath": "Domain",
+      "lawId": "phase_1_2d",
+      "values": {
+        "DENSITY": 1000,
+        "DYNAMIC_VISCOSITY": 0.001
+      }
+    },
+    {
+      "smpPath": "Domain",
+      "lawId": "phase_2_2d",
+      "values": {
+        "DENSITY": 1,
+        "DYNAMIC_VISCOSITY": 0.000018
+      }
+    }
+  ],
+  "distanceFrom": "Water",
+  "blockedSolver": "navier_stokes_two_fluid_solver",
+  "field": "VELOCITY",
+  "timeout": 600000,
+  "parts": [
+    {
+      "name": "Domain",
+      "surfaces": [
+        "face-0",
+        "face-1"
+      ]
+    },
+    {
+      "name": "Water",
+      "surfaces": [
+        "face-0"
+      ]
+    },
+    {
+      "name": "Walls",
+      "lines": [
+        "edge-0",
+        "edge-2",
+        "edge-3",
+        "edge-4",
+        "edge-5",
+        "edge-6"
+      ]
+    }
+  ],
+  "exportUnit": "m",
+  "preflight": {
+    "ok": true,
+    "problemtype": "twoFluids",
+    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-yYhMcj/two-fluids/mesh.kratoscase.json",
+    "warnings": [],
+    "applications": [
+      "FluidDynamicsApplication"
+    ],
+    "issues": [],
+    "advisories": [
+      "1 SubModelPart(s) are not used by any assignment or material: \"Water\"."
+    ],
+    "counts": {
+      "error": 0,
+      "warning": 0,
+      "info": 1
+    },
+    "findings": [
+      {
+        "severity": "info",
+        "code": "part-unused",
+        "message": "1 SubModelPart(s) are not used by any assignment or material: \"Water\"."
+      }
+    ],
+    "state": {
+      "version": 1,
+      "problemtypeId": "twoFluids",
+      "values": {
+        "problem": {
+          "considerPeriodic": false,
+          "timeStepMode": "fixed",
+          "startTime": 0,
+          "timeStep": 0.005,
+          "courantTarget": 1,
+          "minDeltaTime": 0.0001,
+          "maxDeltaTime": 0.1,
+          "refVelocity": 1,
+          "endTime": 0.5,
+          "relVelTol": 0.001,
+          "absVelTol": 0.00001,
+          "relPresTol": 0.001,
+          "absPresTol": 0.00001,
+          "gravityValue": 0,
+          "gravityDirection": [
+            0,
+            -1,
+            0
+          ],
+          "linearSolver": "automatic",
+          "linearMaxIteration": 200,
+          "linearTolerance": 1e-7,
+          "preconditioner": "none",
+          "echoLevel": 0,
+          "computeReactions": false,
+          "maxIterations": 7,
+          "timeOrder": 2,
+          "dynamicTau": 1,
+          "surfaceTension": false,
+          "massSource": false,
+          "momentumCorrection": false,
+          "accelerationLimitation": true,
+          "distanceMode": "from_mdpa",
+          "distanceFile": "",
+          "levelsetMaxCfl": 1,
+          "levelsetSubsteps": 0,
+          "eulerianErrorCompensation": false,
+          "distanceReinitialization": "variational",
+          "redistanceLayers": 25,
+          "distanceSmoothing": false,
+          "distanceSmoothingCoefficient": 1,
+          "distanceThreshold": 0.00001,
+          "avoidAlmostEmpty": false,
+          "deactivateFullNegative": false
+        }
+      },
+      "assignments": [
+        {
+          "conditionId": "parts",
+          "smpPath": "Domain",
+          "values": {}
+        },
+        {
+          "conditionId": "noSlip",
+          "smpPath": "Walls",
+          "values": {}
+        },
+        {
+          "conditionId": "massConservationCheck",
+          "smpPath": "Domain",
+          "values": {
+            "perform": false,
+            "frequency": 20,
+            "log": false
+          }
+        }
+      ],
+      "materials": [
+        {
+          "smpPath": "Domain",
+          "lawId": "phase_1_2d",
+          "values": {
+            "DENSITY": 1000,
+            "DYNAMIC_VISCOSITY": 0.001
+          }
+        },
+        {
+          "smpPath": "Domain",
+          "lawId": "phase_2_2d",
+          "values": {
+            "DENSITY": 1,
+            "DYNAMIC_VISCOSITY": 0.000018
+          }
+        }
+      ],
+      "output": {
+        "format": "ascii",
+        "controlType": "step",
+        "interval": 1,
+        "nodalVariables": [
+          "VELOCITY",
+          "PRESSURE",
+          "DISTANCE"
+        ]
+      }
+    }
+  }
+}

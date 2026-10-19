@@ -13,19 +13,18 @@
     "VELOCITY",
     "VON_MISES_STRESS"
   ],
-  "result": "vtk_output/FluidModelPart_0_3.vtk",
   "structure_result": "vtk_output/Structure_0_3.vtk",
   "frames": 3,
   "end_time": 0.15,
   "checks": {
     "inlet_velocity_error_m_per_s": {
       "measured": 0,
-      "maximum": 0.000001
+      "maximum": 1e-06
     },
     "interface_corner_speed_m_per_s": 0,
     "outlet_pressure_error_Pa": {
       "measured": 0,
-      "maximum": 0.000001
+      "maximum": 1e-06
     },
     "inlet_face_mean_m_per_s": {
       "measured": 0.010000000000000009,
@@ -70,20 +69,7 @@
     "ProjectParametersCoSim.json": "3bedc7bc3b79ce8ced102bee983c4cbe04053f2f80f7ab1a00df965ce4912e91",
     "ProjectParametersCSM.json": "d5650ffb00dfefaf7caf49321250c0c534593c6cab4c3be3b2f6e747f611ad19",
     "recipe.json": "ee029b725c11341661bf3d9a2c12dd2c83365b1c2b315dfa0e42dbec89d8261c",
-    "StructuralMaterials.json": "90b5774216a0383edb408f217ae896b487255a6cdb1316796d91b379cc9560ef",
-    "vtk_output/FluidModelPart_0_1.vtk": "ec40596321bfa3bd4b3da3777ac734c546826e3056ef5c9e34f189f2498fb385",
-    "vtk_output/FluidModelPart_0_2.vtk": "33b79aa764395db7e2b10b0e5aaca9fbc00b2db438f32df7a75dcf7c41e256d0",
-    "vtk_output/FluidModelPart_0_3.vtk": "407f63ecb1a7c1e56e6f820ef9044b5d36b7831b233aee1bfcfbd4292e4efac4",
-    "vtk_output/Structure_0_1.vtk": "dd7ca58ad07a8b8ccd22249e5b7a55754de57322c4f23983d517ce94b5fba945",
-    "vtk_output/Structure_0_2.vtk": "20a9ee19ffb8f5714d148b2d66d1c862667ce64322d05d30a1a7904b6f708195",
-    "vtk_output/Structure_0_3.vtk": "7a13318770e84ade64e9d6ef30b73eed467a09d734b51ca27522211151b0271e",
-    "plots/interface-displacement-history.csv": "a1e59bb9fc23a4d04193dbcf02026a0495637d7fecf60aa73be656477d6f0499",
-    "plots/interface-displacement-history.csv.kratosplot.json": "c42281cc06b06afe6192d524a96a032893ecb3c8c7887b9d7d36dea1bb74ba7a",
-    "plots/interface-displacement-history.json": "fd7573eff1c76a2377d07a671cefa58ec6cad62b96e9470d4fb38b73f5acf9bd",
-    "plots/pressure-history.csv": "7040e020c259c61bd255c460c03812120603e4a7a862f2a9a4d105c47ce2a808",
-    "plots/pressure-history.csv.kratosplot.json": "03af07900a90125e5af740f358fc52e37d67b2fa0ab82718aa609af5af2f2223",
-    "plots/pressure-history.json": "6b0abc004bf7df61c5360046dba41e2c79d5fa3f1214b17661f4a310fe36edb6",
-    "plots/verification.json": "3df68084b5bebcfba0c3417e61d5e75244a86231e6dd70526d4f74716945d6cd"
+    "StructuralMaterials.json": "90b5774216a0383edb408f217ae896b487255a6cdb1316796d91b379cc9560ef"
   },
   "source": "cad/examples/BREP/blank.brep",
   "revisions": {
