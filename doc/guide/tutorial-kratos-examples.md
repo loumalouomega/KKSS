@@ -1,48 +1,31 @@
 # Worked Kratos cases
 
-These three small cases include their MDPA mesh, materials, solver parameters,
-runner, and VTK output from a completed Kratos solve. They start from an MDPA
-case so you can inspect real result fields in KKSS without first building a
-geometry or mesh.
+These three small cases include their MDPA mesh, materials, solver parameters, runner, and VTK output from a completed Kratos solve. They start from an MDPA case so you can inspect real result fields in KKSS without first building a geometry or mesh.
 
 For the full CAD-to-solver workflow, see [Geometry to results](/guide/tutorial-geometry-to-results).
 
-The cases were rerun with Python 3.12 and Kratos Multiphysics 10.4.3 on Linux
-x86-64, using two OpenMP threads. The checked-in VTK files are the solver output
-from those runs. Each `MainKratos.py` reads the adjacent `ProjectParameters.json`
-and runs its AnalysisStage (or Kratos' sequential orchestrator for the staged
-case).
+The cases were rerun with Python 3.12 and Kratos Multiphysics 10.4.3 on Linux x86-64, using two OpenMP threads. The checked-in VTK files are the solver output from those runs. Each `MainKratos.py` reads the adjacent `ProjectParameters.json` and runs its AnalysisStage (or Kratos' sequential orchestrator for the staged case).
 
-To rerun a case, download or copy its directory to a writable location, then
-run it with a Python interpreter that can import the Kratos applications named
-in its parameters:
+To rerun a case, download or copy its directory to a writable location, then run it with a Python interpreter that can import the Kratos applications named in its parameters:
 
 ```sh
 cd cantilever
 python MainKratos.py
 ```
 
-If you manage that interpreter with uv, select the existing Kratos Python
-explicitly:
+If you manage that interpreter with uv, select the existing Kratos Python explicitly:
 
 ```sh
 uv run --python /path/to/kratos/python --no-project python MainKratos.py
 ```
 
-`uv` provides the runner; it does not by itself install Kratos or its
-applications. In KKSS, open `mesh.mdpa` in Post-Processing, run
-`MainKratos.py` from the embedded terminal, then open the generated VTK file to
-inspect the result. The supplied result file can be opened directly without
-rerunning.
+`uv` provides the runner; it does not by itself install Kratos or its applications. In KKSS, open `mesh.mdpa` in Post-Processing, run `MainKratos.py` from the embedded terminal, then open the generated VTK file to inspect the result. The supplied result file can be opened directly without rerunning.
 
 ## Structural cantilever
 
 For a multi-frame displacement and reaction timeline, rerun the [CAD-to-results cantilever](tutorial-structural): its verification record documents eight saved frames, but its archive ships none of them. The single final frame below supports spatial/distribution plots, not an invented time history.
 
-This two-dimensional plane-strain model has 10 nodes and four quadrilateral
-elements. Its `left` SubModelPart is fixed, and its `right` SubModelPart carries
-a downward line load of 1 MN/m. The final VTK result reports a maximum vertical
-displacement of `-0.25312169 mm` at the free edge. The model uses SI units.
+This two-dimensional plane-strain model has 10 nodes and four quadrilateral elements. Its `left` SubModelPart is fixed, and its `right` SubModelPart carries a downward line load of 1 MN/m. The final VTK result reports a maximum vertical displacement of `-0.25312169 mm` at the free edge. The model uses SI units.
 
 - [Mesh](/examples/kratos/cantilever/mesh.mdpa)
 - [Materials](/examples/kratos/cantilever/Materials.json)
@@ -54,10 +37,7 @@ displacement of `-0.25312169 mm` at the free edge. The model uses SI units.
 
 Use **Inspect → Plot** for an entity's history only when the full result sequence is present. This archive supplies just the final frame; the [cylinder/obstacle tutorial](tutorial-fluid) documents 51 saved frames, but its archive ships only the case, so rerun it to regenerate them. For a single cavity frame, **Plots** can compare pressure/velocity distributions or spatial profiles with explicit case units.
 
-This two-dimensional monolithic fluid case has 121 nodes and 200 elements. Its
-included final output is at time 30 and contains `VELOCITY` and `PRESSURE`
-fields; the measured maximum speed in that result is `1.0` in the case's
-velocity units.
+This two-dimensional monolithic fluid case has 121 nodes and 200 elements. Its included final output is at time 30 and contains `VELOCITY` and `PRESSURE` fields; the measured maximum speed in that result is `1.0` in the case's velocity units.
 
 - [Mesh](/examples/kratos/lid_driven_cavity/mesh.mdpa)
 - [Materials](/examples/kratos/lid_driven_cavity/Materials.json)
@@ -69,10 +49,7 @@ velocity units.
 
 To compare stages graphically, add their explicitly selected result files as separate sources in the [Scientific Plot Builder](scientific-plots). These are different stage directories; do not infer shared physical time or entity correspondence from their identical filename suffixes. Use supplied coordinates/regions and a justified matching quantity, and keep the doubled-load comparison distinct from a transient response.
 
-This structural case has two stages on the same 55-node, 40-element mesh. The
-second stage doubles the line load. The solver-produced results show maximum
-vertical displacement magnitudes of `0.39978517 mm` and `0.79957047 mm` for
-stages one and two.
+This structural case has two stages on the same 55-node, 40-element mesh. The second stage doubles the line load. The solver-produced results show maximum vertical displacement magnitudes of `0.39978517 mm` and `0.79957047 mm` for stages one and two.
 
 - [Mesh](/examples/kratos/multistage_load_steps/mesh.mdpa)
 - [Materials](/examples/kratos/multistage_load_steps/Materials.json)
@@ -81,24 +58,10 @@ stages one and two.
 - [Stage one result](/examples/kratos/multistage_load_steps/vtk_stage_1/Structure_0_1.vtk)
 - [Stage two result](/examples/kratos/multistage_load_steps/vtk_stage_2/Structure_0_1.vtk)
 
-The case inputs are from `kratos-mcp-server` 0.3.0; its MIT license and
-attribution are included in `doc/public/examples/kratos/`. The reported results
-are generated output, not analytical references or a claim of formal solver
-validation.
+The case inputs are from `kratos-mcp-server` 0.3.0; its MIT license and attribution are included in `doc/public/examples/kratos/`. The reported results are generated output, not analytical references or a claim of formal solver validation.
 
 ## Batch recipes, preflight and post-run review
 
-These archives predate the review sidecars, which makes them good probes for
-the new unavailable-instead-of-invented behaviour. `mesh__case_validate` on
-the cantilever mesh reports its structured findings (a fresh case with physical
-density is clean); `mesh__case_convergence` answers `status:"none"` because no
-`kkss-convergence-v2.jsonl` was written by those runs; `mesh__case_monitors`
-with `action:"list"` reports an empty list until a monitor is set. None of
-these is a failure — each says explicitly what is missing.
+These archives predate the review sidecars, which makes them good probes for the new unavailable-instead-of-invented behaviour. `mesh__case_validate` on the cantilever mesh reports its structured findings (a fresh case with physical density is clean); `mesh__case_convergence` answers `status:"none"` because no `kkss-convergence-v2.jsonl` was written by those runs; `mesh__case_monitors` with `action:"list"` reports an empty list until a monitor is set. None of these is a failure — each says explicitly what is missing.
 
-To try batch work without touching the archives, call
-`mesh__mesh_batch_transform` with `paths` pointing at a copy of one mesh,
-`ops:[{op:"info"}]`, an empty `outputDir` and `dryRun:true`. The returned plan
-names the output and manifest path and writes nothing. Named presets live in
-`.kratos/recipes/` (plus **Settings ▸ Kratos ▸ Batch Recipe Folders**) and are
-addressed with `recipePreset` instead of inline `ops`.
+To try batch work without touching the archives, call `mesh__mesh_batch_transform` with `paths` pointing at a copy of one mesh, `ops:[{op:"info"}]`, an empty `outputDir` and `dryRun:true`. The returned plan names the output and manifest path and writes nothing. Named presets live in `.kratos/recipes/` (plus **Settings ▸ Kratos ▸ Batch Recipe Folders**) and are addressed with `recipePreset` instead of inline `ops`.

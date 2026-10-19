@@ -104,34 +104,9 @@ Three rules make the site work served rather than hosted:
 
 ## Guided workflow services
 
-`app/main/services/workflows/` contains the app-owned v1 project, environment and queue contracts.
-The Home renderer and `app__*` tools call the same `WorkflowService`; the in-process tool registry
-is included by the shared MCP manager, so chat and the optional HTTP meta server see the same tool
-definitions and approval policy. Dynamic chat context includes the selected project/study identity.
-`ProjectStore` serializes read/modify/write updates and uses the existing atomic file writer;
-unknown project schema versions are preserved and rejected. Project-relative artifact references
-resolve against the selected root after folder moves, while external paths remain marked as external.
+`app/main/services/workflows/` contains the app-owned v1 project, environment and queue contracts. The Home renderer and `app__*` tools call the same `WorkflowService`; the in-process tool registry is included by the shared MCP manager, so chat and the optional HTTP meta server see the same tool definitions and approval policy. Dynamic chat context includes the selected project/study identity. `ProjectStore` serializes read/modify/write updates and uses the existing atomic file writer; unknown project schema versions are preserved and rejected. Project-relative artifact references resolve against the selected root after folder moves, while external paths remain marked as external.
 
-The environment probe runs a bounded Python import/version check separately for manual runs and the
-uvx tool runtime. The uvx probe uses offline/no-sync flags and never installs packages. KKSS wires
-the shared report into mesh's `RunManager` preflight: `PtController` publishes capability to the
-webview, which disables only Run when the case requirements fail, and `RunManager.start` forces a
-fresh check before dispatch. With no guard configured, the standalone extension retains its prior
-behavior. CAD MDPA
-exports produce a versioned handoff manifest and atomic owner/request receipts with artifact
-revisions; mesh queue runs snapshot inputs into isolated workspaces with stable owner/request
-receipts and owner-scoped cancellation. The persistent queue stores dispatch intent before calling
-a runner, reconciles CAD mesh and solver request IDs, and leaves unresolved work uncertain rather
-than resubmitting it. Terminal runs can be imported into immutable
-project-local input snapshots; large result files remain revision-checked references. Structural
-case generation writes a versioned per-step convergence monitor. `mesh__case_evaluate_quantity`
-uses the existing field parser and reductions to evaluate one explicitly selected field/component,
-region, time and reduction. `app__run_quantity_evaluate` requires an explicit unit, verifies the
-run and result revision, and stores the quantity with a portable source reference. Reviews omit
-values whose source result is stale; variant comparisons require matching definitions and units,
-and classify mesh-sensitivity separately from solver-setting changes using recorded mesh revisions.
-The Home row list can resume one waiting run row at a time while holding other waiting work, or
-preview a failed row's retry as a new study/run identity in the existing comparison group.
+The environment probe runs a bounded Python import/version check separately for manual runs and the uvx tool runtime. The uvx probe uses offline/no-sync flags and never installs packages. KKSS wires the shared report into mesh's `RunManager` preflight: `PtController` publishes capability to the webview, which disables only Run when the case requirements fail, and `RunManager.start` forces a fresh check before dispatch. With no guard configured, the standalone extension retains its prior behavior. CAD MDPA exports produce a versioned handoff manifest and atomic owner/request receipts with artifact revisions; mesh queue runs snapshot inputs into isolated workspaces with stable owner/request receipts and owner-scoped cancellation. The persistent queue stores dispatch intent before calling a runner, reconciles CAD mesh and solver request IDs, and leaves unresolved work uncertain rather than resubmitting it. Terminal runs can be imported into immutable project-local input snapshots; large result files remain revision-checked references. Structural case generation writes a versioned per-step convergence monitor. `mesh__case_evaluate_quantity` uses the existing field parser and reductions to evaluate one explicitly selected field/component, region, time and reduction. `app__run_quantity_evaluate` requires an explicit unit, verifies the run and result revision, and stores the quantity with a portable source reference. Reviews omit values whose source result is stale; variant comparisons require matching definitions and units, and classify mesh-sensitivity separately from solver-setting changes using recorded mesh revisions. The Home row list can resume one waiting run row at a time while holding other waiting work, or preview a failed row's retry as a new study/run identity in the existing comparison group.
 
 Queued solve tasks freeze `kratos.threads` into their arguments, revision and verified CPU reservation. `mesh/src/problemtype/threadControl.ts` applies and reads the Kratos OpenMP count before `runpy` starts the generated analysis stage; the atomic `kkss-resources.json` receipt records the effective allocation. The queue retains active/uncertain reservations across restart and admits at most one solve and one mesh/case preparation task when their checked allocations fit `availableParallelism()`. CAD Gmsh and serial fTetWild preparation are each bounded to one thread; task types with no verified cost run alone.
 
@@ -151,17 +126,9 @@ On the recorded AMD Ryzen 7 255 system (16 available CPUs), three-run median sol
 | Potential flow | 84 | 87 | 87 | 106 |
 | Shallow water | 86 | 87 | 90 | 151 |
 
-The median coordinator p99 delay was 20.5 ms at a 20 ms sampling resolution; it is not a GUI frame-rate measurement. The full per-run verification and timing samples are in the linked JSON.
-Reviews include revision-checked generated inputs and the mesh runner's existing quality report.
-The versioned structural monitor records solver-published residual norms, criterion parameters,
-and solve-step coordinates for nonlinear residual-criterion runs. Linear solves, other criteria,
-interrupted runs, and truncated monitor files remain explicitly unavailable; process exit alone does
-not establish convergence. The preparation report records effective settings, units, validation
-findings, generator/runtime identity, source and mesh revisions, and hashes of generated inputs.
+The median coordinator p99 delay was 20.5 ms at a 20 ms sampling resolution; it is not a GUI frame-rate measurement. The full per-run verification and timing samples are in the linked JSON. Reviews include revision-checked generated inputs and the mesh runner's existing quality report. The versioned structural monitor records solver-published residual norms, criterion parameters, and solve-step coordinates for nonlinear residual-criterion runs. Linear solves, other criteria, interrupted runs, and truncated monitor files remain explicitly unavailable; process exit alone does not establish convergence. The preparation report records effective settings, units, validation findings, generator/runtime identity, source and mesh revisions, and hashes of generated inputs.
 
-The real structural cantilever acceptance harness is opt-in because it launches Gmsh and Kratos.
-After building the app and submodules and preparing the repository's isolated Python 3.12/Kratos
-runtime, run:
+The real structural cantilever acceptance harness is opt-in because it launches Gmsh and Kratos. After building the app and submodules and preparing the repository's isolated Python 3.12/Kratos runtime, run:
 
 ```sh
 KKSS_RUN_TIER4_ACCEPTANCE=1 \
@@ -169,14 +136,7 @@ KKSS_TIER4_PYTHON="$PWD/node_modules/.cache/kkss-tier4/runtime/bin/python" \
 npx vitest run test/tier4Acceptance.test.ts
 ```
 
-The harness imports the CAD fixture through the actual CAD MCP server, generates a tetrahedral mesh,
-generates and solves the structural case through the shared workflow service, reviews solver residual
-evidence, evaluates tip displacement, duplicates the solved study, then resumes a two-row parameter
-sweep across a service restart. The Euler–Bernoulli reference displacement for its 18 × 4 × 5 mm
-cantilever is approximately 0.00059986 mm; the first-order tetrahedral result is accepted within a
-25% discretization tolerance (the recorded run was within 2%). The separate workflow tests cover
-interrupted dispatch, dependency failures, owner-scoped cancellation, moved projects, unknown schemas,
-and immutable run snapshots.
+The harness imports the CAD fixture through the actual CAD MCP server, generates a tetrahedral mesh, generates and solves the structural case through the shared workflow service, reviews solver residual evidence, evaluates tip displacement, duplicates the solved study, then resumes a two-row parameter sweep across a service restart. The Euler–Bernoulli reference displacement for its 18 × 4 × 5 mm cantilever is approximately 0.00059986 mm; the first-order tetrahedral result is accepted within a 25% discretization tolerance (the recorded run was within 2%). The separate workflow tests cover interrupted dispatch, dependency failures, owner-scoped cancellation, moved projects, unknown schemas, and immutable run snapshots.
 
 ## Embedded terminal (node-pty + xterm.js)
 
@@ -211,15 +171,7 @@ Validation: `test/jobs.test.ts`, the timeout cases in `test/kratosStartup.test.t
 
 The Chat toolbar button / `Ctrl+Shift+L` toggles a right-hand sidebar `WebContentsView` (lazily created in `app/main/windows.ts`; `layout()` shrinks the body views and the terminal panel by `CHAT_WIDTH` while it's shown). The renderer (`app/renderer/chat/`, dependency-free, strict CSP) talks to `app/main/services/chat/chatService.ts` over `chat:toHost` / `chat:toWebview` (`app/preload/chatPreload.ts`); all network and child-process work stays in the main process, and the transcript is replayed on `chatReady` so hiding/showing the sidebar never loses the conversation.
 
-In streamed deployments, `app/main/services/managedConfig.ts` overlays operator
-values in memory above `stateStore`: `KKSS_LLM_PROVIDER`, model/base URL,
-secret-file, project root, restore, theme/zoom, meta-server and cloud client
-settings are read at startup, shown as managed in the native menu, and blocked
-from persistence. `app/main/services/headless.ts` exposes only loopback,
-bearer-protected activity/shutdown endpoints. The SIGTERM path saves dirty mesh
-operation recipes and editor buffers (with recovery files where possible), then
-drains cloud uploads before the normal synchronous store flush. Unknown or stale
-job state inhibits the container's idle timer.
+In streamed deployments, `app/main/services/managedConfig.ts` overlays operator values in memory above `stateStore`: `KKSS_LLM_PROVIDER`, model/base URL, secret-file, project root, restore, theme/zoom, meta-server and cloud client settings are read at startup, shown as managed in the native menu, and blocked from persistence. `app/main/services/headless.ts` exposes only loopback, bearer-protected activity/shutdown endpoints. The SIGTERM path saves dirty mesh operation recipes and editor buffers (with recovery files where possible), then drains cloud uploads before the normal synchronous store flush. Unknown or stale job state inhibits the container's idle timer.
 
 `ChatService` runs the agent loop: a provider adapter streams one model turn, tool calls are dispatched, and the loop repeats until the model stops calling tools (or the user hits Stop — dangling tool calls are pruned from the next request by `transcript.ts`). API providers live under `app/main/services/chat/providers/`: **Anthropic** uses `@anthropic-ai/sdk`, while **OpenAI-compatible** uses raw `fetch` + SSE. Subscription providers live under `app/main/services/chat/agents/`: **Codex** speaks the official Codex App Server protocol over stdio, and **Claude Code** uses the official Agent SDK with an in-process MCP server. Both subscription adapters call the same `ChatService.executeTool()` dispatcher, so approval, denial, dry-run, image, cancellation, and transcript behavior is shared. Subscription sessions persist an opaque provider session id and a hash of the KKSS tool catalog; a mismatch starts a fresh session seeded with transcript data. Historical tool calls are sent as context and are never executed again.
 
@@ -344,90 +296,27 @@ The same aggregated toolset can be re-exposed as a single MCP **server** so an *
 
 ### Cloud staging layer
 
-`app/main/services/cloud/` opens a Google Drive / Dropbox / OneDrive file by **downloading it into
-a local staging cache and handing that local path to `openFile()`**. Nothing below the staging
-layer knows a document is remote: routing (`router.ts`'s longest-suffix rule), `allowRoot()`, both
-hosts' `fs` calls and the submodules' own MCP servers all keep working unmodified. That is the only
-shape that was available — every consumer of an opened path assumes a real file already on disk,
-and the zero-modification invariant rules out teaching the submodules' `node:fs` calls to speak a
-provider API.
+`app/main/services/cloud/` opens a Google Drive / Dropbox / OneDrive file by **downloading it into a local staging cache and handing that local path to `openFile()`**. Nothing below the staging layer knows a document is remote: routing (`router.ts`'s longest-suffix rule), `allowRoot()`, both hosts' `fs` calls and the submodules' own MCP servers all keep working unmodified. That is the only shape that was available — every consumer of an opened path assumes a real file already on disk, and the zero-modification invariant rules out teaching the submodules' `node:fs` calls to speak a provider API.
 
-The pure/glue split is the usual one, so `test/` can drive the interesting parts without Electron:
-`cloudCore.ts` (types, `CLOUD_KEYS`), `cachePathCore.ts` (path derivation, sidecar rules — including the mesh `<stem>.kratosview.json` view-layers sidecar alongside the run sidecar),
-`manifestCore.ts`, `conflictCore.ts`, `oauthCore.ts`, `uploadChunkCore.ts` and the three
-`providerCore/*.ts` parsers are pure; `oauth.ts`, `providers/*.ts`, `stagingCache.ts`,
-`cloudSync.ts` and the `cloudService.ts` façade are the glue. Tests:
-`cloudCachePath`, `cloudManifest`, `cloudConflict`, `cloudOauth`, `cloudProviders`,
-`cloudUploadChunks`, `cloudCompanions` and `cloudSync` — the last drives the whole write-back engine against a real
-temp directory, real chokidar and a fake provider.
+The pure/glue split is the usual one, so `test/` can drive the interesting parts without Electron: `cloudCore.ts` (types, `CLOUD_KEYS`), `cachePathCore.ts` (path derivation, sidecar rules — including the mesh `<stem>.kratosview.json` view-layers sidecar alongside the run sidecar), `manifestCore.ts`, `conflictCore.ts`, `oauthCore.ts`, `uploadChunkCore.ts` and the three `providerCore/*.ts` parsers are pure; `oauth.ts`, `providers/*.ts`, `stagingCache.ts`, `cloudSync.ts` and the `cloudService.ts` façade are the glue. Tests: `cloudCachePath`, `cloudManifest`, `cloudConflict`, `cloudOauth`, `cloudProviders`, `cloudUploadChunks`, `cloudCompanions` and `cloudSync` — the last drives the whole write-back engine against a real temp directory, real chokidar and a fake provider.
 
 Decisions worth knowing before changing any of it:
 
-- **Layout.** `<userData>/cloud-cache/<provider>/<sha256(account,item)[0:16]>/<original filename>`.
-  Deterministic so sidecars survive across sessions, opaque so a Dropbox path or Drive id cannot
-  escape the cache root, and the filename is preserved byte-for-byte because routing is
-  extension-driven (`case.post.msh` must not become `case.msh`). **One directory holds exactly one
-  document plus its sidecars and declared companions** — that is what makes cad's
-  `${modelPath}.parts.json` siblings land correctly with no `cadHost.ts` change.
-- **`allowRoot()` is untouched.** `CadHost.openPath` already allow-lists `path.dirname(fsPath)`,
-  which for a staged file *is* its staging directory. Allow-listing `cloud-cache/` itself would
-  make every cached document from every account fetchable by any webview — the mistake the
-  project-folder invariant exists to avoid.
-- **Write-back is watcher-driven, not host-driven, and that is forced.**
-  `mesh/src/meshExport.ts`'s `saveMesh()` overwrites the document in place with a bare
-  `fs.promises.writeFile` inside the submodule and never reports the path back, so a save can be
-  observed but never intercepted. One chokidar watch per staging directory (the bare
-  `*` pattern added to `services/watcher.ts`) covers cad's ten sidecar writers, mesh's in-place
-  save, an export aimed back into the directory and `EditorService` at once. It is `depth: 0`
-  unless the format declares **companions**.
-- **Companions are an explicit allow-list.** `cachePathCore.companionsFor` names them: XDMF/XMF
-  → sibling `<stem>.h5`; `.foam` → the `constant/polyMesh/` tree (at most two levels below it,
-  `MAX_COMPANION_FILES` = 200). Because a tree can now sit beside the document, "every other file
-  is a sidecar" is no longer true — `isCompanionPath` (traversal, dotfiles, `.tmp`/`.download` at
-  any segment) decides what a nested path may upload. `companions.ts` is the transfer half:
-  `downloadCompanions` (called from `StagingCache.stage`; **any failure fails the open**, since a
-  `.foam` without its mesh is an empty case) and `RemoteFolders` (per-pass cache over the
-  providers' idempotent, race-tolerant `ensureFolder`; a file where a folder is needed is a
-  `conflict`, never replaced). Uploads follow the *document's* conflict rule per file, with
-  baselines in the optional `CloudEntry.companions` (no manifest version bump): absent remotely →
-  create; remote still at the stored revision → overwrite; otherwise (including no baseline) →
-  keep local, upload a `(conflict …)` copy beside it, adopt the remote revision. Companion bytes
-  count toward the cache budget. A pass remembers which names landed, so a retry after a partial
-  failure never re-uploads a file against its own stale baseline. Local deletes are not propagated.
-- **Revisions.** Drive `headRevisionId`, Dropbox `rev`, Graph **`cTag` — never `eTag`**, which also
-  moves on metadata-only edits and would manufacture a conflict copy every time OneDrive touched
-  the file for its own reasons. The wire-level precondition is carried separately (`precondition`
-  on `CloudFile`) because Graph's `if-match` accepts only `eTag`. Only Dropbox enforces the
-  conditional server-side; Drive has no conditional media overwrite at all, so its guard is
-  check-then-upload with a residual race, which its module header states plainly.
-- **Conflicts** keep the local file untouched and upload it beside the remote one, named with
-  `meshExtname`'s longest-suffix split so `case.post.msh` stays routable. The remote's current
-  revision is then adopted as the new baseline, or every subsequent tick would conflict forever.
-- **`cad-preview-macros.json` and `cad-preview-mesh-presets.json` are never synced** — both are
-  per-*folder* libraries while the cache is per-*file*, so uploading either would let two models
-  from one remote folder overwrite each other's.
-- **Quit.** `will-quit` cannot await an HTTPS upload or a shell's exit, so `before-quit` calls `preventDefault()`
-  **once** (guarded by a flag, so it can never loop) for whichever is pending, drains for up to 10 s, then re-quits.
-  The hold waits until no dirty prompt can still cancel the quit, so a cancelled quit neither drains uploads early nor shuts the shell down.
-  Anything still unsent stays `dirty: true` in the manifest and is reported on the next launch.
-  `will-quit` only calls `cloud.flushSync()`, the manifest `JsonStore`'s last synchronous write.
-- **OAuth is bring-your-own-client.** No KKSS client id is baked in. `oauth.ts` reuses
-  `metaServer.ts`'s listen/error/Host-check shape for a one-shot `127.0.0.1` listener, with PKCE
-  S256 and a `state` check; tokens go through `chat/secrets.ts`. Dropbox pins port 53682 because
-  its console requires an exact redirect URI; Google and Microsoft take an ephemeral one.
-- **Uploads take a simple path below ~4 MB** (Drive `uploadType=media`/`multipart`, Graph
-  `PUT .../content`, Dropbox `files/upload`) and a chunked one above it. That is not only about
-  cost — a sidecar is a couple of KB and a session would be three round trips for nothing —
-  neither Drive nor Graph can finalise a *zero-byte* resumable session, so `uploadChunked` rejects
-  `size === 0` outright rather than spinning on a chunk it can never produce.
-- **No new dependencies.** All three providers are plain REST over `net.fetch`, `node:crypto`,
-  `node:http` and `node:stream`, plus the `chokidar` KKSS already ships. The official SDKs are
-  license-compatible but each drags a large tree into `out/main.js` for three endpoints.
+- **Layout.** `<userData>/cloud-cache/<provider>/<sha256(account,item)[0:16]>/<original filename>`. Deterministic so sidecars survive across sessions, opaque so a Dropbox path or Drive id cannot escape the cache root, and the filename is preserved byte-for-byte because routing is extension-driven (`case.post.msh` must not become `case.msh`). **One directory holds exactly one document plus its sidecars and declared companions** — that is what makes cad's `${modelPath}.parts.json` siblings land correctly with no `cadHost.ts` change.
+- **`allowRoot()` is untouched.** `CadHost.openPath` already allow-lists `path.dirname(fsPath)`, which for a staged file *is* its staging directory. Allow-listing `cloud-cache/` itself would make every cached document from every account fetchable by any webview — the mistake the project-folder invariant exists to avoid.
+- **Write-back is watcher-driven, not host-driven, and that is forced.** `mesh/src/meshExport.ts`'s `saveMesh()` overwrites the document in place with a bare `fs.promises.writeFile` inside the submodule and never reports the path back, so a save can be observed but never intercepted. One chokidar watch per staging directory (the bare `*` pattern added to `services/watcher.ts`) covers cad's ten sidecar writers, mesh's in-place save, an export aimed back into the directory and `EditorService` at once. It is `depth: 0` unless the format declares **companions**.
+- **Companions are an explicit allow-list.** `cachePathCore.companionsFor` names them: XDMF/XMF → sibling `<stem>.h5`; `.foam` → the `constant/polyMesh/` tree (at most two levels below it, `MAX_COMPANION_FILES` = 200). Because a tree can now sit beside the document, "every other file is a sidecar" is no longer true — `isCompanionPath` (traversal, dotfiles, `.tmp`/`.download` at any segment) decides what a nested path may upload. `companions.ts` is the transfer half: `downloadCompanions` (called from `StagingCache.stage`; **any failure fails the open**, since a `.foam` without its mesh is an empty case) and `RemoteFolders` (per-pass cache over the providers' idempotent, race-tolerant `ensureFolder`; a file where a folder is needed is a `conflict`, never replaced). Uploads follow the *document's* conflict rule per file, with baselines in the optional `CloudEntry.companions` (no manifest version bump): absent remotely → create; remote still at the stored revision → overwrite; otherwise (including no baseline) → keep local, upload a `(conflict …)` copy beside it, adopt the remote revision. Companion bytes count toward the cache budget. A pass remembers which names landed, so a retry after a partial failure never re-uploads a file against its own stale baseline. Local deletes are not propagated.
+- **Revisions.** Drive `headRevisionId`, Dropbox `rev`, Graph **`cTag` — never `eTag`**, which also moves on metadata-only edits and would manufacture a conflict copy every time OneDrive touched the file for its own reasons. The wire-level precondition is carried separately (`precondition` on `CloudFile`) because Graph's `if-match` accepts only `eTag`. Only Dropbox enforces the conditional server-side; Drive has no conditional media overwrite at all, so its guard is check-then-upload with a residual race, which its module header states plainly.
+- **Conflicts** keep the local file untouched and upload it beside the remote one, named with `meshExtname`'s longest-suffix split so `case.post.msh` stays routable. The remote's current revision is then adopted as the new baseline, or every subsequent tick would conflict forever.
+- **`cad-preview-macros.json` and `cad-preview-mesh-presets.json` are never synced** — both are per-*folder* libraries while the cache is per-*file*, so uploading either would let two models from one remote folder overwrite each other's.
+- **Quit.** `will-quit` cannot await an HTTPS upload or a shell's exit, so `before-quit` calls `preventDefault()` **once** (guarded by a flag, so it can never loop) for whichever is pending, drains for up to 10 s, then re-quits. The hold waits until no dirty prompt can still cancel the quit, so a cancelled quit neither drains uploads early nor shuts the shell down. Anything still unsent stays `dirty: true` in the manifest and is reported on the next launch. `will-quit` only calls `cloud.flushSync()`, the manifest `JsonStore`'s last synchronous write.
+- **OAuth is bring-your-own-client.** No KKSS client id is baked in. `oauth.ts` reuses `metaServer.ts`'s listen/error/Host-check shape for a one-shot `127.0.0.1` listener, with PKCE S256 and a `state` check; tokens go through `chat/secrets.ts`. Dropbox pins port 53682 because its console requires an exact redirect URI; Google and Microsoft take an ephemeral one.
+- **Uploads take a simple path below ~4 MB** (Drive `uploadType=media`/`multipart`, Graph `PUT .../content`, Dropbox `files/upload`) and a chunked one above it. That is not only about cost — a sidecar is a couple of KB and a session would be three round trips for nothing — neither Drive nor Graph can finalise a *zero-byte* resumable session, so `uploadChunked` rejects `size === 0` outright rather than spinning on a chunk it can never produce.
+- **No new dependencies.** All three providers are plain REST over `net.fetch`, `node:crypto`, `node:http` and `node:stream`, plus the `chokidar` KKSS already ships. The official SDKs are license-compatible but each drags a large tree into `out/main.js` for three endpoints.
 
 #### Verifying a provider by hand
 
-The consent round trip, the live endpoint shapes and resumable uploads cannot be unit-tested — they
-need a real registration. Per provider, once per release that touches this area:
+The consent round trip, the live endpoint shapes and resumable uploads cannot be unit-tested — they need a real registration. Per provider, once per release that touches this area:
 
 1. Register a desktop/installed-app OAuth client (see [Configuration ▸ Cloud accounts](/guide/configuration#cloud-accounts) for redirect URIs and scopes) and paste the client ID under **Settings ▸ Cloud Accounts**.
 2. **Connect…** — the browser opens, consent returns to the loopback listener, and the status row shows the account.
@@ -529,42 +418,18 @@ npm run smoke       # headless end-to-end smoke test (needs xvfb on Linux)
 
 ### Dependency security pins
 
-Only `node-pty` is a runtime dependency, but that understates the shipped
-surface: esbuild **bundles** several devDependencies into `out/main.js`
-(`@anthropic-ai/sdk`, `@modelcontextprotocol/sdk`, `electron-updater`,
-`semver`, and everything they pull in). A "dev-only" advisory on one of those
-transitives is therefore a real advisory against the packaged app, so check
-where a flagged package actually lands before dismissing it:
+Only `node-pty` is a runtime dependency, but that understates the shipped surface: esbuild **bundles** several devDependencies into `out/main.js` (`@anthropic-ai/sdk`, `@modelcontextprotocol/sdk`, `electron-updater`, `semver`, and everything they pull in). A "dev-only" advisory on one of those transitives is therefore a real advisory against the packaged app, so check where a flagged package actually lands before dismissing it:
 
 ```bash
 npm ls <package> --all      # who requires it
 grep -c "<package>" out/main.js   # does it reach the bundle?
 ```
 
-When an upstream range still admits a vulnerable version, pin it in the root
-`package.json`'s `overrides` block (the `cad/` and `mesh/` submodules keep
-equivalent pins for their own trees) and drop the entry once upstream's own
-range excludes the bad versions. `fast-uri` (at least 3.1.8) and
-`@hono/node-server` reach the bundle through `@modelcontextprotocol/sdk`
-(via `ajv` and the SDK's `streamableHttp.js` transport respectively).
-Build-time dependencies need updates too: the **electron-builder** tree uses
-`brace-expansion` 1.x, 2.x and 5.x, so version-scoped overrides require the
-patched 1.1.21, 2.1.7 and 5.0.12 releases without changing the majors requested
-by its different `minimatch` consumers. Never apply a blanket major override
-or `npm audit fix --force` to this tree; that can break packaging.
+When an upstream range still admits a vulnerable version, pin it in the root `package.json`'s `overrides` block (the `cad/` and `mesh/` submodules keep equivalent pins for their own trees) and drop the entry once upstream's own range excludes the bad versions. `fast-uri` (at least 3.1.8) and `@hono/node-server` reach the bundle through `@modelcontextprotocol/sdk` (via `ajv` and the SDK's `streamableHttp.js` transport respectively). Build-time dependencies need updates too: the **electron-builder** tree uses `brace-expansion` 1.x, 2.x and 5.x, so version-scoped overrides require the patched 1.1.21, 2.1.7 and 5.0.12 releases without changing the majors requested by its different `minimatch` consumers. Never apply a blanket major override or `npm audit fix --force` to this tree; that can break packaging.
 
-The download toolchain also pins `http-cache-semantics` to at least 4.3.0,
-outside GHSA-ch52-4w7c-c8xp's published affected range (`<=4.2.0`). The advisory
-does not yet identify a patched release, and 4.3.0's upstream changes address
-a separate `Vary` issue; a clean audit is not confirmation that the reported
-`max-stale` behavior is fixed. This dependency is build-time only, not a
-shared HTTP cache in the shipped app. Recheck the upstream advisory before
-claiming that behavior is fixed.
+The download toolchain also pins `http-cache-semantics` to at least 4.3.0, outside GHSA-ch52-4w7c-c8xp's published affected range (`<=4.2.0`). The advisory does not yet identify a patched release, and 4.3.0's upstream changes address a separate `Vary` issue; a clean audit is not confirmation that the reported `max-stale` behavior is fixed. This dependency is build-time only, not a shared HTTP cache in the shipped app. Recheck the upstream advisory before claiming that behavior is fixed.
 
-`test/dependencySecurity.test.ts` checks every matching root-lockfile entry,
-including nested copies, against these version floors. After refreshing the
-lockfile, run `npm audit`, the build/tests and Electron smoke verification;
-exercise packaging as well when its dependency tree changes.
+`test/dependencySecurity.test.ts` checks every matching root-lockfile entry, including nested copies, against these version floors. After refreshing the lockfile, run `npm audit`, the build/tests and Electron smoke verification; exercise packaging as well when its dependency tree changes.
 
 ## Regenerating documentation screenshots
 
@@ -651,55 +516,19 @@ Profiles and documents are temporary. Chat uses a loopback OpenAI-compatible SSE
 
 `launchApp` accepts `env`, `restore` and `singleInstance` options. `restore: true` sets `KKSS_E2E_RESTORE=1`; explicit `KKSS_NO_RESTORE=1` and the user's Restore Last Session setting still take precedence. Defaults continue suppressing restoration and bypassing the instance lock for smoke and screenshots. Lifecycle tests use bounded graceful quit and observe the process exit; forced cleanup cannot count as acceptance.
 
-Quick-pick options close their own BrowserWindow immediately on selection.
-Use `tools/e2e/picker.mjs`'s `clickPickerOption` for these clicks: it arms the
-close waiter before input and accepts only the target-closed acknowledgement
-race after the picker actually closes. It retains actionability checks and
-bounded waits; other click errors or crashes still fail. Always assert the
-selection's effect in the surviving app or on disk afterward, so closing a
-picker without completing the requested operation cannot pass the scenario.
-`test/pickerInteraction.test.ts` covers both acknowledgement/closure orderings
-and failure propagation.
+Quick-pick options close their own BrowserWindow immediately on selection. Use `tools/e2e/picker.mjs`'s `clickPickerOption` for these clicks: it arms the close waiter before input and accepts only the target-closed acknowledgement race after the picker actually closes. It retains actionability checks and bounded waits; other click errors or crashes still fail. Always assert the selection's effect in the surviving app or on disk afterward, so closing a picker without completing the requested operation cannot pass the scenario. `test/pickerInteraction.test.ts` covers both acknowledgement/closure orderings and failure propagation.
 
 Regression fixes found by this suite: assistant completion replaces the streaming bubble without also rendering the persisted entry; opening a staged path restarts upload tracking; repeated CAD exports refresh a matching clean mesh tab, while unrelated or dirty tabs remain intact.
 
 ## Interface language and accessibility
 
-`app/shared/i18n/en.json` is the typed English message catalog and stable source
-key set; `es.json` supplies Spanish text. `t()` interpolates values without
-translating filenames, setting IDs, serialized values, logs or provider content,
-and falls back to English when an upstream or unknown message has no Spanish
-entry. The `general.language` setting is stored as `uiLanguage`; locale is
-resolved once at startup and sent to renderer pages through the locale preload
-bridge. Language changes require restart so all app windows and the native menu
-use one locale. Embedded viewer pages are owned by their upstream submodules.
+`app/shared/i18n/en.json` is the typed English message catalog and stable source key set; `es.json` supplies Spanish text. `t()` interpolates values without translating filenames, setting IDs, serialized values, logs or provider content, and falls back to English when an upstream or unknown message has no Spanish entry. The `general.language` setting is stored as `uiLanguage`; locale is resolved once at startup and sent to renderer pages through the locale preload bridge. Language changes require restart so all app windows and the native menu use one locale. Embedded viewer pages are owned by their upstream submodules.
 
-`windows.ts` moves focus between visible WebContentsView regions on F6 and
-Shift+F6 and restores focus to the invoking region after closing a panel.
-Document tabs use a roving tab stop and arrow/Home/End navigation. Renderer
-accessibility acceptance lives in `tools/e2e/accessibility.mjs`; it scans
-representative app-owned pages with axe-core in both locales and all four
-application themes, then checks focus movement and language persistence.
+`windows.ts` moves focus between visible WebContentsView regions on F6 and Shift+F6 and restores focus to the invoking region after closing a panel. Document tabs use a roving tab stop and arrow/Home/End navigation. Renderer accessibility acceptance lives in `tools/e2e/accessibility.mjs`; it scans representative app-owned pages with axe-core in both locales and all four application themes, then checks focus movement and language persistence.
 
-`npm run perf` is an opt-in Electron benchmark, separate from CI gates. It
-measures five fresh launches to Home readiness and five file opens each for
-`cad/examples/STP/bull.stp` and `mesh/src/test/fixtures/regions/UUea.inp`, then
-reports samples and medians. These are fresh processes with fresh profiles;
-filesystem caches are uncontrolled. The checked-in baseline records fixture
-hashes, revisions, runtime and host metadata. Runs warn above three times the
-baseline; `PERF_STRICT=1` makes those warnings fail. Use
-`npm run perf -- --update-baseline` only after reviewing a deliberate change;
-the ordinary command writes only `test-results/perf.json`. Failure to reach one
-unambiguous completion marker always fails the run. The meshio++ fixture's
-model arrives in the `vtkFrame` protocol message, which is the timed model-load
-completion signal.
+`npm run perf` is an opt-in Electron benchmark, separate from CI gates. It measures five fresh launches to Home readiness and five file opens each for `cad/examples/STP/bull.stp` and `mesh/src/test/fixtures/regions/UUea.inp`, then reports samples and medians. These are fresh processes with fresh profiles; filesystem caches are uncontrolled. The checked-in baseline records fixture hashes, revisions, runtime and host metadata. Runs warn above three times the baseline; `PERF_STRICT=1` makes those warnings fail. Use `npm run perf -- --update-baseline` only after reviewing a deliberate change; the ordinary command writes only `test-results/perf.json`. Failure to reach one unambiguous completion marker always fails the run. The meshio++ fixture's model arrives in the `vtkFrame` protocol message, which is the timed model-load completion signal.
 
-The 2026-09-24 baseline on an AMD Ryzen 7 255 / Linux x64 software-rendered
-host measured medians of **753.3 ms** to interactive Home, **2,233.6 ms** for
-the CAD geometry fixture and **517.5 ms** for the meshio++ model fixture. These
-are reference measurements from fresh processes; the harness neither warms
-WASM nor controls operating-system filesystem caches, so they are not cold
-cache figures or cross-machine performance targets.
+The 2026-09-24 baseline on an AMD Ryzen 7 255 / Linux x64 software-rendered host measured medians of **753.3 ms** to interactive Home, **2,233.6 ms** for the CAD geometry fixture and **517.5 ms** for the meshio++ model fixture. These are reference measurements from fresh processes; the harness neither warms WASM nor controls operating-system filesystem caches, so they are not cold cache figures or cross-machine performance targets.
 
 ### Mesh 4.6 integration
 
@@ -711,20 +540,8 @@ The shared packaged meshio++ tree comes from mesh's locked 17.2.0 dependency; CA
 
 ### Home forms and guarded document replacement
 
-Home’s `WorkflowForm` renders one inline action panel using the shared input/button recipes,
-with visible validation, focus restoration and retained values on errors. Existing `home:toHost`
-workflow messages and `app__*` schemas are unchanged; submissions are serialized in the renderer.
-Queue previews, paused persistence and starting remain separate user decisions. Raw MCP calls wait
-for the target server’s in-flight connection, so a first quantity evaluation can start from Home
-without opening chat or waiting for the independent Kratos runtime.
+Home’s `WorkflowForm` renders one inline action panel using the shared input/button recipes, with visible validation, focus restoration and retained values on errors. Existing `home:toHost` workflow messages and `app__*` schemas are unchanged; submissions are serialized in the renderer. Queue previews, paused persistence and starting remain separate user decisions. Raw MCP calls wait for the target server’s in-flight connection, so a first quantity evaluation can start from Home without opening chat or waiting for the independent Kratos runtime.
 
-`openFile` now returns a promise and uses `documentReplacementQueue` to serialize replacement
-consent. It captures and rechecks the destination tab/host/document before and after the dirty-mesh
-Save / Don’t Save / Cancel guard. Only a successful replacement updates recents and cloud tracking.
-The shim awaits its `openWith` hook. Shared Home/shell/view preloads route the first OS dropped file
-over `app:dropFile`; main validates the sender and absolute path before entering the same guard.
-External launch requests reserve separate tabs; restore and crash replay retain their existing paths.
+`openFile` now returns a promise and uses `documentReplacementQueue` to serialize replacement consent. It captures and rechecks the destination tab/host/document before and after the dirty-mesh Save / Don’t Save / Cancel guard. Only a successful replacement updates recents and cloud tracking. The shim awaits its `openWith` hook. Shared Home/shell/view preloads route the first OS dropped file over `app:dropFile`; main validates the sender and absolute path before entering the same guard. External launch requests reserve separate tabs; restore and crash replay retain their existing paths.
 
-`tools/format-registry.mjs` parses source routing registries for packaging and separately counts
-unique extended reader/writer identifiers. The packaging CI check also checks the explicit format
-counts in the landing page and guides. Suffix aliases are not additional formats.
+`tools/format-registry.mjs` parses source routing registries for packaging and separately counts unique extended reader/writer identifiers. The packaging CI check also checks the explicit format counts in the landing page and guides. Suffix aliases are not additional formats.
