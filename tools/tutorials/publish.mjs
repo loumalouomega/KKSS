@@ -6,7 +6,6 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { cases } from './cases.mjs';
 import { root, python } from './mcp.mjs';
-import { publishTutorialPlots } from './plots.mjs';
 
 const args = process.argv.slice(2);
 const only = new Set(args.filter(a => a.startsWith('--only=')).flatMap(a => a.slice('--only='.length).split(',')));
@@ -38,7 +37,10 @@ for (const c of cases.filter(c => !only.size || only.has(c.id))) {
   await fs.mkdir(dest);
   await fs.copyFile(path.join(root, 'LICENSE'), path.join(dest, 'LICENSE'));
   for (const name of await fs.readdir(source)) {
-    if (name === 'vtk_output' || name === 'kkss-convergence-v2.jsonl' || name === c.geometry || name === 'obstacle-channel.svg' || name.startsWith(c.geometry + '.') && !name.endsWith('.geo') ||
+    // No solver output ships: vtk_output stays in the generation directory
+    // (verification ran against it there); the published case carries the
+    // inputs, the generated case and the verification record.
+    if (name === 'kkss-convergence-v2.jsonl' || name === c.geometry || name === 'obstacle-channel.svg' || name.startsWith(c.geometry + '.') && !name.endsWith('.geo') ||
         /^(mesh(?:_case|_Fluid|_Structural)?\.mdpa|mesh\.kratoscase\.json|ProjectParameters(?:CoSim|CFD|CSM)?\.json|.*Materials\.json|MainKratos(?:CoSim)?\.py)$/.test(name)) {
       await fs.cp(path.join(source, name), path.join(dest, name), { recursive: true });
     }
@@ -88,11 +90,9 @@ with zipfile.ZipFile(sys.argv[2], 'w', zipfile.ZIP_DEFLATED) as z:
   console.log(`Published ${c.id}`);
 }
 await fs.copyFile(path.join(root, 'LICENSE'), path.join(output, 'LICENSE'));
-// Partial publishes (--only) leave the shared archives for the full run:
-// the combined zip and the plot recipes only make sense over every case.
-if (!only.size) {
-// The combined archive holds solver-verified cases only; a generation-only
-// blocked case ships its own per-case zip, not this one.
+// The combined archive is rebuilt from whatever is published (minus the
+// blocked case): it holds solver-verified cases only, and a partial publish
+// that refreshes one case still ships a coherent whole.
 await exec(python, ['-c', `import pathlib,sys,zipfile
 root=pathlib.Path(sys.argv[1])
 allowed=set(sys.argv[3:])
@@ -104,7 +104,3 @@ with zipfile.ZipFile(sys.argv[2], 'w', zipfile.ZIP_DEFLATED) as z:
    z.writestr(info,p.read_bytes())
 `, output, path.join(output, 'tutorial-cases.zip'), ...cases.filter(c => !c.blockedSolver).map(c => c.id)]);
 console.log('Published combined tutorial-cases.zip');
-await publishTutorialPlots(only);
-} else {
-  console.log('Partial publish: combined tutorial-cases.zip and plots deferred to the full run.');
-}

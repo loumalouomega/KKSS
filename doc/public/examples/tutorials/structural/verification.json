@@ -10,7 +10,6 @@
     "REACTION",
     "VON_MISES_STRESS"
   ],
-  "result": "vtk_output/Structure_0_8.vtk",
   "frames": 8,
   "end_time": 1,
   "checks": {
@@ -35,22 +34,7 @@
     "mesh.mdpa": "0c5622909c240fe94afa6e9f1894fb91afcf9b448d36299a9217c5afc9111da2",
     "ProjectParameters.json": "d13941045492b198dd63c218f9ee4f783701b5c5ed67b78b6b19f1096f8a457e",
     "recipe.json": "537a40249e4cd1e071cde6a29ccb4e4fa142cba857871af71853b9b914abc6df",
-    "StructuralMaterials.json": "cbc3beb1b9f1beafd4159c741c060a88a94f8e2eedb8f693c982c6f37968804f",
-    "vtk_output/Structure_0_1.vtk": "0f412599578787040e2249f1ef0357aabcb510a675fd584835ef48a8338ab0c4",
-    "vtk_output/Structure_0_2.vtk": "6788a1b2c64f92061bcf6dda34ce9a29c879d4c56d5aed0818ed841830d4ddfa",
-    "vtk_output/Structure_0_3.vtk": "f02b92ea1098ab1c212039835dc879e4fc0a96d21bea4a2527769254e0097c9e",
-    "vtk_output/Structure_0_4.vtk": "838f96efe97c0de28958ed7a0f0e94eede48ec46e7b13a37b247539120c8479e",
-    "vtk_output/Structure_0_5.vtk": "61b689ecf9ff7d4aee8829bade221466896056fae3ff6db08cac5c58d1eff304",
-    "vtk_output/Structure_0_6.vtk": "ee8d74051f1fccd109f265c3ad91d1ec7507f6210d6f46ebd3e9d29d892a317b",
-    "vtk_output/Structure_0_7.vtk": "729fb0df15506ea5c10fec56e173f85e0c9cef538f99745577fa45c233abc366",
-    "vtk_output/Structure_0_8.vtk": "e3aeee0e92978b1c207180fc666371b61602ea48ef25dd64a1895629d31fbfc9",
-    "plots/displacement-history.csv": "af2732a43b25c431ef4527bb5e501892369d0bb70d780aa5299c57fd2c93243c",
-    "plots/displacement-history.csv.kratosplot.json": "7667b165125cec9d1cd9ce43a09128fed65251827191b80b3edbaae4e9cf15ba",
-    "plots/displacement-history.json": "6724559a258568b5260c59a15d7ea66290b698708358fe24079175ae147621a4",
-    "plots/reaction-history.csv": "61c7ed543fcd07432b77929fb1accd1bc4318eee2333a5be225cc3c3d856896a",
-    "plots/reaction-history.csv.kratosplot.json": "0f106794a6b68f6554ef70155284bb1091513f089dd0e2ca211b8c86ae5b8adf",
-    "plots/reaction-history.json": "30f21736ae3b24deb6b77a84629c6050681881053ea66ff5855b827c86b326bb",
-    "plots/verification.json": "cbbe0f30b400dc609b16dcba6d2fdd7672d949915c5c36e9f7ec7d7f14ae377e"
+    "StructuralMaterials.json": "cbc3beb1b9f1beafd4159c741c060a88a94f8e2eedb8f693c982c6f37968804f"
   },
   "source": "cad/examples/STP/block.stp",
   "revisions": {

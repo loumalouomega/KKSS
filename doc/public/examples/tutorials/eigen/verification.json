@@ -6,7 +6,6 @@
   "nodes": 1048,
   "elements": 3896,
   "fields": [],
-  "result": "solver.log",
   "frames": 0,
   "checks": {
     "eigenfrequency_1_Hz": 10699.367870276254,

@@ -26,7 +26,7 @@ There is no results timeline to open: eigenvalue runs print the EIGENVALUE_VECTO
 
 ## Scientific plots
 
-See [scientific plots](scientific-plots) for downloadable case recipes.
+Build plots from your own run in the app: open a result, choose **Plots → New recipe**, and see [scientific plots](scientific-plots) for the builder, units and CSV export.
 
 ## Post-run checks and batch
 

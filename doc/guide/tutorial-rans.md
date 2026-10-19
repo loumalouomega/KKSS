@@ -26,7 +26,7 @@ When the run finishes, click **Open results**. In the VTK tab, click **Field**, 
 
 ## Scientific plots
 
-See [scientific plots](scientific-plots) for downloadable case recipes.
+Build plots from your own run in the app: open a result, choose **Plots → New recipe**, and see [scientific plots](scientific-plots) for the builder, units and CSV export.
 
 ## Post-run checks and batch
 
@@ -36,7 +36,7 @@ Before generating, the Problemtype sidebar preflights the setup as structured er
 
 In the final frame (t = 5 s) the inlet and outlet fluxes are 0.60000002 and 0.60002297 m²/s per metre of depth (imbalance 2.3 × 10⁻⁵ m²/s). The obstacle-adjacent row reconstructs a mean y+ of 32.8 (range 18.9–40.9, four of six shoulder stations in 30–300), inside the logarithmic wall-function range — neither Y_PLUS nor RANS_Y_PLUS reaches the nodal VTK (both live on the conditions), so the check derives u_tau from the wall-normal velocity gradient instead. Turbulent kinetic energy peaks at 3.36 m²/s² with a bounded 5.3% undershoot, and the eddy viscosity stays non-negative. The drag monitor averages 0.1276 N/m over the last ten steps (Cd 1.77 on the 120 mm diameter); the streamwise momentum balance predicts 0.1426 N/m (11.7% relative error). The near wake bottoms at −0.330 m/s against the 1 m/s inlet (deficit 1.33 m/s), and pressure spans 1.42 Pa with the outlet at 0 Pa. The acceptance limits are a mean wall y+ in [30, 300], k undershoot ≤ 10%, drag Cd in [1.5, 4.5] with momentum error ≤ 15%, wake deficit ≥ 0.025 m/s, pressure range ≥ 0.05 Pa, and flux imbalance ≤ 0.001 m²/s.
 
-Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 654 nodes and 1202 cells. The run wrote 51 output frame(s) through t = 5 s. [Download this runnable case](/examples/tutorials/rans.zip); the folder contains the CAD source, sketch SVG, edit/parts/mesh sidecars, generated case, VTK output and SHA-256 provenance. Downloaded cases are starting points: rerunning overwrites their generated outputs.
+Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 654 nodes and 1202 cells. The run wrote 51 output frame(s) through t = 5 s. [Download this runnable case](/examples/tutorials/rans.zip); the folder contains the CAD source, generation setup and generated case, with SHA-256 provenance and the solver verification record. Run the case to reproduce its VTK timeline locally. Downloaded cases are starting points: rerunning overwrites their generated outputs.
 
 ![CAD geometry and named parts](/screenshots/tutorial-rans-geometry.png)
 

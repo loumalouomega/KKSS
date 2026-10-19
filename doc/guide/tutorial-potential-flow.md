@@ -24,13 +24,9 @@ Click **Generate case files**. This writes `ProjectParameters.json`, the materia
 
 When the run finishes, click **Open results**. In the VTK tab, click **Field**, select the listed field, and use the timeline to choose the final step. The values below came from the verified final frame.
 
-## Plot potential versus distance
+## Scientific plots
 
-Extract [potential-flow.zip](/examples/tutorials/potential-flow.zip), open the VTK result, and choose **Plots → Load recipe → plots/potential-profile.json**. It samples **60 positions** along the domain's X centerline, just inside the boundary, with explicitly supplied **m²/s** potential units. The graph is potential versus spatial distance, not time.
-
-In **Advanced**, add a **Regression** analysis to inspect the approximately **10.2 m/s** slope. This line-based fit is distinct from the elementwise gradient verification below. Units come from the SI setup; legacy VTK coordinates/fields do not declare them. The archive includes full-resolution CSV, provenance and the exact sampling recipe. There is only one stationary frame, so no transient evolution is claimed. See [scientific plots](scientific-plots).
-
-![Uniform-flow potential versus distance in KKSS](/screenshots/tutorial-potential-flow-profile.png)
+Build plots from your own run in the app: open a result, choose **Plots → New recipe**, and see [scientific plots](scientific-plots) for the builder, units and CSV export.
 
 ## Post-run checks and batch
 
@@ -40,7 +36,7 @@ Before generating, the Problemtype sidebar preflights the setup as structured er
 
 The imposed free-stream speed is 10.2 m/s. The maximum elementwise error in the gradient of `VELOCITY_POTENTIAL` compared with [10.2, 0] m/s is 0.000033 m/s.
 
-Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 150 nodes and 248 cells. The run wrote 1 output frame(s) through t = 1 s. [Download this runnable case](/examples/tutorials/potential-flow.zip); the folder contains the CAD source, sketch SVG, edit/parts/mesh sidecars, generated case, VTK output and SHA-256 provenance. Downloaded cases are starting points: rerunning overwrites their generated outputs.
+Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 150 nodes and 248 cells. The run wrote 1 output frame(s) through t = 1 s. [Download this runnable case](/examples/tutorials/potential-flow.zip); the folder contains the CAD source, generation setup and generated case, with SHA-256 provenance and the solver verification record. Run the case to reproduce its VTK timeline locally. Downloaded cases are starting points: rerunning overwrites their generated outputs.
 
 ![CAD geometry and named parts](/screenshots/tutorial-potential-flow-geometry.png)
 

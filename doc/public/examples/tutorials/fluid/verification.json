@@ -9,17 +9,16 @@
     "VELOCITY",
     "PRESSURE"
   ],
-  "result": "vtk_output/FluidModelPart_0_51.vtk",
   "frames": 51,
   "end_time": 5,
   "checks": {
     "inlet_velocity_error_m_per_s": {
       "measured": 0,
-      "maximum": 0.000001
+      "maximum": 1e-06
     },
     "outlet_pressure_error_Pa": {
       "measured": 0,
-      "maximum": 0.000001
+      "maximum": 1e-06
     },
     "flux_imbalance_m2_per_s": {
       "measured": 2.3997394349439816e-10,
@@ -29,7 +28,7 @@
     "outlet_flux_m2_per_s": 0.06000000176002605,
     "obstacle_no_slip_speed_m_per_s": {
       "measured": 0,
-      "maximum": 0.00002
+      "maximum": 2e-05
     },
     "near_wake_velocity_deficit_m_per_s": {
       "measured": 0.1047504595,
@@ -60,65 +59,7 @@
     "obstacle-channel.brep.parts.json": "eddcd399aac0507fc311b17ec3371f25726afb27e2b75cf35ebc5674e51586f2",
     "obstacle-channel.svg": "bae623776f22d89533719ed1eb314f634d5c1d45cc3ee5e8ee66d4b4ad22dee0",
     "ProjectParameters.json": "708ef15caea5257fe50f9819de74eb7e04994f1dea29f2a344c46c5054f2fe70",
-    "recipe.json": "064ed00b40fdcd6ed454cb715f1566fddd34ea1115d19493a471abc39fb0f6e7",
-    "vtk_output/FluidModelPart_0_1.vtk": "8a73a8d37a357aa195eb35a6d9b594004df9d0d7ae8bf6e721cd2295c6d135b1",
-    "vtk_output/FluidModelPart_0_10.vtk": "5ec9b0399945ecace9ea332276814a836352b91e3d414038ec56365e1a8d4c2d",
-    "vtk_output/FluidModelPart_0_11.vtk": "0a9090a829babc67878d4f47baa02c2ee336486ad7ea082e503a4873da557ea1",
-    "vtk_output/FluidModelPart_0_12.vtk": "4e16fde66f701a461ae48fd3497ff6bfa381766026497df386bcc9816818e38f",
-    "vtk_output/FluidModelPart_0_13.vtk": "ace0580320e36ce67248bfbd9163fa1b82c0cafc51b7a35444263a1ed9de9d48",
-    "vtk_output/FluidModelPart_0_14.vtk": "560f8f499b1012afef03b1848d44a638ae8bbcf3e224920aa4c5419becf4291f",
-    "vtk_output/FluidModelPart_0_15.vtk": "a42b46e695c0bb7773e6f30343df64493e502ebc579d55edfe90d1864005912b",
-    "vtk_output/FluidModelPart_0_16.vtk": "d419a72464be282e93d5f173616ffa605d6ba95d0fd71176ebc71c7f9e0cef9c",
-    "vtk_output/FluidModelPart_0_17.vtk": "5c860f2c14e00ae681d8ef976ee5e84a9b85ceb62e2f402b64bed87fcd94d71d",
-    "vtk_output/FluidModelPart_0_18.vtk": "669823f9aa800e161c9665c4cb9ebb4088273474c37240f8c7a8a76d5a4aa3d0",
-    "vtk_output/FluidModelPart_0_19.vtk": "517aa5b5c55c9a75e3c7d25e0bcdc2021eb8025ba87fe98851b1b0c12e3418d9",
-    "vtk_output/FluidModelPart_0_2.vtk": "6bb7302e4608a801cc17807c19925df726bf61cf22b23230d5be0e8a07e80a55",
-    "vtk_output/FluidModelPart_0_20.vtk": "c1844b6fa9692f596e8a7c7458821f25f1b18885d3d6ac05fdd4aff35b5b6802",
-    "vtk_output/FluidModelPart_0_21.vtk": "c5f5646df54ac736062328900e07df1e55d5fa89dcd63cfe5c62e41b6198c093",
-    "vtk_output/FluidModelPart_0_22.vtk": "945e0676bd946b71c44ba8eeab0e6580d383f74906a1eeb336802ae1a226861f",
-    "vtk_output/FluidModelPart_0_23.vtk": "45fd467070e8c34137b4c6c63863e34fc5422e990289af5a804bdc2849573885",
-    "vtk_output/FluidModelPart_0_24.vtk": "9c21e0a38713b29710d31b8edef5957949c996f089fc6cc135103e391b5152e3",
-    "vtk_output/FluidModelPart_0_25.vtk": "7a6781d84e539e52cecd1d929a1d34f90ac2e43978138cb5964a713394201064",
-    "vtk_output/FluidModelPart_0_26.vtk": "6ca67b4f6f37934697371242cb97bd9428e54ce375b8b6788486b9420563fade",
-    "vtk_output/FluidModelPart_0_27.vtk": "0bf8050785f1698b1039349a7312a95667ef6472d1f028b53db95fd63dbb05b6",
-    "vtk_output/FluidModelPart_0_28.vtk": "32f147df289bf46cfc558a04a18f10475d3aa542f9b551a318d017b72bf5df27",
-    "vtk_output/FluidModelPart_0_29.vtk": "2bfaa66fcb243ffc9d6f7ae604a19b566de07e161ba7c9bed85e50986984554c",
-    "vtk_output/FluidModelPart_0_3.vtk": "34da5a2059f967640304d1c1b72a3a2e73a7a8d9ef86782237762f877ebbaaf0",
-    "vtk_output/FluidModelPart_0_30.vtk": "eab5074b86b32b4dcacbefae1aa21f49a2049b07675cd3880fc5d40a46f1833e",
-    "vtk_output/FluidModelPart_0_31.vtk": "e241d415ecdb8f5d0b9927717eb5ee73bb405d0bd66aef552ab60e5b784b6227",
-    "vtk_output/FluidModelPart_0_32.vtk": "7bd78cff34c625a8e483849d9ade9c6946bb3f717258e0cb2be39d8bb358fdac",
-    "vtk_output/FluidModelPart_0_33.vtk": "71dbf606b28710c65ccced06b20e4399e24cc53d2f1a837c7de7805d1654a5a5",
-    "vtk_output/FluidModelPart_0_34.vtk": "bae1d0ed3467dab4e592d4a3f07228e0effd3a928c70e420afa27d4e2a88d5e2",
-    "vtk_output/FluidModelPart_0_35.vtk": "b71811d170f2ee5f2ebcefb382408077724ef6eb0350dda9aeae0b3efb4e24b6",
-    "vtk_output/FluidModelPart_0_36.vtk": "ca07ec2bd83392ca6ff1ab1f43f421e04e1c35b893ef40adc5607623f52b20b4",
-    "vtk_output/FluidModelPart_0_37.vtk": "6a9dbf686e6b4754af8cacbf9cc9d5ccef2eee6a083622074670ce2ebe1b9045",
-    "vtk_output/FluidModelPart_0_38.vtk": "a09171870df04a0cf82fedf51d9dfd8d71ca75c98beb17a6ef8f91f0f4c464fb",
-    "vtk_output/FluidModelPart_0_39.vtk": "ce8afdb696b40ed2352578d21dab2a2d6ebae3dc79cd14cd687575fda2ade75f",
-    "vtk_output/FluidModelPart_0_4.vtk": "15a937ae98c432c16abeb41b5edc556c47c79bcb263beb7a237a26c5ef39eced",
-    "vtk_output/FluidModelPart_0_40.vtk": "8e86f0e9e196fcf87b70475dd80f25ac702061cd18fecad176cb6a6c238b2742",
-    "vtk_output/FluidModelPart_0_41.vtk": "d8005b9fa19bf2830c8898dfa5f39e3425166a078d9c599b517574106c000e14",
-    "vtk_output/FluidModelPart_0_42.vtk": "ad7fe87806dcaf9a99d5a9aaf8448a089f9d0e5b62e309d5651dc78742442551",
-    "vtk_output/FluidModelPart_0_43.vtk": "da92c71b5895aae82079ddc2d4443e6a55eaa74a9ab8cc1d2ad22b7efa18e482",
-    "vtk_output/FluidModelPart_0_44.vtk": "7b5a120a41ce0db81e81e9e69d5397a6a386a2a292462c5cbdd8f54868a232ec",
-    "vtk_output/FluidModelPart_0_45.vtk": "2b7db29e9bcced1411095c142b7a940216fdefde0c4db2a5174529197fb68de7",
-    "vtk_output/FluidModelPart_0_46.vtk": "0a8dc734fc7820d5dc1911deeee542bca5e73a2cd77414d0a2aafbb37d168228",
-    "vtk_output/FluidModelPart_0_47.vtk": "4b5cfb00493d6b243d03e41137e99ecd55bad37b7e31403e182c81d6252ac69f",
-    "vtk_output/FluidModelPart_0_48.vtk": "152a7c805d73c1b06a46615e773761872df19b6dffaa528f76967a26c591bcdc",
-    "vtk_output/FluidModelPart_0_49.vtk": "5aa672feb20bcf07e10b592b732312b5538deb34c2a790bea0c140816cc1369a",
-    "vtk_output/FluidModelPart_0_5.vtk": "be998afa628e9470f5d0da7ecacffb100e7d365bd2666ed54af0c5a23c8fc89c",
-    "vtk_output/FluidModelPart_0_50.vtk": "1f4819afffc490dc93e71603d34211bc615a9c5863665ad8efd8bbfda3daf8d3",
-    "vtk_output/FluidModelPart_0_51.vtk": "12045c24b10e71fdfc2187bf8cab865d0497be790079b0d4984251cbf6aa5f17",
-    "vtk_output/FluidModelPart_0_6.vtk": "7792f5eec0d9646cbfc118118b8c6ab09ea337b969e9f635b83fb557cfe7bf88",
-    "vtk_output/FluidModelPart_0_7.vtk": "98aa865efa71a14dfc12e89752f712f4fc04050dc7ca8b182c7d0f4d9cf3b926",
-    "vtk_output/FluidModelPart_0_8.vtk": "a436e9eb40cd0788b20ced1a1df4fd68333f693ccf7487c9965fd63bf9476643",
-    "vtk_output/FluidModelPart_0_9.vtk": "5c81759e5a8d52f156fdf5aea918670e3e2864eca73ef2a9ca671f10db9434bd",
-    "plots/pressure-history.csv": "c0dbf61f2fb03d43192e9f2c4657cff626bbe7f910584a9ba40cbf23f5e93e5e",
-    "plots/pressure-history.csv.kratosplot.json": "038e34462d382390f8bac979dd4ef54cdbe50c134426f481faa9e60f9cfccee6",
-    "plots/pressure-history.json": "198966283cd477bf94c8e04eb4d0a4ee060ce2c5a4853606725d639e7290bf17",
-    "plots/verification.json": "d458ab1da4e45c27ee0899bc04fa5ba35c1c2e0ae95832c5c011ef039bab3d08",
-    "plots/wake-profile.csv": "9068418567b6559bb8a8489af57d21b9e46cb379611b2109f60ccbc86d3352de",
-    "plots/wake-profile.csv.kratosplot.json": "48b392e90cf0b7f836955fc464aa49bd6f963406124497a3bfb786af8126893a",
-    "plots/wake-profile.json": "8e45502ee76c4e524813d23e4f8353414d1b8e1b2d295df0d021854af7368082"
+    "recipe.json": "064ed00b40fdcd6ed454cb715f1566fddd34ea1115d19493a471abc39fb0f6e7"
   },
   "source": "cad/examples/BREP/blank.brep",
   "revisions": {

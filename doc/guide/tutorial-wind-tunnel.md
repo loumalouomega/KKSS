@@ -38,7 +38,7 @@ The recipe (`tunnel.kratosvwt.json`) carries the plan, the build report and the 
 
 ## Scientific plots
 
-See [scientific plots](scientific-plots) for downloadable case recipes.
+Build plots from your own run in the app: open a result, choose **Plots → New recipe**, and see [scientific plots](scientific-plots) for the builder, units and CSV export.
 
 ## Post-run checks and batch
 
@@ -48,7 +48,7 @@ Before generating, the Problemtype sidebar preflights the setup as structured er
 
 The steady run completed all 300 pseudo-steps without meeting the convergence tolerance — the wake keeps shedding, so the force monitors breathe: drag averages 6.77 N over the last ten steps (final step 6.15 N; Cd 0.224 on the 0.502 m² frontal area, recorded as informational: there is no published benchmark at this Reynolds number). The solver wrote RANS_Y_PLUS on no nodal field (it lives on the conditions, as in every RANS case here), so the measured y+ is reconstructed from the wall-normal velocity gradient at 1616 shoulder stations: mean 52.0 against the planned 110.1 (ratio 0.47), with a 90.1% share in 30–300. Neither Y_PLUS nor RANS_Y_PLUS reaches the nodal VTK; the reconstruction reads low against the flat-plate plan basis (a sphere boundary layer is not a flat plate), so the acceptance is order-of-magnitude agreement that would catch a wrong layer. Inlet/outlet fluxes are −153.52 and 154.07 m³/s (imbalance 0.36%). Acceptance limits: flux imbalance ≤ 5% of the inflow, measured-to-planned y+ in [0.4, 2.5], drag finite and positive.
 
-Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 14840 nodes and 82804 cells. The run wrote 12 output frame(s) through t = 300 s. [Download this runnable case](/examples/tutorials/wind-tunnel.zip); the folder contains the authored body STL, the placed body, the recipe, the case state, the generated case, VTK output and SHA-256 provenance. Downloaded cases are starting points: rerunning overwrites their generated outputs.
+Verification used Python 3.12.14, Kratos 10.4.3, two OpenMP threads, 14840 nodes and 82804 cells. The run wrote 12 output frame(s) through t = 300 s. [Download this runnable case](/examples/tutorials/wind-tunnel.zip); the folder contains the authored body STL, the placed body, the recipe, the case state and the generated case, with SHA-256 provenance and the solver verification record. Run the case to reproduce its VTK timeline locally. Downloaded cases are starting points: rerunning overwrites their generated outputs.
 
 ![CAD geometry and named parts](/screenshots/tutorial-wind-tunnel-geometry.png)
 

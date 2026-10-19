@@ -14,7 +14,6 @@
     "PRESSURE_COEFFICIENT",
     "Y_PLUS"
   ],
-  "result": "vtk_output/FluidModelPart_0_300.vtk",
   "frames": 12,
   "end_time": 300,
   "checks": {
@@ -60,19 +59,7 @@
     "tunnel_case.mdpa": "52779e25a0d7c39ed0bc47b197ddf08c8660932a2909ba7cc8899ca3a55bcc00",
     "tunnel.kratoscase.json": "f73094055c0bba39956e10274f18be274c5fabe032a7f354a45f064405817ce3",
     "tunnel.kratosvwt.json": "a19ef4948fe5752e0cabbc5b1941d21e0e82c288a2705f9d605ba387ac8cd820",
-    "tunnel.mdpa": "8b8a5d0decc389006e4882a6d874c9cd4514ae3e77e8f8e153821fedd749ddcb",
-    "vtk_output/FluidModelPart_0_100.vtk": "c56d63f6aac207afa1d48aa0b993eeb1a65c3801994c3932642d55a0580e38b1",
-    "vtk_output/FluidModelPart_0_125.vtk": "94a3249278f11dd8a7b16bd992b039dae43168ad7df1a8aba30fcbe73337edc7",
-    "vtk_output/FluidModelPart_0_150.vtk": "f0a0777b9384b1752d7933081d38c4724558c9b70878ab964a7d41a9a4d97669",
-    "vtk_output/FluidModelPart_0_175.vtk": "f2dacfca601adbf2c2bfd0a08d6a9a6fe1d84ec52fb8c052d922d06763fb0770",
-    "vtk_output/FluidModelPart_0_200.vtk": "59bf4e97faa69d27ff032c0fbea216c9d00cfac84504b3d94b16bff7a5c72594",
-    "vtk_output/FluidModelPart_0_225.vtk": "59af8c7118f5b62c92d55da9a7b1f48bb339812d1f776ec21eb17d295cf3a366",
-    "vtk_output/FluidModelPart_0_25.vtk": "a598b041ab799ef8bb07cdebd63b90d7bb15218aa73efc1743b290b52a2a1305",
-    "vtk_output/FluidModelPart_0_250.vtk": "2da96ba4b284e506a40fdec45a46370818636beee0465e3d01bc6053e84a5314",
-    "vtk_output/FluidModelPart_0_275.vtk": "8e2ee2809566c2859ac9178d5836b642e7e3259e59e6f45454ca466f7d0424f3",
-    "vtk_output/FluidModelPart_0_300.vtk": "2fddb8b4a452c32ac0f9e7898109acdf2b44fcfa01348722d24878ead316ec12",
-    "vtk_output/FluidModelPart_0_50.vtk": "eacfd658739a3fce8b648c43e5e2ece7914a0b024d326e12e6900826913e6463",
-    "vtk_output/FluidModelPart_0_75.vtk": "1e60221fd1e5fbe644c87e6cb4dd6d148eb045b59dbb70b3800c940d97fe389c"
+    "tunnel.mdpa": "8b8a5d0decc389006e4882a6d874c9cd4514ae3e77e8f8e153821fedd749ddcb"
   },
   "source": "cad/examples/BREP/blank.brep",
   "revisions": {

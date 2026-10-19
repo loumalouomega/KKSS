@@ -27,7 +27,7 @@ Do not run the case: the stock serial solver cannot start (see the blocked note 
 
 ## Scientific plots
 
-See [scientific plots](scientific-plots) for downloadable case recipes.
+Build plots from your own run in the app: open a result, choose **Plots → New recipe**, and see [scientific plots](scientific-plots) for the builder, units and CSV export.
 
 ## Post-run checks and batch
 

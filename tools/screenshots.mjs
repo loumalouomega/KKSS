@@ -30,7 +30,6 @@ import { manualTutorials } from "./tutorials/manual.mjs";
 import { captureAnimations } from "./tutorials/animations.mjs";
 import { scriptedCapture } from "./tutorials/assistant.mjs";
 import { mesh423Scenario } from "./e2e/mesh-423.mjs";
-import { meshPlotsScenario } from "./e2e/mesh-plots.mjs";
 import { optimizationRunScenario } from "./e2e/optimization-run.mjs";
 
 const OUT = path.join(root, "doc", "public", "screenshots");
@@ -597,11 +596,6 @@ if (process.argv.includes("--cad-only")) {
   console.log("done");
   process.exit(0);
 }
-if (process.argv.includes("--plots-only")) {
-  try { await meshPlotsScenario(OUT); }
-  finally { cleanupDirs(); }
-  process.exit(0);
-}
 if (process.argv.includes("--optimization-run-only")) {
   try { await optimizationRunScenario(OUT); }
   finally { cleanupDirs(); }
@@ -614,7 +608,6 @@ await sessionProperties();
 await sessionProblemtypes();
 // Verified new mesh panels, using deterministic files and their real hosts.
 await mesh423Scenario(OUT);
-await meshPlotsScenario(OUT);
 // A REAL Structural-Optimization run (Generate ▸ Run case with the pinned
 // Kratos runtime) — skipped with a warning wherever its runtime is absent.
 await optimizationRunScenario(OUT);
