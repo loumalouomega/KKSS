@@ -2,7 +2,7 @@
  * A REAL Structural-Optimization run through the real KKSS app, producing the
  * figures for doc/guide/problemtypes.md's "follow the run" section.
  *
- * OptimizationApplication's own 3D-hook case (~/src/Examples) is staged with a
+ * OptimizationApplication's own 3D-hook case (https://github.com/KratosMultiphysics/Examples/blob/master) is staged with a
  * `<stem>.kratoscase.json` seeded to mirror upstream's implicit-vertex-morphing
  * formulation as the built-in Structural Optimization problemtype expresses it:
  * objective mass, one strain-energy constraint ≤ initial value, a

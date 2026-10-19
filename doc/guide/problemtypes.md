@@ -88,7 +88,7 @@ The **Coupling** section of the CoSimulation problemtype:
 
 The structure reads the fluid `REACTION` as its `POINT_LOAD` with the sign swapped and sends its `DISPLACEMENT` back. Both drivers write one record per coupled step to `kkss-convergence-v2.jsonl`, which the Kratos Runs view, the convergence plot and MCP `case_convergence` read like any other run (a completed *weak* run reports convergence as unavailable — it evaluates no criterion — never as converged).
 
-Reference shapes: the FSI Mok benchmark documents under `~/src/Examples/fluid_structure_interaction/validation/fsi_mok/source/` (`fsi_mok_Fluid.mdpa`, `fsi_mok_Structural.mdpa`, `ProjectParameters.json`) show the solver-side file layout Generate produces; the cylinder-cooling case under `~/src/Examples/conjugate_heat_transfer/validation/cylinder_cooling_Re100_Pr2/source/` shows the conjugate-heat-transfer equivalent. In KKSS you start from one mesh holding both bodies rather than these per-physics files.
+Reference shapes: the FSI Mok benchmark documents under `https://github.com/KratosMultiphysics/Examples/blob/master/fluid_structure_interaction/validation/fsi_mok/source/` (`fsi_mok_Fluid.mdpa`, `fsi_mok_Structural.mdpa`, `ProjectParameters.json`) show the solver-side file layout Generate produces; the cylinder-cooling case under `https://github.com/KratosMultiphysics/Examples/blob/master/conjugate_heat_transfer/validation/cylinder_cooling_Re100_Pr2/source/` shows the conjugate-heat-transfer equivalent. In KKSS you start from one mesh holding both bodies rather than these per-physics files.
 
 ## Reduced-order models
 
@@ -112,7 +112,7 @@ Generate finds where each parameter lands by generating the case twice with two 
 
 The driver writes `kkss-rom-progress.jsonl` (one line per analysis) and `kkss-rom-summary-v1.json` (modes, HROM counts, which stages ran); the materials file is restored after the run. **Stop** ends the current analysis cleanly; the summary then says the database is partial. A run of a ROM case shows a row such as *ROM 12 modes · HROM 340 el / 18 cond · 9/9 runs*, with **Plot ROM Singular Values** (normalized singular values vs mode index, log axis — how fast they fall tells how many modes the basis needs) and **Show HROM Elements** (a selection set over the reduced integration domain) in its context menu. MCP `case_rom` returns the same modes, singular values, HROM ids, samples and progress, and `case_status` carries a compact copy.
 
-Worked inputs: `~/src/Examples/rom_application/RomManager/` (`simple_structure_multiple_parameters.mdpa`, `ProjectParameters.json`, `StructuralMaterials.json`, `demo_rom_manager.py`) is the structural starting point the ROM problemtype mirrors; `~/src/Examples/rom_application/RomManager_PotentialFlow/` holds the NACA potential-flow equivalents.
+Worked inputs: `https://github.com/KratosMultiphysics/Examples/blob/master/rom_application/RomManager/` (`simple_structure_multiple_parameters.mdpa`, `ProjectParameters.json`, `StructuralMaterials.json`, `demo_rom_manager.py`) is the structural starting point the ROM problemtype mirrors; `https://github.com/KratosMultiphysics/Examples/blob/master/rom_application/RomManager_PotentialFlow/` holds the NACA potential-flow equivalents.
 
 ## Structural Optimization
 
@@ -148,7 +148,7 @@ A constraint names a response, a relation (`<=`, `<`, `=`, `>=`, `>`) and a refe
 
 ## Following the shape's evolution — a worked run
 
-The figures below come from a **real run**: OptimizationApplication's own 3D-hook case from `~/src/Examples/optimization_application/use_cases/3d_hook/` (a 213,622-cell tetrahedral hook), seeded exactly as described above — a shape (vertex-morphing) control on the hook's own `design_surface_1`, an implicit filter with a 25 mm radius, filter-based mesh motion with the hook's non-design parts damped, with the hook's steel mapped in the model's own units (N/mm, ton/mm³) — and run with **minimize strain energy** (unconstrained compliance minimization; a constraint's standardized criterion counts an unviolated constraint as satisfied at the initial point, which stops the run at iteration 0) for five constant-size 3 mm steps. Each point of the design surface is a design variable, so the Run executes a primal analysis plus a gradient pass per iteration — about five to six minutes per iteration, or roughly half an hour for the five-iteration run (~6 minutes overall if fewer iterations are requested; measured on this fixture at eight solver threads — thread counts don't imply better solve times).
+The figures below come from a **real run**: OptimizationApplication's own 3D-hook case from `https://github.com/KratosMultiphysics/Examples/blob/master/optimization_application/use_cases/3d_hook/` (a 213,622-cell tetrahedral hook), seeded exactly as described above — a shape (vertex-morphing) control on the hook's own `design_surface_1`, an implicit filter with a 25 mm radius, filter-based mesh motion with the hook's non-design parts damped, with the hook's steel mapped in the model's own units (N/mm, ton/mm³) — and run with **minimize strain energy** (unconstrained compliance minimization; a constraint's standardized criterion counts an unviolated constraint as satisfied at the initial point, which stops the run at iteration 0) for five constant-size 3 mm steps. Each point of the design surface is a design variable, so the Run executes a primal analysis plus a gradient pass per iteration — about five to six minutes per iteration, or roughly half an hour for the five-iteration run (~6 minutes overall if fewer iterations are requested; measured on this fixture at eight solver threads — thread counts don't imply better solve times).
 
 ![Optimization progress panel over the finished real run: the formulation, the objective history and the iteration table beside the hook mesh](/screenshots/problemtype-optimization-progress.png)
 
@@ -162,7 +162,7 @@ The figures below come from a **real run**: OptimizationApplication's own 3D-hoo
 
 ![ROM Parameters: one range entry whose Varies target is the materials file's Young modulus, with its minimum and maximum](/screenshots/problemtype-rom-parameters.png)
 
-Worked inputs: `~/src/Examples/optimization_application/use_cases/archara/shape_only/` (`archara.mdpa`, `ProjectParameters.json`, `implicit_vertex_morphing/optimization_parameters.json`) is a shape-optimization starting point; `~/src/Examples/optimization_application/use_cases/3d_hook/` (`hook.mdpa`, `materials_3D.json`, `primal_parameters_main.json`) is the 3D equivalent.
+Worked inputs: `https://github.com/KratosMultiphysics/Examples/blob/master/optimization_application/use_cases/archara/shape_only/` (`archara.mdpa`, `ProjectParameters.json`, `implicit_vertex_morphing/optimization_parameters.json`) is a shape-optimization starting point; `https://github.com/KratosMultiphysics/Examples/blob/master/optimization_application/use_cases/3d_hook/` (`hook.mdpa`, `materials_3D.json`, `primal_parameters_main.json`) is the 3D equivalent.
 
 ## Assistant and MCP
 
