@@ -17,7 +17,7 @@
  *   env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots
  *   npm run docs:screenshots -- --mesh-only  # mesh viewer/panels/timeline only
  *   npm run docs:screenshots -- --cad-only   # CAD viewer/panels/menus only
- *   npm run docs:screenshots -- --animations-only  # fluid-tutorial timeline GIFs only
+ *   npm run docs:screenshots -- --animations-only  # timeline GIFs for the fluid, FSI and CoSimulation tutorials only
  */
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -621,7 +621,7 @@ if (!meshOnly) {
   // interpreter and actual solver-produced tutorial results. The companion uses
   // a local OpenAI-compatible fixture but routes every tool call through KKSS.
   await manualTutorials(OUT);
-  // Timeline GIFs from the committed fluid solver output (no solver run).
+  // Timeline GIFs from the tutorials' VTK series (no solver run; a series missing locally is skipped with a warning and its committed GIF stands).
   await captureAnimations(OUT);
   await scriptedCapture(OUT);
 }

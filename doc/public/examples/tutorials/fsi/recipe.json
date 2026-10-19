@@ -498,7 +498,7 @@
   "preflight": {
     "ok": true,
     "problemtype": "fsi",
-    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-z8IS1L/fsi/mesh.kratoscase.json",
+    "source": "generated/fsi/mesh.kratoscase.json",
     "warnings": [],
     "applications": [
       "FSIApplication",

@@ -16,7 +16,7 @@
       "absVelTol": 0.00001,
       "relPresTol": 0.001,
       "absPresTol": 0.00001,
-      "gravityValue": 0,
+      "gravityValue": 9.81,
       "gravityDirection": [
         0,
         -1,
@@ -61,6 +61,13 @@
       "values": {}
     },
     {
+      "conditionId": "outlet",
+      "smpPath": "Outlet",
+      "values": {
+        "value": 0
+      }
+    },
+    {
       "conditionId": "massConservationCheck",
       "smpPath": "Domain",
       "values": {
@@ -91,7 +98,7 @@
   "output": {
     "format": "ascii",
     "controlType": "step",
-    "interval": 1,
+    "interval": 5,
     "nodalVariables": [
       "VELOCITY",
       "PRESSURE",

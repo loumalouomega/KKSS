@@ -156,9 +156,11 @@ def verify_coupled(case, directory):
 
     displacement = struct_fields['DISPLACEMENT']
     peak = max(math.sqrt(sum(x * x for x in v)) for v in displacement)
+    # Both bounds stay on the record: the minimum proves the structure moved at
+    # all, the maximum bounds the deflection. (A later bare assignment to the same
+    # key used to erase the minimum.)
     check_min('peak_structure_displacement_m', peak, 1e-7)
     check('peak_structure_displacement_limit_m', peak, 0.02)
-    checks['peak_structure_displacement_m'] = peak
 
     convergence = (directory / 'kkss-convergence-v2.jsonl').read_text().strip().split('\n')
     records = [json.loads(line) for line in convergence if line.strip()]
@@ -449,7 +451,7 @@ def verify_eigen(directory):
     """Cantilever free vibration: the solver's eigenvalues vs Euler-Bernoulli.
 
     The eigenvalue run writes no VTK (the GiD postprocess replaces the output),
-    so the check reads the EIGENVALUE_VECTOR the driver prints to solver.log
+    so the check reads the eigenvalue list the driver prints to solver.log
     and compares the first bending frequencies in each transverse plane against
     the analytic cantilever values. The 18 x 4 x 5 mm solid has a 6:1 length
     aspect, hence the 10% documented tolerance.
@@ -457,7 +459,7 @@ def verify_eigen(directory):
     directory = pathlib.Path(directory)
     log = (directory / 'solver.log').read_text()
     found = re.findall(r'Eigenvalues = \[(.*?)\]', log)
-    assert found, 'solver.log carries no EIGENVALUE_VECTOR'
+    assert found, 'solver.log carries no eigenvalue list (Eigenvalues = [...])'
     eigenvalues = sorted(float(x) for x in found[-1].replace(',', ' ').split())
     recipe = json.loads((directory / 'recipe.json').read_text())
     expected = recipe['problem'].get('eigenCount', 3)
@@ -476,7 +478,9 @@ def verify_eigen(directory):
     def check_rel(name, value, ref, tol):
         err = abs(value - ref) / ref
         assert math.isfinite(err) and err <= tol, f'{name}: {value} vs {ref}'
-        checks[name] = {'measured': value, 'reference': ref, 'maximum': tol}
+        # The stored value is the relative error itself; the frequency stays in its own *_Hz row.
+        checks[name] = {'measured': err, 'maximum': tol}
+        checks[name.replace('_relative_error', '_Hz')] = value
 
     check_rel('first_lateral_frequency_relative_error', freqs[0], ref_lateral, 0.10)
     checks['first_lateral_reference_Hz'] = ref_lateral
@@ -502,75 +506,99 @@ def verify_eigen(directory):
             'result': 'solver.log', 'frames': 0, 'checks': checks}
 
 
-def verify_two_fluids(directory):
-    """Dam-break tank, generation only: the solver is blocked upstream.
+def elements_in(mdpa_text):
+    """Number of element rows in the Begin Elements blocks of an MDPA text."""
+    count = 0
+    inside = False
+    for line in mdpa_text.splitlines():
+        s = line.strip()
+        if s.startswith('Begin Elements'):
+            inside = True
+        elif s.startswith('End '):
+            inside = False
+        elif inside and s and s[0].isdigit():
+            count += 1
+    return count
 
-    Checks the generated mesh carries the level-set interface (a nodal
-    DISTANCE field, zero on the water region, positive into the air) and the
-    two fluid materials in solver order on the same part. No solver output is
-    read; generate.mjs records the reproducible upstream ModuleNotFoundError.
+
+def _clipped_area(points, values):
+    """Area of the part of a triangle where the linear interpolant of DISTANCE is <= 0."""
+    poly = []
+    for i in range(3):
+        p, q = points[i], points[(i + 1) % 3]
+        dp, dq = values[i], values[(i + 1) % 3]
+        if dp <= 0:
+            poly.append(p)
+        if (dp <= 0) != (dq <= 0):
+            t = dp / (dp - dq)
+            poly.append((p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])))
+    if len(poly) < 3:
+        return 0.0
+    area = 0.0
+    for i in range(len(poly)):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % len(poly)]
+        area += x1 * y2 - x2 * y1
+    return abs(area) / 2
+
+
+def verify_two_fluids(directory):
+    """Dam-break column under gravity: the level set, the front and the outlet.
+
+    The water is the region where the nodal DISTANCE field is <= 0, so its area
+    (each triangle clipped by the linear interpolant) is the conserved quantity.
+    The column must collapse (the front moves right), the top outlet must hold
+    zero pressure, and every frame must stay finite.
     """
     directory = pathlib.Path(directory)
     recipe = json.loads((directory / 'recipe.json').read_text())
     text = (directory / 'mesh_case.mdpa').read_text()
     parts = set(re.findall(r'Begin SubModelPart (\S+)', text))
-    for name in ('Domain', 'Water', 'Walls'):
+    for name in ('Domain', 'Walls', 'Outlet'):
         assert name in parts, f'Missing named region {name} in generated MDPA'
-    fields, part_nodes, current, in_nodes = {}, {}, None, False
-    field, field_nodal, field_rows = None, False, {}
-    for line in text.splitlines():
-        s = line.strip()
-        m = re.match(r'Begin SubModelPart (\S+)', s)
-        if m:
-            current = m.group(1)
-        elif s == 'End SubModelPart':
-            current, in_nodes = None, False
-        elif s == 'Begin SubModelPartNodes':
-            in_nodes = True
-            part_nodes.setdefault(current, [])
-        elif s == 'End SubModelPartNodes':
-            in_nodes = False
-        elif in_nodes and s and s[0].isdigit():
-            part_nodes[current].append(int(s.split()[0]))
-        else:
-            # Nodal rows carry an is_fixed flag: `id is_fixed value`
-            # (scalar) or `id [fixed] (v1, v2, ...)` (vector). The value is
-            # what the interface check reads.
-            m2 = re.match(r'Begin NodalData (\S+)', s)
-            if m2:
-                field, field_rows, field_nodal = m2.group(1), {}, True
-                fields[field] = field_rows
-            elif s.startswith('End NodalData'):
-                field = None
-            elif 'field' in dir() and field and s and (s[0].isdigit() or s[0] == '-'):
-                row = s.split()
-                if '(' in s:
-                    vals = [float(x) for x in s[s.index('(') + 1:s.index(')')].split(',') if x.strip()]
-                elif len(row) >= 3 and field_nodal:
-                    vals = [float(row[2])]
-                else:
-                    vals = [float(x) for x in row[1:]]
-                field_rows[int(row[0])] = vals
-    assert 'DISTANCE' in fields, 'Generated mesh carries no nodal DISTANCE field'
-    distance = fields['DISTANCE']
-    water_ids = part_nodes.get('Water', [])
-    assert water_ids, 'Water part holds no nodes'
-    water_vals = [distance[i][0] for i in water_ids if i in distance]
-    assert len(water_vals) == len(water_ids), 'DISTANCE misses Water nodes'
-    checks = {'water_nodes': len(water_ids)}
-    worst = max(abs(v) for v in water_vals)
-    checks['water_distance_max_abs'] = worst
-    assert worst <= 1e-6, f'Water region not on the interface: max |DISTANCE| {worst}'
-    far = max(v[0] for v in distance.values())
-    checks['air_distance_maximum'] = far
-    assert far >= 1.0, f'No air node far from the interface: max DISTANCE {far}'
     laws = [m['lawId'] for m in recipe['materials']]
     assert len(laws) >= 2 and laws[0].startswith('phase_1_') and laws[1].startswith('phase_2_'), f'Materials not water-then-air: {laws}'
-    assert recipe['materials'][0]['smpPath'] == recipe['materials'][1]['smpPath'] == 'Domain'
+    assert recipe['materials'][0]['smpPath'] == recipe['materials'][1]['smpPath'] == 'Domain', 'Both fluids belong to the one Domain part'
+    frames = sorted((directory / 'vtk_output').glob('FluidModelPart_*.vtk'), key=lambda p: int(p.stem.rsplit('_', 1)[1]))
+    assert frames, 'No solver results'
+    parameters = json.loads((directory / 'ProjectParameters.json').read_text())
+    checks = {}
+
+    def check(name, value, limit):
+        assert math.isfinite(value) and value <= limit, f'{name}: {value} > {limit}'
+        checks[name] = {'measured': value, 'maximum': limit}
+
+    def check_min(name, value, limit):
+        assert math.isfinite(value) and value >= limit, f'{name}: {value} < {limit}'
+        checks[name] = {'measured': value, 'minimum': limit}
+
+    areas, fronts, peak_speed, outlet_pressure = [], [], 0.0, 0.0
+    for path in frames:
+        points, cells, fields = vtk(path)
+        distance = [x[0] if isinstance(x, (list, tuple)) else x for x in fields['DISTANCE']]
+        pressure = [x[0] if isinstance(x, (list, tuple)) else x for x in fields['PRESSURE']]
+        velocity = fields['VELOCITY']
+        assert all(math.isfinite(x) for x in distance + pressure), f'{path.name}: non-finite DISTANCE or PRESSURE'
+        assert all(math.isfinite(c) for v in velocity for c in v), f'{path.name}: non-finite VELOCITY'
+        areas.append(sum(_clipped_area([points[i][:2] for i in cell], [distance[i] for i in cell]) for cell in cells if len(cell) == 3))
+        fronts.append(max(points[i][0] for i in range(len(points)) if distance[i] <= 0))
+        peak_speed = max(peak_speed, max(math.sqrt(sum(c * c for c in v)) for v in velocity))
+        top = [pressure[i] for i in range(len(points)) if points[i][1] > 1 - 1e-9]
+        outlet_pressure = max(outlet_pressure, max(abs(x) for x in top))
+    area0 = areas[0]
+    check('column_area_error_at_start', abs(area0 - 0.8) / 0.8, 0.01)
+    check('water_area_drift', max(abs(a - area0) for a in areas) / area0, 0.02)
+    check_min('front_advance_m', fronts[-1] - 1.0, 0.5)
+    check('peak_speed_m_per_s', peak_speed, 10.0)
+    check('outlet_pressure_error_Pa', outlet_pressure, 1e-6)
+    checks['water_area_m2'] = {'first': area0, 'last': areas[-1]}
+    checks['front_x_m'] = {'first': 1.0, 'last': fronts[-1]}
     checks['material_order'] = laws[:2]
+    points, cells, fields = vtk(frames[-1])
     return {'case': 'two-fluids', 'python': platform.python_version(), 'kratos': importlib.metadata.version('KratosMultiphysics'),
-            'threads': 2, 'nodes': len(distance), 'elements': 0, 'fields': ['DISTANCE'],
-            'result': 'mesh_case.mdpa', 'frames': 0, 'checks': checks}
+            'threads': 2, 'nodes': len(points), 'elements': elements_in(text), 'fields': sorted(fields),
+            'result': str(frames[-1].relative_to(directory)), 'frames': len(frames),
+            'end_time': parameters['problem_data']['end_time'], 'checks': checks}
 
 
 def verify_wind_tunnel(directory):

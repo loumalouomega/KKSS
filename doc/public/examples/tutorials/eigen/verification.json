@@ -6,22 +6,23 @@
   "nodes": 1048,
   "elements": 3896,
   "fields": [],
+  "result": "solver.log",
   "frames": 0,
   "checks": {
     "eigenfrequency_1_Hz": 10699.367870276254,
     "eigenfrequency_2_Hz": 12831.106651663093,
     "eigenfrequency_3_Hz": 44923.74872062199,
     "first_lateral_frequency_relative_error": {
-      "measured": 10699.367870276254,
-      "reference": 10313.87474428442,
+      "measured": 0.03737616904892707,
       "maximum": 0.1
     },
+    "first_lateral_frequency_Hz": 10699.367870276254,
     "first_lateral_reference_Hz": 10313.87474428442,
     "second_vertical_frequency_relative_error": {
-      "measured": 12831.106651663093,
-      "reference": 12892.343430355524,
+      "measured": 0.004749856302171341,
       "maximum": 0.1
     },
+    "second_vertical_frequency_Hz": 12831.106651663093,
     "second_vertical_reference_Hz": 12892.343430355524,
     "eigenvalue_count": 3
   },
@@ -30,19 +31,19 @@
     "cantilever.stp.edits.json": "dab716d90755aef8c86f834d144d9fe1c079cf655d4bd992784990605b3997e5",
     "cantilever.stp.mesh.json": "ce678702ef2f59c8515351733720a25f45d91bc1fd1f797068435a9a876254e6",
     "cantilever.stp.parts.json": "56565d12a9243d1acdcc47d62b9ce3a0e830c9334cf35670a4ca0a6b41e1408c",
-    "kkss-convergence-v2.jsonl": "4e0b872c60b1093e15bfbb40531618bafa189e8e231d20d9a2b9f46206836f9e",
+    "kkss-convergence-v2.jsonl": "d6b916b57d73aa304008b848956de5e6f7ac7b468c8c0a1bddc5e47f750240da",
     "LICENSE": "28dc85b7942fabff1cc9b4512947874c6eac0fa9f798578a02c0f564d8882971",
     "MainKratos.py": "721fdbfe8300e05db0f19f7d987fb9700390f0460e15b1461e792c439fe5fd58",
     "mesh_case.mdpa": "9626cac394c6b224bced77fbe7d8e0212185dcf8e7c174a7cd67944d85e4075c",
-    "mesh.kratoscase.json": "5b2ec1eb4d8b70e78ecd6bcf5aabd0e3cfa4629c9184ad21407d5f0d93ce9fb2",
+    "mesh.kratoscase.json": "19e95880bb06b2b5e26a071376b78af114215363e51b09a561e82299ace2415e",
     "mesh.mdpa": "1eb3ccb1d428a05eeef03dc157070fe51e925a2b8e079eaec846697987ed4bd7",
-    "ProjectParameters.json": "b1a7ab3c2fe882d52347a983f1a47c478d84b05cb1deb8cabf5507f8b06102f7",
-    "recipe.json": "2fe61c8bab24caef0fba1cbebccf22c10cd4fdffd2466a3177875bd68741b33f",
+    "ProjectParameters.json": "04d38fd57abfd8a3d0ac50a853f947eff42dcc918bf7e7577b8feb4f4723c1af",
+    "recipe.json": "020abd7a981e49f1e66b7c97714e4fb6fae396536b95908b31b52a22fefc9928",
     "StructuralMaterials.json": "cbc3beb1b9f1beafd4159c741c060a88a94f8e2eedb8f693c982c6f37968804f"
   },
   "source": "cad/examples/STP/block.stp",
   "revisions": {
     "cad": "7c51565f2388edbba04a7b9637e827df550851f0",
-    "mesh": "cab0b4f77355aa3dd1290b370aca98b222be660b"
+    "mesh": "545f8407aaa0e88feb4d2d6cde579f3a4279833b"
   }
 }

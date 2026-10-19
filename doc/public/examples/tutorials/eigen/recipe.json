@@ -46,7 +46,9 @@
     "eigenCount": 3,
     "eigenMaxIteration": 1000,
     "eigenTolerance": 0.000001,
-    "eigenSolver": "eigen_eigensystem"
+    "eigenSolver": "eigen_eigensystem",
+    "timeStep": 1,
+    "endTime": 1
   },
   "assignments": [
     {
@@ -80,12 +82,13 @@
   ],
   "field": "DISPLACEMENT",
   "eigen": true,
+  "manual": "setup",
   "timeout": 600000,
   "exportUnit": "m",
   "preflight": {
     "ok": true,
     "problemtype": "structural",
-    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-yYhMcj/eigen/mesh.kratoscase.json",
+    "source": "generated/eigen/mesh.kratoscase.json",
     "warnings": [],
     "applications": [
       "LinearSolversApplication",
@@ -114,7 +117,7 @@
           "harmonicDamping": false,
           "harmonicAssembleDamping": false,
           "startTime": 0,
-          "timeStep": 0.1,
+          "timeStep": 1,
           "endTime": 1,
           "convergenceCriterion": "residual_criterion",
           "residualRelTol": 0.0001,

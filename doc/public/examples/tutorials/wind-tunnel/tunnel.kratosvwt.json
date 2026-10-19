@@ -1,7 +1,7 @@
 {
   "version": 1,
   "params": {
-    "bodyPath": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel/tunnel_body_src.stl",
+    "bodyPath": "generated/wind-tunnel/tunnel_body_src.stl",
     "unit": "m",
     "tunnel": {
       "upstream": 1.5,
@@ -21,7 +21,7 @@
       "wakeLength": 0.5,
       "wakeSize": 0.5
     },
-    "outputFolder": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel",
+    "outputFolder": "generated/wind-tunnel",
     "stem": "tunnel",
     "generateCase": true
   },
@@ -66,11 +66,11 @@
     "seconds": 25.608,
     "log": [
       "Lattice: 144 nodes.",
-      "Refine towards the body (pass 1 of 2): Computed d from \"/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel/tunnel_body.stl\" — 0 of 144 node(s) inside.",
+      "Refine towards the body (pass 1 of 2): Computed d from \"generated/wind-tunnel/tunnel_body.stl\" — 0 of 144 node(s) inside.",
       "Refine towards the body (pass 1 of 2): Remeshed (mmg3d): 144 → 635 nodes, 450 → 3,073 tetrahedra, 220 → 412 triangles. Mapped 1 field(s) onto the new mesh (Nodal:d).",
-      "Refine towards the body (pass 2 of 2): Computed d from \"/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel/tunnel_body.stl\" — 11 of 635 node(s) inside.",
+      "Refine towards the body (pass 2 of 2): Computed d from \"generated/wind-tunnel/tunnel_body.stl\" — 11 of 635 node(s) inside.",
       "Refine towards the body (pass 2 of 2): Remeshed (mmg3d): 635 → 699 nodes, 3,073 → 3,426 tetrahedra, 412 → 424 triangles. Mapped 1 field(s) onto the new mesh (Nodal:d).",
-      "Carve the body out of the tunnel: Computed d from \"/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel/tunnel_body.stl\" — 20 of 699 node(s) inside.",
+      "Carve the body out of the tunnel: Computed d from \"generated/wind-tunnel/tunnel_body.stl\" — 20 of 699 node(s) inside.",
       "Carve the body out of the tunnel: Level-set split (mmg3d): 699 → 25,173 nodes, 3,426 → 140,984 tetrahedra, 424 → 4,632 triangles. Mapped 1 field(s) onto the new mesh (Nodal:d).",
       "Dropped 36,083 tetrahedra inside the body.",
       "Snap: size-preserving quality pass before the move.",
@@ -81,9 +81,9 @@
       "Snap: quality pass before the top-up.",
       "Snap polish 1: raw sub-step 1 applied (residual about 0.000% of L).",
       "Snap: wall gap 4.751% → 0.000% of the body length.",
-      "Build the wall layer: Computed d from \"/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel/tunnel_body.stl\" — 439 of 10951 node(s) inside.",
+      "Build the wall layer: Computed d from \"generated/wind-tunnel/tunnel_body.stl\" — 439 of 10951 node(s) inside.",
       "Build the wall layer: Remeshed (wall layer) (mmg3d): 10,951 → 14,840 nodes, 58,942 → 82,804 tetrahedra, 2,750 → 4,028 triangles. 2750 boundary cell(s) have no gradient; their nodes use the other cells' wall direction. Mapped 1 field(s) onto the new mesh (Nodal:d).",
-      "Measure the wall: Computed d from \"/home/vicente/src/KKSS/node_modules/.cache/tutorials-PaZdGt/wind-tunnel/tunnel_body.stl\" — 828 of 14840 node(s) inside."
+      "Measure the wall: Computed d from \"generated/wind-tunnel/tunnel_body.stl\" — 828 of 14840 node(s) inside."
     ],
     "warnings": [
       "The case uses the k-omega-sst RANS model with the logarithmic wall function (Re = 5.28e+5): keep the first node row at y+ 30–100, and expect a steady solution only where the flow is steady."

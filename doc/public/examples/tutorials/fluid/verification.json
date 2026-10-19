@@ -9,16 +9,17 @@
     "VELOCITY",
     "PRESSURE"
   ],
+  "result": "vtk_output/FluidModelPart_0_51.vtk",
   "frames": 51,
   "end_time": 5,
   "checks": {
     "inlet_velocity_error_m_per_s": {
       "measured": 0,
-      "maximum": 1e-06
+      "maximum": 0.000001
     },
     "outlet_pressure_error_Pa": {
       "measured": 0,
-      "maximum": 1e-06
+      "maximum": 0.000001
     },
     "flux_imbalance_m2_per_s": {
       "measured": 2.3997394349439816e-10,
@@ -28,7 +29,7 @@
     "outlet_flux_m2_per_s": 0.06000000176002605,
     "obstacle_no_slip_speed_m_per_s": {
       "measured": 0,
-      "maximum": 2e-05
+      "maximum": 0.00002
     },
     "near_wake_velocity_deficit_m_per_s": {
       "measured": 0.1047504595,
@@ -59,11 +60,11 @@
     "obstacle-channel.brep.parts.json": "eddcd399aac0507fc311b17ec3371f25726afb27e2b75cf35ebc5674e51586f2",
     "obstacle-channel.svg": "bae623776f22d89533719ed1eb314f634d5c1d45cc3ee5e8ee66d4b4ad22dee0",
     "ProjectParameters.json": "708ef15caea5257fe50f9819de74eb7e04994f1dea29f2a344c46c5054f2fe70",
-    "recipe.json": "064ed00b40fdcd6ed454cb715f1566fddd34ea1115d19493a471abc39fb0f6e7"
+    "recipe.json": "d63ab64c43a78bc7be654a558344f6aae63a8d1971144cae5f93fc7525cbe305"
   },
   "source": "cad/examples/BREP/blank.brep",
   "revisions": {
-    "cad": "ad045a840dc3faa32d3842cc4ab378d67754ee66",
-    "mesh": "6b7ffa16e00ca8bead8786c68f8099b1d9a15c46"
+    "cad": "7c51565f2388edbba04a7b9637e827df550851f0",
+    "mesh": "545f8407aaa0e88feb4d2d6cde579f3a4279833b"
   }
 }

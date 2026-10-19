@@ -1,221 +1,401 @@
+#!/usr/bin/env node
+// The setup half of each tutorial, replayed in the real app: the CAD geometry,
+// the CAD MDPA export, the Problemtype sidebar (values, Parts, Conditions,
+// Materials) and Generate. It takes the geometry, mesh and setup-card shots
+// that shots.mjs declares for each case. The solver is not run here: results
+// come from tools/tutorials/gallery.mjs, which reads the recovered output.
+//
+//   node tools/tutorials/manual.mjs [case ...]
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { launchApp, appWindow, closeApp, until, selectFile, softwareGL, diagnostics, sleep } from '../e2eShared.mjs';
+import { closeApp, appWindow, selectFile, sleep, until, diagnostics } from '../e2eShared.mjs';
 import { root, python } from './mcp.mjs';
 import { cases } from './cases.mjs';
+import { CATALOG } from './shots.mjs';
+import { canvasShot, command, fit, launchWindow, resetView, waitForDocument } from './capture.mjs';
 
-async function values(container, values) {
-  for (const [key, value] of Object.entries(values)) {
+const screenshots = path.join(root, 'doc/public/screenshots');
+
+/** Fills `[data-field]` rows of a card from a plain value map (arrays fill the row's inputs in order). */
+async function values(container, entries) {
+  for (const [key, value] of Object.entries(entries)) {
+    try {
+      await valueRow(container, key, value);
+    } catch (error) {
+      throw new Error(`field ${key} (${JSON.stringify(value)}): ${error.message.split("\n")[0]}`);
+    }
+  }
+}
+
+async function valueRow(container, key, value) {
+  {
     const row = container.locator(`[data-field="${key}"]`);
     if (Array.isArray(value)) {
-      for (let i = 0; i < value.length; i++) { await row.locator('input').nth(i).fill(String(value[i])); await row.locator('input').nth(i).press('Tab'); }
+      for (let i = 0; i < value.length; i++) {
+        await row.locator('input').nth(i).fill(String(value[i]));
+        await row.locator('input').nth(i).press('Tab');
+      }
     } else if (typeof value === 'boolean') await row.locator('input').setChecked(value);
     else if (await row.locator('select').count()) await row.locator('select').selectOption(String(value));
-    else { await row.locator('input').fill(String(value)); await row.locator('input').press('Tab'); }
-  }
-}
-
-/** The case's latest file of one participant family, opened through the shell
- *  window's Post-Processing mode and Open… — the user's own path for a result
- *  file the Problemtype sidebar's single `Open results` did not pick. */
-async function openParticipant(app, dir, family, deadline) {
-  const files = fs.readdirSync(path.join(dir, 'vtk_output')).filter((n) => n.startsWith(family) && n.endsWith('.vtk'));
-  assert.ok(files.length, `no ${family} output in ${dir}/vtk_output`);
-  const latest = files.sort((a, b) => Number(a.match(/_(\d+)\.vtk$/)[1]) - Number(b.match(/_(\d+)\.vtk$/)[1])).at(-1);
-  const shell = await appWindow(app, '/renderer/shell/', deadline);
-  await shell.locator('#mode-mesh').click();
-  await selectFile(app, path.join(dir, 'vtk_output', latest));
-  await shell.locator('#open-btn').click();
-  let found;
-  await until(async () => {
-    for (const page of app.windows().filter(p => p.url().includes('/renderer/mesh/'))) {
-      if (await page.locator('#doc-chip-name').textContent().catch(() => '') === latest) { found = page; return true; }
+    else {
+      // A read-only input already holds the form default; typing into it would wait forever.
+      const input = row.locator('input').first();
+      if (!(await input.isEditable().catch(() => false))) return;
+      await input.fill(String(value));
+      await input.press('Tab');
     }
-    return false;
-  }, `${latest} opens in a viewer`, 120000);
-  return found;
-}
-
-export async function manualTutorials(out, selected = []) {
-  for (const c of cases.filter(c => !selected.length || selected.includes(c.id))) {
-    // Capture depth per case: the standard flow replays mesh export, sidebar
-    // setup, Generate, Run and results. Eigen stops after Generate (its
-    // solver writes modes, not a VTK timeline, so there is no results tab to
-    // open). The blocked two-fluids case and the wizard-built wind tunnel
-    // capture the authored geometry only — their meshes come from a DISTANCE
-    // transform and the wind-tunnel wizard respectively, not the CAD export
-    // this flow replays.
-    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kkss-tutorial-'));
-    const dir = path.join(temp, c.id), profile = path.join(temp, 'profile');
-    fs.cpSync(path.join(root, 'doc/public/examples/tutorials', c.id), dir, { recursive: true });
-    // Author case settings in the actual sidebar and export a new mesh in CAD.
-    for (const name of fs.readdirSync(dir)) if (name === 'vtk_output' || /^(mesh.*|ProjectParameters.*\.json|.*Materials\.json|MainKratos.*\.py|kkss-convergence.*\.jsonl)$/.test(name)) fs.rmSync(path.join(dir, name), { recursive: true, force: true });
-    fs.mkdirSync(profile);
-    fs.writeFileSync(path.join(profile, 'state.json'), JSON.stringify({ uiTheme: 'dark', 'kratos.pythonPath': python, 'kratos.extraEnv': { OMP_NUM_THREADS: '2' } }));
-    const { app, output } = await launchApp(path.join(dir, c.geometry), { userDataDir: profile, extraArgs: [...softwareGL, '--force-device-scale-factor=2'], env: { OMP_NUM_THREADS: '2', KKSS_KRATOS_PYTHON: python } });
-    try {
-      await app.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows()[0].setContentSize(1440, 1100));
-      const deadline = Date.now() + 120000;
-      const cad = await appWindow(app, '/renderer/cad/', deadline);
-      await until(() => output().includes('[cad] host → webview: geometry'), 'CAD geometry', 120000);
-      await cad.locator('#doc-chip-name').getByText(c.geometry, { exact: true }).waitFor();
-      await sleep(1200); // allow the WebGL frame to settle before capturing
-      if (out) await cad.screenshot({ path: path.join(out, `tutorial-${c.id}-geometry.png`) });
-      if (c.manual === 'geometry') continue; // wizard- or transform-built mesh: nothing to replay here.
-      await cad.locator('#meshing-toggle').click();
-      await cad.selectOption('#meshing-export-format', 'mdpaElements');
-      await cad.selectOption('#meshing-export-unit', 'm');
-      await selectFile(app, path.join(dir, 'mesh.mdpa'), true);
-      await cad.locator('#meshing-export').click();
-      await until(() => fs.existsSync(path.join(dir, 'mesh.mdpa')), 'CAD MDPA export', 120000);
-      let mesh;
-      await until(async () => {
-        for (const page of app.windows().filter(p => p.url().includes('/renderer/mesh/'))) {
-          if (await page.locator('#doc-chip-name').textContent().catch(() => '') === 'mesh.mdpa' && await page.locator('#pt-select option').count() > 1) { mesh = page; return true; }
-        }
-        return false;
-      }, 'exported mesh catalog', 60000);
-      await mesh.locator('#pt-select').selectOption(c.problemtype);
-      for (const section of ['layers', 'edit', 'variables', 'meshmod']) {
-        const expanded = mesh.locator(`.sb-section[data-section="${section}"]:not(.collapsed) > .sb-section-header .panel-chevron`);
-        if (await expanded.count()) await expanded.click();
-      }
-      // Coupled problemtypes carry one card per section (coupling, fluid,
-      // structure) and all but the first start collapsed; every field must be
-      // visible before the form can be filled by data-field.  Click through the
-      // app's own toggles so its persisted collapse state stays consistent.
-      while (await mesh.locator('#pt-forms .pt-card.collapsed > .edit-form-title').count() > 0) {
-        await mesh.locator('#pt-forms .pt-card.collapsed > .edit-form-title').first().click();
-      }
-      while (await mesh.locator('#pt-forms .pt-group.collapsed > .pt-group-header').count() > 0) {
-        await mesh.locator('#pt-forms .pt-group.collapsed > .pt-group-header').first().click();
-      }
-      // Coupled cases keep section-keyed values; the sidebar form is flat.
-      const formValues = c.values ? Object.assign({}, ...Object.values(c.values)) : c.problem;
-      await values(mesh.locator('#pt-forms'), formValues);
-      for (const a of c.assignments) {
-        // A Parts-style pseudo-condition (which SubModelParts form the computing
-        // domain) is filed in its own Domain card — one per physics domain,
-        // each with a single-choice dropdown — and is deliberately absent from
-        // the Conditions card's grouped add-row.
-        const partsCard = await mesh.evaluate((id) => {
-          const cards = Array.from(document.querySelectorAll('#pt-parts .pt-card'));
-          return cards.findIndex((card) => Array.from(card.querySelectorAll('select.pt-add-what option')).some((o) => o.value === id));
-        }, a.conditionId);
-        const host = partsCard >= 0 ? mesh.locator('#pt-parts .pt-card').nth(partsCard) : mesh.locator('#pt-assignments');
-        if (partsCard < 0) await mesh.selectOption('#pt-assignments .pt-add-what', a.conditionId);
-        await host.locator('select.pt-add-where').selectOption(a.smpPath);
-        await host.locator('.pt-add-row button').click();
-        await values(host.locator('.pt-assign').last(), a.values);
-      }
-      for (const m of c.materials) {
-        await mesh.selectOption('#pt-materials .pt-add-what', m.lawId);
-        await mesh.selectOption('#pt-materials .pt-add-where', m.smpPath);
-        await mesh.locator('#pt-materials .pt-add-row button').click();
-        await values(mesh.locator('#pt-materials .pt-assign').last(), m.values);
-      }
-      await mesh.locator('#pt-generate').click();
-      await until(() => fs.existsSync(path.join(dir, c.primaryDocument ?? 'ProjectParameters.json')), 'Generate case files');
-      await mesh.locator('#pt-select').scrollIntoViewIfNeeded();
-      if (out) await mesh.screenshot({ path: path.join(out, `tutorial-${c.id}-setup.png`) });
-      if (c.manual === 'setup') continue; // no VTK timeline to open results from.
-      await until(async () => await mesh.locator('#pt-run').isEnabled(), 'manual interpreter ready', 60000);
-      await mesh.locator('#pt-run').click();
-      await until(() => {
-        const receipt = path.join(dir, 'mesh.kratosrun.json');
-        if (!fs.existsSync(receipt)) return false;
-        const state = JSON.parse(fs.readFileSync(receipt, 'utf8'));
-        if (state.exitCode !== undefined && state.exitCode !== 0) throw Error(JSON.stringify(state));
-        return state.exitCode === 0;
-      }, 'manual solver completion', c.manualTimeout ?? 180000);
-      const report = JSON.parse(execFileSync(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { encoding: 'utf8' }));
-      await mesh.locator('#pt-open-results').click();
-      const resultPages = [];
-      await until(async () => {
-        for (const page of app.windows().filter(p => p.url().includes('/renderer/mesh/'))) {
-          const name = await page.locator('#doc-chip-name').textContent().catch(() => '');
-          if (name.includes('.vtk') && !resultPages.includes(page)) resultPages.push(page);
-        }
-        return resultPages.length > 0;
-      }, 'Open results creates VTK tab', 60000);
-      const shotField = async (result, field, shot, warp) => {
-        await result.locator('#toolbar button[data-action="field"]').click();
-        const selector = result.locator('#field-panel select').first();
-        await selector.waitFor();
-        const options = await selector.locator('option').evaluateAll(els => els.map(el => ({ text: el.textContent, value: el.value })));
-        const choice = options.find(o => o.text.startsWith(field + ' '));
-        assert.ok(choice, `Missing ${field}`);
-        await selector.selectOption(choice.value);
-        await result.locator('#toolbar button[data-action="reset"]').click();
-        if (warp) {
-          // Display-only warp so the coupled shape's bending is visible; the
-          // figure's caption names the factor. The channel-slab cosim case uses
-          // 200× (millimetre bending that 1000× would bow clean off the reset
-          // frame); the Mok fsi case sets 1× through c.warp.
-          const deformedMode = result.locator('.field-mode-btn').filter({ hasText: 'Deformed' });
-          await deformedMode.click();
-          const deformForm = result.locator('.field-subform').filter({ hasText: 'Deform by' });
-          await deformForm.locator('select').selectOption(choice.value);
-          await deformForm.locator('input[type="range"]').evaluate((el, v) => { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); }, warp);
-          await result.locator('body').press('5'); // +Z FRONT: the X-Y bending plane face-on
-        }
-        await sleep(1800);
-        if (out) await result.screenshot({ path: path.join(out, shot) });
-        return { result, selector, options };
-      };
-      let result, selector, options, choice;
-      if (c.structureField) {
-        // `Open results` opens ONE tab: the case's latest result file (most
-        // steps wins across families, ties by name — the fluid participant
-        // here), not a tab per participant. The second participant is opened
-        // the way any result file is — the shell window's Post-Processing mode
-        // and Open…, the same dialog flow tools/e2e/lifecycle.mjs drives — and
-        // its field is captured from the viewer the app opens for it.
-        const names = await Promise.all(resultPages.map(p => p.locator('#doc-chip-name').textContent().catch(() => '')));
-        result = resultPages[names.findIndex(n => n.startsWith('Fluid'))] ?? resultPages[0];
-        ({ selector, options } = await shotField(result, c.field, `tutorial-${c.id}-results.png`));
-        const structPage = await openParticipant(app, dir, 'Structure', deadline);
-        await shotField(structPage, c.structureField, `tutorial-${c.id}-structure.png`, c.warp ?? 200);
-      } else {
-        result = resultPages[0];
-        ({ selector, options } = await shotField(result, c.field, `tutorial-${c.id}-results.png`));
-        choice = options.find(o => o.text.startsWith(c.field + ' '));
-      }
-      if (c.id === 'fluid') {
-        const pressure = options.find(o => o.text.startsWith('PRESSURE '));
-        assert.ok(pressure, 'Missing PRESSURE');
-        await selector.selectOption(pressure.value);
-        await sleep(700);
-        if (out) await result.screenshot({ path: path.join(out, 'tutorial-fluid-pressure.png') });
-      }
-      if (c.id === 'structural') {
-        const deformedMode = result.locator('.field-mode-btn').filter({ hasText: 'Deformed' });
-        await deformedMode.click();
-        const deformForm = result.locator('.field-subform').filter({ hasText: 'Deform by' });
-        await deformForm.locator('select').selectOption(choice.value);
-        const warpScale = deformForm.locator('input[type="range"]');
-        assert.equal(await warpScale.getAttribute('max'), '1000');
-        await warpScale.evaluate(el => { el.value = '1000'; el.dispatchEvent(new Event('input', { bubbles: true })); });
-        assert.match(await deformedMode.getAttribute('class') ?? '', /active/);
-        assert.equal(await warpScale.inputValue(), '1000');
-        await result.locator('body').press('3'); // standard +Y / Top view exposes the X-Z bending plane
-        await sleep(700);
-        if (out) await result.screenshot({ path: path.join(out, 'tutorial-structural-deformed.png') });
-        await selector.selectOption(options.find(o => o.text.startsWith('VON_MISES_STRESS ')).value);
-        await sleep(600);
-        if (out) await result.screenshot({ path: path.join(out, 'tutorial-structural-stress.png') });
-      }
-      console.log(`PASS manual tutorial ${c.id}: ${report.nodes} nodes; solver and physical checks passed`);
-    } catch (error) {
-      await diagnostics(app, output, `tutorial-${c.id}`).catch(() => {});
-      throw error;
-    } finally { await closeApp(app); fs.rmSync(temp, { recursive: true, force: true }); }
   }
 }
+
+/**
+ * Screenshots the sidebar region covering `locators` (the union of their
+ * boxes, after scrolling the first into view) with a page-level clip. Only
+ * the sidebar is in the clip, so the canvas never moves.
+ */
+async function sectionShot(page, locators, file) {
+  await locators[0].scrollIntoViewIfNeeded();
+  await sleep(300);
+  const boxes = [];
+  for (const locator of locators) {
+    const box = await locator.boundingBox();
+    if (box && box.height > 0) boxes.push(box);
+  }
+  assert.ok(boxes.length, `no visible card for ${file}`);
+  const left = Math.min(...boxes.map((b) => b.x));
+  const top = Math.min(...boxes.map((b) => b.y));
+  const right = Math.max(...boxes.map((b) => b.x + b.width));
+  const bottom = Math.max(...boxes.map((b) => b.y + b.height));
+  // Never past the sidebar itself: its scrolling edge and the command line below are not part of the card.
+  const side = await page.locator('#sidebar').boundingBox();
+  const clipTop = Math.max(side ? side.y : 0, top - 6);
+  const clipBottom = Math.min(side ? side.y + side.height : bottom, bottom + 6);
+  const clip = { x: left - 6, y: clipTop, width: right - left + 12, height: clipBottom - clipTop };
+  let previous = null;
+  for (let i = 0; i < 8; i++) {
+    const png = await page.screenshot({ clip, timeout: 30_000 });
+    if (previous && png.equals(previous)) { fs.writeFileSync(file, png); return png.length; }
+    previous = png;
+    await sleep(250);
+  }
+  fs.writeFileSync(file, previous);
+  return previous.length;
+}
+
+/** Expands every collapsed card and group so their fields are in the DOM and on screen. */
+async function expandAll(mesh) {
+  for (const section of ['layers', 'edit', 'variables', 'mesh-mod']) {
+    const expanded = mesh.locator(`.sb-section[data-section="${section}"]:not(.collapsed) > .sb-section-header .panel-chevron`);
+    if (await expanded.count()) await expanded.click();
+  }
+  while (await mesh.locator('#pt-forms .pt-card.collapsed > .edit-form-title').count() > 0) {
+    await mesh.locator('#pt-forms .pt-card.collapsed > .edit-form-title').first().click();
+  }
+  while (await mesh.locator('#pt-forms .pt-group.collapsed > .pt-group-header').count() > 0) {
+    await mesh.locator('#pt-forms .pt-group.collapsed > .pt-group-header').first().click();
+  }
+}
+
+/** Set by --shot=<file>: only that catalog shot is written (the setup still runs to reach it). */
+let onlyShot = null;
+
+/**
+ * Grows the window until every card's bottom edge is inside the sidebar, so a capture of the stack is not cut
+ * off by the sidebar's edge. Returns true when the window had to grow.
+ */
+/** Sets the zoom factor of the mesh viewer's view (the factor View > Zoom applies); returns the previous one. */
+async function setMeshZoom(app, factor) {
+  return app.evaluate(({ webContents }, f) => {
+    const view = webContents.getAllWebContents().find((c) => c.getURL().includes('/renderer/mesh/'));
+    const previous = view.getZoomFactor();
+    view.setZoomFactor(f);
+    return previous;
+  }, factor);
+}
+
+/**
+ * Steps the mesh viewer's zoom down until the whole Problemtype stack, its Generate button included, sits inside
+ * the sidebar. At 1500 px the stack is taller than the sidebar and a taller window does not reflow the viewer here.
+ * Returns the zoom that was applied (null at 100%).
+ */
+async function fitStackByZoom(app, mesh, locators) {
+  for (const factor of [1, 0.9, 0.85, 0.8]) {
+    await setMeshZoom(app, factor);
+    await sleep(800);
+    await locators[0].scrollIntoViewIfNeeded();
+    await sleep(300);
+    let bottom = 0;
+    for (const locator of locators) {
+      const box = await locator.boundingBox();
+      if (box && box.height > 0) bottom = Math.max(bottom, box.y + box.height);
+    }
+    const side = await mesh.locator('#sidebar').boundingBox();
+    console.log(`  zoom ${factor}: cards bottom ${Math.round(bottom)}, sidebar bottom ${Math.round(side.y + side.height)}`);
+    if (bottom + 6 <= side.y + side.height) return factor < 1 ? factor : null;
+  }
+  throw new Error('the Problemtype stack does not fit the sidebar even at 80% zoom');
+}
+
+/** One case's setup: CAD geometry, exported MDPA, Problemtype values, Generate. */
+async function setupCase(c, shots, log) {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kkss-tutorial-'));
+  const dir = path.join(temp, c.id);
+  const profile = path.join(temp, 'profile');
+  fs.cpSync(path.join(root, 'doc/public/examples/tutorials', c.id), dir, { recursive: true });
+  // The published case carries the solver inputs; the setup regenerates them.
+  for (const name of fs.readdirSync(dir)) {
+    if (name === 'vtk_output' || /^(mesh.*|ProjectParameters.*\.json|.*Materials\.json|MainKratos.*\.py|kkss-convergence.*\.jsonl|.*\.kratosrun\.json)$/.test(name)) {
+      fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    }
+  }
+  fs.mkdirSync(profile);
+  fs.writeFileSync(path.join(profile, 'state.json'), JSON.stringify({ uiTheme: 'dark', uiLanguage: 'en', 'kratos.pythonPath': python, 'kratos.extraEnv': { OMP_NUM_THREADS: '2' } }));
+  const env = { OMP_NUM_THREADS: '2', KKSS_KRATOS_PYTHON: python };
+  const { app, output } = await launchWindow(path.join(dir, c.geometry), { profile, renderer: '/renderer/cad/', width: 1440, height: 1100, env });
+  try {
+    const cad = await appWindow(app, '/renderer/cad/', Date.now() + 120_000);
+    await until(() => output().includes('[cad] host → webview: geometry'), 'CAD geometry', 120_000);
+    await cad.locator('#doc-chip-name').getByText(c.geometry, { exact: true }).waitFor();
+    await sleep(1200);
+    const geometry = shots.find((s) => s.producer === 'manual' && s.file.endsWith('-geometry.png'));
+    if (geometry && (!onlyShot || geometry.file === onlyShot)) await cad.screenshot({ path: path.join(screenshots, geometry.file) });
+    log(`${c.id}: geometry`);
+    if (c.manual === 'geometry') return;
+
+    await cad.locator('#meshing-toggle').click();
+    await cad.selectOption('#meshing-export-format', 'mdpaElements');
+    await cad.selectOption('#meshing-export-unit', 'm');
+    await selectFile(app, path.join(dir, 'mesh.mdpa'), true);
+    await cad.locator('#meshing-export').click();
+    await until(() => fs.existsSync(path.join(dir, 'mesh.mdpa')), 'CAD MDPA export', 120_000);
+
+    let mesh;
+    await until(async () => {
+      for (const page of app.windows().filter((p) => p.url().includes('/renderer/mesh/'))) {
+        if (await page.locator('#doc-chip-name').textContent().catch(() => '') === 'mesh.mdpa' && await page.locator('#pt-select option').count() > 1) {
+          mesh = page;
+          return true;
+        }
+      }
+      return false;
+    }, 'exported mesh catalog', 60_000);
+    // Tall enough for the whole setup to sit in one sidebar view, and a wider
+    // sidebar so labels are not cut.
+    await app.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows()[0].setContentSize(1440, 1500));
+    await mesh.evaluate(() => { const side = document.querySelector('#sidebar'); if (side) side.style.width = '380px'; });
+    await sleep(800);
+    await mesh.locator('#pt-select').selectOption(c.problemtype);
+    await expandAll(mesh);
+
+    // Coupled problemtypes carry one card per section; the sidebar form is flat.
+    const formValues = c.values ? Object.assign({}, ...Object.values(c.values)) : c.problem;
+    await values(mesh.locator('#pt-forms'), formValues);
+    for (const a of c.assignments) {
+      // A Parts-style pseudo-condition is filed in its own Domain card.
+      const partsCard = await mesh.evaluate((id) => {
+        const cards = Array.from(document.querySelectorAll('#pt-parts .pt-card'));
+        return cards.findIndex((card) => Array.from(card.querySelectorAll('select.pt-add-what option')).some((o) => o.value === id));
+      }, a.conditionId);
+      const host = partsCard >= 0 ? mesh.locator('#pt-parts .pt-card').nth(partsCard) : mesh.locator('#pt-assignments');
+      if (partsCard < 0) await mesh.selectOption('#pt-assignments .pt-add-what', a.conditionId);
+      await host.locator('select.pt-add-where').selectOption(a.smpPath);
+      await host.locator('.pt-add-row button').click();
+      await values(host.locator('.pt-assign').last(), a.values);
+    }
+    for (const m of c.materials) {
+      await mesh.selectOption('#pt-materials .pt-add-what', m.lawId);
+      await mesh.selectOption('#pt-materials .pt-add-where', m.smpPath);
+      await mesh.locator('#pt-materials .pt-add-row button').click();
+      await values(mesh.locator('#pt-materials .pt-assign').last(), m.values);
+    }
+    await mesh.locator('#pt-generate').click();
+    await until(() => fs.existsSync(path.join(dir, c.primaryDocument ?? 'ProjectParameters.json')), 'Generate case files', 120_000);
+    await sleep(800);
+
+    for (const shot of shots) {
+      if (onlyShot && shot.file !== onlyShot) continue;
+      const file = path.join(screenshots, shot.file);
+      if (shot.file.endsWith('-setup.png')) {
+        const cards = [mesh.locator('#pt-parts'), mesh.locator('#pt-materials')];
+        log(`${c.id}: ${shot.file} ${await sectionShot(mesh, cards, file)} bytes`);
+      } else if (shot.file.endsWith('-setup-conditions.png')) {
+        const cards = [mesh.locator('#pt-assignments')];
+        log(`${c.id}: ${shot.file} ${await sectionShot(mesh, cards, file)} bytes`);
+      } else if (shot.file.endsWith('-setup-solver.png')) {
+        const cards = [mesh.locator('#pt-forms'), mesh.locator('#pt-preflight'), mesh.locator('#pt-generate')];
+        // At 1500 px the stack is taller than the sidebar, so the Generate button sits below its edge: the viewer's
+        // zoom is stepped down until the whole stack is inside, and restored after the capture.
+        const zoom = await fitStackByZoom(app, mesh, cards);
+        log(`${c.id}: ${shot.file} ${await sectionShot(mesh, cards, file)} bytes${zoom ? ` (zoom ${zoom})` : ''}`);
+        await setMeshZoom(app, 1);
+        await sleep(800);
+      } else if (shot.file.endsWith('-mesh.png')) {
+        await resetView(mesh);
+        await fit(mesh);
+        // Fit leaves no margin on a wide model; the nav dock's zoom-out gives the ends room.
+        for (let i = 0; i < (shot.zoomOut ?? 0); i++) await mesh.locator('#nav-zoom-out').click();
+        if (shot.zoomOut) await sleep(600);
+        log(`${c.id}: ${shot.file} ${await canvasShot(mesh, file, { minBytes: 30_000 })} bytes`);
+      }
+    }
+    const errors = output().split('\n').filter((l) => /Uncaught|TypeError/.test(l));
+    assert.equal(errors.length, 0, `${c.id}: errors in the app log`);
+  } catch (error) {
+    await diagnostics(app, output, `tutorial-${c.id}`).catch(() => {});
+    throw error;
+  } finally {
+    await closeApp(app);
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
+export async function manualTutorials(out = screenshots, selected = []) {
+  const failures = [];
+  const log = (line) => console.log(line);
+  for (const c of cases.filter((c) => !selected.length || selected.includes(c.id))) {
+    const shots = CATALOG.filter((s) => s.case === c.id && s.producer === 'manual');
+    try {
+      await setupCase(c, shots, log);
+    } catch (error) {
+      failures.push(`${c.id}: ${error.message.split('\n')[0]}`);
+      log(`${c.id}: FAILED ${error.message.split('\n')[0]}`);
+    }
+  }
+  if (failures.length) {
+    console.log(`manual: ${failures.length} failed`);
+    for (const line of failures) console.log(`  ${line}`);
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * The virtual wind tunnel wizard in the mesh viewer, with the settings of the published record
+ * (wind-tunnel/tunnel.kratosvwt.json): one shot per step, step 5 twice (the plan under the form, then the
+ * built result). The viewer opens a copy of tunnel.mdpa, the body is a copy of tunnel_body.stl and the
+ * build goes to a scratch folder, so nothing under doc/public is written.
+ */
+async function windTunnelWizard(out, entries, log) {
+  const published = path.join(root, 'doc/public/examples/tutorials/wind-tunnel');
+  const base = path.join(os.tmpdir(), 'kkss-wind-tunnel-tutorial');
+  fs.rmSync(base, { recursive: true, force: true });
+  const dir = path.join(base, 'case');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.copyFileSync(path.join(published, 'tunnel.mdpa'), path.join(dir, 'tunnel.mdpa'));
+  const body = path.join(base, 'tunnel_body.stl');
+  fs.copyFileSync(path.join(published, 'tunnel_body.stl'), body);
+  const folder = path.join(base, 'tunnel');
+  const profile = path.join(base, 'profile');
+  fs.mkdirSync(profile);
+  fs.writeFileSync(path.join(profile, 'state.json'), JSON.stringify({ uiTheme: 'dark', uiLanguage: 'en' }));
+  const { app, page, output } = await launchWindow(path.join(dir, 'tunnel.mdpa'), { profile, renderer: '/renderer/mesh/', width: 1440, height: 1250 });
+  const panel = page.locator('#wind-tunnel-panel');
+  // A form row is a .series-toolbar whose own label has this exact text (rows are built by row() in windTunnelPanel.ts).
+  const field = (label) => panel.locator(
+    `xpath=.//div[contains(concat(" ", normalize-space(@class), " "), " series-toolbar ")][./label[normalize-space()=${JSON.stringify(label)}]]`,
+  ).first();
+  const text = (label, value) => field(label).locator('input[type="text"]').fill(value);
+  const step = (index) => panel.locator('.meshsize-mode-btn').nth(index).click();
+  const shot = async (index, phase) => {
+    const entry = entries.find((e) => e.step === index && e.phase === phase);
+    const file = path.join(out, entry.file);
+    await panel.screenshot({ path: file, timeout: 60_000 });
+    log(`${entry.file}: ${fs.statSync(file).size} bytes`);
+  };
+  try {
+    await waitForDocument(page, 'tunnel.mdpa');
+    await sleep(1500);
+    await command(page, 'windTunnel');
+    await panel.waitFor({ state: 'visible', timeout: 30_000 });
+
+    // 1 Body: the published body, placed and measured by the plan.
+    await text('Body', body);
+    await panel.getByText('Measured:', { exact: false }).waitFor({ timeout: 120_000 });
+    await sleep(600);
+    await shot(0);
+
+    // 2 Tunnel: the record's extents in body lengths, free air.
+    await step(1);
+    await text('Upstream', '1.5');
+    await text('Downstream', '2.5');
+    await text('Sides', '1.5');
+    await text('Top', '2.5');
+    await text('Below', '2.5');
+    await panel.getByText('Blockage', { exact: false }).waitFor({ timeout: 120_000 });
+    await sleep(600);
+    await shot(1);
+
+    // 3 Flow: 10 m/s air with the k-omega SST model.
+    await step(2);
+    await text('Speed', '10');
+    await field('Turbulence model').locator('select').selectOption('k_omega_sst');
+    await panel.getByText('Re = ', { exact: false }).waitFor({ timeout: 120_000 });
+    await sleep(600);
+    await shot(2);
+
+    // 4 Mesh: the record's surface, far-field, y+ and wake settings.
+    await step(3);
+    await text('Surface', '0.35');
+    await text('Far field', '3');
+    await text('Target y+', '150');
+    await text('Wake', '0.5');
+    await panel.getByText('tetrahedra', { exact: false }).waitFor({ timeout: 120_000 });
+    await sleep(600);
+    await shot(3);
+
+    // 5 Generate: the plan under the form, before anything is built.
+    await step(4);
+    await text('Folder', folder);
+    await text('Name', 'tunnel');
+    await field('Solver files').locator('input[type="checkbox"]').setChecked(true);
+    const generate = panel.locator('button.panel-btn', { hasText: 'Generate' });
+    await until(() => generate.isEnabled(), 'Generate enabled', 120_000);
+    await sleep(600);
+    await shot(4, 'plan');
+
+    // 6 Built: the build's own result lines.
+    await generate.click();
+    await panel.locator('.meshsize-section', { hasText: 'Built' }).waitFor({ timeout: 2_400_000 });
+    await sleep(800);
+    await shot(4, 'result');
+    log(`wizard build kept in ${folder}`);
+    const errors = output().split('\n').filter((l) => /Uncaught|TypeError/.test(l));
+    assert.equal(errors.length, 0, 'wind-tunnel wizard: errors in the app log');
+  } catch (error) {
+    await diagnostics(app, output, 'tutorial-wind-tunnel-wizard').catch(() => {});
+    throw error;
+  } finally {
+    await closeApp(app);
+  }
+}
+
+/** The wizard shots (tutorial-*-wizard-*.png) for each case that declares them. */
+export async function wizardTutorials(out = screenshots, selected = []) {
+  const failures = [];
+  const log = (line) => console.log(line);
+  for (const c of cases.filter((c) => !selected.length || selected.includes(c.id))) {
+    const entries = CATALOG.filter((s) => s.case === c.id && s.producer === 'wizard');
+    if (!entries.length) continue;
+    try {
+      await windTunnelWizard(out, entries, log);
+    } catch (error) {
+      failures.push(`${c.id}: ${error.message.split('\n')[0]}`);
+      log(`${c.id}: FAILED ${error.message.split('\n')[0]}`);
+    }
+  }
+  if (failures.length) {
+    console.log(`wizard: ${failures.length} failed`);
+    for (const line of failures) console.log(`  ${line}`);
+    process.exitCode = 1;
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  await manualTutorials(path.join(root, 'doc/public/screenshots'), process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const only = args.find((a) => a.startsWith('--shot='));
+  if (only) onlyShot = only.slice('--shot='.length);
+  const names = args.filter((a) => !a.startsWith('--'));
+  if (args.includes('--wizard')) await wizardTutorials(screenshots, names);
+  else await manualTutorials(screenshots, names);
 }

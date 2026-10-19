@@ -20,7 +20,7 @@ const statePrompt = 'Write the verified structural cantilever case values to the
 const generatePrompt = 'Generate the Kratos case files for the absolute structural mesh.';
 const runPrompt = 'Start the structural Kratos case in the background with Python 3.12, two OpenMP threads, and waitSeconds zero.';
 const statusPrompt = 'Check the mesh Kratos run status.';
-const evaluatePrompt = 'Evaluate minimum Z displacement at the final result time in millimetres.';
+const evaluatePrompt = 'Evaluate maximum Z displacement at the final result time in millimetres.';
 
 function recordTool(name, args) { return { id: `tutorial-${name}-${Math.random().toString(36).slice(2, 8)}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }; }
 
@@ -35,8 +35,8 @@ function providerResult(req, stage, actions = []) {
     }
     if (stage.key === 'evaluate') {
       const report = JSON.parse(execFileSync(python, [path.join(root, 'tools/tutorials/verify.py'), 'structural', stage.workDir], { encoding: 'utf8' }));
-      const value = -report.checks.max_abs_z_displacement_mm;
-      content = `The final Z displacement is ${value.toFixed(9)} mm. The beam reference is ${-report.checks.beam_reference_mm.toFixed(9)} mm (relative error ${(report.checks.beam_displacement_relative_error.measured * 100).toFixed(2)}%). The solver also wrote VON_MISES_STRESS; its maximum is ${report.checks.max_von_mises_Pa.toFixed(1)} Pa.`;
+      const value = report.checks.max_abs_z_displacement_mm;
+      content = `The final Z displacement is ${value.toFixed(9)} mm. The beam reference is ${report.checks.beam_reference_mm.toFixed(9)} mm (relative error ${(report.checks.beam_displacement_relative_error.measured * 100).toFixed(2)}%). The solver also wrote VON_MISES_STRESS; its maximum is ${report.checks.max_von_mises_Pa.toFixed(1)} Pa.`;
       stage.report = report;
     }
     return { choices: [{ index: 0, delta: { content }, finish_reason: null }] };
@@ -74,7 +74,7 @@ async function scriptedCapture(out) {
       : lastUser.startsWith('Generate the Kratos') ? 'generate'
       : lastUser.startsWith('Start the structural') ? 'run'
       : lastUser.startsWith('Check the mesh Kratos') ? 'status'
-      : lastUser.startsWith('Evaluate minimum Z') ? 'evaluate'
+      : lastUser.startsWith('Evaluate maximum Z') ? 'evaluate'
       : undefined;
     if (!key) { res.writeHead(400); res.end('Unknown scripted prompt'); return; }
     const stage = { key, workDir, reply: '' };
@@ -101,7 +101,7 @@ async function scriptedCapture(out) {
         resultFiles.sort((a, b) => Number(a.match(/_(\d+(?:\.\d+)?)\.vtk$/)?.[1] ?? 0) - Number(b.match(/_(\d+(?:\.\d+)?)\.vtk$/)?.[1] ?? 0));
         return [callFor('mesh__case_evaluate_quantity', {
           path: path.join(workDir, 'vtk_output', resultFiles.at(-1)), runId: run.runId,
-          field: 'DISPLACEMENT', kind: 'Nodal', component: 'z', reduction: 'min', time: 1, unit: 'mm',
+          field: 'DISPLACEMENT', kind: 'Nodal', component: 'z', reduction: 'max', time: 1, unit: 'mm',
         })];
       },
     }[key];
@@ -216,7 +216,7 @@ async function scriptedCapture(out) {
     const saved = chat.locator('#history .convo-open').filter({ hasText: 'Inspect the absolute cantilever' }).first();
     await saved.waitFor({ timeout: 30_000 });
     await saved.click();
-    await chat.getByText(/The final Z displacement is -0\.000589/, { exact: false }).waitFor({ timeout: 30_000 });
+    await chat.getByText(/The final Z displacement is 0\.000589/, { exact: false }).waitFor({ timeout: 30_000 });
     assert.equal(await chat.getByRole('button', { name: 'Allow', exact: true }).count(), 0, 'restoring the transcript must not execute pending tools again');
     await chat.screenshot({ path: path.join(out, 'tutorial-ai-chat.png') });
 
@@ -224,8 +224,8 @@ async function scriptedCapture(out) {
       '# Scripted AI cantilever capture', '',
       'Local OpenAI-compatible fixture; no external provider or API key. Each tool call below ran in KKSS against the temporary absolute paths used for this acceptance run. The saved conversation was selected from chat history after restarting the app; restoring it did not rerun a tool.', '',
       `- Mesh: ${report.nodes} nodes, ${report.elements} elements`,
-      `- Final minimum Z displacement: ${(-report.checks.max_abs_z_displacement_mm).toFixed(9)} mm`,
-      `- Beam reference: ${(-report.checks.beam_reference_mm).toFixed(9)} mm`,
+      `- Final maximum Z displacement: ${report.checks.max_abs_z_displacement_mm.toFixed(9)} mm`,
+      `- Beam reference: ${report.checks.beam_reference_mm.toFixed(9)} mm`,
       `- Relative displacement error: ${(report.checks.beam_displacement_relative_error.measured * 100).toFixed(2)}% (limit 25%)`,
       `- Maximum von Mises stress: ${report.checks.max_von_mises_Pa.toFixed(1)} Pa`, '',
       '## Conversation', '',
@@ -235,8 +235,8 @@ async function scriptedCapture(out) {
       '> **Assistant:** The 18 × 4 × 5 mm cantilever and three named parts are ready. The CAD tool returned labelled snapshot views.',
       '> **User:** Export a first-order 0.8 mm tetrahedral mesh to metres, inspect the structural defaults and prepare the case.',
       '> **Assistant:** The named-region MDPA mesh is exported. The structural defaults were read, then the case state and generated Kratos files were saved beside it.',
-      '> **User:** Start the solve in the background, check its status, and evaluate final minimum Z displacement.',
-      `> **Assistant:** The solver finished. Minimum Z displacement is ${(-report.checks.max_abs_z_displacement_mm).toFixed(9)} mm, compared with ${(-report.checks.beam_reference_mm).toFixed(9)} mm from the beam reference (${(report.checks.beam_displacement_relative_error.measured * 100).toFixed(2)}% error). VON_MISES_STRESS was written.`, '',
+      '> **User:** Start the solve in the background, check its status, and evaluate final maximum Z displacement.',
+      `> **Assistant:** The solver finished. Maximum Z displacement is ${report.checks.max_abs_z_displacement_mm.toFixed(9)} mm, compared with ${report.checks.beam_reference_mm.toFixed(9)} mm from the beam reference (${(report.checks.beam_displacement_relative_error.measured * 100).toFixed(2)}% error). VON_MISES_STRESS was written.`, '',
       'The geometry and result checks match the values published in the manual structural tutorial.', '',
     ].join('\n');
     fs.writeFileSync(path.join(root, 'doc/guide/tutorial-ai-transcript.md'), transcript);

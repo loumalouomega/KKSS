@@ -37,7 +37,7 @@ rerunning.
 
 ## Structural cantilever
 
-For a multi-frame displacement/reaction plotting walkthrough, use the [CAD-to-results cantilever](tutorial-structural#plot-displacement-and-reactions). The single final frame below supports spatial/distribution plots, not an invented time history.
+For a multi-frame displacement and reaction timeline, rerun the [CAD-to-results cantilever](tutorial-structural): its verification record documents eight saved frames, but its archive ships none of them. The single final frame below supports spatial/distribution plots, not an invented time history.
 
 This two-dimensional plane-strain model has 10 nodes and four quadrilateral
 elements. Its `left` SubModelPart is fixed, and its `right` SubModelPart carries
@@ -52,7 +52,7 @@ displacement of `-0.25312169 mm` at the free edge. The model uses SI units.
 
 ## Lid-driven cavity
 
-Use **Inspect → Plot** for an entity's history only when the full result sequence is present. This archive supplies just the final frame; the [cylinder/obstacle tutorial](tutorial-fluid#plot-pressure-evolution-and-the-wake) includes 51 frames and ready-made pressure-history recipes. For a single cavity frame, **Plots** can compare pressure/velocity distributions or spatial profiles with explicit case units.
+Use **Inspect → Plot** for an entity's history only when the full result sequence is present. This archive supplies just the final frame; the [cylinder/obstacle tutorial](tutorial-fluid) documents 51 saved frames, but its archive ships only the case, so rerun it to regenerate them. For a single cavity frame, **Plots** can compare pressure/velocity distributions or spatial profiles with explicit case units.
 
 This two-dimensional monolithic fluid case has 121 nodes and 200 elements. Its
 included final output is at time 30 and contains `VELOCITY` and `PRESSURE`

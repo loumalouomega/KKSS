@@ -3,8 +3,8 @@
   "source": "tank.brep",
   "options": {
     "dimension": 2,
-    "sizeMin": 50,
-    "sizeMax": 50,
+    "sizeMin": 45,
+    "sizeMax": 45,
     "algorithm2D": 6,
     "algorithm3D": 1,
     "elementOrder": 1,

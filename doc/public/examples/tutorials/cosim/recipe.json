@@ -208,7 +208,7 @@
   "preflight": {
     "ok": true,
     "problemtype": "cosim",
-    "source": "/home/vicente/src/KKSS/node_modules/.cache/tutorials-LjlNjW/cosim/mesh.kratoscase.json",
+    "source": "generated/cosim/mesh.kratoscase.json",
     "warnings": [],
     "applications": [
       "CoSimulationApplication",

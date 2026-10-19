@@ -13,7 +13,7 @@
  *  kkss://docs/<path>         — the in-app manual (Help ▸ KKSS Manual…): the
  *                               documentation site built into out/docs/
  *                               (doc/.vitepress/dist, staged by esbuild —
- *                               the ~100 MB examples tree stays an
+ *                               the ~28 MB examples tree stays an
  *                               online-only concern, its links rewritten to
  *                               the published site per docsServe.ts). Host
  *                               label `docs` under the kkss scheme, so the

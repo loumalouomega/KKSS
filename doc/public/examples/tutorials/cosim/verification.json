@@ -13,18 +13,19 @@
     "VELOCITY",
     "VON_MISES_STRESS"
   ],
+  "result": "vtk_output/FluidModelPart_0_3.vtk",
   "structure_result": "vtk_output/Structure_0_3.vtk",
   "frames": 3,
   "end_time": 0.15,
   "checks": {
     "inlet_velocity_error_m_per_s": {
       "measured": 0,
-      "maximum": 1e-06
+      "maximum": 0.000001
     },
     "interface_corner_speed_m_per_s": 0,
     "outlet_pressure_error_Pa": {
       "measured": 0,
-      "maximum": 1e-06
+      "maximum": 0.000001
     },
     "inlet_face_mean_m_per_s": {
       "measured": 0.010000000000000009,
@@ -39,7 +40,10 @@
       "measured": 0.19554419310335533,
       "maximum": 0.35
     },
-    "peak_structure_displacement_m": 0.0015550441763259874,
+    "peak_structure_displacement_m": {
+      "measured": 0.0015550441763259874,
+      "minimum": 1e-7
+    },
     "peak_structure_displacement_limit_m": {
       "measured": 0.0015550441763259874,
       "maximum": 0.02
@@ -68,12 +72,12 @@
     "ProjectParametersCFD.json": "e472c2064846a25d6e9cf973cd0d6d0a70fe985360227df688ac2dc5ec625e53",
     "ProjectParametersCoSim.json": "3bedc7bc3b79ce8ced102bee983c4cbe04053f2f80f7ab1a00df965ce4912e91",
     "ProjectParametersCSM.json": "d5650ffb00dfefaf7caf49321250c0c534593c6cab4c3be3b2f6e747f611ad19",
-    "recipe.json": "ee029b725c11341661bf3d9a2c12dd2c83365b1c2b315dfa0e42dbec89d8261c",
+    "recipe.json": "44e00e9cb60968aa300c48825a3dd53d2fdac568294b94eaf9c89019ae6b1b06",
     "StructuralMaterials.json": "90b5774216a0383edb408f217ae896b487255a6cdb1316796d91b379cc9560ef"
   },
   "source": "cad/examples/BREP/blank.brep",
   "revisions": {
-    "cad": "8b3ff3217b7ad1d147b90327f00e08240c0ff04a",
-    "mesh": "3f7564c26c25324671bd8bba029708a030512412"
+    "cad": "7c51565f2388edbba04a7b9637e827df550851f0",
+    "mesh": "545f8407aaa0e88feb4d2d6cde579f3a4279833b"
   }
 }
