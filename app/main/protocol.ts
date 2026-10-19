@@ -42,7 +42,13 @@ const allowedRoots = new Set<string>();
 export function registerSchemes(): void {
   protocol.registerSchemesAsPrivileged([
     { scheme: "kkss", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
-    { scheme: "kkss-file", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+    // corsEnabled: the CAD page (origin kkss://app) fetches user files
+    // cross-origin through kkss-file:// (cad's "loadUrl" strategy for the
+    // three.js-native mesh formats .stl/.obj/.ply/.gltf/…). Without it the
+    // fetch dies as a CORS error and the model never loads. The handler
+    // below still serves only registered allowed roots, so this widens
+    // nothing on the file side.
+    { scheme: "kkss-file", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
   ]);
 }
 

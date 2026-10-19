@@ -6,6 +6,7 @@
 // come from tools/tutorials/gallery.mjs, which reads the recovered output.
 //
 //   node tools/tutorials/manual.mjs [case ...]
+//   node tools/tutorials/manual.mjs --fit-cad   (the mesh → CAD example's two CAD shots)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -414,6 +415,57 @@ export async function cadTutorials(kind, out = screenshots, selected = []) {
   if (failures.length) process.exitCode = 1;
 }
 
+/**
+ * The mesh → CAD example's shots (fit-cad-source.png, fit-cad-fitted.png): the
+ * committed fit-cad files open in CAD from a scratch copy with a seeded view —
+ * the 100,000-triangle STL skin first, then the fitted STEP solid. The files
+ * already exist, so no fit runs at capture time; the names carry no
+ * `tutorial-` prefix, so they need no catalog entry (see shots.mjs).
+ */
+export async function fitCadTutorials(out = screenshots) {
+  const published = path.join(root, 'doc/public/examples/fit-cad');
+  for (const [file, shot] of [['large-sphere.stl', 'fit-cad-source.png'], ['large-sphere.step', 'fit-cad-fitted.png']]) {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kkss-fit-cad-'));
+    const copy = path.join(temp, file);
+    fs.copyFileSync(path.join(published, file), copy);
+    seedView(copy, 'fit-cad', ['parts-panel']);
+    const profile = path.join(temp, 'profile');
+    fs.mkdirSync(profile);
+    fs.writeFileSync(path.join(profile, 'state.json'), JSON.stringify({ uiTheme: 'dark', uiLanguage: 'en' }));
+    let app;
+    try {
+      const launched = await launchWindow(copy, { profile, renderer: '/renderer/cad/', width: 1440, height: 1100 });
+      app = launched.app;
+      const cad = await appWindow(app, '/renderer/cad/', Date.now() + 120_000);
+      await cad.locator('#doc-chip-name').getByText(file, { exact: true }).waitFor();
+      if (file.endsWith('.step')) {
+        await until(() => launched.output().includes('[cad] host → webview: geometry'), `fit-cad ${file}`, 120_000);
+      } else {
+        // A three.js-native mesh (STL) loads entirely in the viewer (fetch +
+        // parse + render) — the host never posts `geometry`, so the load is
+        // read from the status line instead: it must start, then stop saying
+        // so. Anything else is either too early or a load failure, surfaced.
+        const statusText = async () => (await cad.locator('#status').textContent().catch(() => '')) ?? '';
+        await until(async () => (await statusText()).includes('Loading model'), `fit-cad ${file} starts loading`, 120_000);
+        await until(async () => {
+          const text = await statusText();
+          if (text.startsWith('Failed to load model')) throw new Error(`fit-cad ${file}: ${text}`);
+          return !text.includes('Loading model');
+        }, `fit-cad ${file} finishes loading`, 300_000);
+      }
+      await sleep(1200);
+      const text = await partsShot(cad, path.join(out, shot));
+      console.log(`${shot}: ${fs.statSync(path.join(out, shot)).size} bytes; ${text}`);
+    } catch (error) {
+      console.log(`fit-cad ${file}: FAILED ${error.message.split('\n')[0]}`);
+      process.exitCode = 1;
+    } finally {
+      if (app) await closeApp(app);
+      fs.rmSync(temp, { recursive: true, force: true });
+    }
+  }
+}
+
 /** The wizard shots (tutorial-*-wizard-*.png) for each case that declares them. */
 export async function wizardTutorials(out = screenshots, selected = []) {
   const failures = [];
@@ -443,5 +495,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   if (args.includes('--fe-mesh')) await cadTutorials('fe-mesh', screenshots, names);
   else if (args.includes('--parts')) await cadTutorials('parts', screenshots, names);
   else if (args.includes('--wizard')) await wizardTutorials(screenshots, names);
+  else if (args.includes('--fit-cad')) await fitCadTutorials(screenshots);
   else await manualTutorials(screenshots, names);
 }

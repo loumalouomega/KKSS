@@ -2,7 +2,7 @@
  * A REAL Structural-Optimization run through the real KKSS app, producing the
  * figures for doc/guide/problemtypes.md's "follow the run" section.
  *
- * OptimizationApplication's own 3D-hook case (~/src/Examples) is staged with a
+ * OptimizationApplication's own 3D-hook case (https://github.com/KratosMultiphysics/Examples/blob/master) is staged with a
  * `<stem>.kratoscase.json` seeded to mirror upstream's implicit-vertex-morphing
  * formulation as the built-in Structural Optimization problemtype expresses it:
  * objective mass, one strain-energy constraint ≤ initial value, a
@@ -25,6 +25,9 @@
  *   problemtype-optimization-progress.png        — panel over the real summary (verdict: finished)
  *   problemtype-optimization-design-fields.png   — hook, design-fields timeline
  *   problemtype-optimization-evolution.gif       — the shape morphing per iteration
+ * plus, in the staged case folder (not committed): hook_optimized.step and its
+ * .cad.json companion — the final frame exported as CAD, proving the run ends
+ * in a real solid (see doc/guide/problemtypes.md's worked-run section).
  *
  *   env -u ELECTRON_RUN_AS_NODE npm run docs:screenshots -- --optimization-run-only
  *
@@ -316,6 +319,29 @@ export async function optimizationRunScenario(out) {
     assert.ok(gif.length <= GIF_BUDGET_BYTES, `the design-fields GIF is ${gif.length} bytes, over the ${GIF_BUDGET_BYTES}-byte budget`);
     fs.writeFileSync(path.join(out, "problemtype-optimization-evolution.gif"), gif);
     console.log(`optimization-run: done — summary rows from the finished run; GIF ${gif.length} bytes`);
+
+    // ---- Final geometry: the optimized shape as CAD ------------------------
+    // The worked run ends where a user would: the morphed final frame through
+    // the same .step pipeline as Export Optimized Geometry as CAD (shape mode —
+    // vertex morphing moved the nodes, so the frame IS the optimized geometry).
+    // Same staged case, no re-solve; the built mesh MCP server does the work.
+    {
+      const { servers } = await import("../tutorials/mcp.mjs");
+      const mcp = await servers();
+      try {
+        const outputPath = path.join(stage, "hook_optimized.step");
+        const exported = await mcp.call("mesh__case_optimization_cad", {
+          meshPath: path.join(stage, "hook.mdpa"),
+          mode: "shape",
+          outputPath,
+        });
+        assert.ok(fs.existsSync(outputPath), "the optimized STEP was written");
+        const { frame, frameStep, companions, notes } = exported;
+        console.log(`optimization-run: optimized CAD hook_optimized.step (${fs.statSync(outputPath).size} bytes, frame ${frame} at step ${frameStep}, companions: ${(companions ?? []).map((c) => path.basename(c)).join(", ") || "none"}): ${(notes ?? []).join(" ")}`);
+      } finally {
+        await mcp.close();
+      }
+    }
   } catch (error) {
     // The open risk is the app exiting mid-run: leave the full app output and
     // page state behind for the post-mortem instead of just the thrown message.

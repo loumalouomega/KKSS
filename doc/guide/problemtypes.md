@@ -10,31 +10,31 @@ Eighteen built-ins ship with the app, grouped by family in the Problemtype dropd
 
 | Family | Problemtype (`id`) | Kratos application(s) |
 |---|---|---|
-| Solids & structures | **Structural Mechanics** (`structural`) | StructuralMechanicsApplication |
-| Fluids | **Fluid Dynamics** (`fluid`) | FluidDynamicsApplication |
-| Fluids | **Compressible Fluid** (`compressibleFluid`) | FluidDynamicsApplication |
-| Fluids | **Embedded Fluid** (`embeddedFluid`) | FluidDynamicsApplication |
-| Fluids | **Free Surface** (`freeSurface`) | FreeSurfaceApplication |
-| Fluids | **Turbulent Flow (RANS)** (`rans`) | RANSApplication (+ LinearSolversApplication for the coupled solve) |
-| Fluids | **Two Fluids** (`twoFluids`) | FluidDynamicsApplication |
-| Fluids | **Potential Flow** (`potentialFlow`) | CompressiblePotentialFlowApplication |
-| Fluids | **Shallow Water** (`shallowWater`) | ShallowWaterApplication |
-| Thermal | **Convection-Diffusion** (`convectionDiffusion`) | ConvectionDiffusionApplication |
-| Coupled physics | **Buoyancy** (`buoyancy`) — Boussinesq natural convection | ConvectionDiffusionApplication + FluidDynamicsApplication |
-| Coupled physics | **Conjugate Heat Transfer** (`conjugateHeatTransfer`) — fluid + solid | ConvectionDiffusionApplication (+ fluid/solid participants) |
-| Coupled physics | **Fluid-Structure Interaction** (`fsi`) | FluidDynamics, StructuralMechanics, MeshMoving, Mapping |
-| Coupled physics | **Generic Coupling (CoSimulation)** (`cosim`) | CoSimulation, FluidDynamics, StructuralMechanics, Mapping (+ MeshMoving with ALE) |
-| Reduced-order models | **ROM · Structural Mechanics** (`romStructural`) | StructuralMechanicsApplication + RomApplication |
-| Reduced-order models | **ROM · Convection-diffusion** (`romThermal`) | ConvectionDiffusionApplication + RomApplication |
-| Reduced-order models | **ROM · Fluid Dynamics** (`romFluid`) | FluidDynamicsApplication + RomApplication |
-| Reduced-order models | **ROM · Potential Flow** (`romPotentialFlow`) | CompressiblePotentialFlowApplication + RomApplication |
-| Optimization | **Structural Optimization** (`optimization`) | OptimizationApplication |
-| Workflow | **Flowgraph** (`flowgraph`) — node editor, UI-only | — |
+| Solids & structures | [**Structural Mechanics**](tutorial-structural) (`structural`) | StructuralMechanicsApplication |
+| Fluids | [**Fluid Dynamics**](tutorial-fluid) (`fluid`) | FluidDynamicsApplication |
+| Fluids | [**Compressible Fluid**](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/FluidDynamicsApplication) (`compressibleFluid`) | FluidDynamicsApplication |
+| Fluids | [**Embedded Fluid**](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/FluidDynamicsApplication) (`embeddedFluid`) | FluidDynamicsApplication |
+| Fluids | [**Free Surface**](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/FreeSurfaceApplication) (`freeSurface`) | FreeSurfaceApplication |
+| Fluids | [**Turbulent Flow (RANS)**](tutorial-rans) (`rans`) | RANSApplication (+ LinearSolversApplication for the coupled solve) |
+| Fluids | [**Two Fluids**](tutorial-two-fluids) (`twoFluids`) | FluidDynamicsApplication |
+| Fluids | [**Potential Flow**](tutorial-potential-flow) (`potentialFlow`) | CompressiblePotentialFlowApplication |
+| Fluids | [**Shallow Water**](tutorial-shallow-water) (`shallowWater`) | ShallowWaterApplication |
+| Thermal | [**Convection-Diffusion**](tutorial-thermal) (`convectionDiffusion`) | ConvectionDiffusionApplication |
+| Coupled physics | [**Buoyancy**](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/ConvectionDiffusionApplication) (`buoyancy`) — Boussinesq natural convection | ConvectionDiffusionApplication + FluidDynamicsApplication |
+| Coupled physics | [**Conjugate Heat Transfer**](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/ConvectionDiffusionApplication) (`conjugateHeatTransfer`) — fluid + solid | ConvectionDiffusionApplication (+ fluid/solid participants) |
+| Coupled physics | [**Fluid-Structure Interaction**](#coupled-simulations-fsi-and-cosimulation) (`fsi`) — see also the [Mok tutorial](tutorial-fsi) | FluidDynamics, StructuralMechanics, MeshMoving, Mapping |
+| Coupled physics | [**Generic Coupling (CoSimulation)**](#coupled-simulations-fsi-and-cosimulation) (`cosim`) — see also the [weak-coupling tutorial](tutorial-cosimulation) | CoSimulation, FluidDynamics, StructuralMechanics, Mapping (+ MeshMoving with ALE) |
+| Reduced-order models | [**ROM · Structural Mechanics**](#reduced-order-models) (`romStructural`) | StructuralMechanicsApplication + RomApplication |
+| Reduced-order models | [**ROM · Convection-diffusion**](#reduced-order-models) (`romThermal`) | ConvectionDiffusionApplication + RomApplication |
+| Reduced-order models | [**ROM · Fluid Dynamics**](#reduced-order-models) (`romFluid`) | FluidDynamicsApplication + RomApplication |
+| Reduced-order models | [**ROM · Potential Flow**](#reduced-order-models) (`romPotentialFlow`) | CompressiblePotentialFlowApplication + RomApplication |
+| Optimization | [**Structural Optimization**](#structural-optimization) (`optimization`) | OptimizationApplication |
+| Workflow | [**Flowgraph**](mesh-mode#problemtypes-kratos-case-setup) (`flowgraph`) — node editor, UI-only | — |
 
 A coupled problemtype has several **domains** (for example *Fluid* and *Structure*). Each domain has its own Parts condition, conditions, materials and mesh: Generate writes one `ProjectParameters.json` plus one mesh per physics (`<name>_Fluid.mdpa`, `<name>_Structural.mdpa`, …) sliced from the mesh you have open, and one materials file per domain.
 
 ::: warning First-run rule for the newer families
-Eleven worked cases are solver-verified end to end — structural, fluid, thermal, potential flow, shallow water, FSI, CoSimulation, RANS obstacle flow, cantilever eigenmodes, the two-fluid dam break and the virtual wind tunnel — see the [geometry-to-results tutorials](./tutorial-geometry-to-results) — and the Structural Optimization problemtype has a runnable real-world worked case in the section below. The two-fluid dam break needs a one-file alias for the stock Kratos 10.4.3 serial wrapper, which its page gives. The compressible, embedded, free-surface, buoyancy, conjugate-heat-transfer and ROM problemtypes follow their Kratos writers and applications, but no case of those was run here. Treat the first run as a check of the generated files: every generated driver checks that the Kratos applications the case needs can be imported before it starts, and **Run** asks the configured Python first, refusing with the missing applications named. MPM and DEM are not provided.
+Eleven worked cases are solver-verified end to end — [structural](tutorial-structural), [fluid](tutorial-fluid), [thermal](tutorial-thermal), [potential flow](tutorial-potential-flow), [shallow water](tutorial-shallow-water), [FSI](tutorial-fsi), [CoSimulation](tutorial-cosimulation), [RANS obstacle flow](tutorial-rans), [cantilever eigenmodes](tutorial-eigen), the [two-fluid dam break](tutorial-two-fluids) and the [virtual wind tunnel](tutorial-wind-tunnel) — see the [geometry-to-results tutorials](./tutorial-geometry-to-results) — and the Structural Optimization problemtype has a runnable real-world worked case in the section below. The two-fluid dam break needs a one-file alias for the stock Kratos 10.4.3 serial wrapper, which its page gives. The compressible, embedded, free-surface, buoyancy, conjugate-heat-transfer and ROM problemtypes follow their Kratos writers and applications, but no case of those was run here. Treat the first run as a check of the generated files: every generated driver checks that the Kratos applications the case needs can be imported before it starts, and **Run** asks the configured Python first, refusing with the missing applications named. MPM and DEM are not provided.
 :::
 
 ## Setting up any case
@@ -62,7 +62,7 @@ The newer problemtypes configure repeatable lists — optimization **responses**
 
 ## Coupled simulations: FSI and CoSimulation
 
-**Fluid-Structure Interaction** (`fsi`, over the FSIApplication) nests both solvers in one `FsiAnalysis`; **Generic Coupling** (`cosim`, over the CoSimulationApplication) drives two separate solvers. Both are built from the Fluid and Structural Mechanics problemtypes, so their fluid and structure fields, conditions and materials are the same ones those problemtypes use, prefixed per physics.
+**Fluid-Structure Interaction** (`fsi`, over the FSIApplication) nests both solvers in one `FsiAnalysis`; **Generic Coupling** (`cosim`, over the CoSimulationApplication) drives two separate solvers. Both are built from the [Fluid](tutorial-fluid) and [Structural Mechanics](tutorial-structural) problemtypes, so their fluid and structure fields, conditions and materials are the same ones those problemtypes use, prefixed per physics.
 
 | | Fluid-Structure Interaction | Generic Coupling (CoSimulation) |
 |---|---|---|
@@ -88,7 +88,7 @@ The **Coupling** section of the CoSimulation problemtype:
 
 The structure reads the fluid `REACTION` as its `POINT_LOAD` with the sign swapped and sends its `DISPLACEMENT` back. Both drivers write one record per coupled step to `kkss-convergence-v2.jsonl`, which the Kratos Runs view, the convergence plot and MCP `case_convergence` read like any other run (a completed *weak* run reports convergence as unavailable — it evaluates no criterion — never as converged).
 
-Reference shapes: the FSI Mok benchmark documents under `~/src/Examples/fluid_structure_interaction/validation/fsi_mok/source/` (`fsi_mok_Fluid.mdpa`, `fsi_mok_Structural.mdpa`, `ProjectParameters.json`) show the solver-side file layout Generate produces; the cylinder-cooling case under `~/src/Examples/conjugate_heat_transfer/validation/cylinder_cooling_Re100_Pr2/source/` shows the conjugate-heat-transfer equivalent. In KKSS you start from one mesh holding both bodies rather than these per-physics files.
+Reference shapes: the FSI Mok benchmark documents under `https://github.com/KratosMultiphysics/Examples/blob/master/fluid_structure_interaction/validation/fsi_mok/source/` (`fsi_mok_Fluid.mdpa`, `fsi_mok_Structural.mdpa`, `ProjectParameters.json`) show the solver-side file layout Generate produces; the cylinder-cooling case under `https://github.com/KratosMultiphysics/Examples/blob/master/conjugate_heat_transfer/validation/cylinder_cooling_Re100_Pr2/source/` shows the conjugate-heat-transfer equivalent. In KKSS you start from one mesh holding both bodies rather than these per-physics files.
 
 ## Reduced-order models
 
@@ -112,11 +112,11 @@ Generate finds where each parameter lands by generating the case twice with two 
 
 The driver writes `kkss-rom-progress.jsonl` (one line per analysis) and `kkss-rom-summary-v1.json` (modes, HROM counts, which stages ran); the materials file is restored after the run. **Stop** ends the current analysis cleanly; the summary then says the database is partial. A run of a ROM case shows a row such as *ROM 12 modes · HROM 340 el / 18 cond · 9/9 runs*, with **Plot ROM Singular Values** (normalized singular values vs mode index, log axis — how fast they fall tells how many modes the basis needs) and **Show HROM Elements** (a selection set over the reduced integration domain) in its context menu. MCP `case_rom` returns the same modes, singular values, HROM ids, samples and progress, and `case_status` carries a compact copy.
 
-Worked inputs: `~/src/Examples/rom_application/RomManager/` (`simple_structure_multiple_parameters.mdpa`, `ProjectParameters.json`, `StructuralMaterials.json`, `demo_rom_manager.py`) is the structural starting point the ROM problemtype mirrors; `~/src/Examples/rom_application/RomManager_PotentialFlow/` holds the NACA potential-flow equivalents.
+Worked inputs: `https://github.com/KratosMultiphysics/Examples/blob/master/rom_application/RomManager/` (`simple_structure_multiple_parameters.mdpa`, `ProjectParameters.json`, `StructuralMaterials.json`, `demo_rom_manager.py`) is the structural starting point the ROM problemtype mirrors; `https://github.com/KratosMultiphysics/Examples/blob/master/rom_application/RomManager_PotentialFlow/` holds the NACA potential-flow equivalents.
 
 ## Structural Optimization
 
-The **Structural Optimization** problemtype writes a case for Kratos' [OptimizationApplication](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/OptimizationApplication): the algorithm-based optimizer driven by `optimization_parameters.json` and `OptimizationAnalysis`. The primal analysis is set up exactly as in the Structural Mechanics problemtype, and the Setup lists on top of it describe the optimization problem: the **responses** it can measure, the **controls** it may change, and the **constraints** that must hold. The older ShapeOptimizationApplication is not targeted.
+The **Structural Optimization** problemtype writes a case for Kratos' [OptimizationApplication](https://github.com/KratosMultiphysics/Kratos/tree/master/applications/OptimizationApplication): the algorithm-based optimizer driven by `optimization_parameters.json` and `OptimizationAnalysis`. The primal analysis is set up exactly as in the [Structural Mechanics](tutorial-structural) problemtype, and the Setup lists on top of it describe the optimization problem: the **responses** it can measure, the **controls** it may change, and the **constraints** that must hold. The older ShapeOptimizationApplication is not targeted.
 
 The primal must be **static**, and a **linear strain energy** response needs a **linear** primal with at least one load; Generate refuses the case otherwise. A new case has two responses: `mass` and `strain_energy`.
 
@@ -148,7 +148,7 @@ A constraint names a response, a relation (`<=`, `<`, `=`, `>=`, `>`) and a refe
 
 ## Following the shape's evolution — a worked run
 
-The figures below come from a **real run**: OptimizationApplication's own 3D-hook case from `~/src/Examples/optimization_application/use_cases/3d_hook/` (a 213,622-cell tetrahedral hook), seeded exactly as described above — a shape (vertex-morphing) control on the hook's own `design_surface_1`, an implicit filter with a 25 mm radius, filter-based mesh motion with the hook's non-design parts damped, with the hook's steel mapped in the model's own units (N/mm, ton/mm³) — and run with **minimize strain energy** (unconstrained compliance minimization; a constraint's standardized criterion counts an unviolated constraint as satisfied at the initial point, which stops the run at iteration 0) for five constant-size 3 mm steps. Each point of the design surface is a design variable, so the Run executes a primal analysis plus a gradient pass per iteration — about five to six minutes per iteration, or roughly half an hour for the five-iteration run (~6 minutes overall if fewer iterations are requested; measured on this fixture at eight solver threads — thread counts don't imply better solve times).
+The figures below come from a **real run**: OptimizationApplication's own 3D-hook case from `https://github.com/KratosMultiphysics/Examples/blob/master/optimization_application/use_cases/3d_hook/` (a 213,622-cell tetrahedral hook), seeded exactly as described above — a shape (vertex-morphing) control on the hook's own `design_surface_1`, an implicit filter with a 25 mm radius, filter-based mesh motion with the hook's non-design parts damped, with the hook's steel mapped in the model's own units (N/mm, ton/mm³) — and run with **minimize strain energy** (unconstrained compliance minimization; a constraint's standardized criterion counts an unviolated constraint as satisfied at the initial point, which stops the run at iteration 0) for five constant-size 3 mm steps. Each point of the design surface is a design variable, so the Run executes a primal analysis plus a gradient pass per iteration — about five to six minutes per iteration, or roughly half an hour for the five-iteration run (~6 minutes overall if fewer iterations are requested; measured on this fixture at eight solver threads — thread counts don't imply better solve times).
 
 ![Optimization progress panel over the finished real run: the formulation, the objective history and the iteration table beside the hook mesh](/screenshots/problemtype-optimization-progress.png)
 
@@ -162,7 +162,11 @@ The figures below come from a **real run**: OptimizationApplication's own 3D-hoo
 
 ![ROM Parameters: one range entry whose Varies target is the materials file's Young modulus, with its minimum and maximum](/screenshots/problemtype-rom-parameters.png)
 
-Worked inputs: `~/src/Examples/optimization_application/use_cases/archara/shape_only/` (`archara.mdpa`, `ProjectParameters.json`, `implicit_vertex_morphing/optimization_parameters.json`) is a shape-optimization starting point; `~/src/Examples/optimization_application/use_cases/3d_hook/` (`hook.mdpa`, `materials_3D.json`, `primal_parameters_main.json`) is the 3D equivalent.
+Worked inputs: `https://github.com/KratosMultiphysics/Examples/blob/master/optimization_application/use_cases/archara/shape_only/` (`archara.mdpa`, `ProjectParameters.json`, `implicit_vertex_morphing/optimization_parameters.json`) is a shape-optimization starting point; `https://github.com/KratosMultiphysics/Examples/blob/master/optimization_application/use_cases/3d_hook/` (`hook.mdpa`, `materials_3D.json`, `primal_parameters_main.json`) is the 3D equivalent.
+
+## Exporting the optimized shape as CAD
+
+A finished run ends in a real solid: the Optimization panel's **Export CAD** button (or the Kratos Runs row's **Export Optimized Geometry as CAD…**, or the assistant's `case_optimization_cad` tool) writes the run's final shape as STEP through the same `.step` auto-fit pipeline as a mesh export — **shape** mode writes the moved final design-field frame; **topology** contours the density field at a threshold first — with the `<stem>.cad.json` B-rep companion beside it. See [Mesh to CAD](tutorial-mesh-to-cad#5-from-an-optimization-run).
 
 ## Assistant and MCP
 

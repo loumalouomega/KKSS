@@ -92,15 +92,9 @@ The model and thinking level can also be changed from the strip above the chat m
 
 ## Cloud accounts
 
-**Settings ▸ Cloud Accounts** connects KKSS to Google Drive, Dropbox or OneDrive, so
-**File ▸ Open from Cloud…** can open a model directly — no desktop sync client required.
-See [Getting Started ▸ Working from cloud storage](/guide/getting-started#working-from-cloud-storage)
-for how a cloud document behaves once it is open.
+**Settings ▸ Cloud Accounts** connects KKSS to Google Drive, Dropbox or OneDrive, so **File ▸ Open from Cloud…** can open a model directly — no desktop sync client required. See [Getting Started ▸ Working from cloud storage](/guide/getting-started#working-from-cloud-storage) for how a cloud document behaves once it is open.
 
-**KKSS ships no OAuth credentials of its own.** You register a desktop/installed-app client
-in your own provider console and paste its client ID into the menu. That means nothing here
-routes through an application account you do not control — and it means there is a one-time
-setup step per provider:
+**KKSS ships no OAuth credentials of its own.** You register a desktop/installed-app client in your own provider console and paste its client ID into the menu. That means nothing here routes through an application account you do not control — and it means there is a one-time setup step per provider:
 
 | Provider | Redirect URI to register | Client secret | Scopes requested |
 | --- | --- | --- | --- |
@@ -110,16 +104,10 @@ setup step per provider:
 
 Two things worth knowing before you start:
 
-- **Google's testing-mode refresh tokens expire after seven days.** While your OAuth consent
-  screen is in "Testing", you will have to reconnect weekly. Publishing the consent screen
-  (even for a single-user app) removes the limit.
-- **Google Drive asks for full `drive` scope, not `drive.file`.** The narrower scope only sees
-  files the app itself created or that were picked through *Google's own* file picker, which
-  KKSS does not use — with it, the Open from Cloud browser would show an empty Drive.
+- **Google's testing-mode refresh tokens expire after seven days.** While your OAuth consent screen is in "Testing", you will have to reconnect weekly. Publishing the consent screen (even for a single-user app) removes the limit.
+- **Google Drive asks for full `drive` scope, not `drive.file`.** The narrower scope only sees files the app itself created or that were picked through *Google's own* file picker, which KKSS does not use — with it, the Open from Cloud browser would show an empty Drive.
 
-Client IDs are stored in `state.json`; client secrets and refresh tokens go through the same
-encrypted store as the LLM API key. **Disconnect…** forgets the sign-in and offers to delete
-the cached copies with it.
+Client IDs are stored in `state.json`; client secrets and refresh tokens go through the same encrypted store as the LLM API key. **Disconnect…** forgets the sign-in and offers to delete the cached copies with it.
 
 ## Where state lives
 
@@ -132,8 +120,7 @@ the cached copies with it.
 | Cloud client secrets and refresh tokens | `state.json`, encrypted with the OS keychain like the LLM API key |
 | Cloud staging cache and its manifest | `cloud-cache/` beside `state.json` in the same user-data dir |
 
-Note that the user-data dir is **not** inside your project folder, so syncing a project folder
-never syncs your settings or your credentials.
+Note that the user-data dir is **not** inside your project folder, so syncing a project folder never syncs your settings or your credentials.
 
 ## Command-line
 

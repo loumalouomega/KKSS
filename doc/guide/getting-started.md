@@ -56,105 +56,39 @@ It is a **default, not a restriction**. Nothing is refused for living outside it
 
 **File ▸ Clear Project Root** goes back to that inferred behavior. Note the terminal reads its directory once, when its shell starts, so changing the folder applies to the *next* shell rather than the one already running.
 
-A folder kept in sync by a desktop client — `~/Google Drive`, `~/Dropbox`, a OneDrive folder — is a
-perfectly good project folder, and always has been: to KKSS it is an ordinary directory. Every
-sidecar KKSS writes beside your model now lands through a temp file that is renamed into place, so
-a sync daemon can never pick up a half-written one or raise a spurious "conflicted copy". The only
-visible trace is a `.tmp` file that exists for a few milliseconds during each save.
+A folder kept in sync by a desktop client — `~/Google Drive`, `~/Dropbox`, a OneDrive folder — is a perfectly good project folder, and always has been: to KKSS it is an ordinary directory. Every sidecar KKSS writes beside your model now lands through a temp file that is renamed into place, so a sync daemon can never pick up a half-written one or raise a spurious "conflicted copy". The only visible trace is a `.tmp` file that exists for a few milliseconds during each save.
 
 ### Guided simulation work
 
-Home's **Check environment** action probes the configured Python interpreter used for manual runs
-and the assistant's uv-managed tool runtime separately. It checks the selected built-in
-problemtype's Kratos application imports, available CPU and memory, and whether the current run
-directory exists and is writable. The report includes each resolved executable and version and
-does not install packages. A failed manual check disables the mesh Problemtype Run action and
-guided queue launches while geometry browsing stays available; the action checks again before
-starting. A thread recommendation appears only when the manual runner exposes verified thread
-control. MPI has no verified runner contract yet, so the report shows it as unavailable and the UI
-does not offer rank controls. If the assistant runtime is
-missing, Home offers its existing retry and uv setup actions; interpreter changes remain in
-Settings ▸ Kratos.
+Home's **Check environment** action probes the configured Python interpreter used for manual runs and the assistant's uv-managed tool runtime separately. It checks the selected built-in problemtype's Kratos application imports, available CPU and memory, and whether the current run directory exists and is writable. The report includes each resolved executable and version and does not install packages. A failed manual check disables the mesh Problemtype Run action and guided queue launches while geometry browsing stays available; the action checks again before starting. A thread recommendation appears only when the manual runner exposes verified thread control. MPI has no verified runner contract yet, so the report shows it as unavailable and the UI does not offer rank controls. If the assistant runtime is missing, Home offers its existing retry and uv setup actions; interpreter changes remain in Settings ▸ Kratos.
 
-With an explicit project folder, **New study** records a geometry reference and its content revision
-in `.kkss/project.json`. Project-contained paths follow the folder when it moves; external paths
-remain explicit references. Home shows geometry, mesh, case, run and result readiness, can open an
-available geometry, mesh/case setup, and result in their existing viewers, and can duplicate study
-settings. Geometry stays external by default; **Copy geometry in project** creates a project-local
-copy, while **Relink geometry** explicitly repairs a missing or changed source. After exporting a
-mesh, **Attach mesh** records its revision and imports the adjacent case setup when one exists.
-Home opens one inline form at a time. **Cancel** or Escape dismisses it without applying changes;
-validation and service errors keep your entries available to correct and retry. Mesh reuse is an
-explicit choice, and quantity fields use selectors for location, component and reduction.
+With an explicit project folder, **New study** records a geometry reference and its content revision in `.kkss/project.json`. Project-contained paths follow the folder when it moves; external paths remain explicit references. Home shows geometry, mesh, case, run and result readiness, can open an available geometry, mesh/case setup, and result in their existing viewers, and can duplicate study settings. Geometry stays external by default; **Copy geometry in project** creates a project-local copy, while **Relink geometry** explicitly repairs a missing or changed source. After exporting a mesh, **Attach mesh** records its revision and imports the adjacent case setup when one exists. Home opens one inline form at a time. **Cancel** or Escape dismisses it without applying changes; validation and service errors keep your entries available to correct and retry. Mesh reuse is an explicit choice, and quantity fields use selectors for location, component and reduction.
 
 ![Inline quantity evaluation form](/screenshots/home-workflow-form.png)
 
 ![Revision-bound mesh refinement assumptions](/screenshots/home-refinement-form.png)
 
-**Plan run** previews isolated mesh, case-generation and solve tasks under `.kkss/runs/<id>/`.
-**Plan sweep** expands one case-setting path and up to 50 values into fresh variant studies and run
-destinations. Choose **Persist paused plan** after reviewing the preview, then **Start plan** to launch it. Cancelling the start step leaves the persisted queue paused. Resume is bound to the concrete plan revision, and the queue
-reconciles recorded CAD mesh-export and solver request identities after restart. Home can resume one waiting variant row
-while holding other rows, or preview a failed row retry with fresh study and run identities. Comparisons
-label mesh-sensitivity and solver-parameter studies separately using recorded mesh revisions and settings. Set **Refinement metadata** on each run to record revision-bound characteristic size, unit, dimension, sizing method and sizing-definition justification. Adaptive meshes require an explicit characteristic size. Richardson extrapolation and GCI are shown only for at least three compatible finite quantities in a confirmed asymptotic range; the report includes refinement ratios, assumptions, diagnostics and missing values. Four or more levels also compare consecutive observed orders against a visible 10% heuristic. A terminal run can be imported as an
-immutable input snapshot; large results remain revision-checked links. **Review run** and **Export
-review** report generated-input revisions, MDPA counts, the existing mesh-quality diagnostics and
-versioned structural, fluid, thermal, potential-flow and shallow-water solve-step outcomes, thread provenance, configured VTK/XDMF/HDF5/GiD outputs, mesh counts and result companions in offline JSON/HTML.
-**Evaluate quantity** lets you select a result field, location, component, region, time step,
-reduction and unit; the result record keeps the exact source artifact revision. Units must be
-declared explicitly. Leave the optional time step blank for an ordinary single-result file; use an index for an extended-format time series. Leave the result path blank to use the recorded artifact. If that result later changes, its saved value is shown as stale and omitted.
-Variant comparison pairs matching definitions only when their units agree; missing values stay missing. The five built-in solver monitors record solver-published step outcomes; criteria that do not publish numerical convergence, interrupted runs and truncated monitor files remain explicitly unavailable. Process success alone never proves convergence. Run reviews include the upstream preparation report, generated
-input hashes and runtime identity when available. The assistant has the same environment, study, queue, review, quantity and
-variant tools under the normal transcript approval policy; preview never launches work.
+**Plan run** previews isolated mesh, case-generation and solve tasks under `.kkss/runs/<id>/`. **Plan sweep** expands one case-setting path and up to 50 values into fresh variant studies and run destinations. Choose **Persist paused plan** after reviewing the preview, then **Start plan** to launch it. Cancelling the start step leaves the persisted queue paused. Resume is bound to the concrete plan revision, and the queue reconciles recorded CAD mesh-export and solver request identities after restart. Home can resume one waiting variant row while holding other rows, or preview a failed row retry with fresh study and run identities. Comparisons label mesh-sensitivity and solver-parameter studies separately using recorded mesh revisions and settings. Set **Refinement metadata** on each run to record revision-bound characteristic size, unit, dimension, sizing method and sizing-definition justification. Adaptive meshes require an explicit characteristic size. Richardson extrapolation and GCI are shown only for at least three compatible finite quantities in a confirmed asymptotic range; the report includes refinement ratios, assumptions, diagnostics and missing values. Four or more levels also compare consecutive observed orders against a visible 10% heuristic. A terminal run can be imported as an immutable input snapshot; large results remain revision-checked links. **Review run** and **Export review** report generated-input revisions, MDPA counts, the existing mesh-quality diagnostics and versioned structural, fluid, thermal, potential-flow and shallow-water solve-step outcomes, thread provenance, configured VTK/XDMF/HDF5/GiD outputs, mesh counts and result companions in offline JSON/HTML. **Evaluate quantity** lets you select a result field, location, component, region, time step, reduction and unit; the result record keeps the exact source artifact revision. Units must be declared explicitly. Leave the optional time step blank for an ordinary single-result file; use an index for an extended-format time series. Leave the result path blank to use the recorded artifact. If that result later changes, its saved value is shown as stale and omitted. Variant comparison pairs matching definitions only when their units agree; missing values stay missing. The five built-in solver monitors record solver-published step outcomes; criteria that do not publish numerical convergence, interrupted runs and truncated monitor files remain explicitly unavailable. Process success alone never proves convergence. Run reviews include the upstream preparation report, generated input hashes and runtime identity when available. The assistant has the same environment, study, queue, review, quantity and variant tools under the normal transcript approval policy; preview never launches work.
 
-Set **Settings → Kratos → Solver threads** to a positive OpenMP allocation, or leave **Auto** (`0`) to reserve
-one available CPU for the rest of the desktop. The preview shows and freezes the concrete allocation. KKSS
-can run one solve alongside one mesh or case-preparation task only when both verified reservations fit the
-available CPU budget; an interrupted or legacy task with unknown usage holds the budget until reconciled.
+Set **Settings → Kratos → Solver threads** to a positive OpenMP allocation, or leave **Auto** (`0`) to reserve one available CPU for the rest of the desktop. The preview shows and freezes the concrete allocation. KKSS can run one solve alongside one mesh or case-preparation task only when both verified reservations fit the available CPU budget; an interrupted or legacy task with unknown usage holds the budget until reconciled.
 
 ### Working from cloud storage
 
-If you would rather not run a sync client at all, **Settings ▸ Cloud Accounts** connects KKSS
-directly to Google Drive, Dropbox or OneDrive, and **File ▸ Open from Cloud…** browses it. You
-bring your own OAuth client — see [Configuration ▸ Cloud accounts](/guide/configuration#cloud-accounts)
-for the one-time setup.
+If you would rather not run a sync client at all, **Settings ▸ Cloud Accounts** connects KKSS directly to Google Drive, Dropbox or OneDrive, and **File ▸ Open from Cloud…** browses it. You bring your own OAuth client — see [Configuration ▸ Cloud accounts](/guide/configuration#cloud-accounts) for the one-time setup.
 
-Opening a cloud file **downloads it into a local staging cache**, along with any of its sidecars
-and companion files that exist beside it (XDMF's `.h5`, an OpenFOAM case's `constant/polyMesh/`
-mesh), and everything after that behaves exactly like a local document: the same
-viewers, the same tools, the same assistant. Cloud tabs are marked with a ☁ in the tab strip.
+Opening a cloud file **downloads it into a local staging cache**, along with any of its sidecars and companion files that exist beside it (XDMF's `.h5`, an OpenFOAM case's `constant/polyMesh/` mesh), and everything after that behaves exactly like a local document: the same viewers, the same tools, the same assistant. Cloud tabs are marked with a ☁ in the tab strip.
 
-Saving pushes it back. That happens on **File ▸ Save**, and also a few seconds after any automatic
-save — the CAD viewer writes your parts, edits, camera and meshing options continuously, and those
-ride along too. A burst of edits is coalesced into a single upload.
+Saving pushes it back. That happens on **File ▸ Save**, and also a few seconds after any automatic save — the CAD viewer writes your parts, edits, camera and meshing options continuously, and those ride along too. A burst of edits is coalesced into a single upload.
 
 What to expect in the awkward cases:
 
-- **Someone else changed the file while you had it open.** KKSS never overwrites their version and
-  never discards yours. Your copy is uploaded beside theirs as `model (conflict 2026-09-06 14-03-11).stp`
-  and a warning tells you so. Nothing on your disk is touched.
-- **You quit with an upload still running.** KKSS holds the quit open for up to ten seconds to
-  finish. If that is not enough — or the machine loses power — the local copy is still there and
-  is flagged; the next launch tells you which files have changes that never reached the provider.
-- **Recent files.** A cloud document stays in **File ▸ Open Recent** even after the cache trims its
-  local copy; clicking it downloads again. Restoring the previous session on launch downloads a trimmed
-  document again too, **in the background**: the window and its tabs appear immediately, and each
-  such tab fills in as its download finishes (with the usual cancellable progress notice). If the
-  account is no longer signed in, one notice says so — reconnect under **Settings ▸ Cloud Accounts**
-  and reopen the document from Recent files.
-- **The macro library is not synced.** `cad-preview-macros.json` belongs to a whole folder while
-  the cache holds one document per directory, so uploading it would let two models from the same
-  remote folder overwrite each other's macros. It stays local.
-- **Companion files and the OpenFOAM mesh tree travel with the document.** An XDMF's sibling `.h5`
-  and a `.foam` case's `constant/polyMesh/` folder are downloaded when you open the file and
-  uploaded when they change (the folders are created on the provider as needed). They follow the
-  same conflict rule as the document, file by file: if someone changed one remotely, yours is
-  uploaded beside it as `points (conflict …)`. If any of them cannot be downloaded the open fails
-  with a message instead of showing an empty case. Other folders of a case (`system/`, time
-  directories) are not synced, and deleting a file locally never deletes it remotely.
+- **Someone else changed the file while you had it open.** KKSS never overwrites their version and never discards yours. Your copy is uploaded beside theirs as `model (conflict 2026-09-06 14-03-11).stp` and a warning tells you so. Nothing on your disk is touched.
+- **You quit with an upload still running.** KKSS holds the quit open for up to ten seconds to finish. If that is not enough — or the machine loses power — the local copy is still there and is flagged; the next launch tells you which files have changes that never reached the provider.
+- **Recent files.** A cloud document stays in **File ▸ Open Recent** even after the cache trims its local copy; clicking it downloads again. Restoring the previous session on launch downloads a trimmed document again too, **in the background**: the window and its tabs appear immediately, and each such tab fills in as its download finishes (with the usual cancellable progress notice). If the account is no longer signed in, one notice says so — reconnect under **Settings ▸ Cloud Accounts** and reopen the document from Recent files.
+- **The macro library is not synced.** `cad-preview-macros.json` belongs to a whole folder while the cache holds one document per directory, so uploading it would let two models from the same remote folder overwrite each other's macros. It stays local.
+- **Companion files and the OpenFOAM mesh tree travel with the document.** An XDMF's sibling `.h5` and a `.foam` case's `constant/polyMesh/` folder are downloaded when you open the file and uploaded when they change (the folders are created on the provider as needed). They follow the same conflict rule as the document, file by file: if someone changed one remotely, yours is uploaded beside it as `points (conflict …)`. If any of them cannot be downloaded the open fails with a message instead of showing an empty case. Other folders of a case (`system/`, time directories) are not synced, and deleting a file locally never deletes it remotely.
 
-The cache is trimmed on an LRU budget (**Settings ▸ Cloud Accounts ▸ Cache Size Limit…**, 2 GB by
-default). A document that is open, or that holds an unsent change, is never trimmed.
+The cache is trimmed on an LRU budget (**Settings ▸ Cloud Accounts ▸ Cache Size Limit…**, 2 GB by default). A document that is open, or that holds an unsent change, is never trimmed.
 
 ### Picking up where you left off
 
@@ -416,22 +350,12 @@ On macOS use `Cmd` instead of `Ctrl`.
 
 Inside the mesh view, `1`–`6` snap the camera to ±X/±Y/±Z and `i` to an isometric view.
 
-**File ▸ Export Data Table…**, **File ▸ Stop Kratos Run**, and **File ▸ Pack Time Series Into One
-File…** are also in the native menu: the mesh viewer contributes the first two to its own File
-strip (which KKSS hides in favour of the native menu bar), and the third is reachable upstream only
-from the Command Palette and the Kratos Runs tree — neither of which KKSS runs.
+**File ▸ Export Data Table…**, **File ▸ Stop Kratos Run**, and **File ▸ Pack Time Series Into One File…** are also in the native menu: the mesh viewer contributes the first two to its own File strip (which KKSS hides in favour of the native menu bar), and the third is reachable upstream only from the Command Palette and the Kratos Runs tree — neither of which KKSS runs.
 
-A mesh tab with unsaved operations shows a dot in the tab strip; closing it, or quitting with one
-open, prompts Save / Don't Save / Cancel.
+A mesh tab with unsaved operations shows a dot in the tab strip; closing it, or quitting with one open, prompts Save / Don't Save / Cancel.
 
 ### Language and keyboard navigation
 
-Choose **Settings → Language** to select English or Spanish. Restart KKSS for the
-change to reach menus, panels and dialogs. CAD-Preview and VSCode-MDPA-Preview
-keep their own interface language. Press `F6` to move forward through the
-visible regions and `Shift+F6` to move backward; hidden panels are skipped and
-closing a panel returns focus to the region that opened it. In the document tab
-strip, use the arrow keys or Home/End to move between tabs, Enter to activate a
-tab, and Delete to close it.
+Choose **Settings → Language** to select English or Spanish. Restart KKSS for the change to reach menus, panels and dialogs. CAD-Preview and VSCode-MDPA-Preview keep their own interface language. Press `F6` to move forward through the visible regions and `Shift+F6` to move backward; hidden panels are skipped and closing a panel returns focus to the region that opened it. In the document tab strip, use the arrow keys or Home/End to move between tabs, Enter to activate a tab, and Delete to close it.
 
 Mesh mode also provides **Selection** in the toolbar, **Properties editor…** under Advanced, and **Probe line** inside Inspect. See [selection, Properties and line probes](./mesh-mode#selection-properties-and-line-probes) for editing, export and timeline behavior. The AI assistant can select entities by predicate and apply property or selection-based edits through the mesh tools.
