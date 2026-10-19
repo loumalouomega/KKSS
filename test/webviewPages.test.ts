@@ -48,6 +48,9 @@ describe.skipIf(!built)("generated webview pages", () => {
     // binding-by-id contract as the panel itself, and the host's
     // fitMeshToCadButtonClicked handler is what makes the click do anything.
     expect(html).toContain('id="mesh-health-fit"');
+    // cad 3.24.0's Mesh Health ▸ Merge facets checkbox: promote posts
+    // mergeFacets, so a stale page would silently drop the flag.
+    expect(html).toContain('id="mesh-health-merge"');
   });
 
   it("carries the mesh provider skeleton", () => {

@@ -162,6 +162,7 @@ import {
   type MeshOptions,
 } from "../../cad/src/meshOptions";
 import { meshExportFormat } from "../../cad/src/meshExportFormats";
+import { validateMergeFacets } from "../../cad/src/meshFacetMerge";
 import { DISPLAY_UNITS, UNIT_LABELS, unitScaleFactor, type DisplayUnit } from "../../cad/src/lengthUnits";
 import { detectStepLengthUnit } from "../../cad/src/stepUnits";
 import { detectIgesLengthUnit } from "../../cad/src/igesUnits";
@@ -2857,7 +2858,7 @@ export class CadHost {
     }
 
     if (msg.type === "promoteToBrepButtonClicked") {
-      await this.handlePromoteToBrep();
+      await this.handlePromoteToBrep(msg.mergeFacets === true);
       return;
     }
 
@@ -3965,7 +3966,7 @@ export class CadHost {
   }
 
   /** Mesh Health ▸ Promote to B-rep (provider.handlePromoteToBrep). */
-  private async handlePromoteToBrep(): Promise<void> {
+  private async handlePromoteToBrep(mergeFacets = false): Promise<void> {
     const doc = this.doc;
     if (!doc?.route) return;
     if (!COMPARABLE_MESH_FORMATS.has(doc.route.format)) {
@@ -3997,14 +3998,26 @@ export class CadHost {
       EXPORT_LABEL[picked.format],
       async () => {
         const bytes = await fs.readFile(doc.path);
-        const result = await cadCompute.promoteMeshToBrep(
-          this.runtimePath,
-          bytes,
-          meshFormat,
-          picked.format,
-          unit,
-          await this.gltfBuffers(meshFormat, bytes)
-        );
+        // The options argument is only passed when merging, so a plain promote
+        // is byte-identical to before (cad 3.24.0 provider.ts parity).
+        const result = mergeFacets
+          ? await cadCompute.promoteMeshToBrep(
+              this.runtimePath,
+              bytes,
+              meshFormat,
+              picked.format,
+              unit,
+              await this.gltfBuffers(meshFormat, bytes),
+              { mergeFacets: validateMergeFacets(true) }
+            )
+          : await cadCompute.promoteMeshToBrep(
+              this.runtimePath,
+              bytes,
+              meshFormat,
+              picked.format,
+              unit,
+              await this.gltfBuffers(meshFormat, bytes)
+            );
         return result.bytes;
       }
     );

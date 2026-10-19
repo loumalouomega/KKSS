@@ -116,6 +116,8 @@ describe("classifyTool", () => {
     // writes the mesh, body, recipe and case files under its output folder.
     expect(classifyTool("mesh__wind_tunnel_plan")).toBe("read");
     expect(classifyTool("mesh__wind_tunnel_generate")).toBe("write");
+    // mesh 5.16.0 run comparison: receipt + preparation manifest only.
+    expect(classifyTool("mesh__case_compare")).toBe("read");
   });
 
   it("treats anything the table does not name as unknown", () => {
@@ -225,18 +227,18 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 81 cad + 54 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
+    // 81 cad + 55 mesh tools + 4 in-process mcp__ tools + 31 app__ workflow tools
     // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(292);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(293);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
     expect(cad).toHaveLength(81);
-    expect(mesh).toHaveLength(54);
+    expect(mesh).toHaveLength(55);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(31);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
