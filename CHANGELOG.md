@@ -5,7 +5,7 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
-## [Unreleased]
+## [2.19.0] - 2026-10-20
 
 - feat: **OpenSCAD with no install.** `.scad` sources are evaluated by a bundled OpenSCAD WebAssembly build (Manifold backend) inside the compute worker — opening, the Customizer panel, meshing, measuring and exporting a `.scad` file, plus the assistant's `list_scad_parameters`/`convert_scad`, all work with nothing on `PATH` (verified: the WASM output is byte-identical to the installed binary on the minimal fixture, and `convert_scad` answers `supported:true` with no `openscad` binary installed). The user-installed binary stays as the fallback for declined constructs (`import()`/`surface()`, a missing include, over the staging caps). New [OpenSCAD walkthrough](doc/guide/tutorial-openscad.md) with a committed `bracket.scad` example and two app captures; the OpenSCAD Binary setting now configures the fallback only.
 - feat: **B-rep saves are recoverable.** STEP/IGES/BREP bakes run inside the same save journal as STL/OBJ/PLY (shared `saveRecovery` module), so an interrupted save is repaired on the next open instead of replaying edits twice; a recovered B-rep save warns that highlights may need re-checking.
@@ -334,6 +334,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.19.0]: https://github.com/loumalouomega/KKSS/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/loumalouomega/KKSS/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/loumalouomega/KKSS/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/loumalouomega/KKSS/compare/v2.15.0...v2.16.0
