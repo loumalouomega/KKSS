@@ -318,7 +318,7 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       default: "openscad",
       applies: "nextOpen",
       vscode: { section: "cadPreview", key: "openscadBinary" },
-      description: t("Executable used to convert .scad to .csg on open. A bare name is looked up on PATH."),
+      description: t("Fallback executable for .scad to .csg conversion when the bundled OpenSCAD build declines a model (import()/surface(), a missing include, over the staging caps). A bare name is looked up on PATH."),
     },
     {
       id: "cadPreview.openscadBackend",
@@ -331,7 +331,7 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       enumLabels: [t("Auto (no flag)"), t("CGAL"), t("Manifold (2025+)")],
       applies: "nextOpen",
       vscode: { section: "cadPreview", key: "openscadBackend" },
-      description: t("Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD."),
+      description: t("Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag (Manifold in the bundled build). Manifold needs a recent OpenSCAD for the binary fallback."),
     },
     {
       id: "cadPreview.openscadLibraryPaths",

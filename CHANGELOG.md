@@ -5,6 +5,14 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.19.0] - 2026-10-20
+
+- feat: **OpenSCAD with no install.** `.scad` sources are evaluated by a bundled OpenSCAD WebAssembly build (Manifold backend) inside the compute worker — opening, the Customizer panel, meshing, measuring and exporting a `.scad` file, plus the assistant's `list_scad_parameters`/`convert_scad`, all work with nothing on `PATH` (verified: the WASM output is byte-identical to the installed binary on the minimal fixture, and `convert_scad` answers `supported:true` with no `openscad` binary installed). The user-installed binary stays as the fallback for declined constructs (`import()`/`surface()`, a missing include, over the staging caps). New [OpenSCAD walkthrough](doc/guide/tutorial-openscad.md) with a committed `bracket.scad` example and two app captures; the OpenSCAD Binary setting now configures the fallback only.
+- feat: **B-rep saves are recoverable.** STEP/IGES/BREP bakes run inside the same save journal as STL/OBJ/PLY (shared `saveRecovery` module), so an interrupted save is repaired on the next open instead of replaying edits twice; a recovered B-rep save warns that highlights may need re-checking.
+- feat: **measured boundary layers, meshio facts, section views.** A 2-D generate reports achieved boundary-layer rows per wall Part (shown on the Part's Layer row, recorded in export manifests); mass properties, measurement and model comparison accept meshio-only sources as marked surface-derived facts; drawing sheets take section views with hatched cut loops. The `splitFace` edit op splits one face into two Part-addressable regions, and `generate_mesh` takes view-driven `sizeField` samples.
+- feat: **compare study runs.** Home **Compare runs** renders a facts-only Markdown report for two runs of one study (verdict, identity table, setting diffs, changed/one-sided/unverified outputs) over the shared `compareRuns` core, also exposed as `app__run_compare` (read); incomparable pairs render their problems. OpenFOAM in-place save now covers multi-region cases (per-region rewrite), decomposed cases (native re-partition) and zone files; RANS cases write the wall y+ monitor as condition data on the wall part; the wind-tunnel estimate is refit on measured runs.
+- chore: CAD-Preview 3.24.0 → 3.26.0, Mesh-Preview 5.16.0 → 5.17.0, meshio++ 17.8.0 on both sides (additive only, no format-key change).
+
 ## [2.18.0] - 2026-10-19
 
 - docs: the tutorial figures are regenerated from the solver output that b9f83b1 stopped shipping. A capture pipeline in `tools/tutorials/` (results provider, screenshot catalog, viewer capture helpers, gallery) produces field and plot shots from the recovered frames and the restored plot recipes (each checked against its published CSV); setup cards, the exported mesh and the case's problemtype setup are captured by `manual.mjs` with no solver run.
@@ -326,6 +334,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.19.0]: https://github.com/loumalouomega/KKSS/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/loumalouomega/KKSS/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/loumalouomega/KKSS/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/loumalouomega/KKSS/compare/v2.15.0...v2.16.0

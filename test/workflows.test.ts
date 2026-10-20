@@ -369,6 +369,50 @@ describe('run review evidence', () => {
   });
 });
 
+describe('run comparison', () => {
+  async function compareService(root: string, study: Study, tasks: Task[]) {
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined });
+    await service.store().update((p) => { p.studies.push(study); p.queue.tasks.push(...tasks); });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    return { invoke };
+  }
+  function solveTask(studyId: string, runId: string, runDirectory: string): Task {
+    return { id: `solve-${runId}`, studyId, runId, kind: 'solve', dependencies: [], args: { runDirectory }, inputRevision: 'in', requiredArtifacts: [], state: 'succeeded' };
+  }
+  async function receipt(dir: string, requestId: string) {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, '.kkss-execution.json'), JSON.stringify({ version: 1, requestId, ownerId: 'study-1',
+      state: 'succeeded', runDirectory: dir, meshPath: path.join(dir, 'mesh.mdpa'), createdAt: 1, updatedAt: 2, artifacts: [] }));
+  }
+  it('compares two terminal isolated runs as facts-only Markdown', async () => {
+    const root = await temp();
+    const left = path.join(root, 'runs', 'a-solve'), right = path.join(root, 'runs', 'b-solve');
+    await receipt(left, 'req-a'); await receipt(right, 'req-b');
+    const study = makeStudy();
+    const { invoke } = await compareService(root, study,
+      [solveTask(study.id, 'run-a', 'runs/a-solve'), solveTask(study.id, 'run-b', 'runs/b-solve')]);
+    const markdown = await invoke('run_compare', { studyId: study.id, leftRunId: 'run-a', rightRunId: 'run-b' }) as string;
+    expect(typeof markdown).toBe('string');
+    expect(markdown).toContain('# Run comparison');
+    expect(markdown).toContain('Comparable');
+    expect(markdown).toContain('Never a judgement');
+  });
+  it('renders incomparable pairs instead of throwing, and refuses bad input', async () => {
+    const root = await temp();
+    const left = path.join(root, 'runs', 'a-solve'), right = path.join(root, 'runs', 'b-solve');
+    await fs.mkdir(left, { recursive: true }); await fs.mkdir(right, { recursive: true });
+    const study = makeStudy();
+    const { invoke } = await compareService(root, study,
+      [solveTask(study.id, 'run-a', 'runs/a-solve'), solveTask(study.id, 'run-b', 'runs/b-solve')]);
+    const markdown = await invoke('run_compare', { studyId: study.id, leftRunId: 'run-a', rightRunId: 'run-b' }) as string;
+    expect(markdown).toContain('Not comparable');
+    await expect(invoke('run_compare', { studyId: study.id, leftRunId: 'run-a', rightRunId: 'run-a' })).rejects.toThrow(/different/);
+    await expect(invoke('run_compare', { studyId: study.id, leftRunId: 'run-a', rightRunId: 'run-x' })).rejects.toThrow(/no solve task/);
+  });
+});
+
 describe('variant comparisons', () => {
   it('retains failed and missing rows, compares only compatible units, and escapes offline output', () => {
     const parent: Study = { ...makeStudy(), name: '<baseline>', caseSettings: { load: 1 }, runs: [] };

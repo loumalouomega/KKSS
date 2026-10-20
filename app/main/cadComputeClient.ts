@@ -33,6 +33,7 @@ import type * as meshDeviation from "../../cad/src/meshDeviationHost";
 import type * as printabilityHost from "../../cad/src/printabilityHost";
 import type * as meshFitCad from "../../cad/src/meshFitCad";
 import type * as gltfDecode from "../../cad/src/gltfDecode";
+import type * as scadWasm from "../../cad/src/scadWasmService";
 import type * as brepCache from "./cadBRepCache";
 import { createKernelTracker } from "./cadKernelStatus";
 
@@ -71,12 +72,18 @@ function ensureWorker(): Worker {
   if (worker) return worker;
   const instance = new Worker(path.join(__dirname, "cadCompute.worker.js"));
   worker = instance;
-  instance.on("message", (res: { id: number; ok: boolean; value?: unknown; error?: string }) => {
+  // cad 3.26.0's kernelIpc parity: worker errors carry `{message, name?}` so
+  // a ScadWasmFallbackError survives the hop (see cadCompute.worker.ts).
+  instance.on("message", (res: { id: number; ok: boolean; value?: unknown; error?: string | { message: string; name?: string } }) => {
     if (worker !== instance || activeCall?.id !== res.id) return;
     const call = activeCall;
     activeCall = undefined;
     if (res.ok) call.resolve(res.value);
-    else call.reject(new Error(res.error ?? "cadCompute worker error"));
+    else {
+      const err = new Error(typeof res.error === "string" ? res.error : (res.error?.message ?? "cadCompute worker error"));
+      if (typeof res.error === "object" && res.error?.name) err.name = res.error.name;
+      call.reject(err);
+    }
     pump();
   });
   instance.on("error", (err) => {
@@ -309,4 +316,8 @@ export const cadCompute = {
   checkMeshQuality: rpc<typeof meshio.checkMeshQuality>("checkMeshQuality"),
   buildPartsFromMeshioRegions:
     rpc<typeof meshioParts.buildPartsFromMeshioRegions>("buildPartsFromMeshioRegions"),
+  // cad 3.26.0's OpenSCAD WASM port: WASM-first .scad evaluation with binary
+  // fallback (the worker spreads scadWasmService; kernelActivity.ts keys it to
+  // the openscad kernel, so no alias change).
+  convertScadViaWasm: rpc<typeof scadWasm.convertScadViaWasm>("convertScadViaWasm"),
 };

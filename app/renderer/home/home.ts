@@ -213,6 +213,24 @@ for (const [id, tool] of [["study-review-run", "run_review"], ["study-export-rev
     if (selectedStudy && selectedRunId) workflowCall(tool, { studyId: selectedStudy.id, runId: selectedRunId });
   });
 }
+document.getElementById("study-compare-runs")!.addEventListener("click", () => {
+  // mesh 5.17.0's in-editor run comparison on study runs: the selected run is
+  // the left side, the form picks the right side from the study's other runs.
+  // The Markdown report renders in the run-review area like every other
+  // workflowResult string.
+  const study = selectedStudy, leftRunId = selectedRunId; if (!study || !leftRunId) return;
+  const runs = (workflowSnapshot as { project?: { studies?: { id: string; runs?: { id: string; state?: string }[] }[] } } | undefined)
+    ?.project?.studies?.find(s => s.id === study.id)?.runs?.filter(r => r.id !== leftRunId) ?? [];
+  if (!runs.length) return;
+  const label = (r: { id: string; state?: string }): string => `${r.id.slice(0, 8)} · ${r.state ?? "?"}`;
+  form.open(t("Compare runs"), [
+    { name: "other", label: t("Other run (the selected run is the left side):"), choices: runs.map(label), value: label(runs[0]) },
+  ], values => {
+    const match = runs.filter(r => label(r) === values.other);
+    if (match.length !== 1) throw new Error(t("Pick one of the listed runs."));
+    workflowCall("run_compare", { studyId: study.id, leftRunId, rightRunId: match[0].id });
+  });
+});
 document.getElementById("study-refinement")!.addEventListener("click", () => {
   const study = selectedStudy, runId = selectedRunId; if (!study || !runId) return;
   form.open(t("Refinement metadata"), [
@@ -292,6 +310,7 @@ function renderWorkflow(raw: unknown): void {
     (document.getElementById("study-set-case") as HTMLButtonElement).disabled = states.mesh !== "ready";
     (document.getElementById("study-import-run") as HTMLButtonElement).disabled = !states.mesh || states.mesh !== "ready";
     (document.getElementById("study-review-run") as HTMLButtonElement).disabled = !selectedRunId;
+    (document.getElementById("study-compare-runs") as HTMLButtonElement).disabled = !selectedRunId || (active.runs?.length ?? 0) < 2;
     (document.getElementById("study-evaluate-quantity") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-refinement") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-export-review") as HTMLButtonElement).disabled = !selectedRunId;
@@ -342,7 +361,7 @@ function renderWorkflow(raw: unknown): void {
   } else {
     selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
     for (const id of ["study-open-geometry", "study-open-mesh", "study-open-case", "study-open-results"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
-    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-evaluate-quantity", "study-refinement", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
+    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-compare-runs", "study-evaluate-quantity", "study-refinement", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
   }
   const queue = value.project?.queue;
   const tasks = queue?.tasks ?? [];

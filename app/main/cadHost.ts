@@ -121,14 +121,15 @@ import {
   EXPORT_EXTENSION,
   EXPORT_LABEL,
   MESH_SAVE_IN_PLACE_FORMATS,
+  SAVE_IN_PLACE_FORMATS,
   UNIT_CONVERTIBLE_FORMATS,
 } from "../../cad/src/exportTargets";
 import {
-  recoverInterruptedMeshSave,
-  meshSavePaths,
-  type MeshSaveRecoveryDeps,
-  type MeshSaveRecoveryResult,
-} from "../../cad/src/meshSaveRecovery";
+  recoverInterruptedSave,
+  savePaths,
+  type SaveRecoveryDeps,
+  type SaveRecoveryResult,
+} from "../../cad/src/saveRecovery";
 import { parsePartsJson, serializePartsJson } from "../../cad/src/partsSidecar";
 import {
   parseLayersFile,
@@ -246,11 +247,12 @@ import { CAD_SIDECAR, MACRO_LIBRARY_NAME, MESH_PRESET_LIBRARY_NAME } from "./ser
  * registry (services/settings/registry.ts), which is what the Settings page
  * writes, so the two cannot name different keys.
  *
- * `openscadBinary` (cad 1.12.0) is the executable used to convert a `.scad`
- * source to `.csg` on open. Unset means "resolve `openscad` on PATH", the
- * submodule's own default; the OPENSCAD_BINARY environment variable stays the
- * headless escape hatch and already reaches the MCP child through its
- * inherited env. `openscadBackend` (cad 3.12.0, auto|cgal|manifold) and
+ * `openscadBinary` (cad 1.12.0) is the executable the `.scad` → `.csg`
+ * conversion falls back to. Since cad 3.26.0 the conversion is WASM-first
+ * (the bundled build needs no install); unset still means "resolve `openscad`
+ * on PATH", the submodule's own default, and the OPENSCAD_BINARY environment
+ * variable stays the headless escape hatch and already reaches the MCP child
+ * through its inherited env. `openscadBackend` (cad 3.12.0, auto|cgal|manifold) and
  * `openscadLibraryPaths` (extra OPENSCADPATH folders) ride the same
  * `resolveEffectiveSource` call — see `readOcctSource`, which spreads all
  * three so no entry point configures one and forgets the others.
@@ -624,12 +626,12 @@ export class CadHost {
     this.post({ type: "kernelStatus", state });
   }
 
-  // ---- cad 3.7.0 recoverable mesh save-in-place (roadmap 1.5) ----
+  // ---- cad 3.26.0 recoverable save-in-place (mesh 3.7.0's journal, now shared) ----
   //
-  // The CONSUMER half of `meshSaveRecovery.ts` only, ported from
-  // provider.ts's `recoverMeshSave`. KKSS opens no transaction of its own: its
-  // File ▸ Save flushes sidecars and never bakes, so `beginMeshSave`/
-  // `endMeshSave` have no call site here and `performSaveInPlace` has no
+  // The CONSUMER half of `saveRecovery.ts` only, ported from
+  // provider.ts's `recoverSave`. KKSS opens no transaction of its own: its
+  // File ▸ Save flushes sidecars and never bakes, so `beginSave`/
+  // `endSave` have no call site here and `performSaveInPlace` has no
   // counterpart to guard. What KKSS does need is the other direction — an
   // interrupted transaction left by `cad__save_model` (or any other process
   // baking that file) must be settled on open, or the viewer replays the same
@@ -642,7 +644,7 @@ export class CadHost {
   // `withSourceWrite` is a no-op because this host has no source watcher to
   // suppress — a change made here is observed the same way any other external
   // write is.
-  private meshRecoveryDeps(docPath: string): MeshSaveRecoveryDeps {
+  private meshRecoveryDeps(docPath: string): SaveRecoveryDeps {
     const sibling = (name: string): string => path.join(path.dirname(docPath), name);
     return {
       readBytes: (name) => fs.readFile(sibling(name)),
@@ -664,7 +666,7 @@ export class CadHost {
       askUnrecognised: async (info) => {
         // The same two answers the provider's showWarningMessage offers. The
         // restore option exists only when that backup genuinely is this
-        // transaction's pre-save state (meshSaveRecovery decides it), so it is
+        // transaction's pre-save state (saveRecovery decides it), so it is
         // offered conditionally here too.
         const restore = t("Restore the pre-save backup");
         const picked = await showQuickPick(
@@ -682,21 +684,22 @@ export class CadHost {
   }
 
   /**
-   * Repairs an interrupted mesh save-in-place, if one is pending. Returns the
+   * Repairs an interrupted save-in-place, if one is pending — mesh or B-rep
+   * (cad 3.26.0). Returns the
    * upstream result so a caller that already holds state can react; the `ready`
    * hydration simply re-reads the sidecar afterwards, which is correct for
    * every branch (a `finish` wrote it, a `restore` rewrote the source, and the
    * rest left both alone).
    *
-   * Gated on `MESH_SAVE_IN_PLACE_FORMATS` — the same one set the save paths
-   * gate on — so a B-rep, glTF or meshio source never reaches the journal
+   * Gated on `SAVE_IN_PLACE_FORMATS` — the same one set the save paths
+   * gate on — so a glTF, meshio or CAD-text source never reaches the journal
    * machinery at all. Non-fatal by construction upstream: a recovery problem
    * must never be the reason a model refuses to open, so the caller keeps
    * today's behaviour and only reports the message.
    */
-  private async recoverMeshSave(): Promise<MeshSaveRecoveryResult> {
+  private async recoverMeshSave(): Promise<SaveRecoveryResult> {
     const route = this.doc?.route;
-    if (!this.doc || !route || !MESH_SAVE_IN_PLACE_FORMATS.has(route.format)) {
+    if (!this.doc || !route || !SAVE_IN_PLACE_FORMATS.has(route.format)) {
       return {
         action: "none",
         reason: "not-savable",
@@ -707,8 +710,8 @@ export class CadHost {
       };
     }
     const fileName = path.basename(this.doc.path);
-    const result = await recoverInterruptedMeshSave(
-      meshSavePaths(fileName, EXPORT_EXTENSION[route.format as CadFormat]),
+    const result = await recoverInterruptedSave(
+      savePaths(fileName, EXPORT_EXTENSION[route.format as CadFormat]),
       fileName,
       this.meshRecoveryDeps(this.doc.path)
     );
@@ -882,8 +885,9 @@ export class CadHost {
     // Settle a transaction a previous run (or `cad__save_model`) left in flight
     // BEFORE opening a new one, so two saves can never stack their markers. A
     // `finish` moves the watermark and a `restore` rewrote the source, so the
-    // sidecar is re-read and the page reloaded.
-    if (route.strategy === "three") {
+    // sidecar is re-read and the page reloaded. Mesh and B-rep alike since
+    // cad 3.26.0 (provider.ts settles before both save paths).
+    if (SAVE_IN_PLACE_FORMATS.has(route.format)) {
       const recovered = await this.recoverMeshSave();
       if (recovered.sidecarChanged || recovered.sourceChanged) {
         const settled = await readEdits(doc.path);
@@ -1566,6 +1570,10 @@ export class CadHost {
           elementCount: result.elementCount,
           elapsedMs: Date.now() - startedAt,
           quality: result.quality,
+          // cad 3.26.0: achieved boundary-layer rows per wall Part (2-D B-rep
+          // generates only) — the FE Mesh panel appends them to the Part's
+          // Layer row and highlights a shortfall.
+          ...(result.boundaryLayers ? { boundaryLayers: result.boundaryLayers } : {}),
           worstElements: result.worstElements && {
             indices: encodeBuffer(result.worstElements.indices),
             threshold: result.worstElements.threshold,
@@ -2995,14 +3003,20 @@ export class CadHost {
   /**
    * `.scad`-aware source reader for every occt path (provider.readOcctSource,
    * cad 1.12.0): reads the bytes and, for a `.scad`, converts them to `.csg`
-   * with the user-installed openscad binary, so everything downstream only ever
+   * so everything downstream only ever
    * sees step/iges/brep/csg. Conversion runs host-side with `cwd` at the
    * source's own directory — that is what keeps a multi-file model's relative
    * `use`/`include`/`import` working, and why this cannot move into the compute
    * worker (which only ever receives marshalled bytes).
    *
-   * Conversion chatter accumulates into `warnings`; each caller status-posts
-   * them. A missing binary throws `ScadUnavailableError`, whose message IS the
+   * cad 3.26.0 is WASM-first: the bundled OpenSCAD WASM port evaluates the
+   * source inside the compute worker (`convertScadViaWasm`, Manifold backend
+   * by default) with no install needed, and the user-installed binary is only
+   * the fallback for constructs the WASM path declines (a ScadWasmFallbackError
+   * — import()/surface(), a missing include, the staging caps — whose class
+   * name survives the worker hop, see cadCompute.worker.ts). Any other WASM
+   * failure surfaces instead of retrying the binary. A missing binary then
+   * throws `ScadUnavailableError`, whose message IS the
    * install hint, so every caller's existing catch already reports it properly.
    *
    * cad 3.16.0 also replays the persisted Customizer overrides here (the
@@ -3055,6 +3069,15 @@ export class CadHost {
       backend: stateStore.get<string>(CAD_DEFAULT_KEYS.openscadBackend) || undefined,
       libraryPaths: Array.isArray(libraryPaths) ? libraryPaths : undefined,
       ...(defines && Object.keys(defines).length > 0 ? { defines } : {}),
+      // cad 3.26.0 WASM-first: the worker evaluates .scad with the bundled
+      // build; the binary above is only the fallback for declined constructs.
+      // extensionPath is this tab's WASM home (out/cad-runtime), the same root
+      // getScadWasmBinary reads dist/openscad-core.wasm from.
+      wasm: {
+        extensionPath: this.runtimePath,
+        convertScadViaWasm: (extensionPath, modelPath, opts) =>
+          cadCompute.convertScadViaWasm(extensionPath, modelPath, opts),
+      },
     });
   }
 
