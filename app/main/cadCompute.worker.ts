@@ -40,6 +40,10 @@ import * as meshFitCad from "../../cad/src/meshFitCad";
 // cad 3.14.0 compressed glTF: Draco/meshopt geometry expansion runs in the
 // kernel worker (WASM decoders never run in the host process).
 import * as gltfDecode from "../../cad/src/gltfDecode";
+// cad 3.26.0's OpenSCAD WASM port: .scad evaluation without an installed
+// binary (convertScadViaWasm). Worker-side for the same reason as the binary
+// path's cwd trick — `use`/`include` resolve relative to the source file.
+import * as scadWasm from "../../cad/src/scadWasmService";
 // The parsed-B-rep cache holds live OCCT handles, so it lives here rather than
 // in the host (see the module's own doc comment).
 import * as brepCache from "./cadBRepCache";
@@ -76,6 +80,7 @@ const modules: Array<[string, object]> = [
   ["printabilityHost", printabilityHost],
   ["meshFitCad", meshFitCad],
   ["gltfDecode", gltfDecode],
+  ["scadWasm", scadWasm],
   ["cadBRepCache", brepCache],
 ];
 
@@ -108,10 +113,18 @@ port.on("message", async (req: RpcRequest) => {
     const value = await fn(...(req.args as never[]));
     port.postMessage({ id: req.id, ok: true, value });
   } catch (err) {
+    // cad 3.26.0's kernelIpc parity: the error's class name travels with the
+    // message, so the host can tell a ScadWasmFallbackError (decline to the
+    // binary path) from a genuine conversion failure — without it every
+    // worker error arrives as a plain Error and WASM-first .scad conversion
+    // would never fall back.
     port.postMessage({
       id: req.id,
       ok: false,
-      error: err instanceof Error ? `${err.message}` : String(err),
+      error: {
+        message: err instanceof Error ? `${err.message}` : String(err),
+        ...(err instanceof Error && err.name && err.name !== "Error" ? { name: err.name } : {}),
+      },
     });
   }
 });

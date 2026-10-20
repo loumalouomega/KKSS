@@ -30,11 +30,12 @@
  *  - The first save of a session copies a one-deep `<file>.bak`.
  *  - The source is replaced through a temp sibling + rename, never written in
  *    place, so a crash mid-write cannot truncate it.
- *  - A mesh save runs inside the recoverable transaction (`meshSaveRecovery`),
- *    so a process death between the rename and the watermark is repaired on the
- *    next open instead of double-applying.
- */
-import * as path from "node:path";
+ *  - Every save runs inside the recoverable transaction (`saveRecovery.ts`,
+ *    cad 3.26.0) — mesh AND B-rep alike — so a process death between the
+ *    rename and the watermark is repaired on the next open instead of
+ *    double-applying. The journal also refreshes the one-deep `.bak` on the
+ *    session's first save, replacing the old inline copy.
+ */import * as path from "node:path";
 import type { EditOp, OpOutcome } from "../../cad/src/editOps";
 import type { ParamVariable } from "../../cad/src/editVariables";
 import { replayTail } from "../../cad/src/editsSidecar";
@@ -43,7 +44,7 @@ import type { CadFormat } from "../../cad/src/fileRouter";
 import { displayUnitFromUnitName, type DisplayUnit } from "../../cad/src/lengthUnits";
 import { detectIgesLengthUnit } from "../../cad/src/igesUnits";
 import { detectStepLengthUnit } from "../../cad/src/stepUnits";
-import { beginMeshSave, endMeshSave, meshSavePaths } from "../../cad/src/meshSaveRecovery";
+import { beginSave, endSave, savePaths } from "../../cad/src/saveRecovery";
 import type { Annotation, Layer, Part } from "../../cad/src/protocol";
 
 export type BrepSaveFormat = Extract<CadFormat, "step" | "iges" | "brep">;
@@ -193,17 +194,48 @@ export async function saveBrepInPlace(input: BrepSaveInput, deps: BrepSaveDeps):
     }
     const baked = await deps.exportBRep(src, tail, unit, input.parts);
 
+    // Open the recoverable transaction BEFORE touching the source (cad 3.26.0
+    // provider.ts parity): both hashes are computable right now from bytes
+    // already in hand, and `beginSave` also refreshes the one-deep `.bak` on
+    // the session's first save. A crash at every point after this call is
+    // repairable on the next open; a crash before it changed nothing at all.
+    const dir = path.dirname(docPath);
+    const sibling = (name: string): string => path.join(dir, name);
+    const txnPaths = savePaths(fileName, EXPORT_EXTENSION[format]);
+    const journalDeps = {
+      writeBytes: (name: string, bytes: Uint8Array) => deps.fs.writeFile(sibling(name), bytes),
+      readBytesOrNull: async (name: string) => {
+        try {
+          return await deps.fs.readFile(sibling(name));
+        } catch {
+          return null;
+        }
+      },
+      deleteFile: (name: string) => deps.fs.rm(sibling(name)),
+    };
+    const journal = await beginSave(
+      {
+        paths: txnPaths,
+        fileName,
+        format,
+        bakedThrough: edits.length,
+        preSaveBytes: src.bytes,
+        bakedBytes: baked,
+        writeBackup: input.firstSaveOfSession,
+      },
+      journalDeps
+    );
     let madeBackup = false;
-    if (input.firstSaveOfSession) {
-      await deps.fs.copyFile(docPath, `${docPath}.bak`);
-      madeBackup = true;
-    }
-    const tmp = path.join(path.dirname(docPath), brepTempName(fileName, format));
+    if (input.firstSaveOfSession) madeBackup = true;
+    const tmp = path.join(path.dirname(docPath), txnPaths.temp);
     try {
       await deps.fs.writeFile(tmp, baked);
       await deps.fs.rename(tmp, docPath);
     } catch (err) {
       await deps.fs.rm(tmp).catch(() => undefined);
+      // The source never moved, so the journal describes a save that did not
+      // happen: close it rather than leaving a marker for a later open.
+      await endSave(txnPaths, journal, journalDeps).catch(() => undefined);
       throw err;
     }
 
@@ -214,6 +246,11 @@ export async function saveBrepInPlace(input: BrepSaveInput, deps: BrepSaveDeps):
       await deps.commitWatermark(edits.length);
     } catch (wmErr) {
       await deps.fs.writeFile(docPath, src.bytes).catch(() => undefined);
+      // The rollback put the source back to its pre-save bytes, so the
+      // journal's pre-save hash is true again and the next open's `discard`
+      // is the right resolution. Closing it here is equivalent and keeps the
+      // pair settled immediately.
+      await endSave(txnPaths, journal, journalDeps).catch(() => undefined);
       return {
         status: "failed",
         message:
@@ -221,6 +258,10 @@ export async function saveBrepInPlace(input: BrepSaveInput, deps: BrepSaveDeps):
           `restored to its pre-save bytes; close any dirty sidecar tab and save again.`,
       };
     }
+    // The pair agrees: source baked, watermark advanced. Closing the
+    // transaction is a compare-before-delete, so a concurrent editor's newer
+    // marker is never removed by this save.
+    await endSave(txnPaths, journal, journalDeps).catch(() => undefined);
 
     const warnings: string[] = [];
     let rebound: Rebound | undefined;
@@ -305,7 +346,7 @@ export async function saveMeshInPlace(input: MeshSaveInput, deps: MeshSaveDeps):
     // Open the recoverable transaction BEFORE touching the source: a process
     // death at any point after this is repaired on the next open (the journal
     // carries both hashes), and a death before it changed nothing at all.
-    const paths = meshSavePaths(fileName, EXPORT_EXTENSION[format]);
+    const paths = savePaths(fileName, EXPORT_EXTENSION[format]);
     const journalDeps = {
       writeBytes: (name: string, bytes: Uint8Array) => deps.fs.writeFile(sibling(name), bytes),
       readBytesOrNull: async (name: string) => {
@@ -317,7 +358,7 @@ export async function saveMeshInPlace(input: MeshSaveInput, deps: MeshSaveDeps):
       },
       deleteFile: (name: string) => deps.fs.rm(sibling(name)),
     };
-    const journal = await beginMeshSave(
+    const journal = await beginSave(
       {
         paths,
         fileName,
@@ -336,7 +377,7 @@ export async function saveMeshInPlace(input: MeshSaveInput, deps: MeshSaveDeps):
       await deps.fs.rm(sibling(paths.temp)).catch(() => undefined);
       // The source never moved, so the marker describes a save that did not
       // happen: close it rather than leave a later open to reason about it.
-      await endMeshSave(paths, journal, journalDeps).catch(() => undefined);
+      await endSave(paths, journal, journalDeps).catch(() => undefined);
       throw err;
     }
     try {
@@ -345,7 +386,7 @@ export async function saveMeshInPlace(input: MeshSaveInput, deps: MeshSaveDeps):
       await deps.fs.writeFile(docPath, preSaveBytes).catch(() => undefined);
       // The rollback made the journal's pre-save hash true again; closing it
       // here is equivalent to what the next open's `discard` would do.
-      await endMeshSave(paths, journal, journalDeps).catch(() => undefined);
+      await endSave(paths, journal, journalDeps).catch(() => undefined);
       return {
         status: "failed",
         message:
@@ -353,7 +394,7 @@ export async function saveMeshInPlace(input: MeshSaveInput, deps: MeshSaveDeps):
           `restored to its pre-save bytes; close any dirty sidecar tab and save again.`,
       };
     }
-    await endMeshSave(paths, journal, journalDeps).catch(() => undefined);
+    await endSave(paths, journal, journalDeps).catch(() => undefined);
     return { status: "saved", baked: tail.length, madeBackup: input.firstSaveOfSession, warnings };
   } catch (err) {
     return { status: "failed", message: `Save in place failed: ${message(err)}` };

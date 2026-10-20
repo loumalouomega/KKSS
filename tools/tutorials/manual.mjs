@@ -7,6 +7,7 @@
 //
 //   node tools/tutorials/manual.mjs [case ...]
 //   node tools/tutorials/manual.mjs --fit-cad   (the mesh → CAD example's two CAD shots)
+//   node tools/tutorials/manual.mjs --openscad   (the OpenSCAD example's two CAD shots)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -466,6 +467,63 @@ export async function fitCadTutorials(out = screenshots) {
   }
 }
 
+/**
+ * The OpenSCAD example's shots (openscad-source.png, openscad-customizer.png):
+ * the committed `bracket.scad` opens in CAD from a scratch copy with a seeded
+ * view — first at its defaults with the Parts panel open, then with a seeded
+ * `<model>.scad-params.json` (`hole_d = 12`) and the Customizer panel open.
+ * The bundled WASM build evaluates the source, so no `openscad` install is
+ * needed at capture time. The names carry no `tutorial-` prefix, so like the
+ * fit-cad shots they need no catalog entry (see shots.mjs).
+ */
+export async function openscadTutorials(out = screenshots) {
+  const published = path.join(root, 'doc/public/examples/openscad');
+  const variants = [
+    { file: 'bracket.scad', shot: 'openscad-source.png', expanded: ['parts-panel'], overrides: null },
+    { file: 'bracket.scad', shot: 'openscad-customizer.png', expanded: ['scad-panel'], overrides: { hole_d: 12 } },
+  ];
+  for (const { file, shot, expanded, overrides } of variants) {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'kkss-openscad-'));
+    const copy = path.join(temp, file);
+    fs.copyFileSync(path.join(published, file), copy);
+    if (overrides) {
+      fs.writeFileSync(
+        `${copy}.scad-params.json`,
+        JSON.stringify({ version: 1, source: file, overrides }, null, 2) + '\n'
+      );
+    }
+    seedView(copy, 'openscad', expanded);
+    const profile = path.join(temp, 'profile');
+    fs.mkdirSync(profile);
+    fs.writeFileSync(path.join(profile, 'state.json'), JSON.stringify({ uiTheme: 'dark', uiLanguage: 'en' }));
+    let app;
+    try {
+      const launched = await launchWindow(copy, { profile, renderer: '/renderer/cad/', width: 1440, height: 1100 });
+      app = launched.app;
+      const cad = await appWindow(app, '/renderer/cad/', Date.now() + 120_000);
+      await cad.locator('#doc-chip-name').getByText(file, { exact: true }).waitFor();
+      // A B-rep-route source (via the WASM .scad conversion) posts `geometry`
+      // like any STEP open; a conversion failure surfaces on the status line.
+      await until(() => launched.output().includes('[cad] host → webview: geometry'), `openscad ${shot}`, 120_000);
+      const statusText = async () => (await cad.locator('#status').textContent().catch(() => '')) ?? '';
+      await until(async () => {
+        const text = await statusText();
+        if (text.startsWith('Failed to load model')) throw new Error(`openscad ${shot}: ${text}`);
+        return !text.includes('Loading model');
+      }, `openscad ${shot} finishes loading`, 300_000);
+      await sleep(1200);
+      const text = await partsShot(cad, path.join(out, shot));
+      console.log(`${shot}: ${fs.statSync(path.join(out, shot)).size} bytes; ${text}`);
+    } catch (error) {
+      console.log(`openscad ${shot}: FAILED ${error.message.split('\n')[0]}`);
+      process.exitCode = 1;
+    } finally {
+      if (app) await closeApp(app);
+      fs.rmSync(temp, { recursive: true, force: true });
+    }
+  }
+}
+
 /** The wizard shots (tutorial-*-wizard-*.png) for each case that declares them. */
 export async function wizardTutorials(out = screenshots, selected = []) {
   const failures = [];
@@ -496,5 +554,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   else if (args.includes('--parts')) await cadTutorials('parts', screenshots, names);
   else if (args.includes('--wizard')) await wizardTutorials(screenshots, names);
   else if (args.includes('--fit-cad')) await fitCadTutorials(screenshots);
+  else if (args.includes('--openscad')) await openscadTutorials(screenshots);
   else await manualTutorials(screenshots, names);
 }

@@ -141,6 +141,10 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__variants_create: "write",
   app__variants_compare_export: "write",
   app__run_review: "read",
+  // mesh 5.17.0's run comparison on study runs: the shared compareRuns core
+  // rendered as Markdown — facts only, never a judgement. Read: both run
+  // directories are only read.
+  app__run_compare: "read",
   app__run_review_export: "write",
   app__run_quantity_evaluate: "write",
   app__run_refinement_set: "write",

@@ -322,7 +322,6 @@
   "Fine (most detail)": "Fina (más detalle)",
   "B-rep tessellation for STEP/IGES/BREP. Re-read on every edit or reopen. Does not affect FE meshing.": "Teselación B-rep para STEP/IGES/BREP. Se aplica al editar o reabrir. No afecta al mallado de elementos finitos.",
   "OpenSCAD Binary": "Ejecutable de OpenSCAD",
-  "Executable used to convert .scad to .csg on open. A bare name is looked up on PATH.": "Ejecutable que convierte .scad a .csg al abrir. Un nombre sin ruta se busca en PATH.",
   "Kernel Job Timeout (minutes)": "Tiempo límite del núcleo (minutos)",
   "Maximum time for a single CAD kernel job before its worker is restarted. Applies to newly opened models.": "Tiempo máximo de una tarea del núcleo CAD antes de reiniciar su proceso. Se aplica a modelos recién abiertos.",
   "Large-Mesh Summary Threshold (MB)": "Umbral de resumen de mallas grandes (MB)",
@@ -763,7 +762,6 @@
   "Auto (no flag)": "Automático (sin opción)",
   "CGAL": "CGAL",
   "Manifold (2025+)": "Manifold (2025+)",
-  "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.": "Motor geométrico con el que OpenSCAD evalúa las fuentes .scad. Automático no pasa ninguna opción. Manifold necesita un OpenSCAD reciente.",
   "OpenSCAD Library Folders": "Carpetas de bibliotecas de OpenSCAD",
   "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.": "Carpetas adicionales de bibliotecas de OpenSCAD antepuestas a OPENSCADPATH solo para la conversión. Rutas absolutas.",
   "Allowed Tools": "Herramientas permitidas",
@@ -793,5 +791,10 @@
   "1 attached file is no longer kept in this conversation.": "Un archivo adjunto ya no se conserva en esta conversación.",
   "{0} attached files are no longer kept in this conversation.": "{0} archivos adjuntos ya no se conservan en esta conversación.",
   "Pasted image": "Imagen pegada",
-  "Link this preview with…": "Enlazar esta vista con…"
+  "Link this preview with…": "Enlazar esta vista con…",
+  "Fallback executable for .scad to .csg conversion when the bundled OpenSCAD build declines a model (import()/surface(), a missing include, over the staging caps). A bare name is looked up on PATH.": "Ejecutable de reserva para la conversión de .scad a .csg cuando la compilación incluida de OpenSCAD rechaza un modelo (import()/surface(), un include ausente, por encima de los límites). Un nombre sin ruta se busca en PATH.",
+  "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag (Manifold in the bundled build). Manifold needs a recent OpenSCAD for the binary fallback.": "Motor geométrico con el que OpenSCAD evalúa las fuentes .scad. Automático no pasa ninguna opción (Manifold en la compilación incluida). Manifold necesita un OpenSCAD reciente para la reserva binaria.",
+  "Compare runs": "Comparar ejecuciones",
+  "Other run (the selected run is the left side):": "Otra ejecución (la seleccionada es el lado izquierdo):",
+  "Pick one of the listed runs.": "Elige una de las ejecuciones listadas."
 }

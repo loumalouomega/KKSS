@@ -322,7 +322,6 @@
   "Fine (most detail)": "Fine (most detail)",
   "B-rep tessellation for STEP/IGES/BREP. Re-read on every edit or reopen. Does not affect FE meshing.": "B-rep tessellation for STEP/IGES/BREP. Re-read on every edit or reopen. Does not affect FE meshing.",
   "OpenSCAD Binary": "OpenSCAD Binary",
-  "Executable used to convert .scad to .csg on open. A bare name is looked up on PATH.": "Executable used to convert .scad to .csg on open. A bare name is looked up on PATH.",
   "Kernel Job Timeout (minutes)": "Kernel Job Timeout (minutes)",
   "Maximum time for a single CAD kernel job before its worker is restarted. Applies to newly opened models.": "Maximum time for a single CAD kernel job before its worker is restarted. Applies to newly opened models.",
   "Large-Mesh Summary Threshold (MB)": "Large-Mesh Summary Threshold (MB)",
@@ -763,7 +762,6 @@
   "Auto (no flag)": "Auto (no flag)",
   "CGAL": "CGAL",
   "Manifold (2025+)": "Manifold (2025+)",
-  "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.": "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag. Manifold needs a recent OpenSCAD.",
   "OpenSCAD Library Folders": "OpenSCAD Library Folders",
   "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.": "Extra OpenSCAD library folders prepended to OPENSCADPATH for the conversion only. Absolute paths.",
   "Allowed Tools": "Allowed Tools",
@@ -793,5 +791,10 @@
   "1 attached file is no longer kept in this conversation.": "1 attached file is no longer kept in this conversation.",
   "{0} attached files are no longer kept in this conversation.": "{0} attached files are no longer kept in this conversation.",
   "Pasted image": "Pasted image",
-  "Link this preview with…": "Link this preview with…"
+  "Link this preview with…": "Link this preview with…",
+  "Fallback executable for .scad to .csg conversion when the bundled OpenSCAD build declines a model (import()/surface(), a missing include, over the staging caps). A bare name is looked up on PATH.": "Fallback executable for .scad to .csg conversion when the bundled OpenSCAD build declines a model (import()/surface(), a missing include, over the staging caps). A bare name is looked up on PATH.",
+  "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag (Manifold in the bundled build). Manifold needs a recent OpenSCAD for the binary fallback.": "Geometry engine OpenSCAD evaluates .scad sources with. Auto passes no flag (Manifold in the bundled build). Manifold needs a recent OpenSCAD for the binary fallback.",
+  "Compare runs": "Compare runs",
+  "Other run (the selected run is the left side):": "Other run (the selected run is the left side):",
+  "Pick one of the listed runs.": "Pick one of the listed runs."
 }

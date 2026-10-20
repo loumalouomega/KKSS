@@ -62,6 +62,17 @@ const required = [
   // cad 3.11.0's MMG remeshing kernel (mmgService.ts getMmg joins
   // extensionPath/dist/mmg-core.wasm) — built by cad's own esbuild copy.
   ["cad/dist/mmg-core.wasm", "npm run build --prefix cad"],
+  // cad 3.26.0's OpenSCAD WASM port (scadWasmService.ts convertScadViaWasm):
+  // the 24 MB binary ships once as dist/openscad-core.wasm (copied by cad's
+  // own esbuild) and is passed explicitly as `wasmBinary`, so the package's
+  // own bundled copy is dead weight and is NOT staged (see copyArtifacts).
+  ["cad/dist/openscad-core.wasm", "npm run build --prefix cad"],
+  // The OpenSCAD JS glue itself (scadWasmService.ts resolves it at runtime via
+  // runtimePackage.ts: installed package, then <bundle dir>/openscad, then two
+  // levels up — i.e. out/openscad/ for the interactive worker and
+  // out/cad-runtime/openscad/ for the MCP kernel worker). KKSS ships no
+  // node_modules, so the staged trees below are the only resolution left.
+  ["cad/node_modules/@loumalouomega/openscad-wasm/dist/openscad.cjs", "npm ci --prefix cad"],
   // The MMG JS wrapper itself (mmgService.ts resolves it at runtime via
   // runtimePackage.ts: installed package, then <bundle dir>/mmg, then two
   // levels up — i.e. out/mmg/ for both the interactive worker and the MCP
@@ -339,6 +350,11 @@ async function copyArtifacts() {
     // (mmgService.ts getMmg). Needed by both the interactive worker
     // (out/cadCompute.worker.js) and the MCP kernel worker.
     ["cad/dist/mmg-core.wasm", out("cad-runtime/dist/mmg-core.wasm")],
+    // cad 3.26.0's OpenSCAD kernel — same <extensionPath>/dist/… convention
+    // (scadWasmService.ts getScadWasmBinary reads extensionPath/dist/
+    // openscad-core.wasm and passes it explicitly as `wasmBinary`, so the
+    // binary stays separately replaceable). Needed by both workers, like MMG.
+    ["cad/dist/openscad-core.wasm", out("cad-runtime/dist/openscad-core.wasm")],
     // cad 2.3.0's bundled starter macro library — same <extensionPath>/dist/…
     // convention as the WASM binaries above (bundledMacrosPath/getOcct both
     // join extensionPath the same way).
@@ -442,6 +458,29 @@ async function copyArtifacts() {
   fs.cpSync(path.join(__dirname, "cad/node_modules/@loumalouomega/mmg-wasm/dist"), out("mmg/dist"), {
     recursive: true,
   });
+  // cad 3.26.0's OpenSCAD WASM port — same staged-tree pattern as MMG above.
+  // The binary ships ONCE at out/cad-runtime/dist/openscad-core.wasm (copied
+  // below; scadWasmService passes it explicitly as `wasmBinary`), so the
+  // package's own bundled copy is filtered out of the tree. The glue's
+  // relative dynamic imports (./openscad.mjs → ./openscad-factory.mjs,
+  // ./core.mjs, ./worker.mjs) keep working inside it. One landing place serves
+  // both workers through runtimePackage.ts's two candidates: out/openscad/ is
+  // `<bundle dir>/openscad` for the interactive worker
+  // (out/cadCompute.worker.js, __dirname = out/) and two levels up for the MCP
+  // kernel worker (out/cad-runtime/dist/kernel-worker.js).
+  // The package's LICENSE/NOTICE/THIRD_PARTY_NOTICES.md ride alongside
+  // (GPL-3.0-or-later attribution, same as cad's VSIX).
+  const openscadDist = path.join(__dirname, "cad/node_modules/@loumalouomega/openscad-wasm/dist");
+  fs.cpSync(openscadDist, out("openscad/dist"), {
+    recursive: true,
+    filter: (src, _dest) => !src.endsWith("openscad-core.wasm"),
+  });
+  for (const notice of ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]) {
+    fs.copyFileSync(
+      path.join(__dirname, "cad/node_modules/@loumalouomega/openscad-wasm", notice),
+      out("openscad", notice)
+    );
+  }
   // cad 3.14.0's Draco decoders for compressed glTF (copyDracoDecoders).
   // `dist/draco/` holds the web pair three's DRACOLoader fetches plus the
   // Node wasm gltfDecode.ts hands to draco3d as wasmBinary. Staged twice:

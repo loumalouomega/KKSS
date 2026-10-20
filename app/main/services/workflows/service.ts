@@ -22,6 +22,8 @@ import { isPidAlive } from '../../../../mesh/src/problemtype/runProcess';
 import { latestResultFile } from '../../../../mesh/src/problemtype/runCore';
 import { meshStem } from '../../../../mesh/src/parser/meshFormats';
 import { PREPARATION_FILE, parsePreparationReport } from '../../../../mesh/src/problemtype/preparation';
+import { compareRuns } from '../../../../mesh/src/problemtype/runCompare';
+import { renderRunComparisonMarkdown } from '../../../../mesh/src/problemtype/runComparisonReport';
 import { makeReview, reviewHtml } from './review';
 import { compareVariants, comparisonHtml } from './comparison';
 export interface WorkflowDeps {
@@ -305,8 +307,25 @@ export class WorkflowService {
     await store.update(p => { this.study(p, study.id).runs.push(run); p.activeStudyId = study.id; p.activeRunId = id; });
     await this.snapshot(); this.deps.changed(); return run;
   }
-  private async buildRunReview(studyId: string, runId: string) {
+  /**
+   * mesh 5.17.0's in-editor run comparison, on study runs: resolves each run
+   * to its solve task's run directory and renders the shared compareRuns core
+   * as Markdown. A run with no solve task (an import without one) or without
+   * an isolated execution receipt renders its problems instead of throwing —
+   * compareRuns never throws, so neither does this.
+   */
+  private async compareStudyRuns(studyId: string, leftRunId: string, rightRunId: string): Promise<string> {
     const store = this.store(), project = await store.read(); if (!project) throw new Error('No project.');
+    this.study(project, studyId);
+    if (leftRunId === rightRunId) throw new Error('Pick two different runs to compare.');
+    const dirOf = (runId: string): string => {
+      const task = project.queue.tasks.find(t => t.studyId === studyId && t.runId === runId && t.kind === 'solve');
+      if (!task) throw new Error(`Run ${runId} has no solve task in this study, so there is no run directory to compare.`);
+      return path.resolve(store.root, relativeOutput(task.args.runDirectory, 'Run directory'));
+    };
+    return renderRunComparisonMarkdown(compareRuns(dirOf(leftRunId), dirOf(rightRunId)));
+  }
+  private async buildRunReview(studyId: string, runId: string) {    const store = this.store(), project = await store.read(); if (!project) throw new Error('No project.');
     const study = this.study(project, studyId), run = study.runs.find(r => r.id === runId);
     if (!run || run.studyId !== study.id) throw new Error('Run does not belong to this study.');
     const mesh = run.artifacts.find(a => a.role === 'mesh' && a.ownerId === run.id);
@@ -1007,6 +1026,7 @@ export class WorkflowService {
         this.deps.changed(); return metadata;
       }),
       tool('run_review', 'Build a structured review for a terminal run with revision-checked generated inputs and mesh-quality diagnostics when the mesh runner is available. Preparation reports and their inputs are checked against owned revisions. Versioned structural, fluid, thermal, potential-flow and shallow-water monitors distinguish process completion, solver convergence, final-iteration residual norms and unavailable diagnostics. Saved scalar quantities are included only while their source result revision is current.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => (await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'))).review),
+      tool('run_compare', 'Compare two runs of one study as a facts-only Markdown report — verdict, identity table (source mesh, problemtype, settings, CAD source), every differing setting, and changed, one-sided and unverified outputs with the list bound named when hit. Same compareRuns core as mesh case_compare (facts only, never a judgement; incomparable pairs render their problems). Runs without an isolated execution receipt compare as incomparable rather than guessed.', { studyId: str, leftRunId: str, rightRunId: str }, ['studyId', 'leftRunId', 'rightRunId'], args => this.compareStudyRuns(text(args, 'studyId'), text(args, 'leftRunId'), text(args, 'rightRunId'))),
       tool('run_quantity_evaluate', 'Evaluate one explicitly selected result field and save its definition, unit, value and exact source artifact revision into the owning run evidence.', {
         studyId: str, runId: str, resultPath: str,
         field: str, kind: { enum: ['Nodal', 'Elemental', 'Conditional'] },
