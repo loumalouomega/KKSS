@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 ARG KKSS_VARIANT=base
 
-FROM golang:1.27.2-bookworm AS web-builder
+FROM golang:1.27.3-bookworm AS web-builder
 WORKDIR /web
 COPY docker/web/go.mod docker/web/go.sum ./
 RUN go mod download
@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 go build -trimpath -o /kkss-web .
 # The upstream Caddy image currently embeds Go modules with fixes that are
 # newer than its published binary. Build the same pinned Caddy release with
 # those patched modules so the runtime image remains covered by Trivy.
-FROM golang:1.27.2-bookworm AS caddy-binary
+FROM golang:1.27.3-bookworm AS caddy-binary
 ARG CADDY_VERSION=2.11.4
 ENV GOPROXY=https://proxy.golang.org|direct
 WORKDIR /caddy
@@ -24,6 +24,7 @@ RUN git clone --depth 1 --branch "v${CADDY_VERSION}" https://github.com/caddyser
       -require=golang.org/x/net@v0.60.0 \
       -require=golang.org/x/text@v0.42.0 \
       -require=google.golang.org/grpc@v1.83.2 \
+      -require=github.com/klauspost/compress@v1.18.7 \
  && go mod tidy \
  && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /usr/bin/caddy ./cmd/caddy
 FROM ghcr.io/astral-sh/uv:0.12.10 AS uv-binary
