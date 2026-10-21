@@ -1345,7 +1345,11 @@ resubmitted automatically.
   (`services/chat/mcpHub.ts`) owns the single `McpManager`; both the chat loop
   and the optional **HTTP meta MCP server** (`services/metaServer/`) call
   `hub.ensureStarted()`, so the four children are spawned once (constructed in
-  `index.ts`, disposed on `will-quit`). The meta server re-exposes the same
+  `index.ts`, disposed on `will-quit`). `ensureStarted()` must call `start()` in the
+  same turn it constructs the manager — raw callers (Home, the meta server) call
+  `callToolRaw()` straight after it, which only waits on connections `start()` has
+  already registered; deferring it, even behind an awaited `setUserServers()`,
+  answers "not connected" (`test/mcpHub.test.ts`, caught by `home-workflows`). The meta server re-exposes the same
   aggregated toolset (+ resources/prompts) over `127.0.0.1:<port>/mcp`
   (`StreamableHTTPServerTransport`) for an external LLM client — **off by
   default, bearer-token + Host-checked** (these tools touch disk). Wired via

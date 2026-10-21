@@ -29,11 +29,17 @@ export class McpHub {
   /** Lazily spawns and connects the servers (idempotent); returns the manager. */
   ensureStarted(): McpManager {
     if (this.mgr) return this.mgr;
-    this.mgr = new McpManager(buildServerSpecs(this.outDir), (statuses) => {
+    // The configured servers go into the constructor, and `start()` runs in this
+    // same turn: raw callers (Home, the meta server) call `ensureStarted()` and
+    // straight away `callToolRaw()`, which waits on the manager's pending
+    // connections. Deferring `start()` — even by a microtask, as an awaited
+    // `setUserServers()` did — leaves that map empty and the call answers
+    // "not connected" for a server that is about to be ready.
+    this.mgr = new McpManager([...buildServerSpecs(this.outDir), ...(this.userServers?.specs() ?? [])], (statuses) => {
       this.lastStatuses = statuses;
       for (const listener of this.listeners) listener(statuses);
     }, new KratosRuntime(app.getPath("userData")), kratosEnvDelta);
-    void this.mgr.setUserServers(this.userServers?.specs() ?? []).then(() => this.mgr?.start());
+    void this.mgr.start();
     return this.mgr;
   }
 
