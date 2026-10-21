@@ -24,6 +24,7 @@ RUN git clone --depth 1 --branch "v${CADDY_VERSION}" https://github.com/caddyser
       -require=golang.org/x/net@v0.60.0 \
       -require=golang.org/x/text@v0.42.0 \
       -require=google.golang.org/grpc@v1.83.2 \
+      -require=github.com/klauspost/compress@v1.18.7 \
  && go mod tidy \
  && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /usr/bin/caddy ./cmd/caddy
 FROM ghcr.io/astral-sh/uv:0.12.10 AS uv-binary
