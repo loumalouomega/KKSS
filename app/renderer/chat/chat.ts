@@ -25,6 +25,7 @@ import type {
 } from "../../main/ipc";
 
 import { kratosStatusView } from "./serverStatus";
+import { McpManager } from "./mcpManager";
 import { glyph } from "../glyphs";
 import { MAX_IMAGE_B64, MAX_IMAGES_PER_MESSAGE, MAX_PDF_B64, MAX_PDFS_PER_MESSAGE, kindOfMime } from "../../main/services/chat/chatAttachments";
 
@@ -65,6 +66,14 @@ const attachNotice = byId<HTMLDivElement>("attach-notice");
 // stays free of SVG).
 byId<HTMLElement>("chat-icon").innerHTML = glyph("messageSquare");
 historyBtn.innerHTML = glyph("history");
+const mcpBtn = byId<HTMLButtonElement>("mcp-btn");
+mcpBtn.innerHTML = glyph("server");
+const mcpClose = byId<HTMLButtonElement>("mcp-close");
+mcpClose.innerHTML = glyph("x");
+const mcpManager = new McpManager(
+  { panel: byId<HTMLElement>("mcp-panel"), body: byId<HTMLElement>("mcp-body"), openBtn: mcpBtn, closeBtn: mcpClose },
+  (message) => api.post(message)
+);
 newBtn.innerHTML = glyph("plus");
 hideBtn.innerHTML = glyph("x");
 byId<HTMLElement>("think-icon").innerHTML = glyph("thinkBrain");
@@ -743,7 +752,11 @@ function renderServers(servers: ChatServerStatus[]): void {
         ? t("{0} tools", {0: server.toolCount ?? 0})
         : server.state === "starting"
           ? t("starting…")
-          : t("unavailable — {0}", {0: server.error ?? t("unknown error")});
+          : server.state === "disabled"
+            ? t("disabled")
+            : server.state === "untrusted"
+              ? t("waiting for you to trust the project folder")
+              : t("unavailable — {0}", {0: server.error ?? t("unknown error")});
     dot.title = `${server.name}: ${detail}`;
     serversEl.appendChild(dot);
   }
@@ -1142,6 +1155,13 @@ api.onMessage((raw) => {
       break;
     case "servers":
       renderServers(msg.servers);
+      break;
+    case "mcpManager":
+    case "mcpTools":
+    case "mcpError":
+    case "mcpOpen":
+    case "mcpSaved":
+      mcpManager.handle(msg);
       break;
   }
 });

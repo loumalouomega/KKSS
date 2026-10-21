@@ -35,6 +35,7 @@ import { EditorService } from "./services/editor";
 import { ChatService } from "./services/chat/chatService";
 import { JobsService } from "./services/jobs";
 import { McpHub } from "./services/chat/mcpHub";
+import { UserServerStore } from "./services/chat/userServerStore";
 import { WorkflowService } from "./services/workflows/service";
 import { manualLaunchAvailability, resolveThreads } from "./services/workflows/environment";
 import { registerAppTools, callAppTool } from "./services/chat/appTools";
@@ -165,6 +166,7 @@ let terminal: TerminalService | null = null;
 let editor: EditorService | null = null;
 let chat: ChatService | null = null;
 let mcpHub: McpHub | null = null;
+let userServers: UserServerStore | null = null;
 let jobs: JobsService | null = null;
 let workflows: WorkflowService | undefined;
 let metaServer: MetaMcpServer | null = null;
@@ -1471,7 +1473,19 @@ app.whenReady().then(() => {
     },
   });
   registerAppTools(workflows.tools());
-  mcpHub = new McpHub(__dirname);
+  // User- and project-configured MCP servers (the sidebar's manager). The
+  // project half is keyed on the *explicit* root only — see folderTrustCore.ts.
+  userServers = new UserServerStore({
+    get: (key) => stateStore.get(key),
+    update: (key, value) => stateStore.update(key, value),
+    isManaged: (key) => stateStore.isManaged(key),
+    getSecret,
+    setSecret,
+    explicitRoot: () => projectRoot.explicit(),
+    env: () => process.env,
+    now: () => Date.now(),
+  });
+  mcpHub = new McpHub(__dirname, userServers);
   jobs = new JobsService({
     hub: mcpHub,
     hide: () => { if (main?.jobsVisible()) toggleJobs(); },
@@ -1511,6 +1525,7 @@ app.whenReady().then(() => {
 
   chat = new ChatService({
     hub: mcpHub,
+    userServers,
     chatsDir: path.join(app.getPath("userData"), "chats"),
     projectRoot: () => projectRoot.explicit(),
     currentFiles: () => ({
@@ -1602,6 +1617,17 @@ app.whenReady().then(() => {
     },
     metaServer: menuDeps.metaServer,
     cloud: menuDeps.cloud,
+    assistantMcp: {
+      open: () => {
+        if (!main?.chatVisible()) toggleChat();
+        chat?.openMcpManager();
+      },
+      status: () => ({
+        servers: userServers?.userServers().length ?? 0,
+        project: userServers?.projectInfo().state ?? "none",
+        managed: userServers?.managed() ?? false,
+      }),
+    },
     restartKratos: () => {
       void mcpHub?.restartKratos();
       toast("info", t("Restarting the Kratos tools with the current environment."));
@@ -1641,6 +1667,7 @@ app.whenReady().then(() => {
   // The root shows in the File menu's label, and changes how recents describe
   // their folders, so both surfaces are rebuilt with it.
   projectRoot.onDidChange(() => {
+    userServers?.reloadProject();
     installMenu(menuDeps);
     refreshSettingsRows();
     pushProjectRoot();

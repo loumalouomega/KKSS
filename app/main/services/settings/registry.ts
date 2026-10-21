@@ -713,6 +713,14 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       description: t("When the assistant must ask before running a tool. “Never ask” is confirmed once."),
     },
     {
+      id: "llm.mcpServers",
+      label: t("MCP Servers"),
+      category: "LLM Assistant",
+      type: "action",
+      actions: [{ id: "open", label: t("Open manager…") }],
+      description: t("Add your own MCP servers (a local command or an HTTP URL), enable, disable or restart them, mark which of their tools are read-only, and trust a project folder's .kkss/assistant/mcp.json. Tools you have not marked always ask first."),
+    },
+    {
       id: "llm.anthropicKey",
       label: t("Anthropic API Key"),
       category: "LLM Assistant",

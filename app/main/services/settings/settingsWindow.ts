@@ -42,6 +42,8 @@ export interface SettingsDeps {
   };
   restartKratos(): void;
   checkSimulationEnvironment?(): void;
+  /** The assistant's MCP manager (a sidebar panel): open it, and a one-line state for the row. */
+  assistantMcp?: { open(): void; status(): { servers: number; project: "none" | "untrusted" | "trusted" | "changed" | "invalid"; managed: boolean } };
 }
 
 let outDir = "";
@@ -70,6 +72,14 @@ function rowState(entry: SettingEntry, cloud: CloudStatus[]): SettingsRowState {
       row.status = root ?? t("Not set — the focused document's folder is used.");
       row.modified = !!root;
       if (!root) row.disabledActions = ["clear"];
+    }
+    if (entry.id === "llm.mcpServers") {
+      const s = deps?.assistantMcp?.status();
+      if (s) {
+        const project = s.project === "none" ? t("no project definitions") : s.project === "trusted" ? t("project folder trusted") : s.project === "invalid" ? t("project definitions unreadable") : t("project folder not trusted");
+        row.status = t("{0} configured · {1}", { 0: s.servers, 1: project });
+        row.managed = s.managed;
+      }
     }
     const id = cloudId(entry);
     if (id) {
@@ -156,6 +166,8 @@ function runAction(entry: SettingEntry, action: string): void {
       return deps.projectRoot.choose();
     case "general.projectRoot:clear":
       return deps.projectRoot.clear();
+    case "llm.mcpServers:open":
+      return deps.assistantMcp?.open();
     case "kratos.tools:restart":
       return deps.restartKratos();
     case "kratos.environment:check":

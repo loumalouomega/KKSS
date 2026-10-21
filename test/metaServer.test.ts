@@ -117,6 +117,32 @@ describe("MetaMcpServer", () => {
       expect((await call("mesh__mesh_transform")).isError).toBe(true);
     });
 
+    it("lists a user-configured server's tools only through the allow-list, whatever the user marked", async () => {
+      // An external client has no user to ask. The sidebar's read/write marks are
+      // the user's answer to *their own* prompts and must not widen this surface.
+      TOOLS.push({ name: "acme__lookup", description: "user tool", inputSchema: { type: "object", properties: {} } });
+      try {
+        policy = { access: "readOnly", allowedWrites: new Set() };
+        let client = await connect(auth);
+        expect((await client.listTools()).tools.map((t) => t.name)).not.toContain("acme__lookup");
+        await client.close();
+        expect((await call("acme__lookup")).isError).toBe(true);
+
+        policy = { access: "readListed", allowedWrites: new Set() };
+        expect((await call("acme__lookup")).isError).toBe(true);
+        policy = { access: "readListed", allowedWrites: new Set(["acme__lookup"]) };
+        client = await connect(auth);
+        expect((await client.listTools()).tools.map((t) => t.name)).toContain("acme__lookup");
+        await client.close();
+        expect((await call("acme__lookup")).isError).toBeFalsy();
+
+        policy = { access: "all", allowedWrites: new Set() };
+        expect((await call("acme__lookup")).isError).toBeFalsy();
+      } finally {
+        TOOLS.pop();
+      }
+    });
+
     it("applies a setting change to a live session", async () => {
       policy = { access: "readOnly", allowedWrites: new Set() };
       const client = await connect(auth);

@@ -1352,6 +1352,31 @@ resubmitted automatically.
   **Settings ▸ MCP Server**. New stateStore keys: `metaServerEnabled`,
   `metaServerPort`; secret: `metaServerToken`. Still ships no `node_modules`
   (SDK server subpaths bundle into `out/main.js`).
+- **User- and project-configured MCP servers keep the one gate and the one trust record.**
+  The sidebar's MCP manager (`chat/userServers.ts` pure, `folderTrustCore.ts` pure,
+  `userServerStore.ts` glue; `McpManager.setUserServers`) adds servers beyond the four
+  built-ins. Non-negotiable: **(1)** ids are `^[a-z][a-z0-9-]{0,31}$` and
+  `cad|mesh|kratos|pdf|app|mcp` are reserved — classification is keyed by the full name,
+  so a user `cad` server would inherit `cad__list_layers`' read row; **(2)** every call
+  still passes `executeTool`; a user tool is `unknown` ⇒ ask unless the *user* marked it,
+  via `GateOptions.classify` (the 294 `toolPolicy.ts` rows and their test pin stay
+  untouched) — never from a tool name or MCP annotations, and **marks are bound to the
+  launch fingerprint** (command+args / url) so an edited server loses them, and are
+  **never read from a project file**; **(3)** definitions hold names only — env values
+  and bearer tokens live in `chat/secrets.ts` and are resolved lazily at connect, so no
+  status, row or IPC message carries one; **(4)** stdio user servers get the SDK's default
+  environment plus their named variables, never `process.env` wholesale, and HTTP servers
+  use `redirect: "error"` and refuse a token over cleartext off the loopback; **(5)** a
+  project's `.kkss/assistant/mcp.json` is untrusted until the user clicks Trust — the
+  record is keyed by `projectRoot.explicit()` (never `effective()`), holds a **hash of
+  every file in `TRUSTED_FILES`** (items 11/12 of the roadmap add theirs there), is
+  re-verified in `preflight()` before **every** spawn, and there is deliberately no
+  model-reachable path to granting it; **(6)** resources and prompts of user servers are
+  excluded from the `mcp__*` tools and the meta server (those are classified `read`);
+  the meta server exposes user tools only through its allow-list, marks do not widen it;
+  **(7)** `ChatServerStatus.key` is a `string`, built-in statuses carry no
+  `source`/`transport`, and the error of a refused manager request is sent *after* the
+  refreshed rows so a repaint cannot swallow it.
 - **Update feed is two-part — keep both halves.** The `publish:` block in
   `electron-builder.yml` makes electron-builder emit `latest*.yml` update
   metadata and embed `app-update.yml` in each package; the release workflow

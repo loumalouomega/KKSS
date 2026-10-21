@@ -20,14 +20,18 @@ import { appTools, callAppTool } from "./appTools";
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { CallToolResult, GetPromptResult, Prompt, ReadResourceResult, Resource } from "@modelcontextprotocol/sdk/types.js";
 import * as path from "node:path";
 import type { ChatImage, ChatServerStatus } from "../../ipc";
 import { truncate } from "./transcript";
 import { classifyStartupFailure, type KratosRuntime } from "./kratosRuntime";
 import type { ToolDef } from "./providers/types";
+import { PROVIDER_TOOL_NAME_RE } from "./userServers";
 
-export type ServerKey = ChatServerStatus["key"];
+/** `cad`/`mesh`/`kratos`/`pdf`, or the id of a user- or project-configured server. */
+export type ServerKey = string;
 
 export interface ServerSpec {
   key: ServerKey;
@@ -36,6 +40,23 @@ export interface ServerSpec {
   command: string;
   args: string[];
   env: Record<string, string>;
+  /** Absent = built-in. User/project servers are the only ones the manager's
+   *  `setUserServers` may add, change or remove. */
+  source?: "user" | "project";
+  /** A streamable-HTTP server instead of a child process (`command`/`args`/`env`
+   *  are then unused). The token is read at connect time and never kept in a status. */
+  http?: { url: string; token?: () => string | undefined };
+  /** Extra environment resolved at connect time (decrypted secrets), merged over `env`. */
+  resolveEnv?: () => Record<string, string>;
+  /** Why this server is not to be started: switched off, or a project definition
+   *  the user has not trusted. */
+  blocked?: "disabled" | "untrusted";
+  /** Re-checked immediately before every spawn: returns a block reason, or null.
+   *  How a project server's trust is verified at restart, not only at load. */
+  preflight?: () => "disabled" | "untrusted" | null;
+  /** Changes whenever the launch identity does; lets `setUserServers` tell an
+   *  edit that needs a reconnect from an unrelated refresh. */
+  revision?: string;
 }
 
 /** Pinned kratos-mcp-server release (uvx resolves this exact version). Bump on
@@ -211,12 +232,24 @@ interface ServerState {
   spec: ServerSpec;
   status: ChatServerStatus;
   client: Client | null;
-  transport?: StdioClientTransport;
+  transport?: Transport;
   tools: ToolDef[];
 }
 
+/** A built-in server's status stays byte-identical to what it always was; only
+ *  user/project servers carry their source and transport. */
+function identity(spec: ServerSpec): Pick<ChatServerStatus, "key" | "name" | "source" | "transport"> {
+  return spec.source
+    ? { key: spec.key, name: spec.name, source: spec.source, transport: spec.http ? "http" : "stdio" }
+    : { key: spec.key, name: spec.name };
+}
+
+function initialStatus(spec: ServerSpec): ChatServerStatus {
+  return { ...identity(spec), state: spec.blocked ?? "starting" };
+}
+
 export class McpManager {
-  private readonly servers: ServerState[];
+  private servers: ServerState[];
   private started = false;
   private disposed = false;
   private readonly abort = new AbortController();
@@ -232,12 +265,7 @@ export class McpManager {
      *  (re)start, so a change applies on the next one. A delta over the spec's env. */
     private readonly kratosEnv?: () => Record<string, string>
   ) {
-    this.servers = specs.map((spec) => ({
-      spec,
-      status: { key: spec.key, name: spec.name, state: "starting" },
-      client: null,
-      tools: [],
-    }));
+    this.servers = specs.map((spec) => ({ spec, status: initialStatus(spec), client: null, tools: [] }));
   }
 
   statuses(): ChatServerStatus[] {
@@ -286,6 +314,70 @@ export class McpManager {
     return operation;
   }
 
+  /** Reconnects any server by key (the manager's Restart). Kratos keeps its
+   *  PDF-revive behaviour; a blocked server stays blocked and says why. */
+  restartServer(key: ServerKey): Promise<void> {
+    if (key === "kratos") return this.restartKratos();
+    const server = this.servers.find((s) => s.spec.key === key);
+    if (!server || this.disposed) return Promise.resolve();
+    return this.connect(server);
+  }
+
+  /**
+   * Replaces the user/project servers (built-ins are never touched). Servers
+   * whose `revision` and `blocked` state are unchanged are left running; an edited
+   * one is closed and reconnected, a removed one closed, a new one started — all
+   * only once `start()` has run, so a settings change before first use stays lazy.
+   */
+  async setUserServers(specs: ServerSpec[]): Promise<void> {
+    if (this.disposed) return;
+    const builtin = this.servers.filter((s) => !s.spec.source);
+    const previous = new Map(this.servers.filter((s) => s.spec.source).map((s) => [s.spec.key, s]));
+    const next: ServerState[] = [];
+    const reconnect: ServerState[] = [];
+    const close: ServerState[] = [];
+    for (const spec of specs) {
+      if (!spec.source || builtin.some((b) => b.spec.key === spec.key)) continue; // never shadow a built-in
+      const old = previous.get(spec.key);
+      previous.delete(spec.key);
+      if (old && old.spec.revision === spec.revision && old.spec.blocked === spec.blocked) {
+        old.spec = spec; // refresh the lazy closures; the running connection stays
+        next.push(old);
+        continue;
+      }
+      const state: ServerState = old ?? { spec, status: initialStatus(spec), client: null, tools: [] };
+      state.spec = spec;
+      if (spec.blocked) { state.status = initialStatus(spec); close.push(state); }
+      else { state.status = { ...identity(spec), state: "starting" }; reconnect.push(state); }
+      next.push(state);
+    }
+    close.push(...previous.values());
+    this.servers = [...builtin, ...next];
+    await Promise.all(close.map((server) => this.closeServer(server)));
+    this.onStatus(this.statuses());
+    if (this.started) {
+      await Promise.all(reconnect.map(async (server) => {
+        // An attempt still running was begun against the previous definition;
+        // let it settle (its finally clears the dedupe entry) and start afresh.
+        await this.connecting.get(server.spec.key)?.catch(() => undefined);
+        await this.connect(server);
+      }));
+    }
+  }
+
+  /** The server's own (un-namespaced) tool names and descriptions, for the manager. */
+  toolList(key: ServerKey): Array<{ name: string; description?: string }> {
+    const server = this.servers.find((s) => s.spec.key === key);
+    if (!server) return [];
+    const prefix = `${key}${NAMESPACE_SEPARATOR}`;
+    return server.tools.map((tool) => ({ name: tool.name.slice(prefix.length), ...(tool.description ? { description: tool.description } : {}) }));
+  }
+
+  /** Looks a spec up by key (the store/service need the revision and source). */
+  specFor(key: ServerKey): ServerSpec | undefined {
+    return this.servers.find((s) => s.spec.key === key)?.spec;
+  }
+
   private connect(server: ServerState, install = false): Promise<void> {
     if (this.disposed) return Promise.resolve();
     const pending = this.connecting.get(server.spec.key);
@@ -311,9 +403,18 @@ export class McpManager {
     const kratos = server.spec.key === "kratos";
     const viaUv = UV_SERVERS.includes(server.spec.key);
     const status = (phase: NonNullable<ChatServerStatus["phase"]>) => {
-      server.status = { key: server.spec.key, name: server.spec.name, state: "starting", phase };
+      server.status = { ...identity(server.spec), state: "starting", phase };
       this.onStatus(this.statuses());
     };
+    // Re-checked at every spawn, so a restart cannot launch a definition whose
+    // trust has lapsed since it was loaded.
+    const blocked = server.spec.blocked ?? server.spec.preflight?.() ?? null;
+    if (blocked) {
+      await this.closeServer(server);
+      server.status = { ...identity(server.spec), state: blocked };
+      if (!this.disposed) this.onStatus(this.statuses());
+      return;
+    }
     status(kratos ? "probing" : "preparing");
     await this.closeServer(server);
     try {
@@ -342,31 +443,49 @@ export class McpManager {
       if (kratos && this.kratosEnv) spec = { ...spec, env: { ...spec.env, ...this.kratosEnv() } };
       this.abort.signal.throwIfAborted();
       status("preparing");
-      const transport = new StdioClientTransport({
-        command: spec.command, args: spec.args, env: spec.env, stderr: "pipe",
-      });
+      let transport: Transport;
+      if (spec.http) {
+        const token = spec.http.token?.();
+        // `redirect: "error"`: a bearer token must never follow a redirect to another host.
+        transport = new StreamableHTTPClientTransport(new URL(spec.http.url), {
+          requestInit: { redirect: "error", ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}) },
+        });
+      } else {
+        const stdio = new StdioClientTransport({
+          command: spec.command, args: spec.args, env: { ...spec.env, ...(spec.resolveEnv?.() ?? {}) }, stderr: "pipe",
+        });
+        stdio.stderr?.on("data", (chunk: Buffer) => {
+          stderr = (stderr + chunk.toString()).slice(-8192);
+        });
+        transport = stdio;
+      }
       server.transport = transport;
-      transport.stderr?.on("data", (chunk: Buffer) => {
-        stderr = (stderr + chunk.toString()).slice(-8192);
-      });
       const client = new Client({ name: "kkss-chat", version: "1.0.0" });
       server.client = client;
       const timeout = viaUv ? 5 * 60_000 : CONNECT_TIMEOUT_MS;
       await client.connect(transport, { timeout, signal: this.abort.signal });
       const { tools } = await client.listTools(undefined, { timeout, signal: this.abort.signal });
       this.abort.signal.throwIfAborted();
-      server.tools = tools.map((tool) => ({
+      // A user server picks its own tool names; a provider rejects the whole
+      // request over one it cannot take, so leave those out and say so.
+      const usable = server.spec.source
+        ? tools.filter((tool) => PROVIDER_TOOL_NAME_RE.test(namespaceTool(server.spec.key, tool.name)))
+        : tools;
+      server.tools = usable.map((tool) => ({
         name: namespaceTool(server.spec.key, tool.name), description: tool.description,
         inputSchema: tool.inputSchema as Record<string, unknown>,
       }));
+      const skipped = tools.length - usable.length;
       server.status = {
-        key: server.spec.key, name: client.getServerVersion()?.name ?? server.spec.name,
-        state: "ready", toolCount: server.tools.length,
+        ...identity(server.spec),
+        // The name the user typed for their own server beats whatever it announces.
+        name: server.spec.source ? server.spec.name : (client.getServerVersion()?.name ?? server.spec.name),
+        state: "ready", toolCount: server.tools.length, ...(skipped ? { skippedTools: skipped } : {}),
       };
       client.onclose = () => {
         if (this.disposed || server.client !== client) return;
         void this.closeServer(server);
-        server.status = { key: server.spec.key, name: server.spec.name, state: "unavailable",
+        server.status = { ...identity(server.spec), state: "unavailable",
           failure: "unknown", error: "The tool server disconnected. Retry to reconnect." };
         this.onStatus(this.statuses());
       };
@@ -374,7 +493,7 @@ export class McpManager {
       await this.closeServer(server);
       if (this.disposed) return;
       const failure = classifyStartupFailure(error, stderr);
-      server.status = { key: server.spec.key, name: server.spec.name, state: "unavailable",
+      server.status = { ...identity(server.spec), state: "unavailable",
         failure: failure.failure, error: truncate(failure.message, 700) };
     }
     if (!this.disposed) this.onStatus(this.statuses());
@@ -390,10 +509,16 @@ export class McpManager {
     return [...this.tools(), ...META_TOOLS];
   }
 
-  toolName = (server: string, tool: string): string => namespaceTool(server as ServerKey, tool);
+  toolName = (server: string, tool: string): string => namespaceTool(server, tool);
 
+  /**
+   * Ready **built-in** servers: the only ones whose resources and prompts are
+   * aggregated. The `mcp__*` tools that read them are classified `read` (and the
+   * HTTP meta server serves them natively), so a user server's resources would
+   * be a path into an arbitrary server that skips the approval gate.
+   */
   private ready(): ServerState[] {
-    return this.servers.filter((s) => s.client && s.status.state === "ready");
+    return this.servers.filter((s) => !s.spec.source && s.client && s.status.state === "ready");
   }
 
   /** Aggregated MCP resources across ready servers; records the owner of each uri. */
@@ -454,7 +579,7 @@ export class McpManager {
   /** Renders a namespaced prompt, routing to its owning server. */
   async getPrompt(namespaced: string, args: Record<string, string>): Promise<GetPromptResult> {
     const split = splitToolName(namespaced, this.servers.map((s) => s.spec.key));
-    const server = split && this.servers.find((s) => s.spec.key === split.server);
+    const server = split && this.servers.find((s) => s.spec.key === split.server && !s.spec.source);
     if (!split || !server?.client) throw new Error(`Unknown prompt: ${namespaced}`);
     return server.client.getPrompt({ name: split.tool, arguments: args });
   }

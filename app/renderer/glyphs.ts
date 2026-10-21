@@ -38,6 +38,8 @@ const KKSS_GLYPHS = {
       '<path d="M12 4.5C13 3 15 2.5 16.5 3.5S18.5 6 18 7c2 .5 3 2.5 2.5 4.5-.3 1.2-1 2-2 2.5.3 1.7-.6 3.3-2.3 3.8-1.2.3-2.7.2-4.2 1.7Z"/>' +
       '<path d="M8.5 10c1.2 0 2.2.7 2.7 1.8"/><path d="M15.5 10c-1.2 0-2.2.7-2.7 1.8"/>'
   ),
+  // MCP manager: a server rack.
+  server: g('<rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01"/><path d="M7 17.5h.01"/>'),
   // Provider marks for the chat sidebar. Deliberately our own simple glyphs in
   // the app's line style, not the vendors' trademarked logos: they tell the
   // providers apart at 14px and adapt to every theme through currentColor.

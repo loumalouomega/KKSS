@@ -76,11 +76,20 @@ export type ChatErrorKind = "auth" | "network" | "noKey" | "context" | "rateLimi
 
 /** Startup/health state of one MCP server backing the chat agent. */
 export interface ChatServerStatus {
-  key: "cad" | "mesh" | "kratos" | "pdf";
+  /** `cad`/`mesh`/`kratos`/`pdf` for the built-ins, otherwise the id of a
+   *  user- or project-configured server (see userServers.ts for the id rules). */
+  key: string;
   /** MCP server display name (e.g. "cad-preview"). */
   name: string;
-  state: "starting" | "ready" | "unavailable";
+  /** `disabled`: switched off in the manager. `untrusted`: a project server whose
+   *  definition file the user has not (or no longer) trusted — never spawned. */
+  state: "starting" | "ready" | "unavailable" | "disabled" | "untrusted";
+  /** Absent = built-in. */
+  source?: "builtin" | "user" | "project";
+  transport?: "stdio" | "http";
   toolCount?: number;
+  /** Tools the server advertised that were left out (name unusable for a model provider). */
+  skippedTools?: number;
   phase?: "probing" | "installing" | "preparing";
   failure?: "missing-runtime" | "runtime" | "network" | "package" | "timeout" | "installation" | "unknown";
   /** Short failure description (state: unavailable). */
@@ -234,6 +243,66 @@ export interface ChatConversationInfo {
   entryCount: number;
 }
 
+/** One row of the sidebar's MCP manager. Never carries an env value or token —
+ *  only the names, and whether a token is stored. */
+export interface ChatMcpServerRow {
+  id: string;
+  name: string;
+  source: "builtin" | "user" | "project";
+  transport: "stdio" | "http";
+  state: ChatServerStatus["state"];
+  enabled: boolean;
+  toolCount?: number;
+  skippedTools?: number;
+  error?: string;
+  /** Built-ins can be restarted but not edited, disabled or removed. */
+  editable: boolean;
+  command?: string;
+  args?: string[];
+  envNames?: string[];
+  url?: string;
+  /** User server: a bearer token is stored. Project server: `tokenEnv` is named. */
+  tokenSet?: boolean;
+  tokenEnv?: string;
+}
+
+/** The project folder's `.kkss/assistant/` definitions and their trust state. */
+export interface ChatMcpProject {
+  /** The *explicit* project folder, if one is set. */
+  root?: string;
+  /** `none`: no definition file. `untrusted`: never trusted. `changed`: trusted
+   *  before, but the files differ now. `invalid`: unreadable or unsafe file. */
+  state: "none" | "untrusted" | "trusted" | "changed" | "invalid";
+  shortHash?: string;
+  /** Validation problems, shown so a typo is not a silent no-op. */
+  errors: string[];
+}
+
+export type ChatMcpMark = "read" | "write" | "unknown";
+
+export interface ChatMcpToolInfo {
+  /** The server's own tool name (not namespaced). */
+  name: string;
+  description?: string;
+  mark: ChatMcpMark;
+}
+
+/** What the manager's Add/Edit form submits. Secrets flow renderer → main only. */
+export interface ChatMcpServerInput {
+  id: string;
+  name?: string;
+  transport: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  /** `value` undefined keeps the stored value; a string replaces it. Names not
+   *  listed are dropped (and their stored secrets deleted). */
+  env?: Array<{ name: string; value?: string }>;
+  url?: string;
+  /** Bearer token: undefined keeps, "" clears, a string replaces. */
+  token?: string;
+  enabled?: boolean;
+}
+
 /** Messages posted by the chat-sidebar renderer. */
 export type ChatToHost =
   | { type: "chatReady" }
@@ -259,6 +328,19 @@ export type ChatToHost =
    *  Empty clears it back to the provider default. */
   | { type: "setModel"; model: string }
   | { type: "setThinking"; level: ChatThinking }
+  /** MCP manager. Every one is validated in main; a managed (locked) store refuses edits. */
+  | { type: "mcpRefresh" }
+  | { type: "mcpSaveServer"; server: ChatMcpServerInput }
+  | { type: "mcpRemoveServer"; id: string }
+  | { type: "mcpSetEnabled"; id: string; enabled: boolean }
+  | { type: "mcpRestart"; id: string }
+  | { type: "mcpToolsRequest"; id: string }
+  | { type: "mcpSetMark"; id: string; tool: string; mark: ChatMcpMark }
+  /** Trust, revoke or re-read the explicit project folder's definitions. Trusting
+   *  is a user click only — there is deliberately no model-reachable path to it. */
+  | { type: "mcpTrustProject" }
+  | { type: "mcpRevokeProject" }
+  | { type: "mcpReloadProject" }
   | { type: "hide" };
 
 /** Reasoning effort chosen in the sidebar. `auto` sends nothing new. */
@@ -339,6 +421,15 @@ export type ChatToWebview =
   | { type: "assistantDone"; entry: ChatWireEntry }
   | { type: "busy"; busy: boolean }
   | { type: "servers"; servers: ChatServerStatus[] }
+  | { type: "mcpManager"; rows: ChatMcpServerRow[]; project: ChatMcpProject; managed: boolean }
+  | { type: "mcpTools"; id: string; tools: ChatMcpToolInfo[] }
+  /** A `mcpSaveServer` went through (the form can close). Failures arrive as `mcpError`. */
+  | { type: "mcpSaved"; id: string }
+  /** Settings ▸ LLM Assistant ▸ MCP Servers → Open: show the manager panel. */
+  | { type: "mcpOpen" }
+  /** A manager action main refused or could not finish. `code` is mapped through
+   *  `t()` in the renderer; `detail` is validation text for the form. */
+  | { type: "mcpError"; code: "invalid" | "managed" | "reserved" | "duplicate" | "unknown" | "failed"; detail?: string }
   /** History changed without the transcript changing (rename, delete, a title
    *  derived mid-turn, an eviction) — `state` carries the list otherwise. */
   | { type: "conversations"; conversations: ChatConversationInfo[]; activeId: string };

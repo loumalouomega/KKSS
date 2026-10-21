@@ -19,6 +19,7 @@
  *   npm run docs:screenshots -- --cad-only   # CAD viewer/panels/menus only
  *   npm run docs:screenshots -- --animations-only  # timeline GIFs for the fluid, FSI and CoSimulation tutorials only
  */
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -622,6 +623,11 @@ if (!meshOnly) {
   await sessionHomeWorkflow();
   await kratosStartupScenario(path.join(OUT, "chat-kratos-setup.png"));
   await jobsScenario(path.join(OUT, "kratos-jobs.png"));
+  // The assistant's MCP manager, captured from the acceptance scenario itself.
+  const mcpShot = spawnSync(process.execPath, [path.join(root, "tools/e2e/chat-mcp-manager.mjs")], {
+    stdio: "inherit", env: { ...process.env, KKSS_MCP_SHOT: path.join(OUT, "chat-mcp-manager.png") },
+  });
+  if (mcpShot.status !== 0) throw new Error("chat MCP manager capture failed");
   // These captures use the real CAD/mesh app, the configured manual Python
   // interpreter and actual solver-produced tutorial results. The companion uses
   // a local OpenAI-compatible fixture but routes every tool call through KKSS.
