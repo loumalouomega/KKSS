@@ -5,6 +5,10 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.20.1] - 2026-10-21
+
+- fix: **the Hono dependency is patched.** `GHSA-5r4p-p66f-jhc7` — Hono's `serveStatic` decoded the request path a second time, so middleware could be bypassed on static paths — affects every Hono below 4.13.11. The override now requires `^4.13.11` and the lockfile resolves 4.13.13.
+
 ## [2.20.0] - 2026-10-21
 
 - fix: **the streamed-desktop image is clean again.** The Trivy scan that gates every branch and release stopped the build on a HIGH finding inside the Caddy binary the image ships: `github.com/klauspost/compress` v1.18.6 (CVE-2026-63209 — integer overflow in the dictionary processing). The pinned Caddy release still requires that vulnerable module, so the Dockerfile's Go module overrides now also require the patched `klauspost/compress` v1.18.7, the same treatment the other pinned modules already get. The Go builder image moves to 1.27.3 as well — the 1.27.2 toolchain carries the crypto/x509 advisory CVE-2026-111943 in every binary it builds, so both the Caddy binary and the web broker are built with the patched 1.27.3.
@@ -339,6 +343,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.20.1]: https://github.com/loumalouomega/KKSS/compare/v2.20.0...v2.20.1
 [2.20.0]: https://github.com/loumalouomega/KKSS/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/loumalouomega/KKSS/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/loumalouomega/KKSS/compare/v2.17.0...v2.18.0
