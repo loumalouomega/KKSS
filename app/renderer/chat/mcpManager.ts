@@ -9,11 +9,11 @@
  * so the page keeps its strict CSP (no innerHTML, no `style=`).
  */
 import { t } from "../../shared/i18n";
-import type { ChatMcpMark, ChatMcpProject, ChatMcpServerRow, ChatMcpToolInfo, ChatToHost, ChatToWebview } from "../../main/ipc";
+import type { ChatAssistantDefs, ChatMcpMark, ChatMcpProject, ChatMcpServerRow, ChatMcpToolInfo, ChatToHost, ChatToWebview } from "../../main/ipc";
 import { glyph } from "../glyphs";
 import { buildInput, joinArgs, orderRows, projectActions, rowActions, type FormValues } from "./mcpManagerView";
 
-type Msg = Extract<ChatToWebview, { type: "mcpManager" | "mcpTools" | "mcpError" | "mcpOpen" | "mcpSaved" }>;
+type Msg = Extract<ChatToWebview, { type: "mcpManager" | "mcpTools" | "mcpError" | "mcpOpen" | "mcpSaved" | "assistantDefs" }>;
 type View = { kind: "list" } | { kind: "form"; editing?: ChatMcpServerRow } | { kind: "tools"; id: string };
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -55,6 +55,7 @@ export class McpManager {
   private rows: ChatMcpServerRow[] = [];
   private project: ChatMcpProject = { state: "none", errors: [] };
   private managed = false;
+  private defs: ChatAssistantDefs | null = null;
   private view: View = { kind: "list" };
   private tools = new Map<string, ChatMcpToolInfo[]>();
   private error = "";
@@ -104,6 +105,10 @@ export class McpManager {
         // Status pushes arrive constantly while servers start; repainting the form
         // under someone typing in it would throw their input away.
         if (this.view.kind === "form") return;
+        break;
+      case "assistantDefs":
+        this.defs = msg.defs;
+        if (this.view.kind !== "list") return;
         break;
       case "mcpSaved":
         if (this.view.kind === "form") this.show({ kind: "list" });
@@ -199,6 +204,54 @@ export class McpManager {
     actions.appendChild(add);
     body.appendChild(actions);
     body.appendChild(this.projectSection());
+    body.appendChild(this.defsSection());
+  }
+
+  /** Standing instructions, skills and prompt templates: text the user keeps in
+   *  files. Listed read-only — authoring is editing those files. */
+  private defsSection(): HTMLElement {
+    const section = el("section", "mcp-project");
+    section.appendChild(el("h3", "eyebrow", t("Instructions, skills and prompts")));
+    const d = this.defs;
+    if (!d) return section;
+    if (!d.enabled) section.appendChild(el("p", "mcp-hint", t("Switched off in Settings ▸ LLM Assistant: nothing below is sent or expanded.")));
+    section.appendChild(el("p", "mcp-hint", t("Plain text only: these never change what a tool may do or how approvals work.")));
+    const origin = (source: "user" | "project") => (source === "project" ? t("project") : t("yours"));
+    for (const i of d.instructions) {
+      section.appendChild(el("p", "mcp-hint", `${t("Instructions")} (${origin(i.source)}): ${t("{0} characters", { 0: i.chars })}${i.truncated ? ` — ${t("cut to the limit")}` : ""}`));
+    }
+    if (!d.instructions.length) section.appendChild(el("p", "mcp-hint", t("No instructions.md yet.")));
+    if (d.skills.length) {
+      section.appendChild(el("p", "mcp-hint", t("Skills (the assistant reads one only when it needs it):")));
+      const list = el("ul", "mcp-list");
+      for (const s of d.skills) {
+        const li = el("li", "mcp-row");
+        const head = el("div", "mcp-row-head");
+        head.append(el("code", "mcp-name", s.name), el("span", "ui-badge", origin(s.source)));
+        li.append(head, el("p", "mcp-hint", s.description));
+        list.appendChild(li);
+      }
+      section.appendChild(list);
+    }
+    if (d.templates.length) {
+      section.appendChild(el("p", "mcp-hint", t("Prompt templates (type /name in the message box):")));
+      const list = el("ul", "mcp-list");
+      for (const p of d.templates) {
+        const li = el("li", "mcp-row");
+        const head = el("div", "mcp-row-head");
+        head.append(el("code", "mcp-name", `/${p.name}`), el("span", "ui-badge", origin(p.source)));
+        li.append(head, el("p", "mcp-hint", p.preview));
+        list.appendChild(li);
+      }
+      section.appendChild(list);
+    }
+    if (d.estimatedTokens > 0) section.appendChild(el("p", "mcp-hint", t("About {0} tokens are added to every message (not cached).", { 0: d.estimatedTokens })));
+    if (d.catalogOmitted > 0) section.appendChild(el("p", "mcp-error", t("{0} skills are over the catalog limit, so the assistant is not told about them.", { 0: d.catalogOmitted })));
+    for (const message of d.errors) section.appendChild(el("p", "mcp-error", message));
+    const actions = el("div", "mcp-actions");
+    actions.appendChild(button(t("Open folder…"), "btn-secondary", () => this.post({ type: "defsOpenFolder" })));
+    section.appendChild(actions);
+    return section;
   }
 
   private rowItem(row: ChatMcpServerRow): HTMLLIElement {

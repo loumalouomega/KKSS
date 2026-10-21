@@ -280,6 +280,21 @@ export interface ChatMcpProject {
 
 export type ChatMcpMark = "read" | "write" | "unknown";
 
+/** What the manager shows about the user's standing instructions, skills and
+ *  prompt templates (text-only definitions — see assistantDefs.ts). */
+export interface ChatAssistantDefs {
+  /** Settings ▸ LLM Assistant: when off, nothing below is sent or expanded. */
+  enabled: boolean;
+  instructions: Array<{ source: "user" | "project"; chars: number; truncated: boolean }>;
+  skills: Array<{ name: string; source: "user" | "project"; description: string }>;
+  templates: Array<{ name: string; source: "user" | "project"; preview: string }>;
+  /** ~tokens the instructions and skill catalog add to every request (uncached). */
+  estimatedTokens: number;
+  /** Skills beyond the catalog budget that the model is not told about. */
+  catalogOmitted: number;
+  errors: string[];
+}
+
 export interface ChatMcpToolInfo {
   /** The server's own tool name (not namespaced). */
   name: string;
@@ -330,6 +345,10 @@ export type ChatToHost =
   | { type: "setThinking"; level: ChatThinking }
   /** MCP manager. Every one is validated in main; a managed (locked) store refuses edits. */
   | { type: "mcpRefresh" }
+  /** Create (if needed) and open the folder holding instructions.md, skills/ and prompts/. */
+  | { type: "defsOpenFolder" }
+  /** The composer text starts with "/": which templates match (answered by `templateHints`). */
+  | { type: "templateHints"; typed: string }
   | { type: "mcpSaveServer"; server: ChatMcpServerInput }
   | { type: "mcpRemoveServer"; id: string }
   | { type: "mcpSetEnabled"; id: string; enabled: boolean }
@@ -423,6 +442,8 @@ export type ChatToWebview =
   | { type: "servers"; servers: ChatServerStatus[] }
   | { type: "mcpManager"; rows: ChatMcpServerRow[]; project: ChatMcpProject; managed: boolean }
   | { type: "mcpTools"; id: string; tools: ChatMcpToolInfo[] }
+  | { type: "assistantDefs"; defs: ChatAssistantDefs }
+  | { type: "templateHints"; typed: string; names: string[] }
   /** A `mcpSaveServer` went through (the form can close). Failures arrive as `mcpError`. */
   | { type: "mcpSaved"; id: string }
   /** Settings ▸ LLM Assistant ▸ MCP Servers → Open: show the manager panel. */

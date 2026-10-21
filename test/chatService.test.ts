@@ -54,6 +54,7 @@ vi.mock("../app/main/services/stateStore", () => ({
 const { ChatService, evictImages, readLlmSettings, providerLabel, missingKeyMessage } = await import("../app/main/services/chat/chatService");
 const { CLEARED_PLACEHOLDER } = await import("../app/main/services/chat/compaction");
 const { UserServerStore } = await import("../app/main/services/chat/userServerStore");
+const { AssistantDefsStore } = await import("../app/main/services/chat/assistantDefsStore");
 const { ProviderError } = await import("../app/main/services/chat/providers/types");
 const { TranscriptStore } = await import("../app/main/services/chat/transcriptStore");
 const { PREVIEW_CHARS } = await import("../app/main/services/chat/transcript");
@@ -1892,5 +1893,128 @@ describe("user-configured MCP servers", () => {
     post({ type: "mcpRefresh" });
     await settle(4);
     expect(messages.some((m) => m.type === "mcpManager" || m.type === "mcpError")).toBe(false);
+  });
+});
+
+describe("standing instructions, skills and prompt templates", () => {
+  function makeDefs(files: Record<string, string>, on = true) {
+    const userDir = path.join(dir, "assistant");
+    for (const [rel, text] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(userDir, rel)), { recursive: true });
+      fs.writeFileSync(path.join(userDir, rel), text);
+    }
+    return new AssistantDefsStore({ userDir, enabled: () => on, trustedProjectFiles: () => ({}), onProjectChange: () => undefined });
+  }
+  const FILES = {
+    "instructions.md": "Always use SI units.",
+    "skills/checklist/SKILL.md": "---\ndescription: Pre-solve checklist\n---\nCheck the mesh first.",
+    "prompts/review.md": "Review $ARGUMENTS for problems.",
+  };
+  const lastUser = (provider: FakeProvider) => [...provider.lastEntries].reverse().find((e: any) => e.kind === "user").text as string;
+
+  it("rides the newest user message as context, never the system prompt", async () => {
+    const { provider, post } = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    post({ type: "send", text: "hello" });
+    await settle(8);
+    expect(lastUser(provider)).toContain("Always use SI units.");
+    expect(lastUser(provider)).toContain("checklist — Pre-solve checklist");
+    // The skill body is fetched on demand, not carried every turn.
+    expect(lastUser(provider)).not.toContain("Check the mesh first.");
+    expect(provider.requests[0].system).not.toContain("Always use SI units.");
+  });
+
+  it("does not accumulate in the stored conversation across turns", async () => {
+    const { provider, post, messages } = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    post({ type: "chatReady" });
+    await settle(4);
+    post({ type: "send", text: "first" });
+    await settle(8);
+    provider.finish("one");
+    await settle(8);
+    post({ type: "send", text: "second" });
+    await settle(8);
+    const users = provider.lastEntries.filter((e: any) => e.kind === "user").map((e: any) => e.text as string);
+    expect(users[0]).toBe("first");
+    expect(users[1]).toContain("Always use SI units.");
+    expect((users[1].match(/Standing instructions/g) ?? []).length).toBe(1);
+    const id = lastState(messages).conversationId;
+    await settle(30);
+    expect((stored(id)!.entries.filter((e: any) => e.kind === "user") as any[]).every((e) => !e.text.includes("Standing instructions"))).toBe(true);
+  });
+
+  it("sends nothing when the setting is off", async () => {
+    const { provider, post } = makeService(undefined, { assistantDefs: makeDefs(FILES, false) });
+    post({ type: "send", text: "hello" });
+    await settle(8);
+    expect(lastUser(provider)).toBe("hello");
+  });
+
+  it("expands /name before the message is stored, so the transcript keeps what the model saw", async () => {
+    const { provider, post, messages } = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    post({ type: "chatReady" });
+    await settle(4);
+    post({ type: "send", text: "/review beam.stl" });
+    await settle(8);
+    expect(lastUser(provider)).toContain("Review beam.stl for problems.");
+    const entry = messages.find((m) => m.type === "entry" && m.entry.kind === "user") as any;
+    expect(entry.entry.text).toBe("Review beam.stl for problems.");
+    await settle(30);
+    const id = lastState(messages).conversationId;
+    expect((stored(id)!.entries[0] as any).text).toBe("Review beam.stl for problems.");
+  });
+
+  it("leaves paths, unknown names and escaped slashes exactly as typed", async () => {
+    const { provider, post } = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    for (const [typed, expected] of [["/tmp/model.stl", "/tmp/model.stl"], ["/nope", "/nope"], ["//review x", "/review x"]] as const) {
+      post({ type: "send", text: typed });
+      await settle(8);
+      expect(lastUser(provider).startsWith(expected)).toBe(true);
+      provider.finish("ok");
+      await settle(10);
+    }
+  });
+
+  it("refuses an expansion that would be enormous and hands the draft back", async () => {
+    const defs = makeDefs({ "prompts/big.md": "x".repeat(8000) });
+    const { provider, post, messages } = makeService(undefined, { assistantDefs: defs });
+    post({ type: "send", text: `/big ${"y".repeat(25_000)}` });
+    await settle(8);
+    expect(messages.some((m) => m.type === "sendRefused" && m.reason === "invalid")).toBe(true);
+    expect(provider.turns).toBe(0);
+  });
+
+  it("answers the composer's hint request and replays the summary", async () => {
+    const { post, messages } = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    post({ type: "chatReady" });
+    post({ type: "templateHints", typed: "/re" });
+    post({ type: "templateHints", typed: "x".repeat(200) });
+    await settle(6);
+    expect(messages.filter((m) => m.type === "templateHints")).toEqual([{ type: "templateHints", typed: "/re", names: ["review"] }]);
+    const defs = messages.filter((m) => m.type === "assistantDefs").pop() as any;
+    expect(defs.defs).toMatchObject({ enabled: true, instructions: [{ source: "user" }], skills: [{ name: "checklist" }], templates: [{ name: "review" }] });
+    expect(defs.defs.estimatedTokens).toBeGreaterThan(0);
+  });
+
+  it("reaches a subscription runtime through the same context path", async () => {
+    stateValues.llmProvider = "claude-code";
+    const seen: any[] = [];
+    const agent = { run: async (options: any) => { seen.push(options); } };
+    const { post } = makeService(undefined, { assistantDefs: makeDefs(FILES), agent: () => agent });
+    post({ type: "send", text: "hello" });
+    await settle(10);
+    const entries = seen[0].entries as any[];
+    expect(entries[entries.length - 1].text).toContain("Always use SI units.");
+    expect(seen[0].system).not.toContain("Always use SI units.");
+  });
+
+  it("the system prompt names the capability once, byte-stably", async () => {
+    const a = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    a.post({ type: "send", text: "hi" });
+    await settle(6);
+    const b = makeService(undefined, { assistantDefs: makeDefs({}) });
+    b.post({ type: "send", text: "hi" });
+    await settle(6);
+    expect(a.provider.requests[0].system).toBe(b.provider.requests[0].system);
+    expect(a.provider.requests[0].system).toContain("app__skill_load");
   });
 });

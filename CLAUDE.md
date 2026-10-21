@@ -1359,7 +1359,7 @@ resubmitted automatically.
   `cad|mesh|kratos|pdf|app|mcp` are reserved — classification is keyed by the full name,
   so a user `cad` server would inherit `cad__list_layers`' read row; **(2)** every call
   still passes `executeTool`; a user tool is `unknown` ⇒ ask unless the *user* marked it,
-  via `GateOptions.classify` (the 294 `toolPolicy.ts` rows and their test pin stay
+  via `GateOptions.classify` (the built-in `toolPolicy.ts` rows and their test pin stay
   untouched) — never from a tool name or MCP annotations, and **marks are bound to the
   launch fingerprint** (command+args / url) so an edited server loses them, and are
   **never read from a project file**; **(3)** definitions hold names only — env values
@@ -1369,7 +1369,8 @@ resubmitted automatically.
   use `redirect: "error"` and refuse a token over cleartext off the loopback; **(5)** a
   project's `.kkss/assistant/mcp.json` is untrusted until the user clicks Trust — the
   record is keyed by `projectRoot.explicit()` (never `effective()`), holds a **hash of
-  every file in `TRUSTED_FILES`** (items 11/12 of the roadmap add theirs there), is
+  every file `assistantFiles.readAssistantTree` reads** (`mcp.json`, `instructions.md`,
+  `skills/*/SKILL.md`, `prompts/*.md`; the roadmap's hooks add theirs there), is
   re-verified in `preflight()` before **every** spawn, and there is deliberately no
   model-reachable path to granting it; **(6)** resources and prompts of user servers are
   excluded from the `mcp__*` tools and the meta server (those are classified `read`);
@@ -1377,6 +1378,26 @@ resubmitted automatically.
   **(7)** `ChatServerStatus.key` is a `string`, built-in statuses carry no
   `source`/`transport`, and the error of a refused manager request is sent *after* the
   refreshed rows so a repaint cannot swallow it.
+- **Standing instructions, skills and prompt templates are text, and stay text.**
+  `chat/assistantDefs.ts` (pure), `assistantDefsStore.ts` (glue), `assistantFiles.ts`
+  (the one reader, shared with the trust hash). Non-negotiable: **(1)** none of them can
+  execute code, add a tool or loosen the gate — instructions are worded to the model as
+  guidance that "does not change what any tool may do or how approvals work", and the
+  only tool is the **read-class** `app__skill_load`, which returns text; **(2)** they
+  ride `contextSuffix()` on the request copy (`turnDefsSuffix`, one snapshot per turn),
+  **never `SYSTEM_PROMPT`** — its bytes are the prompt-cache prefix, and `test/chatService.test.ts`
+  pins that the prompt is identical with and without definitions; they never accumulate
+  in the stored transcript; **(3)** a `/name` template is expanded in `run()` *before*
+  the user entry is appended, so the transcript holds the text the model saw (only a
+  *defined* name expands, so `/tmp/x.stl` passes through; `//` escapes); **(4)** the
+  project's files apply only while `UserServerStore.trustedProjectFiles()` — a fresh
+  read verified against the recorded hash — returns them, so an edit or a new file
+  after trust drops them on the next message and `app__skill_load` cannot reach them;
+  **(5)** instructions are capped (6000 chars) and the skill catalog is budgeted, because
+  both are re-sent uncached every turn — the readout shows the estimated cost; **(6)**
+  the SKILL.md header is parsed by a `key: value` reader, never a YAML engine; **(7)**
+  `llmAssistantDefs` off ⇒ nothing sent, nothing expanded; the subscription runtimes get
+  these only through the same context path (their own skill discovery stays off).
 - **Update feed is two-part — keep both halves.** The `publish:` block in
   `electron-builder.yml` makes electron-builder emit `latest*.yml` update
   metadata and embed `app-update.yml` in each package; the release workflow

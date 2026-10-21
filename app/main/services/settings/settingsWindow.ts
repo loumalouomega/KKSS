@@ -43,6 +43,7 @@ export interface SettingsDeps {
   restartKratos(): void;
   checkSimulationEnvironment?(): void;
   /** The assistant's MCP manager (a sidebar panel): open it, and a one-line state for the row. */
+  assistantDefs?: { openFolder(): void };
   assistantMcp?: { open(): void; status(): { servers: number; project: "none" | "untrusted" | "trusted" | "changed" | "invalid"; managed: boolean } };
 }
 
@@ -166,6 +167,8 @@ function runAction(entry: SettingEntry, action: string): void {
       return deps.projectRoot.choose();
     case "general.projectRoot:clear":
       return deps.projectRoot.clear();
+    case "llm.assistantDefsFolder:open":
+      return deps.assistantDefs?.openFolder();
     case "llm.mcpServers:open":
       return deps.assistantMcp?.open();
     case "kratos.tools:restart":

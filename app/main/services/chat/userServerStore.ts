@@ -20,9 +20,10 @@ import type {
   ChatMcpMark, ChatMcpProject, ChatMcpServerInput, ChatMcpServerRow, ChatServerStatus,
 } from "../../ipc";
 import type { ToolClass } from "./toolPolicy";
+import { readAssistantTree } from "./assistantFiles";
 import type { ServerSpec } from "./mcpManager";
 import {
-  ASSISTANT_DIR, TRUSTED_FILES, hashDefinitions, parseTrustStore, shortHash, trustState,
+  ASSISTANT_DIR, hashDefinitions, parseTrustStore, shortHash, trustState,
   withTrust, withoutTrust, type TrustState,
 } from "./folderTrustCore";
 import {
@@ -60,13 +61,15 @@ export interface ProjectLoad {
   hash: string | null;
   servers: ServerDef[];
   errors: string[];
+  /** Every definition file read (relative name → text); the trust hash covers all of it. */
+  files: Record<string, string>;
 }
 
 export class UserServerStore {
   private readonly listeners = new Set<() => void>();
   /** Bumped when a server's stored secrets change, so the manager reconnects it. */
   private readonly secretEpoch = new Map<string, number>();
-  private project: ProjectLoad = { state: "none", hash: null, servers: [], errors: [] };
+  private project: ProjectLoad = { state: "none", hash: null, servers: [], errors: [], files: {} };
 
   constructor(private readonly deps: StoreDeps) {
     this.project = this.loadProject();
@@ -99,34 +102,33 @@ export class UserServerStore {
 
   loadProject(): ProjectLoad {
     const root = this.deps.explicitRoot();
-    const none: ProjectLoad = { state: "none", hash: null, servers: [], errors: [] };
+    const none: ProjectLoad = { state: "none", hash: null, servers: [], errors: [], files: {} };
     if (!root) return none;
     let realRoot: string;
     try { realRoot = fs.realpathSync(root); } catch { return { ...none, root }; }
-    const dir = path.join(realRoot, ...ASSISTANT_DIR.split("/"));
-    const files: Record<string, string> = {};
-    const errors: string[] = [];
-    for (const name of TRUSTED_FILES) {
-      const file = path.join(dir, name);
-      let stat: fs.Stats;
-      try { stat = fs.lstatSync(file); } catch { continue; } // absent is fine
-      try {
-        // A symlink could point a "project file" at anything on disk; a project
-        // definition must be an ordinary file physically inside the folder.
-        if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`${name} is not a regular file`);
-        const real = fs.realpathSync(file);
-        if (real !== realRoot && !real.startsWith(realRoot + path.sep)) throw new Error(`${name} resolves outside the project folder`);
-        if (stat.size > MAX_DEFINITION_BYTES) throw new Error(`${name} is larger than ${MAX_DEFINITION_BYTES / 1024} KB`);
-        files[name] = fs.readFileSync(real, "utf8");
-      } catch (error) {
-        errors.push(error instanceof Error ? error.message : String(error));
-        return { root, realRoot, state: "invalid", hash: null, servers: [], errors };
-      }
-    }
+    const read = readAssistantTree(path.join(realRoot, ...ASSISTANT_DIR.split("/")), realRoot);
+    if (read.error) return { root, realRoot, state: "invalid", hash: null, servers: [], errors: [read.error], files: {} };
+    const files = read.files;
     const hash = hashDefinitions(files);
     const parsed = files["mcp.json"] !== undefined ? parseDefinitionText(files["mcp.json"], "project") : { servers: [], errors: [] };
     const state: TrustState = trustState(parseTrustStore(this.deps.get<unknown>(MCP_TRUST_KEY)), realRoot, hash);
-    return { root, realRoot, state, hash, servers: parsed.servers, errors: parsed.errors };
+    return { root, realRoot, state, hash, servers: parsed.servers, errors: parsed.errors, files };
+  }
+
+  /**
+   * The project's definition files, but **only while the folder is trusted** —
+   * read fresh from disk and verified against the recorded hash on every call.
+   * Instructions, skills and prompt templates change what the model is told, so
+   * an edit after trust drops them at once (and refreshes the cached state so
+   * the manager shows "changed") instead of waiting for a reload.
+   */
+  trustedProjectFiles(): Record<string, string> {
+    const fresh = this.loadProject();
+    if (fresh.state !== this.project.state || fresh.hash !== this.project.hash) {
+      this.project = fresh;
+      this.emit();
+    }
+    return fresh.state === "trusted" ? fresh.files : {};
   }
 
   /** Re-reads the project folder (explicit root changed, or the user asked). */

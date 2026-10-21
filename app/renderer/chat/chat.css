@@ -744,3 +744,16 @@ body {
   gap: var(--ui-s-1);
   font-size: var(--ui-fs-sm);
 }
+
+/* ---- prompt-template hints ------------------------------------------- */
+
+#template-hints {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-s-1);
+  padding: var(--ui-s-1) var(--ui-s-3) 0;
+}
+#template-hints[hidden] {
+  display: none;
+}

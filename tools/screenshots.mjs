@@ -628,6 +628,10 @@ if (!meshOnly) {
     stdio: "inherit", env: { ...process.env, KKSS_MCP_SHOT: path.join(OUT, "chat-mcp-manager.png") },
   });
   if (mcpShot.status !== 0) throw new Error("chat MCP manager capture failed");
+  const defsShot = spawnSync(process.execPath, [path.join(root, "tools/e2e/chat-defs.mjs")], {
+    stdio: "inherit", env: { ...process.env, KKSS_DEFS_SHOT: path.join(OUT, "chat-assistant-defs.png") },
+  });
+  if (defsShot.status !== 0) throw new Error("chat assistant definitions capture failed");
   // These captures use the real CAD/mesh app, the configured manual Python
   // interpreter and actual solver-produced tutorial results. The companion uses
   // a local OpenAI-compatible fixture but routes every tool call through KKSS.

@@ -16,10 +16,12 @@ import { createHash } from "node:crypto";
 /** Directory (relative to the project root) whose files the trust record covers. */
 export const ASSISTANT_DIR = ".kkss/assistant";
 /**
- * Files in that directory the record covers. Adding a definition kind means
- * adding its file here — the hash, the prompt and the revoke path need nothing else.
+ * What the trust hash covers, by relative name — the layout `assistantFiles.ts`
+ * reads: `mcp.json`, `instructions.md`, `skills/<name>/SKILL.md` and
+ * `prompts/<name>.md`. A new kind of definition means teaching that reader about
+ * it; the hash, the prompt and the revoke path then need nothing else. Trusting a
+ * folder trusts all of it at once, and an edit to any file asks again.
  */
-export const TRUSTED_FILES: readonly string[] = ["mcp.json"];
 
 export type TrustState = "none" | "untrusted" | "trusted" | "changed";
 
