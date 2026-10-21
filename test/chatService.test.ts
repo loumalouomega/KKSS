@@ -53,6 +53,8 @@ vi.mock("../app/main/services/stateStore", () => ({
 
 const { ChatService, evictImages, readLlmSettings, providerLabel, missingKeyMessage } = await import("../app/main/services/chat/chatService");
 const { CLEARED_PLACEHOLDER } = await import("../app/main/services/chat/compaction");
+const { UserServerStore } = await import("../app/main/services/chat/userServerStore");
+const { AssistantDefsStore } = await import("../app/main/services/chat/assistantDefsStore");
 const { ProviderError } = await import("../app/main/services/chat/providers/types");
 const { TranscriptStore } = await import("../app/main/services/chat/transcriptStore");
 const { PREVIEW_CHARS } = await import("../app/main/services/chat/transcript");
@@ -191,7 +193,7 @@ async function settleAfterSwitch(check: () => void): Promise<void> {
   await vi.waitFor(check, { timeout: 4000, interval: 10 });
 }
 
-function makeService(currentFiles?: () => any) {
+function makeService(currentFiles?: () => any, extra: Record<string, unknown> = {}) {
   const provider = new FakeProvider();
   const mcp = new FakeMcp();
   const { contents, messages } = fakeWebContents<ChatToWebview>();
@@ -199,6 +201,7 @@ function makeService(currentFiles?: () => any) {
     ensureStarted: () => mcp,
     manager: () => mcp,
     retryKratos: vi.fn(async (_install?: boolean) => {}),
+    restartServer: vi.fn(async (_key: string) => {}),
     statuses: () => [],
     onStatus: () => undefined,
     offStatus: () => undefined,
@@ -211,6 +214,7 @@ function makeService(currentFiles?: () => any) {
     openSettings: () => undefined,
     onHide: () => undefined,
     provider: () => provider as never,
+    ...extra,
   });
   service.attach(contents as unknown as WebContents);
   const post = (payload: unknown) => electronStub.post("chat:toHost", contents, payload);
@@ -1752,5 +1756,265 @@ describe("user attachments", () => {
     changeListeners.forEach((l) => l("llmImageInput", true));
     await settle(4);
     expect(composer().attach).toEqual({ image: null, pdf: "pdfNeedsMcp" });
+  });
+});
+
+describe("user-configured MCP servers", () => {
+  /** A store over in-memory state/secrets (the service sees only its public surface). */
+  function makeStore(rootDir?: string, locked = false) {
+    const state = new Map<string, unknown>();
+    const secrets = new Map<string, string>();
+    return new UserServerStore({
+      get: (key) => state.get(key) as never,
+      update: async (key, value) => { if (value === undefined) state.delete(key); else state.set(key, JSON.parse(JSON.stringify(value))); },
+      isManaged: () => locked,
+      getSecret: (key) => secrets.get(key),
+      setSecret: async (key, value) => { if (value) secrets.set(key, value); else secrets.delete(key); },
+      explicitRoot: () => rootDir,
+      env: () => ({}),
+      now: () => 1,
+    });
+  }
+  const requests = (messages: ChatToWebview[]) =>
+    messages.filter((m): m is Extract<ChatToWebview, { type: "approvalRequest" }> => m.type === "approvalRequest");
+  const CALL = { id: "u1", name: "acme__lookup", argsJson: "{}" };
+
+  async function upToCall(userServers: InstanceType<typeof UserServerStore>) {
+    const made = makeService(undefined, { userServers });
+    made.post({ type: "chatReady" });
+    await settle(4);
+    made.post({ type: "send", text: "go" });
+    await settle(8);
+    made.provider.finish("calling", CALL);
+    await settle(8);
+    return made;
+  }
+
+  it("asks about an unmarked user tool, which is not a scopable write", async () => {
+    const store = makeStore("/some/project");
+    await store.save({ id: "acme", transport: "stdio", command: "node" });
+    const { messages, mcp } = await upToCall(store);
+    expect(requests(messages)).toHaveLength(1);
+    expect(requests(messages)[0].pending).toMatchObject({ server: "acme", tool: "lookup", access: "unknown" });
+    expect(requests(messages)[0].pending.scopable).toBeUndefined();
+    expect(mcp.calls).toEqual([]);
+  });
+
+  it("runs a tool the user marked read without asking, but still asks for one marked write", async () => {
+    const store = makeStore();
+    await store.save({ id: "acme", transport: "stdio", command: "node" });
+    await store.setMark("acme", "lookup", "read");
+    const { messages, mcp } = await upToCall(store);
+    expect(requests(messages)).toHaveLength(0);
+    expect(mcp.calls).toEqual(["acme__lookup"]);
+    mcp.finish("done");
+
+    const writeStore = makeStore();
+    await writeStore.save({ id: "acme", transport: "stdio", command: "node" });
+    await writeStore.setMark("acme", "lookup", "write");
+    const second = await upToCall(writeStore);
+    expect(requests(second.messages)[0].pending.access).toBe("write");
+    expect(second.mcp.calls).toEqual([]);
+  });
+
+  it("a mark does not touch the built-in table", async () => {
+    const store = makeStore();
+    await store.save({ id: "acme", transport: "stdio", command: "node" });
+    await store.setMark("acme", "set_layer", "read");
+    const made = makeService(undefined, { userServers: store });
+    made.post({ type: "chatReady" });
+    await settle(4);
+    made.post({ type: "send", text: "go" });
+    await settle(8);
+    made.provider.finish("calling", { id: "w1", name: "cad__set_layer", argsJson: "{}" });
+    await settle(8);
+    expect(requests(made.messages)[0].pending.access).toBe("write");
+  });
+
+  it("answers the manager with rows that carry no secret, and replays them on chatReady", async () => {
+    const store = makeStore();
+    await store.save({ id: "acme", transport: "stdio", command: "node", env: [{ name: "API_KEY", value: "s3cret" }] });
+    const { messages, post } = makeService(undefined, { userServers: store });
+    post({ type: "chatReady" });
+    await settle(4);
+    const manager = [...messages].reverse().find((m) => m.type === "mcpManager") as Extract<ChatToWebview, { type: "mcpManager" }>;
+    expect(manager.rows.map((r) => r.id)).toEqual(["acme"]);
+    expect(manager.managed).toBe(false);
+    expect(JSON.stringify(messages)).not.toContain("s3cret");
+  });
+
+  it("applies a valid manager request and reports an invalid or reserved one", async () => {
+    const store = makeStore();
+    const { messages, post } = makeService(undefined, { userServers: store });
+    post({ type: "mcpSaveServer", server: { id: "acme", transport: "stdio", command: "node" } });
+    await settle(4);
+    expect(store.userServers().map((s) => s.id)).toEqual(["acme"]);
+    post({ type: "mcpSaveServer", server: { id: "cad", transport: "stdio", command: "node" } });
+    post({ type: "mcpSaveServer", server: null });
+    post({ type: "mcpSetMark", id: "acme", tool: "t", mark: "maybe" });
+    await settle(8);
+    expect(messages.filter((m) => m.type === "mcpError").map((m) => (m as any).code).sort()).toEqual(["invalid", "invalid", "reserved"]);
+    expect(store.userServers()).toHaveLength(1);
+    expect(store.markOf("acme", "t")).toBe("unknown");
+  });
+
+  it("refuses edits on a managed store", async () => {
+    const store = makeStore(undefined, true);
+    const { messages, post } = makeService(undefined, { userServers: store });
+    post({ type: "mcpSaveServer", server: { id: "acme", transport: "stdio", command: "node" } });
+    await settle(4);
+    expect(messages.some((m) => m.type === "mcpError" && m.code === "managed")).toBe(true);
+    expect(store.userServers()).toEqual([]);
+  });
+
+  it("ignores manager messages from anyone but the attached renderer", async () => {
+    const store = makeStore();
+    makeService(undefined, { userServers: store });
+    const stranger = fakeWebContents<ChatToWebview>().contents;
+    electronStub.post("chat:toHost", stranger, { type: "mcpSaveServer", server: { id: "acme", transport: "stdio", command: "node" } });
+    await settle(4);
+    expect(store.userServers()).toEqual([]);
+  });
+
+  it("restarts only a server that exists", async () => {
+    const store = makeStore();
+    const made = makeService(undefined, { userServers: store });
+    made.hub.statuses = () => [{ key: "acme", name: "acme", state: "ready" }] as never;
+    made.post({ type: "mcpRestart", id: "acme" });
+    made.post({ type: "mcpRestart", id: "ghost" });
+    made.post({ type: "mcpRestart", id: 5 });
+    await settle(4);
+    expect((made.hub as any).restartServer.mock.calls).toEqual([["acme"]]);
+  });
+
+  it("works without any store (built-ins only)", async () => {
+    const { messages, post } = makeService();
+    post({ type: "mcpSaveServer", server: { id: "acme", transport: "stdio", command: "node" } });
+    post({ type: "mcpRefresh" });
+    await settle(4);
+    expect(messages.some((m) => m.type === "mcpManager" || m.type === "mcpError")).toBe(false);
+  });
+});
+
+describe("standing instructions, skills and prompt templates", () => {
+  function makeDefs(files: Record<string, string>, on = true) {
+    const userDir = path.join(dir, "assistant");
+    for (const [rel, text] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(userDir, rel)), { recursive: true });
+      fs.writeFileSync(path.join(userDir, rel), text);
+    }
+    return new AssistantDefsStore({ userDir, enabled: () => on, trustedProjectFiles: () => ({}), onProjectChange: () => undefined });
+  }
+  const FILES = {
+    "instructions.md": "Always use SI units.",
+    "skills/checklist/SKILL.md": "---\ndescription: Pre-solve checklist\n---\nCheck the mesh first.",
+    "prompts/review.md": "Review $ARGUMENTS for problems.",
+  };
+  const lastUser = (provider: FakeProvider) => [...provider.lastEntries].reverse().find((e: any) => e.kind === "user").text as string;
+
+  it("rides the newest user message as context, never the system prompt", async () => {
+    const { provider, post } = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    post({ type: "send", text: "hello" });
+    await settle(8);
+    expect(lastUser(provider)).toContain("Always use SI units.");
+    expect(lastUser(provider)).toContain("checklist — Pre-solve checklist");
+    // The skill body is fetched on demand, not carried every turn.
+    expect(lastUser(provider)).not.toContain("Check the mesh first.");
+    expect(provider.requests[0].system).not.toContain("Always use SI units.");
+  });
+
+  it("does not accumulate in the stored conversation across turns", async () => {
+    const { provider, post, messages } = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    post({ type: "chatReady" });
+    await settle(4);
+    post({ type: "send", text: "first" });
+    await settle(8);
+    provider.finish("one");
+    await settle(8);
+    post({ type: "send", text: "second" });
+    await settle(8);
+    const users = provider.lastEntries.filter((e: any) => e.kind === "user").map((e: any) => e.text as string);
+    expect(users[0]).toBe("first");
+    expect(users[1]).toContain("Always use SI units.");
+    expect((users[1].match(/Standing instructions/g) ?? []).length).toBe(1);
+    const id = lastState(messages).conversationId;
+    await settle(30);
+    expect((stored(id)!.entries.filter((e: any) => e.kind === "user") as any[]).every((e) => !e.text.includes("Standing instructions"))).toBe(true);
+  });
+
+  it("sends nothing when the setting is off", async () => {
+    const { provider, post } = makeService(undefined, { assistantDefs: makeDefs(FILES, false) });
+    post({ type: "send", text: "hello" });
+    await settle(8);
+    expect(lastUser(provider)).toBe("hello");
+  });
+
+  it("expands /name before the message is stored, so the transcript keeps what the model saw", async () => {
+    const { provider, post, messages } = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    post({ type: "chatReady" });
+    await settle(4);
+    post({ type: "send", text: "/review beam.stl" });
+    await settle(8);
+    expect(lastUser(provider)).toContain("Review beam.stl for problems.");
+    const entry = messages.find((m) => m.type === "entry" && m.entry.kind === "user") as any;
+    expect(entry.entry.text).toBe("Review beam.stl for problems.");
+    await settle(30);
+    const id = lastState(messages).conversationId;
+    expect((stored(id)!.entries[0] as any).text).toBe("Review beam.stl for problems.");
+  });
+
+  it("leaves paths, unknown names and escaped slashes exactly as typed", async () => {
+    const { provider, post } = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    for (const [typed, expected] of [["/tmp/model.stl", "/tmp/model.stl"], ["/nope", "/nope"], ["//review x", "/review x"]] as const) {
+      post({ type: "send", text: typed });
+      await settle(8);
+      expect(lastUser(provider).startsWith(expected)).toBe(true);
+      provider.finish("ok");
+      await settle(10);
+    }
+  });
+
+  it("refuses an expansion that would be enormous and hands the draft back", async () => {
+    const defs = makeDefs({ "prompts/big.md": "x".repeat(8000) });
+    const { provider, post, messages } = makeService(undefined, { assistantDefs: defs });
+    post({ type: "send", text: `/big ${"y".repeat(25_000)}` });
+    await settle(8);
+    expect(messages.some((m) => m.type === "sendRefused" && m.reason === "invalid")).toBe(true);
+    expect(provider.turns).toBe(0);
+  });
+
+  it("answers the composer's hint request and replays the summary", async () => {
+    const { post, messages } = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    post({ type: "chatReady" });
+    post({ type: "templateHints", typed: "/re" });
+    post({ type: "templateHints", typed: "x".repeat(200) });
+    await settle(6);
+    expect(messages.filter((m) => m.type === "templateHints")).toEqual([{ type: "templateHints", typed: "/re", names: ["review"] }]);
+    const defs = messages.filter((m) => m.type === "assistantDefs").pop() as any;
+    expect(defs.defs).toMatchObject({ enabled: true, instructions: [{ source: "user" }], skills: [{ name: "checklist" }], templates: [{ name: "review" }] });
+    expect(defs.defs.estimatedTokens).toBeGreaterThan(0);
+  });
+
+  it("reaches a subscription runtime through the same context path", async () => {
+    stateValues.llmProvider = "claude-code";
+    const seen: any[] = [];
+    const agent = { run: async (options: any) => { seen.push(options); } };
+    const { post } = makeService(undefined, { assistantDefs: makeDefs(FILES), agent: () => agent });
+    post({ type: "send", text: "hello" });
+    await settle(10);
+    const entries = seen[0].entries as any[];
+    expect(entries[entries.length - 1].text).toContain("Always use SI units.");
+    expect(seen[0].system).not.toContain("Always use SI units.");
+  });
+
+  it("the system prompt names the capability once, byte-stably", async () => {
+    const a = makeService(undefined, { assistantDefs: makeDefs(FILES) });
+    a.post({ type: "send", text: "hi" });
+    await settle(6);
+    const b = makeService(undefined, { assistantDefs: makeDefs({}) });
+    b.post({ type: "send", text: "hi" });
+    await settle(6);
+    expect(a.provider.requests[0].system).toBe(b.provider.requests[0].system);
+    expect(a.provider.requests[0].system).toContain("app__skill_load");
   });
 });

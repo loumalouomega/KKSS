@@ -34,6 +34,7 @@ export default defineConfig({
           { text: 'Reading a Kratos Result', link: '/guide/tutorial-reading-results' },
           { text: 'AI Simulation Walkthrough', link: '/guide/tutorial-ai-simulation' },
           { text: 'Worked Kratos Cases', link: '/guide/tutorial-kratos-examples' },
+          { text: 'Assistant Extensions', link: '/guide/assistant-extensions' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' },
           { text: 'Web Deployment (Docker)', link: '/guide/web-deployment' }
@@ -76,6 +77,7 @@ export default defineConfig({
           },
           { text: 'AI Simulation Walkthrough', link: '/guide/tutorial-ai-simulation' },
           { text: 'Worked Kratos Cases', link: '/guide/tutorial-kratos-examples' },
+          { text: 'Assistant Extensions', link: '/guide/assistant-extensions' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' }
         ]

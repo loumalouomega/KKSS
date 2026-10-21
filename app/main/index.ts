@@ -35,6 +35,8 @@ import { EditorService } from "./services/editor";
 import { ChatService } from "./services/chat/chatService";
 import { JobsService } from "./services/jobs";
 import { McpHub } from "./services/chat/mcpHub";
+import { UserServerStore } from "./services/chat/userServerStore";
+import { AssistantDefsStore } from "./services/chat/assistantDefsStore";
 import { WorkflowService } from "./services/workflows/service";
 import { manualLaunchAvailability, resolveThreads } from "./services/workflows/environment";
 import { registerAppTools, callAppTool } from "./services/chat/appTools";
@@ -165,6 +167,8 @@ let terminal: TerminalService | null = null;
 let editor: EditorService | null = null;
 let chat: ChatService | null = null;
 let mcpHub: McpHub | null = null;
+let userServers: UserServerStore | null = null;
+let assistantDefs: AssistantDefsStore | null = null;
 let jobs: JobsService | null = null;
 let workflows: WorkflowService | undefined;
 let metaServer: MetaMcpServer | null = null;
@@ -1217,6 +1221,12 @@ function toggleTerminal(): void {
   saveSessionSoon();
 }
 
+/** Creates (if needed) and opens the folder with the user's instructions, skills and prompts. */
+function openAssistantDir(): void {
+  const dir = assistantDefs?.ensureUserDir();
+  if (dir) void shell.openPath(dir);
+}
+
 /** Shows/hides the AI chat sidebar, attaching the chat service on first use. */
 function toggleChat(): void {
   if (!main || !chat) return;
@@ -1470,8 +1480,29 @@ app.whenReady().then(() => {
       });
     },
   });
-  registerAppTools(workflows.tools());
-  mcpHub = new McpHub(__dirname);
+  // User- and project-configured MCP servers (the sidebar's manager). The
+  // project half is keyed on the *explicit* root only — see folderTrustCore.ts.
+  userServers = new UserServerStore({
+    get: (key) => stateStore.get(key),
+    update: (key, value) => stateStore.update(key, value),
+    isManaged: (key) => stateStore.isManaged(key),
+    getSecret,
+    setSecret,
+    explicitRoot: () => projectRoot.explicit(),
+    env: () => process.env,
+    now: () => Date.now(),
+  });
+  mcpHub = new McpHub(__dirname, userServers);
+  // Text-only definitions: the user's `<userData>/assistant` plus, once the
+  // project folder is trusted, its `.kkss/assistant`. `app__skill_load` joins the
+  // workflow tools in the one app-tool registry.
+  assistantDefs = new AssistantDefsStore({
+    userDir: path.join(app.getPath("userData"), "assistant"),
+    enabled: () => stateStore.get<boolean>("llmAssistantDefs", true) !== false,
+    trustedProjectFiles: () => userServers?.trustedProjectFiles() ?? {},
+    onProjectChange: (listener) => userServers?.onChange(listener),
+  });
+  registerAppTools([...workflows.tools(), ...assistantDefs.tools()]);
   jobs = new JobsService({
     hub: mcpHub,
     hide: () => { if (main?.jobsVisible()) toggleJobs(); },
@@ -1511,6 +1542,9 @@ app.whenReady().then(() => {
 
   chat = new ChatService({
     hub: mcpHub,
+    userServers,
+    assistantDefs: assistantDefs ?? undefined,
+    openAssistantDir,
     chatsDir: path.join(app.getPath("userData"), "chats"),
     projectRoot: () => projectRoot.explicit(),
     currentFiles: () => ({
@@ -1602,6 +1636,18 @@ app.whenReady().then(() => {
     },
     metaServer: menuDeps.metaServer,
     cloud: menuDeps.cloud,
+    assistantDefs: { openFolder: openAssistantDir },
+    assistantMcp: {
+      open: () => {
+        if (!main?.chatVisible()) toggleChat();
+        chat?.openMcpManager();
+      },
+      status: () => ({
+        servers: userServers?.userServers().length ?? 0,
+        project: userServers?.projectInfo().state ?? "none",
+        managed: userServers?.managed() ?? false,
+      }),
+    },
     restartKratos: () => {
       void mcpHub?.restartKratos();
       toast("info", t("Restarting the Kratos tools with the current environment."));
@@ -1614,6 +1660,7 @@ app.whenReady().then(() => {
   const settingKeys = new Set(registry().map((e) => e.storeKey).filter((k): k is string => !!k));
   stateStore.onDidChange((key) => {
     if (settingKeys.has(key)) installMenu(menuDeps);
+    if (key === "llmAssistantDefs") assistantDefs?.emit();
     if (key === META_SERVER_KEYS.access || key === META_SERVER_KEYS.allowedWrites) metaServer?.refreshTools();
     if (["kratos.pythonPath", "kratos.installPath", "kratos.extraEnv", "kratos.threads"].includes(key)) runs?.requestCapabilityRefresh();
     // The renderer is read when a preview's PAGE loads, so a change cannot
@@ -1641,6 +1688,7 @@ app.whenReady().then(() => {
   // The root shows in the File menu's label, and changes how recents describe
   // their folders, so both surfaces are rebuilt with it.
   projectRoot.onDidChange(() => {
+    userServers?.reloadProject();
     installMenu(menuDeps);
     refreshSettingsRows();
     pushProjectRoot();

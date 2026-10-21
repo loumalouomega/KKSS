@@ -117,6 +117,9 @@ for (const language of ['en', 'es']) await scenario(`accessibility-${language}`,
   for (const theme of themeNames) {
     await menu(app, text(theme));
     for (const [name, page] of [['home', home], ['shell', shell], ['editor', editor], ['chat', chat], ['settings', settings]]) await scan(page, `${name}/${theme}`);
+    // The MCP manager replaces the conversation while open: scan it in every theme too.
+    await chat.locator('#mcp-btn').click(); await chat.locator('#mcp-panel').waitFor(); await scan(chat, `chat-mcp/${theme}`);
+    await chat.locator('#mcp-close').click();
   }
   await menu(app, text('About KKSS…')); const about = await c.page(app, 'about'); await scan(about, 'about');
   await key('Escape');

@@ -131,6 +131,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // App-owned guided simulation workflow. Preview/report operations are reads;
   // selecting, navigating, creating, and duplicating alter user-visible state.
   app__check_simulation_environment: "read",
+  app__skill_load: "read",
   app__study_list: "read",
   app__study_open: "write",
   app__study_attach_mesh: "write",
@@ -553,6 +554,12 @@ export interface GateOptions {
    * when the tool is a granted `write` tool.
    */
   scoped?: { granted: ReadonlySet<string>; inside(): boolean };
+  /**
+   * Classification override. Defaults to the built-in table; ChatService passes
+   * `makeClassifier(marks)` so a user-configured server's tools take the marks
+   * the user set in the MCP manager (built-in names still resolve to this table).
+   */
+  classify?: (namespaced: string) => ToolClass;
 }
 
 /**
@@ -570,18 +577,19 @@ export interface GateOptions {
  *    other call falls through to the normal rules and asks.
  */
 export function gateFor(namespaced: string, options: GateOptions): ToolGate {
+  const classify = options.classify ?? classifyTool;
   if (options.mode === "never") return "auto";
   if (options.allowed.has(namespaced)) return "auto";
   if (
     options.scoped &&
     options.scoped.granted.has(namespaced) &&
-    classifyTool(namespaced) === "write" &&
+    classify(namespaced) === "write" &&
     options.scoped.inside()
   ) {
     return "auto";
   }
   if (options.mode === "askAlways") return "ask";
-  return classifyTool(namespaced) === "read" ? "auto" : "ask";
+  return classify(namespaced) === "read" ? "auto" : "ask";
 }
 
 /**

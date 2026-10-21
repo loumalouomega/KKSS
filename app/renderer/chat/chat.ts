@@ -25,6 +25,7 @@ import type {
 } from "../../main/ipc";
 
 import { kratosStatusView } from "./serverStatus";
+import { McpManager } from "./mcpManager";
 import { glyph } from "../glyphs";
 import { MAX_IMAGE_B64, MAX_IMAGES_PER_MESSAGE, MAX_PDF_B64, MAX_PDFS_PER_MESSAGE, kindOfMime } from "../../main/services/chat/chatAttachments";
 
@@ -65,6 +66,17 @@ const attachNotice = byId<HTMLDivElement>("attach-notice");
 // stays free of SVG).
 byId<HTMLElement>("chat-icon").innerHTML = glyph("messageSquare");
 historyBtn.innerHTML = glyph("history");
+const mcpBtn = byId<HTMLButtonElement>("mcp-btn");
+mcpBtn.innerHTML = glyph("server");
+const mcpClose = byId<HTMLButtonElement>("mcp-close");
+mcpClose.innerHTML = glyph("x");
+const hintsEl = byId<HTMLDivElement>("template-hints");
+/** ~tokens the standing instructions and skill catalog add to every request. */
+let standingTokens = 0;
+const mcpManager = new McpManager(
+  { panel: byId<HTMLElement>("mcp-panel"), body: byId<HTMLElement>("mcp-body"), openBtn: mcpBtn, closeBtn: mcpClose },
+  (message) => api.post(message)
+);
 newBtn.innerHTML = glyph("plus");
 hideBtn.innerHTML = glyph("x");
 byId<HTMLElement>("think-icon").innerHTML = glyph("thinkBrain");
@@ -743,7 +755,11 @@ function renderServers(servers: ChatServerStatus[]): void {
         ? t("{0} tools", {0: server.toolCount ?? 0})
         : server.state === "starting"
           ? t("starting…")
-          : t("unavailable — {0}", {0: server.error ?? t("unknown error")});
+          : server.state === "disabled"
+            ? t("disabled")
+            : server.state === "untrusted"
+              ? t("waiting for you to trust the project folder")
+              : t("unavailable — {0}", {0: server.error ?? t("unknown error")});
     dot.title = `${server.name}: ${detail}`;
     serversEl.appendChild(dot);
   }
@@ -790,6 +806,7 @@ function renderUsage(usage: ChatUsage | undefined): void {
   ];
   if (usage.costUsd === undefined) detail.push(usage.billingMode === "subscription" ? t("Subscription usage; provider limits apply. API prices do not represent your bill.") : usage.billingMode === "mixed" ? t("Mixed providers or billing modes — token counts only.") : t("No pricing on record for this model — token counts only."));
   if (usage.userSupplied) detail.push(t("Price and context window supplied by you (Settings ▸ LLM Assistant)."));
+  if (standingTokens > 0) detail.push(t("Standing instructions and skills add about {0} tokens to each request (not cached).", { 0: standingTokens }));
   usageEl.title = detail.join("\n");
 }
 
@@ -981,6 +998,30 @@ fileInput.addEventListener("change", () => {
   fileInput.value = "";
   void addFiles(files);
 });
+/** The strip under the message box while it holds `/` and a template name's start. */
+function showTemplateHints(typed: string, names: string[]): void {
+  // A late answer for text the user has since changed must not paint.
+  if (typed !== input.value.trim() && typed !== input.value) { return; }
+  hintsEl.replaceChildren();
+  hintsEl.hidden = names.length === 0;
+  for (const name of names) {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "btn btn-sm btn-secondary";
+    option.setAttribute("role", "option");
+    option.textContent = `/${name}`;
+    option.addEventListener("click", () => {
+      input.value = `/${name} `;
+      hintsEl.hidden = true;
+      input.focus();
+    });
+    hintsEl.appendChild(option);
+  }
+}
+input.addEventListener("input", () => {
+  if (/^\/[a-z0-9-]*$/.test(input.value)) post({ type: "templateHints", typed: input.value });
+  else hintsEl.hidden = true;
+});
 input.addEventListener("paste", (event) => {
   const files = Array.from(event.clipboardData?.files ?? []);
   if (!files.length) return; // plain text paste stays native
@@ -1142,6 +1183,20 @@ api.onMessage((raw) => {
       break;
     case "servers":
       renderServers(msg.servers);
+      break;
+    case "assistantDefs":
+      standingTokens = msg.defs.estimatedTokens;
+      mcpManager.handle(msg);
+      break;
+    case "templateHints":
+      showTemplateHints(msg.typed, msg.names);
+      break;
+    case "mcpManager":
+    case "mcpTools":
+    case "mcpError":
+    case "mcpOpen":
+    case "mcpSaved":
+      mcpManager.handle(msg);
       break;
   }
 });

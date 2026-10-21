@@ -60,6 +60,11 @@ body {
   opacity: 1;
 }
 
+.server-dot.untrusted {
+  background: var(--vscode-editorWarning-foreground);
+  opacity: 1;
+}
+
 /* Token / context / cost readout. `#servers` keeps flex:1 and absorbs the
    shrink; three 9px dots leave it almost entirely slack. */
 #usage {
@@ -578,4 +583,177 @@ body {
   margin-top: var(--ui-s-2);
   opacity: 0.8;
   font-style: italic;
+}
+
+/* ---- MCP manager ------------------------------------------------------ */
+
+/* The panel replaces the conversation while it is open: everything after it in
+   the column (banners, messages, composer) steps aside, with no JS bookkeeping. */
+#mcp-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#mcp-panel:not([hidden]) ~ * {
+  display: none;
+}
+
+.mcp-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s-2);
+  padding: var(--ui-s-1) var(--ui-s-3);
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+.mcp-head .title {
+  flex: 1;
+  font-weight: 600;
+}
+
+#mcp-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--ui-s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s-3);
+}
+
+.mcp-intro,
+.mcp-hint {
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--vscode-descriptionForeground);
+  overflow-wrap: anywhere;
+}
+
+.mcp-error {
+  margin: 0;
+  padding: var(--ui-s-1) var(--ui-s-2);
+  border-radius: var(--ui-r-md);
+  color: var(--vscode-errorForeground);
+  border: 1px solid var(--vscode-errorForeground);
+  overflow-wrap: anywhere;
+}
+
+.mcp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s-2);
+}
+
+.mcp-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s-1);
+  padding: var(--ui-s-2);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--ui-r-md);
+}
+
+.mcp-row-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s-2);
+}
+.mcp-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.mcp-transport {
+  font-size: var(--ui-fs-sm);
+  color: var(--vscode-descriptionForeground);
+}
+
+.mcp-status {
+  font-size: var(--ui-fs-sm);
+  color: var(--vscode-descriptionForeground);
+  overflow-wrap: anywhere;
+}
+.mcp-status.unavailable {
+  color: var(--vscode-errorForeground);
+}
+.mcp-status.untrusted {
+  color: var(--vscode-editorWarning-foreground);
+}
+
+.mcp-launch {
+  display: block;
+  font-size: var(--ui-fs-sm);
+  overflow-wrap: anywhere;
+  color: var(--vscode-descriptionForeground);
+}
+
+.mcp-row-actions,
+.mcp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-s-1);
+}
+.mcp-armed {
+  color: var(--vscode-errorForeground);
+}
+
+.mcp-project {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s-2);
+  padding-top: var(--ui-s-3);
+  border-top: 1px solid var(--vscode-panel-border);
+}
+.mcp-project h3 {
+  margin: 0;
+}
+
+.mcp-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s-1);
+}
+.mcp-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s-2);
+}
+.mcp-env {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s-1);
+}
+.mcp-env-row {
+  display: flex;
+  gap: var(--ui-s-1);
+  align-items: center;
+}
+.mcp-env-row .field {
+  flex: 1;
+  min-width: 0;
+}
+.mcp-check {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s-1);
+  font-size: var(--ui-fs-sm);
+}
+
+/* ---- prompt-template hints ------------------------------------------- */
+
+#template-hints {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-s-1);
+  padding: var(--ui-s-1) var(--ui-s-3) 0;
+}
+#template-hints[hidden] {
+  display: none;
 }
