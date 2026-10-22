@@ -31,6 +31,7 @@ import type * as brepHealth from "../../cad/src/brepHealth";
 import type * as passageAnalysis from "../../cad/src/passageAnalysisHost";
 import type * as meshDeviation from "../../cad/src/meshDeviationHost";
 import type * as printabilityHost from "../../cad/src/printabilityHost";
+import type * as draftAnalysisHost from "../../cad/src/draftAnalysisHost";
 import type * as meshFitCad from "../../cad/src/meshFitCad";
 import type * as gltfDecode from "../../cad/src/gltfDecode";
 import type * as scadWasm from "../../cad/src/scadWasmService";
@@ -288,6 +289,10 @@ export const cadCompute = {
   // triangles any source reduces to (the worker spreads printabilityHost, and
   // kernelActivity.ts keys it to OCCT).
   checkPrintability: rpc<typeof printabilityHost.checkPrintability>("checkPrintability"),
+  // cad 3.28.0's Draft panel: the same facts-only kernel path as check_draft,
+  // plus the per-corner draft overlay the webview colours the view with.
+  // kernelActivity.ts keys it to OCCT, so cadKernelStatus needs no alias.
+  checkDraft: rpc<typeof draftAnalysisHost.checkDraft>("checkDraft"),
   // cad 3.19.0's Fit to CAD: meshio++ fitCad over a segmented, primitive-fitted
   // closed skin (meshFitCad.ts) — the interactive half of `cad__fit_mesh_to_cad`.
   // Needs the FULL artifact's OpenCASCADE; the staged out/meshio tree serves it.

@@ -30,6 +30,17 @@ describe.skipIf(!fs.existsSync(server))("bundled CAD MCP runtime", () => {
       const text = (mass.content as Array<{ type: string; text?: string }>).find(c => c.type === "text")!.text!;
       expect(JSON.parse(text).volume).toBeCloseTo(60, 5);
 
+      // cad 3.28.0's Draft panel/tool seam: the real kernel path through the
+      // forked MCP worker, not a stub. The block's vertical walls have no draft.
+      const draft = await client.callTool({ name: "check_draft", arguments: { path: model, pull: "+Z", minDraftDeg: 1 } });
+      expect(draft.isError, JSON.stringify(draft.content)).not.toBe(true);
+      const draftText = (draft.content as Array<{ type: string; text?: string }>).find(c => c.type === "text")!.text!;
+      const draftFacts = JSON.parse(draftText);
+      expect(draftFacts.supported).toBe(true);
+      expect(draftFacts.pull).toEqual([0, 0, 1]);
+      expect(draftFacts.faceCount).toBeGreaterThan(0);
+      expect(draftFacts.counts.zeroDraft).toBeGreaterThan(0);
+
       const mesh = path.join(dir, "model.mdpa");
       fs.writeFileSync(mesh, "Begin Nodes\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\nEnd Nodes\nBegin Elements Element3D4N\n1 0 1 2 3 4\nEnd Elements\n");
       const loaded = await client.callTool({ name: "load_model", arguments: { path: mesh } });

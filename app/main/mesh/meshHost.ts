@@ -83,6 +83,8 @@ import { configureMeshioWriteRunner } from "../../../mesh/src/parser/writers/mes
 import { runMeshioWriteInWorker } from "../../../mesh/src/meshioWriteWorkerClient";
 import { configureMeshioReadRunner } from "../../../mesh/src/parser/meshio";
 import { runMeshioReadInWorker } from "../../../mesh/src/meshioReadWorkerClient";
+import { configureDerivedRunner } from "../../../mesh/src/parser/derivedRunner";
+import { runDerivedInWorker } from "../../../mesh/src/derivedWorkerClient";
 import { packSeries } from "../../../mesh/src/sequenceExport";
 import { Uri } from "../vscodeShim";
 import { stateStore } from "../services/stateStore";
@@ -275,6 +277,11 @@ export class MeshHost {
     // `.foam`, any timeline frame, any metadata probe — is what left the UI
     // thread, along with the parse-stage cancellation mesh 5.10.0 added on top
     // (AbortSignal, not the vscode shim, so nothing new is needed there).
+    // Derived meshes (slice, isosurface, grid, decimate) and partition export
+    // (curve or KaHIP) are synchronous wasm too; mesh 5.18.0's
+    // derivedWorker.js makes their notification Cancel terminate the thread.
+    // Without this line those paths run in-process, frozen and uncancellable.
+    configureDerivedRunner(runDerivedInWorker);
     configureMmgRunner(runMmgInWorker);
     configureOracleRunner(runOracleInWorker);
     configureMeshioWriteRunner(runMeshioWriteInWorker);

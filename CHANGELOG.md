@@ -5,6 +5,13 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.21.0] - 2026-10-22
+
+- feat: **draft and undercut analysis.** `cad__check_draft` and the Advanced ▸ Analysis **Draft** panel report, as facts along a pull direction, the walls below `minDraftDeg`, the walls tilted away from the pull (or each face against its own release side with `twoSided`) and the faces shadowed by an undercut, naming `face-N` on B-rep and `facet-N` on mesh sources. The panel colours the view by draft angle. The host routes `draftRequest` through the same kernel worker as the rest of the CAD pipeline, and the new tool is classified **read**.
+- feat: **hole callouts on drawing sheets.** `export_drawing_sheet` takes `holeCallouts: true`: B-rep holes whose axis faces the view get a centre cross, and each hole group one leader (`4× Ø5 THRU`, `2× Ø5 ↧6`, plus the nearest standard designation). SVG gets a `CENTER` group per view, DXF a `CENTER` layer, and the result reports `holeMarkCount`. The native sheet export offers the same option as a quick-pick after the layer filter; mesh sources keep the plain sheet path.
+- feat: **derived meshes and partitions leave the host thread.** Mesh's `derivedWorker.js` is staged beside `main.js` and configured in `meshHost`, so slice/isosurface/grid/decimate exports and `mesh__mesh_derive`/`mesh__mesh_split` run cancellably off the UI thread. KaHIP partitioning is available through the full meshio++ artifact (`method: "kahip"` / `"auto"`), with `mesh_capabilities.partitioning` naming the artifact that serves each method. The same revision adds Volume view for dense lattices, per-SubModelPart measures and transforms, formula selection seeds, variable-radius fillets, the octree mesher, and fitted-STEP skin deviation reporting.
+- chore: CAD-Preview 3.26.0 → 3.28.0, Mesh-Preview 5.17.0 → 5.18.0, meshio++ 17.11.0 on both sides (additive only: still 64/53 routed formats, 82 CAD + 55 mesh MCP tools), and the VTK-wasm runtime re-pinned to 9.7.20261018. The policy table grows one read row (`cad__check_draft`, 296 total).
+
 ## [2.20.1] - 2026-10-21
 
 - fix: **the Hono dependency is patched.** `GHSA-5r4p-p66f-jhc7` — Hono's `serveStatic` decoded the request path a second time, so middleware could be bypassed on static paths — affects every Hono below 4.13.11. The override now requires `^4.13.11` and the lockfile resolves 4.13.13.
