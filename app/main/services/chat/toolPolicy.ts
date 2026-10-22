@@ -64,6 +64,8 @@
  * - `cad__check_printability` (cad 3.18.0) — **read**: a facts-only report
  *   (overhang statistics, sampled wall thickness) over the welded triangles,
  *   plus overlay buffers handed to the webview. It writes nothing.
+ * - `cad__check_draft` (cad 3.28.0) — **read**: the same shape for draft and
+ *   undercut facts, with a per-corner overlay. It writes nothing.
  * - `mesh__plot_run_resolve` (mesh 5.12.0) — **read**: resolves run/image
  *   references against what is on disk; a pure lookup.
  * - `mesh__case_export_results` (mesh 5.12.0) — **write**: converts a run's
@@ -195,6 +197,9 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // thickness over the welded triangles, plus overlay buffers for the panel.
   // It writes nothing — the same read-shaped class as its siblings above.
   cad__check_printability: "read",
+  // cad 3.28.0's Draft panel: the same facts-only kernel path as printability,
+  // with per-corner draft values rendered as an overlay. Nothing is written.
+  cad__check_draft: "read",
   // cad 3.19.0's mesh → analytic CAD: fit_mesh_to_cad writes a brand-new
   // AP214 STEP (and optionally the solid's .cad.json B-rep side channel) —
   // never the source mesh, but a file lands on disk. iga_refine likewise

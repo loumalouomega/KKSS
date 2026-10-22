@@ -41,6 +41,11 @@ const required = [
   // parse-stage cancellation observable. Without it in out/, the reads are
   // still correct but synchronous on the UI thread.
   ["mesh/dist/meshioReadWorker.js", "npm run package --prefix mesh"],
+  // mesh 5.18.0's derived-mesh / partition worker (slice, isosurface, grid,
+  // decimate; curve and KaHIP partitions). derivedWorkerClient resolves it
+  // beside main.js; the same copy serves out/mcpServer.js, whose own bootstrap
+  // configures a stdio-capturing runner when it finds the file.
+  ["mesh/dist/derivedWorker.js", "npm run package --prefix mesh"],
   ["mesh/media/plots.js", "npm run package --prefix mesh"],
   ["mesh/media/plots.css", "npm run package --prefix mesh"],
   ["mesh/media/plotly/plotly.min.js", "npm run package --prefix mesh"],
@@ -341,6 +346,9 @@ async function copyArtifacts() {
     // mesh 5.10.0's meshio++ read worker — same beside-main.js contract, and
     // the client only picks the runner up when this file is present.
     ["mesh/dist/meshioReadWorker.js", out("meshioReadWorker.js")],
+    // mesh 5.18.0's derived/partition worker — same beside-main.js contract;
+    // out/main.js and out/mcpServer.js share this one copy.
+    ["mesh/dist/derivedWorker.js", out("derivedWorker.js")],
     ["mesh/dist/mmg-core.wasm", out("mmg-core.wasm")],
     // OCCT + Gmsh WASM in the dist/-shaped layout the cad services expect
     // (extensionPath = out/cad-runtime).

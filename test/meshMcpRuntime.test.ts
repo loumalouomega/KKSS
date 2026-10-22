@@ -8,6 +8,7 @@ import { Worker } from 'node:worker_threads';
 import { parseMdpa } from '../mesh/src/parser/mdpaParser';
 import type { MmgWorkResponse } from '../mesh/src/mmgWorkerClient';
 import type { StreamlineWorkResponse } from '../mesh/src/streamlineWorker';
+import type { DerivedWorkResponse } from '../mesh/src/derivedWorker';
 import { TOOL_ACCESS } from '../app/main/services/chat/toolPolicy';
 
 const root = path.resolve(__dirname, '..');
@@ -57,6 +58,11 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
     expect(JSON.stringify(capabilities)).toContain('vtk');
     expect(capabilities.exportFidelity.version).toBe(2);
     expect(capabilities.plotting).toBeDefined();
+    // mesh 5.18.0: the partitioners are probed on real instantiations. The lean
+    // build serves the Hilbert curve; KaHIP is linked only into the full
+    // artifact, which is why the backend is named.
+    expect(capabilities.partitioning.available).toEqual(expect.arrayContaining(['sfc', 'kahip']));
+    expect(capabilities.partitioning.backends.kahip).toBe('full');
     const tableFile = path.join(dir, 'force.csv');
     fs.writeFileSync(tableFile, 'Time [s],Force [N]\n0,1\n1,NA\n2,3\n');
     const table = await call('plot_table_read', { path: tableFile });
@@ -143,6 +149,29 @@ it.skipIf(!fs.existsSync(server))('bundled streamline worker traces, streams pro
   }
 }, 60_000);
 
+
+it.skipIf(!fs.existsSync(path.join(root, 'out/derivedWorker.js')))('bundled derived worker slices a real model off the host thread', async () => {
+  const model = parseMdpa(fixture);
+  const worker = new Worker(path.join(root, 'out/derivedWorker.js'));
+  try {
+    const response = new Promise<DerivedWorkResponse>((resolve, reject) => {
+      worker.on('error', reject);
+      worker.on('exit', code => reject(new Error(`Derived worker exited before replying: ${code}`)));
+      worker.on('message', (message: DerivedWorkResponse) => {
+        if (message.type !== 'progress') resolve(message);
+      });
+    });
+    worker.postMessage({ kind: 'derive', model, spec: { kind: 'slice', origin: [0.5, 0.5, 0], normal: [1, 0, 0] } });
+    const message = await response;
+    expect(message.type, JSON.stringify(message)).toBe('done');
+    if (message.type !== 'done') throw new Error('Derived worker did not finish');
+    expect(message.output.kind).toBe('derive');
+    if (message.output.kind !== 'derive') throw new Error('Wrong derived output');
+    expect(message.output.result.summary).toContain('Slice through');
+    expect(message.output.result.model.nodeCount).toBeGreaterThan(0);
+    expect(message.output.result.model.blocks.reduce((n, block) => n + block.count, 0)).toBeGreaterThan(0);
+  } finally { await worker.terminate(); }
+}, 60_000);
 
 it.skipIf(!fs.existsSync(path.join(root, 'out/mmgWorker.js')))('bundled MMG worker loads its WASM and refines real geometry', async () => {
   const model = parseMdpa(fixture);

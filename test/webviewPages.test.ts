@@ -44,6 +44,9 @@ describe.skipIf(!built)("generated webview pages", () => {
     // cad 3.18.0's Printability panel: main.ts binds it by id, so a stale page
     // would leave its checks inert.
     expect(html).toContain('id="printability-panel"');
+    // cad 3.28.0's Draft panel: same binding-by-id contract; without the panel
+    // markup the draftRequest handler never gets a trigger.
+    expect(html).toContain('id="draft-panel"');
     // cad 3.19.0's Mesh Health ▸ Fit to CAD… button (meshio++ fitCad): same
     // binding-by-id contract as the panel itself, and the host's
     // fitMeshToCadButtonClicked handler is what makes the click do anything.
@@ -112,6 +115,9 @@ describe.skipIf(!built)("generated webview pages", () => {
     for (const action of ["nodeIds", "grid", "edges", "screenshot", "meshSize", "spheres", "normals", "exportSkin", "lighting", "bookmarks"]) {
       expect(html).toContain(`data-action="${action}"`);
     }
+    // mesh 5.18.0's Volume view lives in the visible Advanced menu; it has no
+    // native-menu fallback, so a stale page removes the feature entirely.
+    expect(html).toContain('data-action="volume"');
   });
 
   it("carries the redesigned Clip controls", () => {

@@ -34,6 +34,9 @@ import * as brepHealth from "../../cad/src/brepHealth";
 import * as passageAnalysis from "../../cad/src/passageAnalysisHost";
 import * as meshDeviation from "../../cad/src/meshDeviationHost";
 import * as printabilityHost from "../../cad/src/printabilityHost";
+// cad 3.28.0's Draft / undercut facts: the kernel half of `check_draft` and of
+// the Draft panel's overlay, beside the printability host it mirrors.
+import * as draftAnalysisHost from "../../cad/src/draftAnalysisHost";
 // cad 3.19.0's Fit to CAD: meshio++ fitCad over a segmented, primitive-fitted
 // closed skin — the analytic counterpart of meshHeal's promotion.
 import * as meshFitCad from "../../cad/src/meshFitCad";
@@ -78,6 +81,7 @@ const modules: Array<[string, object]> = [
   ["passageAnalysisHost", passageAnalysis],
   ["meshDeviationHost", meshDeviation],
   ["printabilityHost", printabilityHost],
+  ["draftAnalysisHost", draftAnalysisHost],
   ["meshFitCad", meshFitCad],
   ["gltfDecode", gltfDecode],
   ["scadWasm", scadWasm],

@@ -77,6 +77,9 @@ import { finishOpen } from "./services/performance";
  *     `printabilityError` over `docPipeline.checkPrintability`), including the
  *     tolerant read of the bundled starter limits
  *     (dist/process-limits/starter-limits.json).
+ *   - cad 3.28.0's Draft panel (`draftRequest` → `draftResult` / `draftError`
+ *     over `draftAnalysisHost.checkDraft`), including the per-corner draft
+ *     overlay and the same display-only refusal as printability.
  * NOT ported from cad 3.16.0: `edits.externalFrom` (the badge marking an append
  * another writer made) — it is only ever set by the edits watcher, which KKSS
  * does not have, and the field is optional for exactly that reason.
@@ -107,6 +110,7 @@ import {
 import { DISPLAY_ONLY_MESH_FORMATS, displayOnlyMeshMessage } from "../../cad/src/fileRouter";
 import { SVG_VIEWS } from "../../cad/src/svgSilhouette";
 import type { CompareSource } from "../../cad/src/modelDiffHost";
+import type { Axis } from "../../cad/src/printability";
 import { resolveExternalBuffers, type GltfExternalBuffers } from "../../cad/src/gltfParser";
 import {
   encodeBuffer,
@@ -2880,6 +2884,55 @@ export class CadHost {
       return;
     }
 
+    if (msg.type === "draftRequest") {
+      // cad 3.28.0's Draft panel, ported message-for-message from provider.ts:
+      // facts-only draft/undercut analysis over the welded triangles any source
+      // reduces to, plus the per-corner draft overlay the view colours by.
+      const epoch = this.epoch;
+      try {
+        if (!doc.route) throw new Error("Unsupported file type.");
+        let source: Parameters<typeof cadCompute.checkDraft>[1];
+        const scadWarnings: string[] = [];
+        if (doc.route.strategy === "occt") {
+          const src = await this.readOcctSource(doc.path, doc.route.format, scadWarnings);
+          source = {
+            kind: "brep",
+            bytes: src.bytes,
+            format: src.format as OcctSourceFormat,
+            ops: replayTail(this.currentEdits, this.currentBakedThrough),
+          };
+        } else {
+          if (DISPLAY_ONLY_MESH_FORMATS.has(doc.route.format)) {
+            throw new Error(displayOnlyMeshMessage(doc.route.format, "a draft check"));
+          }
+          // The webview serialises the DISPLAYED (edited) mesh, so pending mesh
+          // edits are already in it.
+          if (!msg.stl) throw new Error("No mesh geometry available: missing STL data.");
+          source = { kind: "stl", bytes: Buffer.from(msg.stl, "base64") };
+        }
+        const result = await cadCompute.checkDraft(this.runtimePath, source, {
+          pull: msg.pull as Axis,
+          minDraftDeg: msg.minDraftDeg,
+          twoSided: msg.twoSided,
+          overlay: true,
+        });
+        if (epoch !== this.epoch) return;
+        for (const warning of scadWarnings) this.post({ type: "status", text: warning });
+        this.post({
+          type: "draftResult",
+          requestId: msg.requestId,
+          report: result.report,
+          positions: encodeBuffer(result.overlay!.positions),
+          values: encodeBuffer(result.overlay!.values),
+        });
+      } catch (err) {
+        if (epoch === this.epoch) {
+          this.post({ type: "draftError", requestId: msg.requestId, message: (err as Error).message });
+        }
+      }
+      return;
+    }
+
     if (msg.type === "printabilityRequest") {
       // cad 3.18.0's Printability panel, ported message-for-message from
       // provider.ts: a facts-only report over the welded triangles any source
@@ -3947,6 +4000,19 @@ export class CadHost {
     // same All/Visible/Named pick as the silhouette path.
     const sheetLayerFilter = await this.pickLayersFilter(route);
     if (sheetLayerFilter === null) return;
+    // cad 3.28.0's hole callouts need the B-rep's cylindrical faces, so the
+    // quick-pick is B-rep only (mesh sources keep the plain sheet path).
+    const holePick =
+      route.strategy === "occt"
+        ? await showQuickPick(
+            [
+              { label: "No hole callouts", description: "draw the sheet without centre marks", holeCallouts: false },
+              { label: "Hole callouts", description: "centre marks and Ø callouts for cylindrical holes", holeCallouts: true },
+            ],
+            { placeHolder: "Hole callouts…" }
+          )
+        : undefined;
+    if (route.strategy === "occt" && !holePick) return;
     await this.promptSaveAndWrite(
       modelPath,
       format,
@@ -3978,6 +4044,7 @@ export class CadHost {
           projection: "first",
           annotations: this.currentAnnotations,
           ...(sheetLayerFilter ? { layerFilter: sheetLayerFilter } : {}),
+          ...(holePick?.holeCallouts ? { holeCallouts: true } : {}),
           title: name,
           date: new Date().toISOString().slice(0, 10),
         });
