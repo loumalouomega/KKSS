@@ -52,6 +52,8 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
     expect(tools.map(t => `mesh__${t.name}`).sort()).toEqual(Object.keys(TOOL_ACCESS).filter(n => n.startsWith('mesh__')).sort());
     expect(tools.find(t => t.name === 'mesh_flow_balance')?.inputSchema.properties).toHaveProperty('pressureDensity');
     expect(tools.find(t => t.name === 'mesh_pack_series')?.inputSchema.properties).toHaveProperty('provenance');
+    expect(tools.find(t => t.name === 'mesh_info')?.inputSchema.properties).toHaveProperty('fields');
+    expect(tools.find(t => t.name === 'mesh_convert')?.inputSchema.properties).toHaveProperty('fields');
     const source = path.join(dir, 'square.mdpa');
     fs.writeFileSync(source, fixture);
     const capabilities = await call('mesh_capabilities');

@@ -297,7 +297,7 @@ const CAD_OPEN_FILTER = {
   // CAD-mode importer. Electron matches the final dot-segment only, so GiD's
   // compound `post.msh` is covered by the plain `msh` entry.
   extensions: [
-    "stl", "obj", "ply", "gltf", "glb", "3mf", "dae", "step", "stp", "iges", "igs", "brep", "csg", "scad",
+    "stl", "obj", "ply", "gltf", "glb", "3mf", "dae", "amf", "usd", "usda", "usdc", "usdz", "wrl", "fbx", "step", "stp", "iges", "igs", "brep", "csg", "scad",
     "vtk", "vtu", "med", "cgns", "exo", "e", "xdmf", "mdpa", "foam",
     "msh", "msh2", "inp", "unv", "su2", "mesh",
   ],

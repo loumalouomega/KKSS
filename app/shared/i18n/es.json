@@ -326,6 +326,8 @@
   "Maximum time for a single CAD kernel job before its worker is restarted. Applies to newly opened models.": "Tiempo máximo de una tarea del núcleo CAD antes de reiniciar su proceso. Se aplica a modelos recién abiertos.",
   "Large-Mesh Summary Threshold (MB)": "Umbral de resumen de mallas grandes (MB)",
   "Meshes above this size open as a header summary (counts, blocks, fields) with an “Open full mesh anyway” button. 0 always loads in full.": "Las mallas mayores se abren como un resumen (recuentos, bloques y campos) con un botón para abrir la malla completa. Con 0 siempre se cargan completas.",
+  "Timeline Frame Cache (MB)": "Caché de fotogramas de la serie temporal (MB)",
+  "Memory budget for keeping recently viewed timeline frames parsed, so moving back and forth through a time series does not reread files. 0 turns the cache off.": "Presupuesto de memoria para mantener analizados los fotogramas recientes de la serie temporal, de modo que moverse por ella no vuelva a leer los archivos. Con 0 se desactiva la caché.",
   "3D Renderer": "Renderizador 3D",
   "vtk.js (default)": "vtk.js (predeterminado)",
   "VTK-wasm (experimental)": "VTK-wasm (experimental)",

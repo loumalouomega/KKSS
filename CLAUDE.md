@@ -1514,6 +1514,12 @@ release maintenance**; repeat it for every bump, including live MCP tool
 discovery (current sets: 82 CAD + 55 mesh + 4 aggregation + 33 app-owned
 workflow tools; 296 policy rows with the PDF reader server's twelve).
 
+**The cad 3.28.0 → 3.29.0 + mesh 5.18.0 → 5.20.0 jump (USD/VRML/FBX display-only imports, decimal-comma Edits fields, selective mesh field reads, staged large-MDPA field delivery, timeline frame cache, webview-chrome localisation foundation, retained remesh part tree, wind-tunnel empty-part fix, VTK.js 37.4.4) needed one dialog/filter update, six packaging rows, one mesh setting, two MCP schema assertions and docs.**
+
+- **cad: the new display-only formats ride the existing three.js pipeline.** 3.29.0's USD/VRML/FBX formats join `routeFile` on strategy `three` and `DISPLAY_ONLY_MESH_FORMATS`; the host adds them plus the previously missing `amf` to `CAD_OPEN_FILTER`, adds the six suffixes to `electron-builder.yml`, and pins all six in `test/router.test.ts`. The decimal-comma rule is Edits-panel-only and needs no host port.
+- **mesh: one setting, staged fields through the reused provider.** 5.20.0's `kratos.preview.frameCacheMb` is a registry row with the same type/default and a shim-served live mapping. Staged `fieldsPending`/`modelField` delivery stays inside the reused `MdpaEditorProvider`; selective `fields` reads are MCP-side and pinned by schema assertions in `test/meshMcpRuntime.test.ts`. The localisation foundation, retained part tree, wind-tunnel fix and VTK.js 37.4.4 need no host branch.
+- **deps/policy:** no meshio++ format-key change, so reader/writer doctexts remain 64/53; MCP tool counts remain 82 CAD + 55 mesh (plus aggregation/app-owned tools, 296 policy rows).
+
 **The cad 3.26.0 → 3.28.0 + mesh 5.17.0 → 5.18.0 jump (draft/undercut analysis, hole callouts, variable-radius fillets, octree mesher, derived-mesh/partition worker, KaHIP, part measures/transforms, formula seeds, Volume view, fitted-STEP deviation, meshio++ 17.11.0, VTK-wasm 9.7.20261018) needed two host seams, one client/worker port, one quick-pick, one policy row, two runtime tests and docs.**
 
 

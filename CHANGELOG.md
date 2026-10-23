@@ -5,6 +5,12 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.22.0] - 2026-10-23
+
+- feat: **display-only USD, VRML and FBX imports.** CAD mode opens `.usd`, `.usda`, `.usdc`, `.usdz`, `.wrl`, and `.fbx` through the same display-only three.js pipeline as 3MF, Collada, and AMF. Host operations that need source triangles continue to refuse these formats by name.
+- feat: **selective mesh field reads and a timeline frame cache.** `mesh__mesh_info` and `mesh__mesh_convert` accept `fields` for meshio++ formats, reading only the named point/cell arrays. Large `.mdpa` models now arrive geometry-first with fields staged on demand, and the new Mesh Viewer **Timeline Frame Cache (MB)** setting controls the parsed-frame memory budget.
+- chore: CAD-Preview 3.28.0 → 3.29.0 and Mesh-Preview 5.18.0 → 5.20.0. Additive only: MCP tool counts remain 82 CAD + 55 mesh, and the policy table remains at 296 rows.
+
 ## [2.21.0] - 2026-10-22
 
 - feat: **draft and undercut analysis.** `cad__check_draft` and the Advanced ▸ Analysis **Draft** panel report, as facts along a pull direction, the walls below `minDraftDeg`, the walls tilted away from the pull (or each face against its own release side with `twoSided`) and the faces shadowed by an undercut, naming `face-N` on B-rep and `facet-N` on mesh sources. The panel colours the view by draft angle. The host routes `draftRequest` through the same kernel worker as the rest of the CAD pipeline, and the new tool is classified **read**.
