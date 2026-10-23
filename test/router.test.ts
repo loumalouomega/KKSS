@@ -137,6 +137,17 @@ describe("modeForFile", () => {
     expect(modeForFile("a.amf", "mesh")).toBe("cad");
   });
 
+  it("routes the cad 3.29.0 display-only formats to cad mode", () => {
+    // USD, VRML and FBX join the three.js display-only set with the same
+    // contract as 3MF/Collada/AMF: visible in CAD mode, refused by every host
+    // path that needs source triangles. Mesh never claims these extensions.
+    for (const f of ["a.usd", "a.usda", "a.usdc", "a.usdz", "a.wrl", "a.fbx"]) {
+      expect(routeFile(f)?.strategy).toBe("three");
+      expect(modeForFile(f, "cad")).toBe("cad");
+      expect(modeForFile(f, "mesh")).toBe("cad");
+    }
+  });
+
   it("routes the OpenSCAD formats to cad mode, on the occt strategy", () => {
     // cad 1.12.0. `.csg` is OpenSCAD's fully evaluated form, built kernel-side
     // into an opaque base shape; `.scad` is converted to it on open by a

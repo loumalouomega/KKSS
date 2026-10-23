@@ -70,6 +70,18 @@ fileAssociations:
     name: KKSS Collada document
   - ext: amf
     name: KKSS AMF document
+  - ext: usd
+    name: KKSS USD document
+  - ext: usda
+    name: KKSS USD document
+  - ext: usdc
+    name: KKSS USD document
+  - ext: usdz
+    name: KKSS USD document
+  - ext: wrl
+    name: KKSS VRML document
+  - ext: fbx
+    name: KKSS FBX document
   - ext: med
     name: KKSS MED document
     mimeType: application/x-kkss-med

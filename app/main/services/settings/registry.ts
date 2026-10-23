@@ -373,6 +373,19 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
         t("Meshes above this size open as a header summary (counts, blocks, fields) with an “Open full mesh anyway” button. 0 always loads in full."),
     },
     {
+      id: "kratos.preview.frameCacheMb",
+      label: t("Timeline Frame Cache (MB)"),
+      category: "Mesh Viewer",
+      type: "number",
+      storeKey: "meshFrameCacheMb",
+      default: 256,
+      min: 0,
+      applies: "live",
+      vscode: { section: "kratos", key: "preview.frameCacheMb" },
+      description:
+        t("Memory budget for keeping recently viewed timeline frames parsed, so moving back and forth through a time series does not reread files. 0 turns the cache off."),
+    },
+    {
       id: "kratos.preview.renderer",
       label: t("3D Renderer"),
       category: "Mesh Viewer",

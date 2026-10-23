@@ -326,6 +326,8 @@
   "Maximum time for a single CAD kernel job before its worker is restarted. Applies to newly opened models.": "Maximum time for a single CAD kernel job before its worker is restarted. Applies to newly opened models.",
   "Large-Mesh Summary Threshold (MB)": "Large-Mesh Summary Threshold (MB)",
   "Meshes above this size open as a header summary (counts, blocks, fields) with an “Open full mesh anyway” button. 0 always loads in full.": "Meshes above this size open as a header summary (counts, blocks, fields) with an “Open full mesh anyway” button. 0 always loads in full.",
+  "Timeline Frame Cache (MB)": "Timeline Frame Cache (MB)",
+  "Memory budget for keeping recently viewed timeline frames parsed, so moving back and forth through a time series does not reread files. 0 turns the cache off.": "Memory budget for keeping recently viewed timeline frames parsed, so moving back and forth through a time series does not reread files. 0 turns the cache off.",
   "3D Renderer": "3D Renderer",
   "vtk.js (default)": "vtk.js (default)",
   "VTK-wasm (experimental)": "VTK-wasm (experimental)",
