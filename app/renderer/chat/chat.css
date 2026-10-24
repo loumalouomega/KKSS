@@ -779,7 +779,12 @@ body {
 }
 .kraty-bubble[hidden] { display: none; }
 
-#kraty .k-head { fill: var(--vscode-button-background); }
+#kraty .k-facet { fill: var(--vscode-button-background); stroke: var(--vscode-editor-background); stroke-width: 0.8; stroke-linejoin: round; }
+#kraty .k-f0 { fill-opacity: 1; }
+#kraty .k-f1 { fill-opacity: 0.8; }
+#kraty .k-f2 { fill: var(--vscode-button-hoverBackground); fill-opacity: 0.9; }
+#kraty .k-f3 { fill-opacity: 0.62; }
+#kraty .k-node { fill: var(--vscode-editor-background); }
 #kraty .k-tip { fill: var(--vscode-charts-yellow); }
 #kraty .k-white { fill: var(--vscode-editor-background); }
 #kraty .k-pupil { fill: var(--vscode-foreground); }

@@ -10,8 +10,27 @@ import type { KratyEvent, KratySignals, KratyState } from "./kratyCore";
 const SVG = `
 <svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true" focusable="false">
   <g class="k-body">
-    <line class="k-stroke" x1="32" y1="6" x2="32" y2="14" /><circle class="k-tip" cx="32" cy="5" r="3" />
-    <rect class="k-head" x="8" y="14" width="48" height="40" rx="14" />
+    <g class="k-mesh">
+      <polygon class="k-facet k-f0" points="32.0,8.0 54.5,21.0 32.0,21.0" />
+      <polygon class="k-facet k-f1" points="54.5,21.0 43.3,27.5 32.0,21.0" />
+      <polygon class="k-facet k-f2" points="32.0,34.0 32.0,21.0 43.3,27.5" />
+      <polygon class="k-facet k-f3" points="54.5,21.0 54.5,47.0 43.3,27.5" />
+      <polygon class="k-facet k-f0" points="54.5,47.0 43.3,40.5 43.3,27.5" />
+      <polygon class="k-facet k-f1" points="32.0,34.0 43.3,27.5 43.3,40.5" />
+      <polygon class="k-facet k-f2" points="54.5,47.0 32.0,60.0 43.3,40.5" />
+      <polygon class="k-facet k-f3" points="32.0,60.0 32.0,47.0 43.3,40.5" />
+      <polygon class="k-facet k-f0" points="32.0,34.0 43.3,40.5 32.0,47.0" />
+      <polygon class="k-facet k-f1" points="32.0,60.0 9.5,47.0 32.0,47.0" />
+      <polygon class="k-facet k-f2" points="9.5,47.0 20.7,40.5 32.0,47.0" />
+      <polygon class="k-facet k-f3" points="32.0,34.0 32.0,47.0 20.7,40.5" />
+      <polygon class="k-facet k-f0" points="9.5,47.0 9.5,21.0 20.7,40.5" />
+      <polygon class="k-facet k-f1" points="9.5,21.0 20.7,27.5 20.7,40.5" />
+      <polygon class="k-facet k-f2" points="32.0,34.0 20.7,40.5 20.7,27.5" />
+      <polygon class="k-facet k-f3" points="9.5,21.0 32.0,8.0 20.7,27.5" />
+      <polygon class="k-facet k-f0" points="32.0,8.0 32.0,21.0 20.7,27.5" />
+      <polygon class="k-facet k-f1" points="32.0,34.0 20.7,27.5 32.0,21.0" />
+      <circle class="k-node" cx="54.5" cy="21.0" r="1.6" /><circle class="k-node" cx="54.5" cy="47.0" r="1.6" /><circle class="k-node" cx="32.0" cy="60.0" r="1.6" /><circle class="k-node" cx="9.5" cy="47.0" r="1.6" /><circle class="k-node" cx="9.5" cy="21.0" r="1.6" /><circle class="k-tip" cx="32.0" cy="8.0" r="2.4" />
+    </g>
     <g class="k-brows">
       <g class="k-brow-flat"><line class="k-stroke" x1="16" y1="26" x2="26" y2="26" /><line class="k-stroke" x1="38" y1="26" x2="48" y2="26" /></g>
       <g class="k-brow-raised"><line class="k-stroke" x1="16" y1="23" x2="26" y2="23" /><line class="k-stroke" x1="38" y1="23" x2="48" y2="23" /></g>
