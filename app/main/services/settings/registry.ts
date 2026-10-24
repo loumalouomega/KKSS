@@ -44,6 +44,7 @@ export type SettingCategory =
   | "LLM Assistant"
   | "MCP Server"
   | "Cloud Accounts"
+  | "Remote"
   | "Advanced";
 
 export const CATEGORIES: readonly SettingCategory[] = [
@@ -57,6 +58,7 @@ export const CATEGORIES: readonly SettingCategory[] = [
   "LLM Assistant",
   "MCP Server",
   "Cloud Accounts",
+  "Remote",
   "Advanced",
 ];
 
@@ -1109,6 +1111,28 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       type: "action",
       actions: [{ id: "clear", label: t("Clear cache…") }],
       description: t("Delete every cached cloud document that is not currently open."),
+    },
+
+    // ---- Remote (SSH) ---------------------------------------------------------
+    {
+      id: "remote.hosts",
+      label: t("SSH Hosts"),
+      category: "Remote",
+      type: "stringList",
+      storeKey: "remote.hosts",
+      default: [],
+      applies: "live",
+      description: t("ssh aliases or user@host entries (your ~/.ssh/config applies) offered by File ▸ Open Remote… and the remote terminal. Hosts must be reachable without a password prompt."),
+    },
+    {
+      id: "remote.kratosHost",
+      label: t("Run Kratos tools on"),
+      category: "Remote",
+      type: "string",
+      storeKey: "remote.kratosHost",
+      default: "",
+      applies: "nextStart",
+      description: t("An ssh host that runs the Kratos MCP server (uvx kratos-mcp-server) for the assistant and the Jobs panel. Leave empty to run it on this machine."),
     },
 
     // ---- Advanced -------------------------------------------------------------

@@ -908,5 +908,16 @@
   "Running a tool…": "Running a tool…",
   "Waiting for your OK": "Waiting for your OK",
   "Done": "Done",
-  "Something went wrong": "Something went wrong"
+  "Something went wrong": "Something went wrong",
+  "Remote": "Remote",
+  "SSH Hosts": "SSH Hosts",
+  "ssh aliases or user@host entries (your ~/.ssh/config applies) offered by File ▸ Open Remote… and the remote terminal. Hosts must be reachable without a password prompt.": "ssh aliases or user@host entries (your ~/.ssh/config applies) offered by File ▸ Open Remote… and the remote terminal. Hosts must be reachable without a password prompt.",
+  "Run Kratos tools on": "Run Kratos tools on",
+  "An ssh host that runs the Kratos MCP server (uvx kratos-mcp-server) for the assistant and the Jobs panel. Leave empty to run it on this machine.": "An ssh host that runs the Kratos MCP server (uvx kratos-mcp-server) for the assistant and the Jobs panel. Leave empty to run it on this machine.",
+  "Open Remote…": "Open Remote…",
+  "Open Remote… (no SSH hosts configured)": "Open Remote… (no SSH hosts configured)",
+  "Open Remote": "Open Remote",
+  "Add hosts first: Settings ▸ Remote ▸ SSH Hosts.": "Add hosts first: Settings ▸ Remote ▸ SSH Hosts.",
+  "New Remote Shell…": "New Remote Shell…",
+  "Remote Shell": "Remote Shell"
 }

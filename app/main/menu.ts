@@ -103,6 +103,11 @@ export interface MenuDeps {
     connect(id: ProviderId): void;
     disconnect(id: ProviderId): void;
     openFromCloud(): void;
+    /** File ▸ Open Remote… — configured ssh hosts (Settings ▸ Remote). */
+    remoteHosts(): string[];
+    openRemote(): void;
+    /** Starts the terminal panel's shell on an ssh host. */
+    openRemoteShell(host: string): void;
     /** File ▸ Save also pushes any staged document that changed. */
     saveNow(): void;
     cacheLimitMb(): number;
@@ -402,6 +407,13 @@ export function installMenu(deps: MenuDeps): void {
           click: () => deps.cloud.openFromCloud(),
         },
         {
+          label: deps.cloud.remoteHosts().length
+            ? t("Open Remote…")
+            : t("Open Remote… (no SSH hosts configured)"),
+          enabled: deps.cloud.remoteHosts().length > 0,
+          click: () => deps.cloud.openRemote(),
+        },
+        {
           label: t("Open in Text Editor…"),
           click: () => void editor.open(),
         },
@@ -639,6 +651,13 @@ export function installMenu(deps: MenuDeps): void {
           label: t("Toggle Terminal"),
           accelerator: "CmdOrCtrl+`",
           click: () => deps.toggleTerminal(),
+        },
+        {
+          label: t("New Remote Shell…"),
+          enabled: deps.cloud.remoteHosts().length > 0,
+          submenu: deps.cloud
+            .remoteHosts()
+            .map((host) => ({ label: host, click: () => deps.cloud.openRemoteShell(host) })),
         },
         {
           label: t("Toggle AI Chat"),

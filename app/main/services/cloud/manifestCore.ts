@@ -13,7 +13,7 @@
  * never to a crash on launch.
  */
 import { MAX_COMPANION_FILES } from "./cachePathCore";
-import type { ProviderId } from "./cloudCore";
+import { STAGED_PROVIDER_IDS, type ProviderId } from "./cloudCore";
 
 /** Revision baseline of one companion file (a sibling or a file inside a tree),
  *  keyed in `CloudEntry.companions` by its "/"-relative path. Same meaning as
@@ -49,7 +49,7 @@ export interface CloudEntry {
 
 export type Manifest = Record<string, CloudEntry>;
 
-const PROVIDERS = new Set(["gdrive", "dropbox", "onedrive"]);
+const PROVIDERS = new Set<string>(STAGED_PROVIDER_IDS);
 
 function parseCompanions(value: unknown): Record<string, CompanionBaseline> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;

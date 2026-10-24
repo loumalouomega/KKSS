@@ -91,3 +91,40 @@ describe("TerminalService shutdown", () => {
     expect(webContents.send).toHaveBeenCalledWith("term:toWebview", { type: "exit", code: 0 });
   });
 });
+
+describe("TerminalService remote shells", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("starts `ssh -t <host>` for one shell, then falls back to the local shell", async () => {
+    const first = fakePty((exit) => setTimeout(() => exit(0), 1));
+    const { service } = startShell(first);
+    const second = fakePty();
+    vi.mocked(pty.spawn).mockReturnValue(second as unknown as pty.IPty);
+
+    await service.openRemote("me@buildbox");
+
+    expect(first.kill).toHaveBeenCalled();
+    const call = vi.mocked(pty.spawn).mock.calls[vi.mocked(pty.spawn).mock.calls.length - 1];
+    expect(call[0]).toBe("ssh");
+    expect(call[1]).toEqual(["-t", "me@buildbox"]);
+
+    // The one-shot target is consumed: the next spawn is the configured local shell.
+    second.exit(0);
+    vi.mocked(pty.spawn).mockReturnValue(fakePty() as unknown as pty.IPty);
+    const calls = vi.mocked(ipcMain.on).mock.calls;
+    (calls[calls.length - 1][1] as (e: unknown, r: unknown) => void)(
+      { sender: (service as unknown as { target: unknown }).target },
+      { type: "restart" }
+    );
+    expect(vi.mocked(pty.spawn).mock.calls[vi.mocked(pty.spawn).mock.calls.length - 1][1]).toEqual([]);
+  });
+
+  it("refuses a host that ssh would read as an option", async () => {
+    const { service } = startShell(fakePty());
+    vi.mocked(pty.spawn).mockClear();
+    await service.openRemote("-oProxyCommand=evil");
+    expect(pty.spawn).not.toHaveBeenCalled();
+  });
+});

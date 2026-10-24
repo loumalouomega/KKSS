@@ -7,7 +7,7 @@
  * that vanished — are vitest-testable. `session.ts` is the stateStore glue.
  */
 import type { Mode, Screen } from "../ipc";
-import { PROVIDER_IDS } from "./cloud/cloudCore";
+import { STAGED_PROVIDER_IDS } from "./cloud/cloudCore";
 
 export const SESSION_KEY = "session";
 
@@ -83,7 +83,7 @@ function parseCloudRef(raw: unknown): SessionCloudRef | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const v = raw as Record<string, unknown>;
   const text = (x: unknown): x is string => typeof x === "string" && x.length > 0;
-  if (!text(v.provider) || !(PROVIDER_IDS as readonly string[]).includes(v.provider)) return undefined;
+  if (!text(v.provider) || !(STAGED_PROVIDER_IDS as readonly string[]).includes(v.provider)) return undefined;
   if (!text(v.accountId) || !text(v.itemId) || !text(v.name)) return undefined;
   return { provider: v.provider, accountId: v.accountId, itemId: v.itemId, name: v.name, ...(text(v.parentId) ? { parentId: v.parentId } : {}) };
 }

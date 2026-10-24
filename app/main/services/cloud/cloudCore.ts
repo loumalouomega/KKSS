@@ -9,14 +9,23 @@
  * file is remote.
  */
 
-export type ProviderId = "gdrive" | "dropbox" | "onedrive";
+export type OAuthProviderId = "gdrive" | "dropbox" | "onedrive";
 
-export const PROVIDER_IDS: readonly ProviderId[] = ["gdrive", "dropbox", "onedrive"];
+/** Every source a document can be staged from: the OAuth clouds plus `ssh`
+ *  (host in `accountId`, `host:/path` item ids — see `providers/ssh.ts`). */
+export type ProviderId = OAuthProviderId | "ssh";
+
+/** The account-based providers (the Cloud Accounts menu and settings). */
+export const PROVIDER_IDS: readonly OAuthProviderId[] = ["gdrive", "dropbox", "onedrive"];
+
+/** Everything the manifest, session and recents will accept as a staged origin. */
+export const STAGED_PROVIDER_IDS: readonly ProviderId[] = [...PROVIDER_IDS, "ssh"];
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
   gdrive: "Google Drive",
   dropbox: "Dropbox",
   onedrive: "OneDrive",
+  ssh: "SSH",
 };
 
 /** A remote file or folder as the browser and the sync engine see it. */

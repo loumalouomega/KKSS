@@ -26,6 +26,7 @@ import type { CallToolResult, GetPromptResult, Prompt, ReadResourceResult, Resou
 import * as path from "node:path";
 import type { ChatImage, ChatServerStatus } from "../../ipc";
 import { truncate } from "./transcript";
+import { remoteUvxCommand, sshArgs } from "../cloud/providerCore/sshCore";
 import { classifyStartupFailure, type KratosRuntime } from "./kratosRuntime";
 import type { ToolDef } from "./providers/types";
 import { PROVIDER_TOOL_NAME_RE } from "./userServers";
@@ -263,7 +264,10 @@ export class McpManager {
     private readonly runtime?: Pick<KratosRuntime, "discover" | "install">,
     /** Settings ▸ Kratos (install path, extra env) — read on every Kratos
      *  (re)start, so a change applies on the next one. A delta over the spec's env. */
-    private readonly kratosEnv?: () => Record<string, string>
+    private readonly kratosEnv?: () => Record<string, string>,
+    /** Settings ▸ Remote ▸ Run Kratos tools on — an ssh host, or undefined for
+     *  this machine. Read on every Kratos (re)start. */
+    private readonly kratosRemote?: () => string | undefined
   ) {
     this.servers = specs.map((spec) => ({ spec, status: initialStatus(spec), client: null, tools: [] }));
   }
@@ -419,7 +423,18 @@ export class McpManager {
     await this.closeServer(server);
     try {
       let spec = server.spec;
-      if (viaUv && this.runtime) {
+      const remoteHost = kratos ? this.kratosRemote?.() : undefined;
+      if (remoteHost) {
+        // The server runs on the other machine, through the system ssh client
+        // (BatchMode: it fails rather than prompting). The local uv runtime and
+        // the local Kratos env delta describe this machine, so neither applies.
+        spec = {
+          ...spec,
+          command: "ssh",
+          args: sshArgs(remoteHost, remoteUvxCommand(spec.args)),
+          env: { ...process.env } as Record<string, string>,
+        };
+      } else if (viaUv && this.runtime) {
         // Only Kratos owns installing uv: a PDF server that fails for want of uv
         // is revived by the Kratos banner's button, not a second prompt.
         if (install && kratos) {
@@ -440,7 +455,7 @@ export class McpManager {
           spec = { ...spec, command: runtime.command, args: runtime.bundled ? runtime.args : [...runtime.args, ...spec.args], env: { ...process.env } as Record<string, string> };
         }
       }
-      if (kratos && this.kratosEnv) spec = { ...spec, env: { ...spec.env, ...this.kratosEnv() } };
+      if (kratos && !remoteHost && this.kratosEnv) spec = { ...spec, env: { ...spec.env, ...this.kratosEnv() } };
       this.abort.signal.throwIfAborted();
       status("preparing");
       let transport: Transport;

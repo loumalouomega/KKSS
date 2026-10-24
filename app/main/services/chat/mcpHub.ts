@@ -10,7 +10,7 @@ import { app } from "electron";
 import { KratosRuntime } from "./kratosRuntime";
 import type { ChatServerStatus } from "../../ipc";
 import { buildServerSpecs, McpManager } from "./mcpManager";
-import { kratosEnvDelta } from "../settings/kratosEnv";
+import { kratosEnvDelta, kratosRemoteHost } from "../settings/kratosEnv";
 import type { UserServerStore } from "./userServerStore";
 
 type StatusListener = (statuses: ChatServerStatus[]) => void;
@@ -38,7 +38,7 @@ export class McpHub {
     this.mgr = new McpManager([...buildServerSpecs(this.outDir), ...(this.userServers?.specs() ?? [])], (statuses) => {
       this.lastStatuses = statuses;
       for (const listener of this.listeners) listener(statuses);
-    }, new KratosRuntime(app.getPath("userData")), kratosEnvDelta);
+    }, new KratosRuntime(app.getPath("userData")), kratosEnvDelta, kratosRemoteHost);
     void this.mgr.start();
     return this.mgr;
   }

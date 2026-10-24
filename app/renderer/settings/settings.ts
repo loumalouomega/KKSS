@@ -48,6 +48,7 @@ const CATEGORY_GLYPHS: Record<SettingCategory, KkssGlyphId> = {
   "LLM Assistant": "messageSquare",
   "MCP Server": "package",
   "Cloud Accounts": "download",
+  Remote: "terminal",
   Advanced: "braces",
 };
 
