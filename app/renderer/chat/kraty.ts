@@ -8,51 +8,40 @@ import { BUBBLE_KEYS, EXPRESSIONS, INITIAL_SIGNALS, reduceSignals, stateOf } fro
 import type { KratyEvent, KratySignals, KratyState } from "./kratyCore";
 
 const SVG = `
-<svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true" focusable="false">
-  <g class="k-body">
-    <g class="k-mesh">
-      <polygon class="k-facet k-f0" points="32.0,8.0 54.5,21.0 32.0,21.0" />
-      <polygon class="k-facet k-f1" points="54.5,21.0 43.3,27.5 32.0,21.0" />
-      <polygon class="k-facet k-f2" points="32.0,34.0 32.0,21.0 43.3,27.5" />
-      <polygon class="k-facet k-f3" points="54.5,21.0 54.5,47.0 43.3,27.5" />
-      <polygon class="k-facet k-f0" points="54.5,47.0 43.3,40.5 43.3,27.5" />
-      <polygon class="k-facet k-f1" points="32.0,34.0 43.3,27.5 43.3,40.5" />
-      <polygon class="k-facet k-f2" points="54.5,47.0 32.0,60.0 43.3,40.5" />
-      <polygon class="k-facet k-f3" points="32.0,60.0 32.0,47.0 43.3,40.5" />
-      <polygon class="k-facet k-f0" points="32.0,34.0 43.3,40.5 32.0,47.0" />
-      <polygon class="k-facet k-f1" points="32.0,60.0 9.5,47.0 32.0,47.0" />
-      <polygon class="k-facet k-f2" points="9.5,47.0 20.7,40.5 32.0,47.0" />
-      <polygon class="k-facet k-f3" points="32.0,34.0 32.0,47.0 20.7,40.5" />
-      <polygon class="k-facet k-f0" points="9.5,47.0 9.5,21.0 20.7,40.5" />
-      <polygon class="k-facet k-f1" points="9.5,21.0 20.7,27.5 20.7,40.5" />
-      <polygon class="k-facet k-f2" points="32.0,34.0 20.7,40.5 20.7,27.5" />
-      <polygon class="k-facet k-f3" points="9.5,21.0 32.0,8.0 20.7,27.5" />
-      <polygon class="k-facet k-f0" points="32.0,8.0 32.0,21.0 20.7,27.5" />
-      <polygon class="k-facet k-f1" points="32.0,34.0 20.7,27.5 32.0,21.0" />
-      <circle class="k-node" cx="54.5" cy="21.0" r="1.6" /><circle class="k-node" cx="54.5" cy="47.0" r="1.6" /><circle class="k-node" cx="32.0" cy="60.0" r="1.6" /><circle class="k-node" cx="9.5" cy="47.0" r="1.6" /><circle class="k-node" cx="9.5" cy="21.0" r="1.6" /><circle class="k-tip" cx="32.0" cy="8.0" r="2.4" />
+<svg viewBox="0 0 64 64" width="46" height="46" aria-hidden="true" focusable="false">
+  <g transform="rotate(5 30 32)"><g class="k-body">
+    <g class="k-block">
+      <polygon class="k-face k-side" points="10,8 10,30 4,35 4,13" />
+      <polygon class="k-face k-side" points="10,30 32,30 26,35 4,35" />
+      <polygon class="k-face k-side" points="32,30 32,52 26,57 26,35" />
+      <polygon class="k-face k-side" points="32,52 54,52 48,57 26,57" />
+      <polygon class="k-face" points="10,8 32,8 32,30 10,30" />
+      <polygon class="k-face" points="32,8 54,8 54,30 32,30" />
+      <polygon class="k-face" points="32,30 54,30 54,52 32,52" />
+      <line class="k-fan" x1="32" y1="30" x2="54" y2="52" /><line class="k-fan" x1="32" y1="30" x2="43" y2="52" />
     </g>
     <g class="k-brows">
-      <g class="k-brow-flat"><line class="k-stroke" x1="16" y1="26" x2="26" y2="26" /><line class="k-stroke" x1="38" y1="26" x2="48" y2="26" /></g>
-      <g class="k-brow-raised"><line class="k-stroke" x1="16" y1="23" x2="26" y2="23" /><line class="k-stroke" x1="38" y1="23" x2="48" y2="23" /></g>
-      <g class="k-brow-furrowed"><line class="k-stroke" x1="16" y1="24" x2="26" y2="28" /><line class="k-stroke" x1="38" y1="28" x2="48" y2="24" /></g>
-      <g class="k-brow-worried"><line class="k-stroke" x1="16" y1="28" x2="26" y2="24" /><line class="k-stroke" x1="38" y1="24" x2="48" y2="28" /></g>
+      <g class="k-brow-flat"><line class="k-stroke" x1="15" y1="12.5" x2="27" y2="12.5" /><line class="k-stroke" x1="37" y1="12.5" x2="49" y2="12.5" /></g>
+      <g class="k-brow-raised"><line class="k-stroke" x1="15" y1="11" x2="27" y2="11" /><line class="k-stroke" x1="37" y1="11" x2="49" y2="11" /></g>
+      <g class="k-brow-furrowed"><line class="k-stroke" x1="15" y1="11.5" x2="27" y2="14.5" /><line class="k-stroke" x1="37" y1="14.5" x2="49" y2="11.5" /></g>
+      <g class="k-brow-worried"><line class="k-stroke" x1="15" y1="14.5" x2="27" y2="11.5" /><line class="k-stroke" x1="37" y1="11.5" x2="49" y2="14.5" /></g>
     </g>
     <g class="k-eyes">
-      <g class="k-eye-open k-blink"><circle class="k-white" cx="21" cy="34" r="6" /><circle class="k-white" cx="43" cy="34" r="6" /><g class="k-pupils"><circle class="k-pupil" cx="21" cy="34" r="2.6" /><circle class="k-pupil" cx="43" cy="34" r="2.6" /></g></g>
-      <g class="k-eye-wide"><circle class="k-white" cx="21" cy="34" r="7.5" /><circle class="k-white" cx="43" cy="34" r="7.5" /><circle class="k-pupil" cx="21" cy="34" r="3" /><circle class="k-pupil" cx="43" cy="34" r="3" /></g>
-      <g class="k-eye-closed"><line class="k-stroke" x1="15" y1="35" x2="27" y2="35" /><line class="k-stroke" x1="37" y1="35" x2="49" y2="35" /></g>
-      <g class="k-eye-happy"><path class="k-stroke k-nofill" d="M15 37 Q21 29 27 37" /><path class="k-stroke k-nofill" d="M37 37 Q43 29 49 37" /></g>
-      <g class="k-eye-worried"><circle class="k-white" cx="21" cy="35" r="6" /><circle class="k-white" cx="43" cy="35" r="6" /><circle class="k-pupil" cx="21" cy="37" r="2.6" /><circle class="k-pupil" cx="43" cy="37" r="2.6" /></g>
+      <g class="k-eye-open k-blink"><circle class="k-white" cx="21" cy="21" r="6" /><circle class="k-white" cx="43" cy="21" r="6" /><g class="k-pupils"><circle class="k-pupil" cx="21" cy="21" r="2.6" /><circle class="k-pupil" cx="43" cy="21" r="2.6" /></g></g>
+      <g class="k-eye-wide"><circle class="k-white" cx="21" cy="21" r="7.4" /><circle class="k-white" cx="43" cy="21" r="7.4" /><circle class="k-pupil" cx="21" cy="21" r="3" /><circle class="k-pupil" cx="43" cy="21" r="3" /></g>
+      <g class="k-eye-closed"><line class="k-stroke" x1="15" y1="22" x2="27" y2="22" /><line class="k-stroke" x1="37" y1="22" x2="49" y2="22" /></g>
+      <g class="k-eye-happy"><path class="k-stroke k-nofill" d="M15 24 Q21 15 27 24" /><path class="k-stroke k-nofill" d="M37 24 Q43 15 49 24" /></g>
+      <g class="k-eye-worried"><circle class="k-white" cx="21" cy="22" r="6" /><circle class="k-white" cx="43" cy="22" r="6" /><circle class="k-pupil" cx="21" cy="24" r="2.6" /><circle class="k-pupil" cx="43" cy="24" r="2.6" /></g>
     </g>
     <g class="k-mouth">
-      <path class="k-stroke k-nofill k-mouth-smile" d="M24 45 Q32 52 40 45" />
-      <line class="k-stroke k-mouth-flat" x1="26" y1="47" x2="38" y2="47" />
-      <circle class="k-pupil k-mouth-small" cx="32" cy="47" r="2.4" />
-      <ellipse class="k-pupil k-mouth-open" cx="32" cy="47" rx="5" ry="4.5" />
-      <ellipse class="k-pupil k-mouth-talk" cx="32" cy="47" rx="5" ry="3" />
-      <path class="k-stroke k-nofill k-mouth-frown" d="M24 50 Q32 43 40 50" />
+      <path class="k-stroke k-nofill k-mouth-smile" d="M36 38 Q43 46 50 38" />
+      <line class="k-stroke k-mouth-flat" x1="37" y1="42" x2="49" y2="42" />
+      <circle class="k-pupil k-mouth-small" cx="43" cy="42" r="2.6" />
+      <ellipse class="k-pupil k-mouth-open" cx="43" cy="42" rx="5.5" ry="5" />
+      <ellipse class="k-pupil k-mouth-talk" cx="43" cy="42" rx="5.5" ry="3.2" />
+      <path class="k-stroke k-nofill k-mouth-frown" d="M36 46 Q43 38 50 46" />
     </g>
-  </g>
+  </g></g>
 </svg>`;
 
 /** How long "Done" lingers before Kraty settles back to idle. */

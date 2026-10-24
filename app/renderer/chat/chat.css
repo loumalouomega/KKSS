@@ -779,16 +779,13 @@ body {
 }
 .kraty-bubble[hidden] { display: none; }
 
-#kraty .k-facet { fill: var(--vscode-button-background); stroke: var(--vscode-editor-background); stroke-width: 0.8; stroke-linejoin: round; }
-#kraty .k-f0 { fill-opacity: 1; }
-#kraty .k-f1 { fill-opacity: 0.8; }
-#kraty .k-f2 { fill: var(--vscode-button-hoverBackground); fill-opacity: 0.9; }
-#kraty .k-f3 { fill-opacity: 0.62; }
-#kraty .k-node { fill: var(--vscode-editor-background); }
-#kraty .k-tip { fill: var(--vscode-charts-yellow); }
-#kraty .k-white { fill: var(--vscode-editor-background); }
-#kraty .k-pupil { fill: var(--vscode-foreground); }
-#kraty .k-stroke { stroke: var(--vscode-foreground); stroke-width: 2.4; stroke-linecap: round; fill: none; }
+/* The Kratos Multiphysics mark's own palette: flat teal, white edges, black. Brand colours, not theme colours. */
+#kraty .k-face { fill: #008080; stroke: #fff; stroke-width: 1; stroke-linejoin: round; }
+#kraty .k-side { fill: #006b6b; }
+#kraty .k-fan { stroke: #fff; stroke-width: 0.9; opacity: 0.85; }
+#kraty .k-white { fill: #fff; }
+#kraty .k-pupil { fill: #000; }
+#kraty .k-stroke { stroke: #fff; stroke-width: 2.4; stroke-linecap: round; fill: none; }
 #kraty .k-stroke.k-nofill { fill: none; }
 
 /* One variant of each feature visible, chosen by the data-* the glue sets. */
