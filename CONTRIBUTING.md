@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js ≥ 18 (CI uses 20)
+- Node.js ≥ 20 (`engines.node`; CI uses 20)
 - git with submodule support
 - Linux headless testing: `xvfb` (`sudo apt-get install xvfb`)
 

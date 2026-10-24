@@ -4,6 +4,7 @@
  *
  * Layout (the same in both places):
  *   mcp.json                 MCP servers (userServers.ts)
+ *   hooks.json               lifecycle hooks (hooks.ts)
  *   instructions.md          standing instructions
  *   skills/<name>/SKILL.md   skills
  *   prompts/<name>.md        prompt templates
@@ -74,7 +75,7 @@ export function readAssistantTree(base: string, confine: string | null): TreeRea
   try {
     // The directory itself must pass the same test as what is in it.
     listDir(base, ".kkss/assistant", confine);
-    for (const name of ["mcp.json", "instructions.md"]) {
+    for (const name of ["mcp.json", "hooks.json", "instructions.md"]) {
       const text = readFile(path.join(base, name), name, confine);
       if (text !== undefined) files[name] = text;
     }

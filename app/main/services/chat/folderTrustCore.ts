@@ -2,8 +2,9 @@
  * The folder-trust record for `.kkss/assistant/` — pure half.
  *
  * A project folder can supply definitions that make the assistant run a command
- * on the user's machine (an MCP server today; instructions, skills and hooks are
- * the roadmap's next items and reuse this record). Nothing of that kind loads
+ * on the user's machine (an MCP server or a lifecycle hook) or change what the
+ * assistant is told (instructions, skills, prompt templates). All of them share
+ * this one record. Nothing of that kind loads
  * until the user trusts the folder, and trust is bound to a **hash of the
  * definition files**, so a later `git pull` that adds or edits one asks again.
  *
@@ -17,7 +18,7 @@ import { createHash } from "node:crypto";
 export const ASSISTANT_DIR = ".kkss/assistant";
 /**
  * What the trust hash covers, by relative name — the layout `assistantFiles.ts`
- * reads: `mcp.json`, `instructions.md`, `skills/<name>/SKILL.md` and
+ * reads: `mcp.json`, `hooks.json`, `instructions.md`, `skills/<name>/SKILL.md` and
  * `prompts/<name>.md`. A new kind of definition means teaching that reader about
  * it; the hash, the prompt and the revoke path then need nothing else. Trusting a
  * folder trusts all of it at once, and an edit to any file asks again.

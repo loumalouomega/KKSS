@@ -154,4 +154,61 @@ describe("MetaMcpServer", () => {
       await client.close();
     });
   });
+  describe("lifecycle hooks", () => {
+    const seen: Array<{ event: string; ctx: any }> = [];
+    let verdict: any;
+    let post: any;
+    beforeEach(async () => {
+      seen.length = 0;
+      verdict = { verdict: "none", notes: [] };
+      post = { verdict: "none", notes: [] };
+      await server.dispose();
+      server = new MetaMcpServer({
+        hub: fakeHub, version: "test", port: () => 0, token: () => TOKEN, access: () => policy,
+        hooks: { run: async (event, ctx) => { seen.push({ event, ctx }); return event === "PreToolUse" ? verdict : post; } },
+      });
+      await server.enable();
+    });
+    const call = async (name: string, args: Record<string, unknown> = {}) => {
+      const client = await connect(auth);
+      try { return await client.callTool({ name, arguments: args }); } finally { await client.close(); }
+    };
+
+    it("runs PreToolUse and PostToolUse around an allowed call, with no conversation", async () => {
+      const result = await call("cad__load_model", { path: "/x.step" });
+      expect(result.isError).toBeFalsy();
+      expect(seen.map((s) => s.event)).toEqual(["PreToolUse", "PostToolUse"]);
+      expect(seen[0].ctx).toMatchObject({ source: "meta", conversationId: null, tool: "cad__load_model", args: { path: "/x.step" } });
+      expect(seen[1].ctx.result.ok).toBe(true);
+    });
+
+    it("a deny is an MCP error and the tool never runs", async () => {
+      verdict = { verdict: "deny", hook: "gate", reason: "no", notes: [] };
+      const result = await call("cad__load_model");
+      expect(result.isError).toBe(true);
+      expect((result.content as Array<{ text: string }>)[0].text).toMatch(/Blocked by the user's hook "gate": no/);
+      expect(seen.map((s) => s.event)).toEqual(["PreToolUse"]);
+    });
+
+    it("an ask cannot be answered here, so it refuses", async () => {
+      verdict = { verdict: "ask", hook: "gate", notes: [] };
+      const result = await call("cad__load_model");
+      expect(result.isError).toBe(true);
+      expect((result.content as Array<{ text: string }>)[0].text).toMatch(/no one to ask/);
+    });
+
+    it("a call the access setting refuses never reaches the hooks", async () => {
+      policy = { access: "readOnly", allowedWrites: new Set() };
+      expect((await call("mesh__mesh_transform")).isError).toBe(true);
+      expect(seen).toEqual([]);
+    });
+
+    it("an opted-in PostToolUse note rides as a labelled extra block", async () => {
+      post = { verdict: "none", notes: [{ hook: "audit", text: "row 1" }] };
+      const result = await call("cad__load_model");
+      const blocks = result.content as Array<{ text: string }>;
+      expect(blocks).toHaveLength(2);
+      expect(blocks[1].text).toBe("[Hook output: audit]\nrow 1");
+    });
+  });
 });

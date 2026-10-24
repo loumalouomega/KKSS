@@ -23,6 +23,7 @@ import type { ChatServerStatus } from "../../ipc";
 import type { McpHub } from "../chat/mcpHub";
 import { buildMetaServer } from "./buildServer";
 import type { MetaAccessPolicy } from "./accessPolicy";
+import type { MetaHooks } from "./buildServer";
 
 /** stateStore / secrets keys for the meta server settings. */
 export const META_SERVER_KEYS = {
@@ -46,6 +47,8 @@ export interface MetaServerDeps {
   token(): string | undefined;
   /** Which tools external clients may call; read on every request. */
   access(): MetaAccessPolicy;
+  /** Lifecycle hooks, run around every call an external client makes. */
+  hooks?: MetaHooks;
 }
 
 interface Session {
@@ -179,7 +182,7 @@ export class MetaMcpServer {
   }
 
   private async openSession(req: http.IncomingMessage, res: http.ServerResponse, body: unknown): Promise<void> {
-    const server = buildMetaServer(this.deps.hub, this.deps.version, () => this.deps.access());
+    const server = buildMetaServer(this.deps.hub, this.deps.version, () => this.deps.access(), this.deps.hooks);
     const transport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sid: string): void => {

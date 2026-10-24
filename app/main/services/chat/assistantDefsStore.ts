@@ -34,6 +34,9 @@ export interface AssistantDefsDeps {
   onProjectChange(listener: () => void): void;
 }
 
+/** `ChatAssistantDefs` without the lifecycle-hooks fields (`hooksStore.ts` owns those). */
+export type DefsSummary = Omit<ChatAssistantDefs, "hooksEnabled" | "hooks" | "hookErrors">;
+
 const EMPTY: MergedDefs = { instructions: [], skills: [], templates: [], errors: [] };
 
 export class AssistantDefsStore {
@@ -63,7 +66,8 @@ export class AssistantDefsStore {
     return definitionsSuffix(snapshot);
   }
 
-  summary(snapshot: MergedDefs = this.snapshot()): ChatAssistantDefs {
+  /** Everything but the hooks half, which `ChatService` adds from the hook engine. */
+  summary(snapshot: MergedDefs = this.snapshot()): DefsSummary {
     const catalog = skillCatalog(snapshot.skills);
     return {
       enabled: this.deps.enabled(),

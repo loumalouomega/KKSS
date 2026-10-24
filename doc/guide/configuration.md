@@ -64,6 +64,59 @@ Queue previews freeze their effective thread allocation; changing the setting re
 
 The **scale picker** on the right of the shell toolbar (75 %–150 %) sets how large the whole application is drawn — the toolbar, both viewers, the terminal, and the chat sidebar all scale together, so the layout stays proportional on high-DPI or low-resolution displays. The choice persists across launches. It's also on the keyboard: `Ctrl +` / `Ctrl -` step through the presets and `Ctrl+Shift+0` resets to 100 % (mirrored under **View ▸ Zoom In / Zoom Out / Reset Zoom**).
 
+## General
+
+| Setting | Meaning | Default |
+| --- | --- | --- |
+| Language | Language of the KKSS interface (`English` or `Español`). Applies on the next launch. The embedded viewers keep their own language. | English |
+| Project Folder | **Choose…** / **Clear** — the default folder for the terminal, file dialogs and the assistant (also **File ▸ Open Folder…**). It is a default, never a restriction. | — |
+| Restore Last Session | Reopen the previous run's documents, screen and panels at launch. `KKSS_NO_RESTORE=1` overrides it for one launch. | On |
+| Show What's New After Updates | Show the release notes the first time a new version starts. **Help ▸ What's New…** always works. | On |
+| Update Channel | `Stable releases` or `Include prereleases` — which releases **Help ▸ About KKSS** offers to install. | Stable |
+
+**Appearance** also holds **UI Font Family** (a CSS font-family for the application chrome; empty uses the system UI font) and **UI Font Size** (base size in pixels for the chrome and both viewers' panels, default 13).
+
+## CAD Viewer defaults
+
+These seed newly opened models; per-model choices saved beside the model (see [Pre-Processing mode](/guide/cad-mode#sidecar-files)) always win.
+
+| Setting | Meaning | Default |
+| --- | --- | --- |
+| Background | Default 3D view background. The viewer's Appearance swatch still overrides it per session. | `#1e1e1e` |
+| Up Axis | `Y up` or `Z up` for newly opened models. | Y up |
+| Show Grid & Axes on Open | Show the ground grid and the axes helper when a model opens. | On |
+| Default Mesh Size | `Coarse` / `Medium` / `Fine` element-size preset for models with no saved `.mesh.json`. | Medium |
+| Tessellation Quality | `Draft (fastest)` / `Standard` / `Fine (most detail)` for STEP/IGES/BREP display. Re-read on every edit or reopen; it does not affect FE meshing. | Standard |
+| OpenSCAD Binary | Fallback `openscad` executable, used only when the bundled OpenSCAD declines a model (`import()`/`surface()`, a missing include, over the staging caps). | `openscad` |
+| OpenSCAD Backend | `Auto (no flag)`, `CGAL` or `Manifold (2025+)` for the fallback binary. | Auto |
+| OpenSCAD Library Folders | Extra library folders prepended to `OPENSCADPATH` for `.scad` conversion only. Absolute paths. | none |
+| Kernel Job Timeout (minutes) | The longest a single CAD kernel job (a tessellation, a boolean, a meshing run) may take before its worker is restarted. Applies to models opened afterwards; raise it for very large assemblies. | 5 |
+
+## Mesh Viewer
+
+| Setting | Meaning | Default |
+| --- | --- | --- |
+| Large-Mesh Summary Threshold (MB) | Meshes above this size open as a header summary with an **Open full mesh anyway** button; `0` always opens in full. | 250 |
+| Timeline Frame Cache (MB) | Memory budget for keeping recently viewed time-series frames parsed, so stepping back and forth does not reread files. Takes effect live. | 256 |
+| 3D Renderer | `vtk.js` or the experimental `VTK-wasm` — see [Mesh 3D renderer](#mesh-3d-renderer). | vtk.js |
+| Plot Extraction Cache | Keep a bounded on-disk cache of disk-backed plot extractions under the app's mesh storage, so reopening a plot after a restart does not re-extract. Off keeps extractions in memory only. | Off |
+| Mesh Export Provenance | `Automatic`, `Write a full sidecar report` (a `.kratosexport.json` per export series) or `Do not record provenance` — see [Mesh exports](#mesh-exports-and-material-libraries). | Automatic |
+| Flowgraph Split | Where the Flowgraph problemtype's node editor opens: `Below the 3D view` or `Beside the 3D view`. | Below |
+
+## Text editor and terminal
+
+| Setting | Meaning | Default |
+| --- | --- | --- |
+| Text Editor ▸ Font Size / Font Family | Size in pixels and CSS font-family of the built-in text editor; an empty family uses the default monospace stack. | 13 / — |
+| Text Editor ▸ Tab Size | Width of a tab and of one indentation level. | 4 |
+| Text Editor ▸ Word Wrap / Line Numbers | Wrap long lines at the editor width; show the line-number gutter. | Off / On |
+| Terminal ▸ Shell | `System default ($SHELL)`, `bash` or `zsh`. A change applies to the next shell you open, not the running one. | System default |
+| Terminal ▸ Font Size / Font Family | Size in pixels and CSS font-family of the embedded terminal. | 13 / — |
+| Terminal ▸ Scrollback Lines | Lines kept above the visible area. | 5000 |
+| Terminal ▸ Cursor Style / Cursor Blink | `Block`, `Underline` or `Bar`; blink on or off. | Block / On |
+
+All of these apply to open editors and terminals immediately, except the shell.
+
 ## LLM assistant
 
 **Settings ▸ LLM Assistant** configures the AI chat sidebar ([Getting Started ▸ AI assistant](/guide/getting-started#ai-assistant)):
@@ -83,17 +136,39 @@ The **scale picker** on the right of the shell toolbar (75 %–150 %) sets how l
 | Max Output Tokens | upper bound on one reply (256–128000); empty keeps the built-in 16000 (Anthropic) or the gateway default | — |
 | Allow Image Attachments (OpenAI-compatible) | lets the chat composer attach images for the OpenAI-compatible, OpenCode Zen and OpenCode Go providers — off because KKSS cannot know whether a gateway's model has vision; Anthropic always accepts images and PDFs, the subscription providers neither (see [Attaching images and PDFs](getting-started.md#attaching-images-and-pdfs)) | Off |
 | Tool Approval | `Ask before tools that change files` / `Ask before every tool` / `Never ask` | Ask before tools that change files |
+| Lifecycle Hooks | Run the commands in your `hooks.json` (and a trusted project folder's) before and after the assistant's tool calls and messages. A hook can refuse a call or make it ask first; it can never approve one. Off runs none. Stored as `llmHooks`. See [Lifecycle hooks](/guide/assistant-extensions#lifecycle-hooks). | On |
 | Standing Instructions & Skills | Send your `instructions.md` and a catalog of your skills with each message, and expand `/name` prompt templates. Off sends and expands nothing. Stored as `llmAssistantDefs`. | On |
-| Instructions, Skills & Prompts Folder | **Open folder…** creates and opens `<userData>/assistant/` (`instructions.md`, `skills/<name>/SKILL.md`, `prompts/<name>.md`). A trusted project folder's `.kkss/assistant/` adds its own (see [Assistant extensions](/guide/assistant-extensions)). | — |
+| Instructions, Skills & Prompts Folder | **Open folder…** creates and opens `<userData>/assistant/` (`instructions.md`, `skills/<name>/SKILL.md`, `prompts/<name>.md`, and `hooks.json` for [lifecycle hooks](/guide/assistant-extensions#lifecycle-hooks)). A trusted project folder's `.kkss/assistant/` adds its own (see [Assistant extensions](/guide/assistant-extensions)). | — |
 | MCP Servers | **Open manager…** opens the chat sidebar's MCP manager: add your own stdio or streamable-HTTP servers, enable, disable or restart them, mark their tools read-only, and trust a project folder's `.kkss/assistant/mcp.json` (see [Assistant extensions](/guide/assistant-extensions)). The definitions live in `state.json` under `assistantMcpServers` (names only); environment values and bearer tokens are stored encrypted like the API keys; marks (`assistantMcpToolMarks`) and folder trust (`assistantFolderTrust`) are stored beside them. A managed deployment that locks any of those keys makes the manager read-only. | — |
+| Custom Context Window (tokens) | The context window of the current model, used **only** when KKSS has no reviewed figure for it. Shows how full the context is and lets compaction start early. | — |
+| Custom Input / Output Price (USD per 1M tokens) | Prices for a model KKSS has no reviewed figures for. A cost estimate needs **both**; with only one, the sidebar shows token counts alone. Stays on this computer. | — |
+| Custom Cache Read / Write Price (USD per 1M tokens) | Prices of cached input and of tokens written to the cache. Empty assumes the input price (no discount). | Input price |
 
 The provider menu also includes **ChatGPT subscription (Codex)** and **Claude subscription (Claude Code)**. These options require the matching official local tool and an eligible signed-in subscription account. Their submenu offers a runtime check, official setup link, model override, and optional executable path. KKSS does not import or store subscription credentials.
 
 **OpenCode Zen** is a pay-as-you-go gateway over curated, benchmarked models; **OpenCode Go** is a $10/$40 subscription over open coding models. One API key from `https://opencode.ai/auth` unlocks both, and KKSS sends its own `User-Agent` plus a stable per-conversation session id so Go can route and cache. The first cut speaks `chat/completions` only, so it offers those models (check `/models` in the OpenCode TUI — the list changes); per-model `/responses` and `/messages` endpoints (Muse Spark, GPT, Claude, Qwen Max) need their own adapters. Prices for the matching `chat/completions` ids are reviewed in `modelInfo.ts`; anything else shows tokens only unless you enter your own prices and context window (**LLM Assistant ▸ Custom … Price / Custom Context Window**; see [Tokens, context and cost](getting-started.md#tokens-context-and-cost)).
 
-**Tool Approval** decides when the assistant has to ask you before running one of its tools. Read versus write is a KKSS-side classification keyed by the tool's full name, not something the tool servers declare about themselves — a server's own claim about whether it is safe is exactly the thing that should not be trusted. A tool KKSS has no entry for always asks. The Kratos server's 52 tools are classified against the pinned release (status, listing and validation tools run without asking; scaffolding, solver and job control, and anything that writes a file ask), while a tool a different server version adds stays unclassified and asks. The setting applies to the very next tool call. *Never ask* turns the gate off and confirms once before doing so; it covers the built-in sidebar only, since the HTTP MCP endpoint has no user to prompt.
+**Tool Approval** decides when the assistant has to ask you before running one of its tools. Read versus write is a KKSS-side classification keyed by the tool's full name, not something the tool servers declare about themselves — a server's own claim about whether it is safe is exactly the thing that should not be trusted. A tool KKSS has no entry for always asks. The Kratos server's 110 tools are classified against the pinned 0.9.0 release (status, listing and validation tools run without asking; scaffolding, solver and job control, and anything that writes a file ask), while a tool a different server version adds stays unclassified and asks. The setting applies to the very next tool call. *Never ask* turns the gate off and confirms once before doing so; it covers the built-in sidebar only, since the HTTP MCP endpoint has no user to prompt.
 
 The model and thinking level can also be changed from the strip above the chat message box ([Choosing the model and thinking level](/guide/getting-started#choosing-the-model-and-thinking-level)); it writes these same settings. Changes apply to the next chat message — no restart. API keys are encrypted with the OS keychain when one is available; on systems without a keyring they fall back to plaintext in `state.json` (below). Entering an empty value clears a stored key.
+
+## External MCP endpoint
+
+**Settings ▸ MCP Server** exposes the same CAD, mesh, Kratos and app tools the sidebar uses over a localhost HTTP MCP endpoint, for an external client such as Claude Desktop or an IDE ([Getting Started ▸ Use your own MCP client](/guide/getting-started#use-your-own-mcp-client)). Off by default.
+
+| Setting | Meaning | Default |
+| --- | --- | --- |
+| Enable External Access | Start or stop the endpoint (`http://127.0.0.1:<port>/mcp`). Bearer-token protected, and it checks the `Host` header. | Off |
+| Port | The localhost port. Applies the next time the endpoint is enabled. | 7391 |
+| Allowed Tools | `Read-only tools`, `Read-only tools and the listed write tools`, or `All tools`. A client has nobody to ask, so this setting — not a prompt — decides; calls to other tools are refused with an error naming the setting. A newly enabled endpoint starts read-only. | Read-only |
+| Allowed Write Tools | Full tool names (for example `cad__apply_edit_ops`) a client may call in addition to the read-only ones; used by the middle mode only. A tool KKSS has no classification for is never allowed unless listed. | none |
+| Address & Token | **Copy address & token** puts the client configuration on the clipboard; **Regenerate token…** rotates the token (connected clients must be updated). The token is stored encrypted. | — |
+
+[Lifecycle hooks](/guide/assistant-extensions#lifecycle-hooks) run on this endpoint too; a hook that would ask for confirmation refuses the call there.
+
+## Advanced
+
+**Flowgraph Asset Override** (`kratos.flowgraph.assetPathOverride`) is for development only: it serves a local `@kratos-flowgraph/flowgraph` checkout instead of the copy bundled with the Flowgraph problemtype. It applies the next time the Flowgraph server starts, and normally stays empty.
 
 ## Cloud accounts
 
@@ -112,6 +187,8 @@ Two things worth knowing before you start:
 - **Google's testing-mode refresh tokens expire after seven days.** While your OAuth consent screen is in "Testing", you will have to reconnect weekly. Publishing the consent screen (even for a single-user app) removes the limit.
 - **Google Drive asks for full `drive` scope, not `drive.file`.** The narrower scope only sees files the app itself created or that were picked through *Google's own* file picker, which KKSS does not use — with it, the Open from Cloud browser would show an empty Drive.
 
+**Cache Size Limit (MB)** (default 2048) bounds the local staging cache for cloud documents — the least recently opened documents are evicted first, and documents that are open or still hold unuploaded changes never are — and **Clear cache…** deletes every cached cloud document that is not currently open after a confirmation (anything that has not finished uploading is lost with it; files already on the provider can be opened again).
+
 Client IDs are stored in `state.json`; client secrets and refresh tokens go through the same encrypted store as the LLM API key. **Disconnect…** forgets the sign-in and offers to delete the cached copies with it.
 
 ## Where state lives
@@ -129,4 +206,4 @@ Note that the user-data dir is **not** inside your project folder, so syncing a 
 
 ## Command-line
 
-`kkss <file>` opens the given model on startup in the mode the file's extension implies.
+`kkss <file>` opens the given model on startup in the mode the file's extension implies. Several files may be given (`kkss a.step b.mdpa`); each opens in its own tab in the mode its extension implies, and duplicates are opened once. A relative path is resolved against the directory you ran the command from, including when the file is forwarded to an already-running KKSS. `kkss://open?file=<path>` links open the same way.

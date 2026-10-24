@@ -14,7 +14,7 @@
  * truncation point — a persisted transcript that silently shortened its own
  * tool results would change what a resumed conversation means to the model.
  */
-import type { ChatAttachment, ChatErrorKind } from "../../ipc";
+import type { ChatAttachment, ChatErrorKind, ChatToolHook } from "../../ipc";
 import { parseStoredAttachment } from "./chatAttachments";
 import type { AgentSessionRef } from "./agents/types";
 import type { ChatEntry } from "./transcript";
@@ -123,6 +123,16 @@ const isRecord = (raw: unknown): raw is Record<string, unknown> =>
   !!raw && typeof raw === "object" && !Array.isArray(raw);
 
 const str = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
+
+/** The optional `hook` annotation of a toolCall; anything malformed is dropped. */
+function parseHookNote(raw: unknown): ChatToolHook | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const name = str(o.name);
+  if (!name || (o.decision !== "denied" && o.decision !== "ask")) return undefined;
+  const reason = str(o.reason);
+  return { name, decision: o.decision, ...(reason ? { reason } : {}) };
+}
 const num = (value: unknown, fallback: number): number =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
@@ -193,7 +203,10 @@ function parseEntry(raw: unknown): ChatEntry | undefined {
         tool: str(raw.tool) ?? "",
         argsJson,
       };
-      return approval ? { ...entry, approval } : entry;
+      // A hook annotation is optional on the same terms. A malformed one costs
+      // the note, never the entry.
+      const hook = parseHookNote(raw.hook);
+      return { ...entry, ...(approval ? { approval } : {}), ...(hook ? { hook } : {}) };
     }
     case "toolResult": {
       const callId = str(raw.callId);

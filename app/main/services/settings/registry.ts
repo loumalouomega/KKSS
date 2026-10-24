@@ -744,6 +744,16 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       description: t("The folder holding instructions.md, skills/<name>/SKILL.md and prompts/<name>.md. A trusted project folder can add its own under .kkss/assistant/. These are plain text and can never change what a tool is allowed to do."),
     },
     {
+      id: "llm.hooks",
+      label: t("Lifecycle Hooks"),
+      category: "LLM Assistant",
+      type: "boolean",
+      storeKey: "llmHooks",
+      default: true,
+      applies: "live",
+      description: t("Run the commands in your hooks.json (and a trusted project folder's) before and after the assistant's tool calls and messages. A hook can refuse a call or make it ask first; it can never approve one. Turn off to run none."),
+    },
+    {
       id: "llm.mcpServers",
       label: t("MCP Servers"),
       category: "LLM Assistant",

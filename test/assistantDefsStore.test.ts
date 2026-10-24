@@ -52,11 +52,11 @@ afterEach(() => { fs.rmSync(tmp, { recursive: true, force: true }); });
 describe("reading a definitions directory", () => {
   it("returns only the known layout", () => {
     const base = path.join(tmp, "a");
-    write(base, "instructions.md", "i"); write(base, "mcp.json", "{}");
+    write(base, "instructions.md", "i"); write(base, "mcp.json", "{}"); write(base, "hooks.json", "{}");
     write(base, "skills/one/SKILL.md", "s"); write(base, "skills/one/extra.txt", "ignored"); write(base, "skills/Bad Name/SKILL.md", "x");
     write(base, "prompts/p.md", "p"); write(base, "prompts/notes.txt", "ignored"); write(base, "other.md", "ignored");
     expect(readAssistantTree(base, null).files).toEqual({
-      "instructions.md": "i", "mcp.json": "{}", "skills/one/SKILL.md": "s", "prompts/p.md": "p",
+      "instructions.md": "i", "mcp.json": "{}", "hooks.json": "{}", "skills/one/SKILL.md": "s", "prompts/p.md": "p",
     });
   });
   it("a missing directory is simply empty", () => {

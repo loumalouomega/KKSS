@@ -34,6 +34,8 @@ export default defineConfig({
           { text: 'Reading a Kratos Result', link: '/guide/tutorial-reading-results' },
           { text: 'AI Simulation Walkthrough', link: '/guide/tutorial-ai-simulation' },
           { text: 'Worked Kratos Cases', link: '/guide/tutorial-kratos-examples' },
+          { text: 'Mesh to CAD (Fit to CAD)', link: '/guide/tutorial-mesh-to-cad' },
+          { text: 'OpenSCAD, with No Install', link: '/guide/tutorial-openscad' },
           { text: 'Assistant Extensions', link: '/guide/assistant-extensions' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' },
