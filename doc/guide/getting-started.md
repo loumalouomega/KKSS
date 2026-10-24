@@ -37,7 +37,7 @@ Both mode views stay alive when you switch: the loaded file, the camera, and you
 
 In Post-Processing, **File ▸ Import Mesh…** adds several files to the active model in one undoable operation without welding. **File ▸ Export Mesh As** groups the writable formats; **Export…** retains its `Ctrl+E` shortcut. Choose **Show report**, or **Advanced ▸ Export report…**, to inspect export fidelity and provenance. **Advanced ▸ Streamlines…** offers worker-backed tracing and tube styling, while **Flow balance… ▸ All steps** scans a timeline and exports CSV. See [Post-Processing](/guide/mesh-mode) for field units, pressure conversion and Fluid time-stepping validation.
 
-For a complete first simulation, follow the [geometry-to-results tutorials](/guide/tutorial-geometry-to-results): the eleven worked cases start with CAD geometry, run through the Problemtype sidebar and, except for the two-fluid dam break, check actual solver results. The two-fluid dam break is generation-verified only, because its solver is blocked upstream.
+For a complete first simulation, follow the [geometry-to-results tutorials](/guide/tutorial-geometry-to-results): the eleven worked cases start with CAD geometry, run through the Problemtype sidebar and check actual solver results. The two-fluid dam break needs a one-file alias for the stock Kratos solver wrapper, which its page explains.
 
 ### Scientific plotting
 
@@ -72,6 +72,25 @@ With an explicit project folder, **New study** records a geometry reference and 
 
 Set **Settings → Kratos → Solver threads** to a positive OpenMP allocation, or leave **Auto** (`0`) to reserve one available CPU for the rest of the desktop. The preview shows and freezes the concrete allocation. KKSS can run one solve alongside one mesh or case-preparation task only when both verified reservations fit the available CPU budget; an interrupted or legacy task with unknown usage holds the budget until reconciled.
 
+**Home actions and their assistant tools.** Every Home action has an `app__*` tool, so you can do the same from the chat, and both share the one study store and queue. The assistant asks first for anything that writes, like any other write tool.
+
+| Home action | Does | Assistant tool |
+| --- | --- | --- |
+| **Check environment** | Probes the manual Python and the assistant's uv runtime, separately | `app__check_simulation_environment` |
+| **New study**, **Duplicate** | Records a geometry reference; copies a study's settings | `app__study_create`, `app__study_duplicate` |
+| **Relink geometry**, **Copy geometry in project** | Repairs a missing or changed source; makes a project-local copy | `app__study_relink_source`, `app__study_copy_source_into_project` |
+| **Attach mesh**, **Set case snapshot** | Records an exported mesh's revision and adjacent case setup; sets the case state or meshing options (a meshing change makes the attached mesh stale) | `app__study_attach_mesh`, `app__study_set_settings` |
+| **Open geometry / mesh / case / results** | Opens the stage in its existing viewer | `app__study_open` |
+| **Plan run**, **Plan sweep** | Previews isolated tasks; expands one setting path into up to 50 variants | `app__queue_plan_preview`, `app__queue_parameter_sweep_preview` |
+| **Persist paused plan** → **Start plan** | Stores the previewed plan paused, then starts it | `app__queue_enqueue`, `app__queue_resume` |
+| **Pause queue**, **Resume queue**, **Cancel task** | Holds the queue, restarts it, or cancels the selected task | `app__queue_pause`, `app__queue_resume`, `app__queue_cancel` |
+| **Resume row**, **Retry row** | Starts one waiting variant row; previews a fresh-identity retry for a failed row | `app__queue_resume_row`, `app__queue_retry_variant_preview` |
+| **Import latest run** | Imports a terminal run as an immutable input snapshot | `app__study_import_run` |
+| **Review run**, **Export review** | Offline review of a run; JSON/HTML export | `app__run_review`, `app__run_review_export` |
+| **Compare runs** | Facts-only report for two runs of one study | `app__run_compare` |
+| **Compare variants**, **Export comparison** | Parent/variant comparison; offline export | `app__variants_compare`, `app__variants_compare_export` |
+| **Evaluate quantity**, **Refinement metadata** | Saves a revision-bound quantity; records the sizing assumptions of a run | `app__run_quantity_evaluate`, `app__run_refinement_set` |
+
 ### Working from cloud storage
 
 If you would rather not run a sync client at all, **Settings ▸ Cloud Accounts** connects KKSS directly to Google Drive, Dropbox or OneDrive, and **File ▸ Open from Cloud…** browses it. You bring your own OAuth client — see [Configuration ▸ Cloud accounts](/guide/configuration#cloud-accounts) for the one-time setup.
@@ -104,6 +123,8 @@ The toolbar also has an **interface-scale** picker on the right (75 %–150 %) f
 
 ## About & updates
 
+The **Help** menu holds, besides About and What's New below: **KKSS Manual…** (this documentation, built into the app and readable offline in its own window — links that leave it open in your browser), **License…** (the AGPL-3.0-or-later text KKSS ships under), **KKSS Documentation** (the same site online), and links to the two embedded engines' repositories, CAD-Preview and VSCode-MDPA-Preview.
+
 **Help** on the home screen (or **Help ▸ About KKSS…**) shows the app version and checks GitHub for a newer release. **Include prerelease updates** in Settings controls whether stable-only or prerelease releases are selected. When an update exists, **Update now** downloads and installs it in place on Windows and on the Linux AppImage — restart when prompted. `.deb`, `.rpm` and unsigned macOS installs instead get a button to the releases page. No network? The dialog still shows your version and offers a Retry.
 
 Installing a supported file type (`.stp`, `.mdpa`, `.vtk`, `.post.msh` and the other formats shown in the Open dialog) opens it in KKSS when the file is double-clicked. The `kkss://open?file=…` link form accepts the same local files; links to application pages and relative paths are rejected. An existing file KKSS cannot read gets a warning naming its suffix and linking [the supported formats](/guide/file-formats#if-a-file-won-t-open) rather than being ignored.
@@ -116,7 +137,7 @@ The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**) 
 
 ## AI assistant
 
-The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**) opens a chat sidebar on the right where an LLM can drive KKSS for you: load and edit CAD models, define sub-model-parts, generate and export meshes, inspect and transform MDPA/VTK files, set up Kratos cases, and run simulations. The assistant works through the same tool servers (MCP) that power the two viewers plus the standalone [kratos-mcp-server](https://pypi.org/project/kratos-mcp-server/); the dots in the sidebar header show each server's status (green = ready, red = unavailable, yellow = waiting for your trust, grey = starting or disabled — hover for details), and the server button beside them opens the **MCP manager**, where you can restart a server, see its tools, and add servers of your own — and the same panel lists your **standing instructions, skills and `/name` prompt templates**, plain text files that guide the assistant without ever changing what a tool may do (see [Assistant extensions](./assistant-extensions)). The first two ship with KKSS; the Kratos server and a **PDF reader** ([`pdf-insight-mcp`](https://pypi.org/project/pdf-insight-mcp/), pinned) are fetched with [`uvx`](https://docs.astral.sh/uv/) and share one uv, which KKSS can install into its own data directory when it is missing.
+The **Chat** toolbar button (or `Ctrl+Shift+L` / **View ▸ Toggle AI Chat**) opens a chat sidebar on the right where an LLM can drive KKSS for you: load and edit CAD models, define sub-model-parts, generate and export meshes, inspect and transform MDPA/VTK files, set up Kratos cases, and run simulations. The assistant works through the same tool servers (MCP) that power the two viewers plus the standalone [kratos-mcp-server](https://pypi.org/project/kratos-mcp-server/); the dots in the sidebar header show each server's status (green = ready, red = unavailable, yellow = waiting for your trust, grey = starting or disabled — hover for details), and the server button beside them opens the **MCP manager**, where you can restart a server, see its tools, and add servers of your own — and the same panel lists your **standing instructions, skills and `/name` prompt templates**, plain text files that guide the assistant without ever changing what a tool may do, plus your **lifecycle hooks**, commands that can refuse a tool call or make it ask first (see [Assistant extensions](./assistant-extensions)). The first two ship with KKSS; the Kratos server and a **PDF reader** ([`pdf-insight-mcp`](https://pypi.org/project/pdf-insight-mcp/), pinned) are fetched with [`uvx`](https://docs.astral.sh/uv/) and share one uv, which KKSS can install into its own data directory when it is missing.
 
 CAD layers (`list_layers` / `set_layer` / `assign_layer`, in `<model>.layers.json`) organise what is shown, locked or drawn together — never the finite-element sub-model (that is Parts); drawing exports take an optional `layers` filter, and layer structure syncs with the post mode's view layers. `remesh_mesh` remeshes an FE mesh with MMG, and `list_scad_parameters` / `convert_scad` handle OpenSCAD Customizer models without touching the source. For mesh-format CAD models, the assistant replays pending edits when it generates a mesh, exports an FE mesh or compares models. `save_model` bakes the pending edits into the source file itself (STEP, IGES, BREP, STL, OBJ or PLY) after approval, keeping a `.bak` copy; it writes exactly what **File ▸ Save** writes in the CAD viewer, so save or close the tab first — the assistant cannot see an open, unsaved tab. Mesh health, inspection and promotion tools report the raw source.
 
@@ -160,6 +181,8 @@ The assistant's tools are not suggestions — they write files, overwrite meshes
 - **Deny** — don't run it. Nothing on disk is touched, and the assistant is told you refused, so it explains what it wanted rather than trying again.
 
 Read-only tools — inspect, measure, mesh info, render — run without asking, so asking questions feels exactly as it did before. A tool KKSS has no policy for always asks — which includes every tool of a server you added yourself, until you mark it read-only in the [MCP manager](./assistant-extensions). Kratos status, listing, validation and job-status tools run without asking; starting or cancelling a solve, scaffolding a case and writing result files ask, like any other write.
+
+**Your own rules.** If KKSS's classification isn't strict enough for you, write a [lifecycle hook](./assistant-extensions#lifecycle-hooks): a command in `hooks.json` that runs before each tool call and can refuse it or make it ask first — "no solver launch outside the study folder", "always confirm anything under `production/`" — or after it, to keep an audit log. A call a hook refused shows "Blocked by your hook …" on the tool call and the assistant is told not to retry it; a call a hook sent to you shows "Your hook … asked for confirmation" above the prompt, which offers only **Allow** and **Deny**. A hook can only make the gate *stricter*: it can never approve a call, skip a prompt, or widen what a tool may do. **Settings ▸ LLM Assistant ▸ Lifecycle Hooks** turns the feature off.
 
 **Settings ▸ LLM Assistant ▸ Tool Approval** changes this: *Ask before tools that change files* (the default), *Ask before every tool*, or *Never ask*. The last one turns the gate off entirely and asks you to confirm once before it does.
 
@@ -239,6 +262,8 @@ The 50 most recently used conversations are kept; older ones are dropped, except
 
 If you'd rather drive KKSS from an **external** LLM client (Claude Code, GitHub Copilot, Claude Desktop, another agent) than the built-in sidebar, enable **Settings ▸ MCP Server**. KKSS then serves the same unified cad + mesh + Kratos toolset — plus the Kratos worked-example resources and guided prompts — over a localhost **Streamable HTTP** MCP endpoint. Use **Copy Address & Token…** to grab the `http://127.0.0.1:<port>/mcp` URL and its bearer token (default port `7391`). It is off by default and bound to localhost only; the token gates access because these tools read and write files on disk — **Regenerate Token…** rotates it (update your clients afterwards). **Allowed Tools** limits what a client may call: *Read-only tools* (the default for a newly enabled server — inspect, measure, validate, job status), *Read-only tools and the listed write tools* (name the extra tools under **Allowed Write Tools**) or *All tools* (what the server allowed before this setting existed, and what an install that already used it keeps). A refused call returns an error that says so. Change the port under the same menu (toggle the server off and on to rebind). Tools arrive namespaced `cad__*` / `mesh__*` / `kratos__*`; the Kratos worked examples show up as MCP resources and prompts.
 
+Your [lifecycle hooks](./assistant-extensions#lifecycle-hooks) apply to this endpoint too (with `source: "meta"`). The endpoint has nobody to ask, so a hook that would make a call ask for confirmation refuses it instead.
+
 Leave KKSS running with the server enabled, then point a client at it:
 
 **Claude Code** — register it as an HTTP server (repeat `--header` for the token):
@@ -281,6 +306,8 @@ Select a job to see its case directory, state, elapsed time, current step/time w
 
 If the server disconnects, the panel keeps the last known state and offers **Retry**. Missing runtime setup offers **Install uv for KKSS**, using the same setup flow as Chat. Server-owned job records are rediscovered after reconnecting or reopening Jobs after an app restart. Closing the panel, stopping chat, and quitting KKSS do not cancel these background jobs.
 
+The pinned Kratos server (0.9.0, 110 tools) covers far more than starting a run: it builds and edits MDPA meshes, converts geometry, drives a live simulation step by step (`session_*`), post-processes results (`results_*`), scaffolds CoSimulation and FSI projects (`create_cosim_project`, `create_fsi_project`) and launches MPI runs (`run_simulation` with `mpi_ranks` and `omp_threads`, with per-rank logs and whole-process-group cancel). Ask the assistant for any of these; the tools that write files ask for approval like the others. KKSS's own manual runner and guided queue still have no MPI contract, which is why Home reports MPI as unavailable and offers no rank controls.
+
 This panel covers `kratos__run_simulation` jobs. Runs started from the mesh Problemtype UI or `mesh__case_run` keep their existing run controls, including **File ▸ Stop Kratos Run**. Progress and recovered completion states come from the Kratos server; a percentage is not estimated when the server supplies only step/time.
 
 ## Text editor
@@ -297,14 +324,15 @@ The **Edit** toolbar button opens the file currently loaded in the active mode (
 |---|---|
 | **Appearance** | **UI Theme**: Follow system / Dark / Light / High contrast (dark) / High contrast (light). It applies immediately to the whole app, both viewers' panels and both 3D scenes. The mesh scene follows it while its **3D Scene Theme** is *Auto*; Dark / Light / Scientific pin the scene instead. The same row also covers UI font family and size, and the interface scale. |
 | **General** | Project folder, **Restore Last Session**, whether What's New is shown after an update, and the update channel (stable, or including prereleases). |
-| **CAD Viewer** | The `cadPreview.*` defaults for newly opened models: background colour, up axis, grid and axes on open, default mesh size, B-rep tessellation quality, and the OpenSCAD binary, backend and library folders. A per-document sidecar value or a runtime toggle wins once set. |
-| **Mesh Viewer** | Large-mesh summary threshold, the **3D Renderer** (vtk.js, or the experimental VTK-wasm backend), and where the Flowgraph editor opens (below or beside the 3D view). |
-| **Kratos** | The Python interpreter, the compiled Kratos install and the extra environment variables used when a problemtype case is **Run**. A folder that does not look like a Kratos install is flagged. The same row holds the problemtype folders scanned under the project folder and whether solvers are stopped when KKSS quits. The install path and environment also reach the assistant's Kratos tools; **Restart with current environment** applies a change without restarting KKSS. |
+| **CAD Viewer** | The `cadPreview.*` defaults for newly opened models: background colour, up axis, grid and axes on open, default mesh size, B-rep tessellation quality, the **Kernel Job Timeout** (how long one CAD kernel job may run before its worker is restarted), and the OpenSCAD fallback binary, backend and library folders. A per-document sidecar value or a runtime toggle wins once set. |
+| **Mesh Viewer** | Large-mesh summary threshold, the **Timeline Frame Cache** (memory for recently viewed time-series frames), the **3D Renderer** (vtk.js, or the experimental VTK-wasm backend), the **Plot Extraction Cache** (a bounded on-disk cache so plots reopen after a restart without re-extracting), **Mesh Export Provenance**, and where the Flowgraph editor opens (below or beside the 3D view). |
+| **Kratos** | The Python interpreter, the compiled Kratos install and the extra environment variables used when a problemtype case is **Run**. A folder that does not look like a Kratos install is flagged. The same category holds **Solver Threads** (`0` = Auto), **Isolate Runs** and the **Runs Folder** for per-run workspaces, the problemtype, material-library and batch-recipe folders scanned under the project folder, whether solvers are stopped when KKSS quits, and a **Check simulation environment** action that reports on Home. The install path and environment also reach the assistant's Kratos tools; **Restart with current environment** applies a change without restarting KKSS. |
 | **Text Editor** | Font size and family, tab size, word wrap, line numbers. All apply immediately. |
 | **Terminal** | Shell (applies to the next session), font size and family, scrollback, cursor style and blink. |
-| **LLM Assistant** | Provider, **Tool Approval**, **MCP Servers** (opens the sidebar's manager for your own tool servers), **Standing Instructions & Skills** and the folder holding them, API keys, models, the OpenAI-compatible base URL, and the Codex / Claude Code model and executable. Keys are write-only: the page shows whether one is stored, never the key itself. |
+| **LLM Assistant** | Provider, **Tool Approval**, **MCP Servers** (opens the sidebar's manager for your own tool servers), **Standing Instructions & Skills** and the folder holding them, **Lifecycle Hooks**, API keys, models, the OpenAI-compatible base URL, the Codex / Claude Code model and executable, and the optional context-window and price rows for models KKSS has no reviewed figures for. Keys are write-only: the page shows whether one is stored, never the key itself. |
 | **MCP Server** | Enable the localhost endpoint, its port, which tools a client may call, and copying or regenerating the token (see *AI assistant ▸ Use your own MCP client* above). |
 | **Cloud Accounts** | Per provider: client ID, client secret, and connect / disconnect. Also the cache size limit, and clearing the cache. |
+| **Advanced** | **Flowgraph Asset Override** — development only: serve a local Flowgraph checkout instead of the bundled one. Normally empty. |
 
 The **Settings** menu keeps quick radios for **UI Theme**, **3D Scene Theme** and **Terminal Shell**, plus the checkboxes and actions it always had. **View** carries the Post-Processing **3D Renderer** beside the other viewer toggles, enabled only in that mode. Every menu entry and its row on the page stay in sync both ways. Three VS Code-only extension settings have no row, because KKSS never reaches the code that reads them: `kratos.showWhatsNew`, `kratos.preview.autoSave` and `kratos.run.launchMode`.
 
@@ -345,12 +373,18 @@ Opening a very large mesh can freeze a viewer for a while — that is normal, an
 | `Ctrl+1` / `Ctrl+2` | Switch to Pre-Processing / Post-Processing |
 | ``Ctrl+` `` | Toggle the embedded terminal |
 | `Ctrl+Shift+L` | Toggle the AI chat sidebar |
+| `Ctrl+,` | Open the Settings page |
+| `Ctrl +` / `Ctrl -` / `Ctrl+Shift+0` | Interface scale: step up, step down, reset to 100 % (**View ▸ Zoom In / Zoom Out / Reset Zoom**) |
+| `F6` / `Shift+F6` | Move focus forward / backward through the visible regions |
+| `Ctrl+Shift+I` | Toggle the developer tools of the current view (**View ▸ Toggle Developer Tools**) |
 
 On macOS use `Cmd` instead of `Ctrl`.
 
 Inside the mesh view, `1`–`6` snap the camera to ±X/±Y/±Z and `i` to an isometric view.
 
-**File ▸ Export Data Table…**, **File ▸ Stop Kratos Run**, and **File ▸ Pack Time Series Into One File…** are also in the native menu: the mesh viewer contributes the first two to its own File strip (which KKSS hides in favour of the native menu bar), and the third is reachable upstream only from the Command Palette and the Kratos Runs tree — neither of which KKSS runs.
+**File ▸ Export Data Table…**, **File ▸ Stop Kratos Run**, **File ▸ Pack Time Series Into One File…** and **File ▸ Convert Results to Other Formats…** are also in the native menu: the mesh viewer contributes the first two to its own File strip (which KKSS hides in favour of the native menu bar), and the last two are reachable upstream only from the Command Palette and the Kratos Runs tree — neither of which KKSS runs. **Convert Results** turns a finished run's VTK frames into other formats (`.xdmf`, `.pvd`, `.exo`, `.msh`, `.med`) and asks which ones in a checklist (Space or a click toggles, Enter confirms, Esc cancels); a case whose Problemtype form lists formats under **Output ▸ also export as** converts them automatically when the run finishes.
+
+**View** also carries **Reset Camera** and **Toggle Node IDs** for the focused Post-Processing tab, **Toggle Jobs**, and the Post-Processing **3D Renderer** radio.
 
 A mesh tab with unsaved operations shows a dot in the tab strip; closing it, or quitting with one open, prompts Save / Don't Save / Cancel.
 

@@ -330,6 +330,19 @@ describe("tool-call approval decisions", () => {
     expect(Object.keys(parsed!)).toEqual(["kind", "callId", "server", "tool", "argsJson"]);
   });
 
+  it("round-trips a lifecycle-hook annotation, and drops a malformed one without losing the call", () => {
+    expect(parseCall({ hook: { name: "gate", decision: "denied", reason: "no" } })).toMatchObject({ callId: "t1", hook: { name: "gate", decision: "denied", reason: "no" } });
+    expect(parseCall({ hook: { name: "gate", decision: "ask" } })).toMatchObject({ hook: { name: "gate", decision: "ask" } });
+    expect(parseCall({ hook: { name: "gate", decision: "ask" } })!).not.toHaveProperty("hook.reason");
+    for (const hook of ["x", 3, null, {}, { name: "g" }, { name: "g", decision: "allowed" }, { decision: "denied" }]) {
+      const parsed = parseCall({ hook });
+      expect(parsed).toMatchObject({ kind: "toolCall", callId: "t1" });
+      expect(parsed).not.toHaveProperty("hook");
+    }
+    // Both annotations together, as a hook-forced prompt the user then denied.
+    expect(parseCall({ approval: "denied", hook: { name: "g", decision: "ask" } })).toMatchObject({ approval: "denied", hook: { name: "g", decision: "ask" } });
+  });
+
   it("still stores at version 1 — a bump would discard every conversation", () => {
     // Asserted so bumping it is a deliberate act with this test in the diff,
     // not a reflex the next time the entry shape changes.

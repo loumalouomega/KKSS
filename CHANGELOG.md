@@ -5,6 +5,12 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.23.0] - 2026-10-24
+
+- feat: **lifecycle hooks for the assistant.** A `hooks.json` in your assistant folder (and in a trusted project folder's `.kkss/assistant/`) runs your own commands at four points: `PreToolUse` (before a tool call is approved), `PostToolUse` (after it returned), `UserPromptSubmit` (before a message is sent) and `TurnEnd`. A `PreToolUse` hook can **deny** a call (exit 2, stderr is the reason) or **force a prompt** (exit 3) — it can never approve one, so exit 0 on a write tool still asks. `PreToolUse` fails closed: a timeout, a crash or any other exit code denies the call. `UserPromptSubmit` can refuse a message and hands the draft back. A denial shows on the tool call, appends the `ok:false` result the gate already requires, and tells the model the block is final; a `PostToolUse` hook can opt in to adding labelled output to the result the model reads. Hooks run without a shell, with a minimal environment (never KKSS's own), a timeout of 10 s by default, and are killed by Stop, New chat, a conversation switch and quit. They guard the Codex and Claude Code runtimes through the same gate, and the external MCP endpoint runs `PreToolUse`/`PostToolUse` too (where an *ask* becomes a refusal, since nobody can answer). The panel lists what is loaded with parse errors; **Settings ▸ LLM Assistant ▸ Lifecycle Hooks** turns the feature off. See [Assistant extensions](doc/guide/assistant-extensions.md#lifecycle-hooks).
+- docs: **documentation catch-up.** `configuration.md` gains the General, CAD Viewer, Mesh Viewer, Text editor, Terminal, External MCP endpoint and Advanced settings, the custom context-window and price rows, the cloud cache controls and the multi-file command line; `getting-started.md` gains the Help menu, the missing View items and shortcuts, a table of every Home action with its `app__*` tool, and the Kratos 0.9.0 capability families; `cad-mode.md` documents the Printability panel, the display-only scene formats, reference/clearance/`unifySameDomain` tools, drawing-sheet templates, `sizeField` and the B-rep save journal; `mesh-mode.md`, `problemtypes.md` and `scientific-plots.md` document Convert Results, selective field reads, partitioning, the plot presets, Plot distribution and Show on mesh. Stale claims are corrected (the two-fluid dam break is solved, 82 + 55 + 110 tool counts, the Electron/TypeScript badges, Node 20, twenty built-in problemtypes, and the CAD viewer no longer claims a source watcher it does not have).
+- chore: the roadmap's assistant-extensibility tier is complete and removed; Kraty is now item 10 in the presentation tier.
+
 ## [2.22.0] - 2026-10-23
 
 - feat: **display-only USD, VRML and FBX imports.** CAD mode opens `.usd`, `.usda`, `.usdc`, `.usdz`, `.wrl`, and `.fbx` through the same display-only three.js pipeline as 3MF, Collada, and AMF. Host operations that need source triangles continue to refuse these formats by name.
@@ -356,6 +362,9 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.23.0]: https://github.com/loumalouomega/KKSS/compare/v2.22.0...v2.23.0
+[2.22.0]: https://github.com/loumalouomega/KKSS/compare/v2.21.0...v2.22.0
+[2.21.0]: https://github.com/loumalouomega/KKSS/compare/v2.20.1...v2.21.0
 [2.20.1]: https://github.com/loumalouomega/KKSS/compare/v2.20.0...v2.20.1
 [2.20.0]: https://github.com/loumalouomega/KKSS/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/loumalouomega/KKSS/compare/v2.18.0...v2.19.0

@@ -632,6 +632,10 @@ if (!meshOnly) {
     stdio: "inherit", env: { ...process.env, KKSS_DEFS_SHOT: path.join(OUT, "chat-assistant-defs.png") },
   });
   if (defsShot.status !== 0) throw new Error("chat assistant definitions capture failed");
+  const hooksShot = spawnSync(process.execPath, [path.join(root, "tools/e2e/chat-hooks.mjs")], {
+    stdio: "inherit", env: { ...process.env, KKSS_HOOKS_SHOT: path.join(OUT, "chat-hooks.png"), KKSS_HOOKS_PROMPT_SHOT: path.join(OUT, "chat-hooks-prompt.png") },
+  });
+  if (hooksShot.status !== 0) throw new Error("chat lifecycle hooks capture failed");
   // These captures use the real CAD/mesh app, the configured manual Python
   // interpreter and actual solver-produced tutorial results. The companion uses
   // a local OpenAI-compatible fixture but routes every tool call through KKSS.

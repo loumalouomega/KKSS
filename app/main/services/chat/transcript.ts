@@ -16,7 +16,7 @@
  * of the *request* — so the transcript the model reads and the one the user
  * reads can now legitimately differ. Neither touches the stored conversation.
  */
-import type { ChatAttachment, ChatErrorKind, ChatToolApproval, ChatWireEntry } from "../../ipc";
+import type { ChatAttachment, ChatErrorKind, ChatToolApproval, ChatToolHook, ChatWireEntry } from "../../ipc";
 
 export type ChatEntry =
   | { kind: "user"; text: string; attachments?: ChatAttachment[]; attachmentsEvicted?: number }
@@ -31,6 +31,7 @@ export type ChatEntry =
       tool: string;
       argsJson: string;
       approval?: ChatToolApproval;
+      hook?: ChatToolHook;
     }
   | { kind: "toolResult"; callId: string; ok: boolean; text: string }
   | { kind: "error"; message: string; errorKind: ChatErrorKind };

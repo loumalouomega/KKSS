@@ -2018,3 +2018,277 @@ describe("standing instructions, skills and prompt templates", () => {
     expect(a.provider.requests[0].system).toContain("app__skill_load");
   });
 });
+
+describe("lifecycle hooks", () => {
+  const READ = { id: "t1", name: "cad__inspect", argsJson: '{"path":"/a.step"}' };
+  const WRITE = { id: "t1", name: "mesh__mesh_transform", argsJson: '{"path":"/a.mdpa"}' };
+  type HookCall = { event: string; ctx: any; signal?: AbortSignal };
+
+  /** A stand-in for HookEngine: `script` decides each event, `calls` records them. */
+  function fakeHooks(script: (event: string, ctx: any, signal?: AbortSignal) => any = () => ({ verdict: "none", notes: [] }), events: string[] = ["PreToolUse", "PostToolUse", "UserPromptSubmit", "TurnEnd"]) {
+    const calls: HookCall[] = [];
+    return {
+      calls,
+      killAll: vi.fn(),
+      has: (event: string) => events.includes(event),
+      run: vi.fn(async (event: string, ctx: any, signal?: AbortSignal) => {
+        calls.push({ event, ctx, signal });
+        return script(event, ctx, signal);
+      }),
+      summary: () => ({ enabled: true, hooks: [{ name: "gate", event: "PreToolUse", source: "user", command: "node gate.js" }], errors: [] }),
+      onChange: () => undefined,
+    };
+  }
+  const NONE = { verdict: "none", notes: [] };
+  const deny = (reason = "not in the study folder") => ({ verdict: "deny", hook: "gate", reason, notes: [] });
+  const ask = (reason?: string) => ({ verdict: "ask", hook: "gate", ...(reason ? { reason } : {}), notes: [] });
+  const requests = (messages: ChatToWebview[]) => messages.filter((m): m is Extract<ChatToWebview, { type: "approvalRequest" }> => m.type === "approvalRequest");
+
+  async function toTool(hooks: ReturnType<typeof fakeHooks>, tool: ToolReq) {
+    const h = makeService(undefined, { hooks });
+    h.post({ type: "chatReady" });
+    await send(h.post, "go");
+    h.provider.finish("working", tool);
+    await settle(6);
+    return h;
+  }
+
+  it("a PreToolUse deny stops a call that needed no approval, and the model is told it is final", async () => {
+    const hooks = fakeHooks((event) => (event === "PreToolUse" ? deny() : NONE));
+    const { service, mcp, provider, messages } = await toTool(hooks, READ);
+    expect(mcp.calls).toEqual([]);
+    expect(requests(messages)).toHaveLength(0);
+    expect(messages.find((m) => m.type === "hookNote")).toMatchObject({ callId: "t1", hook: { name: "gate", decision: "denied", reason: "not in the study folder" } });
+    service.flushSync();
+    const entries = stored(lastState(messages).conversationId)!.entries;
+    expect(entries.find((e) => e.kind === "toolCall")).toMatchObject({ hook: { name: "gate", decision: "denied" } });
+    // A denial still produces the result transcript.ts needs, or the call would vanish and be re-emitted.
+    const result = entries.find((e) => e.kind === "toolResult") as { ok: boolean; text: string };
+    expect(result.ok).toBe(false);
+    expect(result.text).toMatch(/Blocked by the user's hook "gate": not in the study folder/);
+    expect(result.text).toMatch(/Do not retry/);
+    provider.finish("understood");
+    await settle();
+    expect(JSON.stringify(provider.lastEntries)).toContain("Blocked by the user's hook");
+  });
+
+  it("is told the tool, its parsed arguments, the conversation and the open files", async () => {
+    const hooks = fakeHooks();
+    const h = makeService(() => ({ cad: ["/a.step"], mesh: [], activeCad: "/a.step", projectRoot: "/proj" }), { hooks });
+    h.post({ type: "chatReady" });
+    await send(h.post, "go");
+    h.provider.finish("working", READ);
+    await settle(6);
+    const pre = hooks.calls.find((c) => c.event === "PreToolUse")!;
+    expect(pre.ctx).toMatchObject({
+      source: "chat", tool: "cad__inspect", callId: "t1", args: { path: "/a.step" },
+      files: { projectRoot: "/proj", cad: ["/a.step"], activeCad: "/a.step" },
+    });
+    expect(pre.ctx.conversationId).toEqual(expect.any(String));
+    h.service.flushSync();
+  });
+
+  it("no opinion never approves: a write tool still asks", async () => {
+    const hooks = fakeHooks();
+    const { mcp, messages } = await toTool(hooks, WRITE);
+    expect(requests(messages)).toHaveLength(1);
+    expect(requests(messages)[0].pending).toMatchObject({ access: "write" });
+    expect(requests(messages)[0].pending.hook).toBeUndefined();
+    expect(mcp.calls).toEqual([]);
+  });
+
+  it("a hook can make a read tool ask, and the prompt says why", async () => {
+    const hooks = fakeHooks((event) => (event === "PreToolUse" ? ask("confirm the path") : NONE));
+    const { mcp, messages, post, service } = await toTool(hooks, READ);
+    const asked = requests(messages);
+    expect(asked).toHaveLength(1);
+    expect(asked[0].pending).toMatchObject({ access: "hook", hook: { name: "gate", reason: "confirm the path" } });
+    expect(mcp.calls).toEqual([]);
+    expect(messages.find((m) => m.type === "hookNote")).toMatchObject({ hook: { decision: "ask" } });
+    post({ type: "approveTool", callId: "t1", decision: "allow" });
+    await settle();
+    expect(mcp.calls).toEqual(["cad__inspect"]);
+    service.flushSync();
+  });
+
+  it("an always-allow grant does not silence a hook that asks", async () => {
+    const hooks = fakeHooks((event) => (event === "PreToolUse" ? ask() : NONE));
+    const { mcp, provider, messages, post } = await toTool(hooks, READ);
+    post({ type: "approveTool", callId: "t1", decision: "allowAlways" });
+    await settle();
+    mcp.finish("done");
+    await settle();
+    provider.finish("again", { ...READ, id: "t2" });
+    await settle(6);
+    expect(requests(messages)).toHaveLength(2);
+    expect(mcp.calls).toEqual(["cad__inspect"]);
+  });
+
+  it("a denied-by-user call after a hook ask is still reported as denied", async () => {
+    const hooks = fakeHooks((event) => (event === "PreToolUse" ? ask() : NONE));
+    const { mcp, post } = await toTool(hooks, READ);
+    post({ type: "approveTool", callId: "t1", decision: "deny" });
+    await settle();
+    expect(mcp.calls).toEqual([]);
+  });
+
+  it("PostToolUse sees the result, and an opted-in note is labelled and reaches the model", async () => {
+    const hooks = fakeHooks((event) => (event === "PostToolUse" ? { verdict: "none", notes: [{ hook: "audit", text: "logged" }] } : NONE));
+    const { service, mcp, provider, messages } = await toTool(hooks, READ);
+    mcp.finish("2 layers");
+    await settle(6);
+    const post = hooks.calls.find((c) => c.event === "PostToolUse")!;
+    expect(post.ctx).toMatchObject({ tool: "cad__inspect", result: { ok: true, text: "2 layers" } });
+    service.flushSync();
+    const result = stored(lastState(messages).conversationId)!.entries.find((e) => e.kind === "toolResult") as { text: string };
+    expect(result.text).toBe("2 layers\n\n[Hook output: audit]\nlogged");
+    expect(JSON.stringify(provider.lastEntries)).toContain("[Hook output: audit]");
+  });
+
+  it("a hook runs for a subscription runtime's tool call too", async () => {
+    stateValues.llmProvider = "codex";
+    const hooks = fakeHooks((event) => (event === "PreToolUse" ? deny("policy") : NONE));
+    const h = makeService(undefined, { hooks });
+    let received: any;
+    (h.service as any).deps.agent = () => ({ run: async (options: any) => {
+      received = await options.executeTool({ id: "sub-1", name: "cad__inspect", argsJson: "{}" });
+    } });
+    h.post({ type: "send", text: "inspect" });
+    await settle(8);
+    expect(received).toMatchObject({ ok: false });
+    expect(received.text).toMatch(/Blocked by the user's hook "gate": policy/);
+    expect(h.mcp.calls).toEqual([]);
+    h.service.flushSync(); h.service.dispose();
+  });
+
+  it("stopping a turn that is inside a PreToolUse hook unwinds it", async () => {
+    let seen: AbortSignal | undefined;
+    const hooks = fakeHooks((event, _ctx, signal) => {
+      if (event !== "PreToolUse") return NONE;
+      seen = signal;
+      return new Promise((_resolve, reject) => signal!.addEventListener("abort", () => reject(signal!.reason)));
+    });
+    const { post, messages, mcp } = await toTool(hooks, READ);
+    post({ type: "stop" });
+    await settle(8);
+    expect(seen?.aborted).toBe(true);
+    expect(mcp.calls).toEqual([]);
+    expect(messages.filter((m) => m.type === "busy").pop()).toMatchObject({ busy: false });
+  });
+
+  it("flushSync and dispose stop every hook child", async () => {
+    const hooks = fakeHooks();
+    const { service } = makeService(undefined, { hooks });
+    service.flushSync();
+    expect(hooks.killAll).toHaveBeenCalledTimes(1);
+    service.dispose();
+    expect(hooks.killAll).toHaveBeenCalledTimes(2);
+  });
+
+  describe("UserPromptSubmit", () => {
+    it("a refusal hands the draft back, appends nothing and never reaches the model", async () => {
+      const hooks = fakeHooks((event) => (event === "UserPromptSubmit" ? deny("no secrets in prompts") : NONE));
+      const { service, provider, messages, post } = makeService(undefined, { hooks });
+      post({ type: "chatReady" });
+      post({ type: "send", text: "my password is hunter2" });
+      await settle(6);
+      expect(provider.turns).toBe(0);
+      expect(messages.find((m) => m.type === "sendRefused")).toMatchObject({ reason: "hook", text: "my password is hunter2", detail: "gate: no secrets in prompts" });
+      expect(messages.some((m) => m.type === "entry")).toBe(false);
+      // The sidebar shows the message as in flight while the hook runs, and idle again after the refusal.
+      const busy = messages.filter((m) => m.type === "busy");
+      expect(busy[0]).toMatchObject({ busy: true });
+      expect(busy[busy.length - 1]).toMatchObject({ busy: false });
+      // Not stuck: the next message goes through once the hook stops objecting.
+      hooks.run.mockImplementation(async () => NONE);
+      post({ type: "send", text: "hello" });
+      await settle(6);
+      expect(provider.turns).toBe(1);
+      provider.finish("hi");
+      await settle();
+      service.flushSync();
+    });
+
+    it("hooks see the expanded message, and a second send during the hook is ignored", async () => {
+      let release!: () => void;
+      const hooks = fakeHooks((event) => (event === "UserPromptSubmit" ? new Promise((resolve) => { release = () => resolve(NONE); }) : NONE));
+      const { service, provider, post } = makeService(undefined, { hooks });
+      post({ type: "send", text: "first" });
+      await settle(4);
+      post({ type: "send", text: "second" });
+      await settle(4);
+      release();
+      await settle(6);
+      expect(provider.turns).toBe(1);
+      expect(hooks.calls.filter((c) => c.event === "UserPromptSubmit").map((c) => c.ctx.message)).toEqual(["first"]);
+      provider.finish("ok");
+      await settle();
+      service.flushSync();
+    });
+
+    it("Stop during the hook cancels it and gives the draft back", async () => {
+      const hooks = fakeHooks((event, _ctx, signal) => (event === "UserPromptSubmit"
+        ? new Promise((_resolve, reject) => signal!.addEventListener("abort", () => reject(signal!.reason)))
+        : NONE));
+      const { service, provider, messages, post } = makeService(undefined, { hooks });
+      post({ type: "send", text: "slow one" });
+      await settle(4);
+      post({ type: "stop" });
+      await settle(8);
+      expect(provider.turns).toBe(0);
+      expect(messages.find((m) => m.type === "sendRefused")).toMatchObject({ reason: "hook", text: "slow one", detail: "cancelled" });
+      service.flushSync();
+    });
+  });
+
+  describe("TurnEnd", () => {
+    it("observes a finished turn without being awaited", async () => {
+      let started = false;
+      const hooks = fakeHooks((event) => {
+        if (event === "TurnEnd") { started = true; return new Promise(() => undefined); }
+        return NONE;
+      });
+      const { service, provider, messages, post } = makeService(undefined, { hooks });
+      post({ type: "send", text: "hello" });
+      await settle(4);
+      provider.finish("hi");
+      await settle(6);
+      expect(started).toBe(true);
+      expect(hooks.calls.find((c) => c.event === "TurnEnd")!.ctx.outcome).toBe("done");
+      // A never-finishing observer must not keep the turn busy.
+      expect(messages.filter((m) => m.type === "busy").pop()).toMatchObject({ busy: false });
+      service.flushSync();
+    });
+
+    it("reports a stopped turn as stopped", async () => {
+      const hooks = fakeHooks();
+      const { service, provider, post } = makeService(undefined, { hooks });
+      post({ type: "send", text: "hello" });
+      await settle(4);
+      expect(provider.waiting).toBe(true);
+      post({ type: "stop" });
+      await settle(8);
+      expect(hooks.calls.find((c) => c.event === "TurnEnd")!.ctx.outcome).toBe("stopped");
+      service.flushSync();
+    });
+  });
+
+  it("the system prompt tells the model what a hook block means, and is unchanged by having hooks", async () => {
+    const a = makeService(undefined, { hooks: fakeHooks() });
+    a.post({ type: "send", text: "hi" });
+    await settle(6);
+    const b = makeService();
+    b.post({ type: "send", text: "hi" });
+    await settle(6);
+    expect(a.provider.requests[0].system).toBe(b.provider.requests[0].system);
+    expect(a.provider.requests[0].system).toMatch(/blocked by the user's hook/);
+  });
+
+  it("sends the hook list to the extensions panel", async () => {
+    const { messages, post } = makeService(undefined, { hooks: fakeHooks() });
+    post({ type: "mcpRefresh" });
+    await settle(4);
+    const defs = messages.filter((m) => m.type === "assistantDefs").pop() as any;
+    expect(defs.defs).toMatchObject({ hooksEnabled: true, hooks: [{ name: "gate", event: "PreToolUse" }], hookErrors: [] });
+  });
+});

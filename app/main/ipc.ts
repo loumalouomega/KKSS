@@ -105,6 +105,15 @@ export interface ChatServerStatus {
  *  approval turned off) — which is also every entry stored before this shipped. */
 export type ChatToolApproval = "allowed" | "denied";
 
+/** What a lifecycle hook did to a tool call (hooks.ts). Optional on the entry,
+ *  like `approval`, so storing it needs no `CHAT_STORE_VERSION` bump. A hook
+ *  can only refuse a call or make it ask — there is no "approved by a hook". */
+export interface ChatToolHook {
+  name: string;
+  decision: "denied" | "ask";
+  reason?: string;
+}
+
 /**
  * A tool call blocked on the user right now.
  *
@@ -119,7 +128,9 @@ export interface ChatPendingApproval {
   tool: string;
   argsJson: string;
   /** Why it is being asked — drives the prompt's explanation line. */
-  access: "write" | "unknown";
+  access: "write" | "unknown" | "hook";
+  /** A lifecycle hook forced this prompt (it can ask, never approve). */
+  hook?: { name: string; reason?: string };
   /** The tool declares a dry-run parameter, so the prompt offers Validate.
    *  Computed by the main process: the renderer must not carry toolPolicy's
    *  table, and a client-side guess would offer a button that cannot work. */
@@ -227,6 +238,7 @@ export type ChatWireEntry =
       tool: string;
       argsJson: string;
       approval?: ChatToolApproval;
+      hook?: ChatToolHook;
     }
   | { kind: "toolResult"; callId: string; ok: boolean; preview: string }
   | { kind: "error"; message: string; errorKind: ChatErrorKind };
@@ -282,9 +294,22 @@ export type ChatMcpMark = "read" | "write" | "unknown";
 
 /** What the manager shows about the user's standing instructions, skills and
  *  prompt templates (text-only definitions — see assistantDefs.ts). */
+export interface ChatHookInfo {
+  name: string;
+  event: "PreToolUse" | "PostToolUse" | "UserPromptSubmit" | "TurnEnd";
+  source: "user" | "project";
+  match?: string;
+  /** The command and its arguments, joined for display only. */
+  command: string;
+}
+
 export interface ChatAssistantDefs {
   /** Settings ▸ LLM Assistant: when off, nothing below is sent or expanded. */
   enabled: boolean;
+  /** Lifecycle hooks (hooks.json). Off in Settings ⇒ none run and none are listed. */
+  hooksEnabled: boolean;
+  hooks: ChatHookInfo[];
+  hookErrors: string[];
   instructions: Array<{ source: "user" | "project"; chars: number; truncated: boolean }>;
   skills: Array<{ name: string; source: "user" | "project"; description: string }>;
   templates: Array<{ name: string; source: "user" | "project"; preview: string }>;
@@ -415,6 +440,8 @@ export type ChatToWebview =
   | { type: "composer"; composer: ChatComposerState }
   | { type: "approvalRequest"; pending: ChatPendingApproval }
   | { type: "approvalResolved"; callId: string; approval: ChatToolApproval }
+  /** A lifecycle hook refused the call or forced its prompt (painted on the chip). */
+  | { type: "hookNote"; callId: string; hook: ChatToolHook }
   /** Images from a tool result, sent right after its entry (and replayed after
    *  `state`) rather than carried on the entry itself — see ChatImage.
    *  `live` marks a result that has just arrived, which the sidebar expands;
@@ -426,7 +453,7 @@ export type ChatToWebview =
   | { type: "userImages"; images: Array<{ id: string; mimeType: string; dataBase64: string }> }
   /** A send main refused before appending anything. The renderer clears its
    *  draft on submit, so this hands the text and the reason back. */
-  | { type: "sendRefused"; reason: ChatAttachmentRefusal | "invalid"; text: string; detail?: string }
+  | { type: "sendRefused"; reason: ChatAttachmentRefusal | "invalid" | "hook"; text: string; detail?: string }
   | { type: "dryRunResult"; callId: string; ok: boolean; text: string }
   /** Pushed after each model turn; `state` carries the same figures for replay. */
   | { type: "usage"; usage: ChatUsage }

@@ -37,6 +37,8 @@ import { JobsService } from "./services/jobs";
 import { McpHub } from "./services/chat/mcpHub";
 import { UserServerStore } from "./services/chat/userServerStore";
 import { AssistantDefsStore } from "./services/chat/assistantDefsStore";
+import { HookEngine } from "./services/chat/hooksStore";
+import { getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { WorkflowService } from "./services/workflows/service";
 import { manualLaunchAvailability, resolveThreads } from "./services/workflows/environment";
 import { registerAppTools, callAppTool } from "./services/chat/appTools";
@@ -169,6 +171,7 @@ let chat: ChatService | null = null;
 let mcpHub: McpHub | null = null;
 let userServers: UserServerStore | null = null;
 let assistantDefs: AssistantDefsStore | null = null;
+let hookEngine: HookEngine | null = null;
 let jobs: JobsService | null = null;
 let workflows: WorkflowService | undefined;
 let metaServer: MetaMcpServer | null = null;
@@ -1503,6 +1506,20 @@ app.whenReady().then(() => {
     onProjectChange: (listener) => userServers?.onChange(listener),
   });
   registerAppTools([...workflows.tools(), ...assistantDefs.tools()]);
+  // Lifecycle hooks: commands the user (or a trusted project folder) runs around
+  // tool calls and turns. One engine shared by the sidebar and the HTTP endpoint,
+  // so its children are tracked — and killed at quit — in one place.
+  hookEngine = new HookEngine({
+    userDir: path.join(app.getPath("userData"), "assistant"),
+    enabled: () => stateStore.get<boolean>("llmHooks", true) !== false,
+    trustedProjectFiles: () => userServers?.trustedProjectFiles() ?? {},
+    onProjectChange: (listener) => userServers?.onChange(listener),
+    projectRoot: () => projectRoot.explicit(),
+    // The SDK's minimal environment, not process.env: a project file must not
+    // be able to read the host's variables by running a command.
+    baseEnv: () => getDefaultEnvironment(),
+    log: (message) => console.warn("[hooks]", message),
+  });
   jobs = new JobsService({
     hub: mcpHub,
     hide: () => { if (main?.jobsVisible()) toggleJobs(); },
@@ -1528,6 +1545,7 @@ app.whenReady().then(() => {
     version: app.getVersion(),
     port: metaServerPort,
     token: () => getSecret(META_SERVER_KEYS.token),
+    hooks: hookEngine ?? undefined,
     access: () => ({
       access: readMetaAccess(stateStore.get(META_SERVER_KEYS.access)),
       allowedWrites: normalizeAllowedWrites(stateStore.get(META_SERVER_KEYS.allowedWrites)),
@@ -1545,6 +1563,7 @@ app.whenReady().then(() => {
     userServers,
     assistantDefs: assistantDefs ?? undefined,
     openAssistantDir,
+    hooks: hookEngine ?? undefined,
     chatsDir: path.join(app.getPath("userData"), "chats"),
     projectRoot: () => projectRoot.explicit(),
     currentFiles: () => ({
@@ -1661,6 +1680,7 @@ app.whenReady().then(() => {
   stateStore.onDidChange((key) => {
     if (settingKeys.has(key)) installMenu(menuDeps);
     if (key === "llmAssistantDefs") assistantDefs?.emit();
+    if (key === "llmHooks") hookEngine?.emit();
     if (key === META_SERVER_KEYS.access || key === META_SERVER_KEYS.allowedWrites) metaServer?.refreshTools();
     if (["kratos.pythonPath", "kratos.installPath", "kratos.extraEnv", "kratos.threads"].includes(key)) runs?.requestCapabilityRefresh();
     // The renderer is read when a preview's PAGE loads, so a change cannot
@@ -1984,6 +2004,8 @@ app.on("will-quit", () => {
   // depends on nor blocks the stateStore flush — but it must run while the
   // transcript is still coherent, i.e. before the MCP teardown below.
   chat?.flushSync();
+  // Also covers the HTTP endpoint's hooks, which ChatService.flushSync does not own.
+  hookEngine?.killAll();
   // The staging manifest is its own JsonStore file, so like the transcripts
   // this neither depends on nor blocks the stateStore flush.
   cloud?.flushSync();

@@ -20,6 +20,7 @@ import type {
   ChatPendingApproval,
   ChatServerStatus,
   ChatToHost,
+  ChatToolHook,
   ChatToWebview,
   ChatWireEntry,
 } from "../../main/ipc";
@@ -341,6 +342,7 @@ function addToolChip(entry: Extract<ChatWireEntry, { kind: "toolCall" }>): void 
   // Replay of a call that was already decided: one dim line, no buttons. A
   // denied call must read as denied rather than as a tool that failed, or the
   // transcript looks like the app broke.
+  if (entry.hook) paintHook(details, entry.hook);
   if (entry.approval) {
     if (entry.approval === "denied") setToolStatus(details, "denied", "⊘");
     details.appendChild(decidedRow(entry.approval === "denied" ? t("Denied by you.") : t("Approved by you.")));
@@ -348,6 +350,16 @@ function addToolChip(entry: Extract<ChatWireEntry, { kind: "toolCall" }>): void 
 
   messages.appendChild(details);
   scrollDown();
+}
+
+/** A lifecycle hook refused the call or made it ask: one dim line on the chip,
+ *  and a refused call reads as denied rather than as a tool that failed. */
+function paintHook(chip: HTMLDetailsElement, hook: ChatToolHook): void {
+  if (hook.decision === "denied") setToolStatus(chip, "denied", "⊘");
+  const text = hook.decision === "denied"
+    ? (hook.reason ? t("Blocked by your hook “{0}”: {1}", { 0: hook.name, 1: hook.reason }) : t("Blocked by your hook “{0}”.", { 0: hook.name }))
+    : (hook.reason ? t("Your hook “{0}” asked for confirmation: {1}", { 0: hook.name, 1: hook.reason }) : t("Your hook “{0}” asked for confirmation.", { 0: hook.name }));
+  chip.appendChild(decidedRow(text));
 }
 
 function setToolStatus(chip: HTMLDetailsElement, cls: string, glyph: string): void {
@@ -428,7 +440,9 @@ function showApproval(pending: ChatPendingApproval): void {
   msg.textContent =
     pending.access === "write"
       ? t("This tool can create, overwrite or delete files. Run it?")
-      : t("KKSS has no policy for this tool, so it is treated as unsafe. Run it?");
+      : pending.access === "hook"
+        ? t("One of your hooks asked for confirmation before this call. Run it?")
+        : t("KKSS has no policy for this tool, so it is treated as unsafe. Run it?");
   row.appendChild(msg);
 
   // Not a fourth decision: it re-runs the call in validate-only mode and leaves
@@ -447,11 +461,13 @@ function showApproval(pending: ChatPendingApproval): void {
 
   const choices: Array<[string, "allow" | "allowAlways" | "allowScoped" | "deny", string]> = [
     [t("Allow"), "allow", "allow"],
-    [t("Always allow in this chat"), "allowAlways", "always"],
   ];
+  // A hook that asks asks again next time, so a standing grant would only promise
+  // something it cannot deliver.
+  if (!pending.hook) choices.push([t("Always allow in this chat"), "allowAlways", "always"]);
   // Offered only when main says this call's paths are inside the explicit
   // project folder; main re-checks every later call against the same folder.
-  if (pending.scopable) choices.push([t("Always allow in project folder"), "allowScoped", "scoped"]);
+  if (pending.scopable && !pending.hook) choices.push([t("Always allow in project folder"), "allowScoped", "scoped"]);
   choices.push([t("Deny"), "deny", "deny"]);
   for (const [label, decision, cls] of choices) {
     const button = document.createElement("button");
@@ -858,8 +874,10 @@ let attach: ChatComposerState["attach"] = { image: null, pdf: null };
 const MAX_EDGE = 1568;
 const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
 
-function refusalText(reason: ChatAttachmentRefusal | "invalid", detail?: string): string {
+function refusalText(reason: ChatAttachmentRefusal | "invalid" | "hook", detail?: string): string {
   switch (reason) {
+    case "hook":
+      return t("The message was not sent: {0}", { 0: detail ?? "" });
     case "subscription":
       return t("Files can't be attached with the Codex and Claude Code subscription providers.");
     case "gatewayOptIn":
@@ -1053,7 +1071,7 @@ function submit(): void {
 }
 
 /** Main refused the send before appending anything: put the draft back. */
-function restoreDraft(text: string, reason: ChatAttachmentRefusal | "invalid", detail?: string): void {
+function restoreDraft(text: string, reason: ChatAttachmentRefusal | "invalid" | "hook", detail?: string): void {
   if (!input.value) input.value = text;
   if (lastSent) staged = lastSent.files;
   lastSent = null;
@@ -1132,6 +1150,16 @@ api.onMessage((raw) => {
     case "dryRunResult":
       showDryRunResult(msg.callId, { ok: msg.ok, text: msg.text });
       break;
+    case "hookNote": {
+      const chip = chipFor(msg.callId);
+      if (chip) {
+        paintHook(chip, msg.hook);
+        // Live only (a replay of history stays collapsed): the user should see
+        // why the call they were just watching did not run.
+        if (msg.hook.decision === "denied") chip.open = true;
+      }
+      break;
+    }
     case "approvalResolved":
       // Normally the click already settled the row; this covers a decision
       // made elsewhere, and marks a denied call as denied rather than failed.

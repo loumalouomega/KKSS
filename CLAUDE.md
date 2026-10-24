@@ -1373,8 +1373,8 @@ resubmitted automatically.
   use `redirect: "error"` and refuse a token over cleartext off the loopback; **(5)** a
   project's `.kkss/assistant/mcp.json` is untrusted until the user clicks Trust — the
   record is keyed by `projectRoot.explicit()` (never `effective()`), holds a **hash of
-  every file `assistantFiles.readAssistantTree` reads** (`mcp.json`, `instructions.md`,
-  `skills/*/SKILL.md`, `prompts/*.md`; the roadmap's hooks add theirs there), is
+  every file `assistantFiles.readAssistantTree` reads** (`mcp.json`, `hooks.json`,
+  `instructions.md`, `skills/*/SKILL.md`, `prompts/*.md`), is
   re-verified in `preflight()` before **every** spawn, and there is deliberately no
   model-reachable path to granting it; **(6)** resources and prompts of user servers are
   excluded from the `mcp__*` tools and the meta server (those are classified `read`);
@@ -1402,6 +1402,46 @@ resubmitted automatically.
   the SKILL.md header is parsed by a `key: value` reader, never a YAML engine; **(7)**
   `llmAssistantDefs` off ⇒ nothing sent, nothing expanded; the subscription runtimes get
   these only through the same context path (their own skill discovery stays off).
+- **Lifecycle hooks can deny or ask, never approve, and every one is killable.**
+  `chat/hooks.ts` (pure: schema, caps, glob, the exit-code decision table),
+  `hookRunner.ts` (one child process: JSON on stdin, exit code and capped output
+  back, detached process group killed on timeout/abort), `hooksStore.ts` (the
+  `HookEngine`: reads `hooks.json` from `<userData>/assistant` and, **only while
+  the folder is trusted**, from `.kkss/assistant`; the file is part of the trust
+  hash via `readAssistantTree`). Events: `PreToolUse` (before the gate; exit 2
+  denies, exit 3 forces a prompt), `PostToolUse` (observes; an opted-in hook's
+  stdout is appended to the result, labelled `[Hook output: name]`),
+  `UserPromptSubmit` (exit 2 refuses the message) and `TurnEnd` (observes).
+  Non-negotiable: **(1)** a hook's only outcomes are no opinion, deny and ask —
+  the force-prompt is OR-ed with `gateFor`'s answer *outside* `gateFor`, so
+  `toolPolicy.ts` and its pin are untouched and exit 0 on a write tool still
+  prompts; **(2)** `PreToolUse` fails closed (timeout, crash, missing program or
+  any exit code other than 0/2/3 denies; an unreadable user assistant folder that
+  holds a `hooks.json` denies too), the other events only log; **(3)** a denial
+  appends the `toolResult ok:false` the gate already requires, carrying the hook's
+  name and a "do not retry" text, and is recorded as an optional `hook` field on
+  the `toolCall` entry (the `approval` precedent — no `CHAT_STORE_VERSION` bump);
+  **(4)** the settle rule holds: `PreToolUse`/`PostToolUse`/`UserPromptSubmit` take
+  the turn's `AbortSignal` (so all five `settleTurn()` paths kill the child),
+  `TurnEnd` is fire-and-forget so Stop never waits on an observer, and
+  `ChatService.flushSync()`/`dispose()` call `killAll()` because `flushSync` runs
+  *before* the `will-quit` abort listener; **(5)** `run()` is synchronous up to
+  `busy = true`, so awaiting `UserPromptSubmit` needs `promptHooking` in the busy
+  guard and in `settleTurn()` (the abort controller exists before the hook runs),
+  otherwise a second send passes during the await; **(6)** hooks start with the
+  MCP SDK's minimal environment plus `KKSS_HOOK_EVENT`/`KKSS_PROJECT_ROOT`, never
+  `process.env`, and the command is run directly, not through a shell; **(7)** the
+  HTTP meta server runs `PreToolUse`/`PostToolUse` too (`MetaHooks` injected into
+  `buildMetaServer`), but has nobody to prompt, so an *ask* there is a deny; Home's
+  and Jobs' `callToolRaw` calls are user-initiated UI and fire no hooks, and a dry
+  run (`dryRunTool`) fires none either since it appends nothing and writes nothing;
+  **(8)** the vendor CLIs' own hooks stay off (`settingSources: []`,
+  `CODEX_RESTRICTIONS`) — KKSS hooks reach the subscription runtimes only through
+  `executeTool`. The system prompt gained one sentence (a result saying it was
+  blocked by the user's hook is final); **Settings ▸ LLM Assistant ▸ Lifecycle
+  Hooks** (`llmHooks`, default on) turns the engine off. Tests: `hooks.test.ts`,
+  `hookRunner.test.ts` (real children), `hooksStore.test.ts` (real files, trust,
+  processes) and the "lifecycle hooks" block of `chatService.test.ts`.
 - **Update feed is two-part — keep both halves.** The `publish:` block in
   `electron-builder.yml` makes electron-builder emit `latest*.yml` update
   metadata and embed `app-update.yml` in each package; the release workflow

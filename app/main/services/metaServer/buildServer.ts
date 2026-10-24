@@ -18,9 +18,15 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { McpHub } from "../chat/mcpHub";
 import { metaDenialText, metaToolAllowed, type MetaAccessPolicy } from "./accessPolicy";
+import { hookDenialText, withHookNotes, type HookContext, type HookEvent, type HookOutcome } from "../chat/hooks";
+
+/** The slice of `HookEngine` the endpoint needs (a test double satisfies it). */
+export interface MetaHooks {
+  run(event: HookEvent, ctx: HookContext): Promise<HookOutcome>;
+}
 
 /** `policy` is read per request, so a Settings change applies to live sessions. */
-export function buildMetaServer(hub: McpHub, version: string, policy: () => MetaAccessPolicy): Server {
+export function buildMetaServer(hub: McpHub, version: string, policy: () => MetaAccessPolicy, hooks?: MetaHooks): Server {
   const server = new Server(
     { name: "kkss", version },
     { capabilities: { tools: { listChanged: true }, resources: { listChanged: true }, prompts: { listChanged: true } } }
@@ -47,7 +53,24 @@ export function buildMetaServer(hub: McpHub, version: string, policy: () => Meta
       return { isError: true, content: [{ type: "text", text: metaDenialText(req.params.name, current.access) }] };
     }
     const mgr = hub.ensureStarted();
-    return mgr.callToolRaw(req.params.name, req.params.arguments ?? {});
+    const args = req.params.arguments ?? {};
+    if (!hooks) return mgr.callToolRaw(req.params.name, args);
+    // PreToolUse after the access setting and before the call. An external client
+    // has nobody to prompt, so a hook that would make a call ask refuses it here:
+    // "ask" can never become "allowed" on this path.
+    const base = { source: "meta" as const, conversationId: null, tool: req.params.name, args };
+    const before = await hooks.run("PreToolUse", base);
+    if (before.verdict !== "none") {
+      const reason = before.verdict === "ask" ? `${before.reason ?? "it needs the user's confirmation"} (no one to ask on this endpoint)` : before.reason;
+      return { isError: true, content: [{ type: "text", text: hookDenialText(before.hook ?? "hook", reason) }] };
+    }
+    const result = await mgr.callToolRaw(req.params.name, args);
+    const text = Array.isArray(result.content)
+      ? result.content.map((c) => (c && typeof c === "object" && "text" in c && typeof c.text === "string" ? c.text : "")).join("\n")
+      : "";
+    const after = await hooks.run("PostToolUse", { ...base, result: { ok: !result.isError, text } });
+    if (!after.notes.length || !Array.isArray(result.content)) return result;
+    return { ...result, content: [...result.content, { type: "text", text: withHookNotes("", after.notes).trim() }] };
   });
 
   server.setRequestHandler(ListResourcesRequestSchema, async () => {

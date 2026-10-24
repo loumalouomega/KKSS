@@ -6,7 +6,7 @@ Your form choices are auto-saved to `<name>.kratoscase.json` beside the mesh and
 
 ## The built-in catalog
 
-Eighteen built-ins ship with the app, grouped by family in the Problemtype dropdown. Single-physics problemtypes track [GiDInterface](https://github.com/KratosMultiphysics/GiDInterface); the coupled, reduced-order and optimization families are described in their own sections below. `structural` additionally covers eigenvalue and harmonic analyses through its solver-type field, and `rans` adds the k-epsilon, k-omega and k-omega SST wall-function models.
+Twenty built-ins ship with the app, grouped by family in the Problemtype dropdown. Single-physics problemtypes track [GiDInterface](https://github.com/KratosMultiphysics/GiDInterface); the coupled, reduced-order and optimization families are described in their own sections below. `structural` additionally covers eigenvalue and harmonic analyses through its solver-type field, and `rans` adds the k-epsilon, k-omega and k-omega SST wall-function models.
 
 | Family | Problemtype (`id`) | Kratos application(s) |
 |---|---|---|
@@ -43,6 +43,7 @@ Eleven worked cases are solver-verified end to end — [structural](tutorial-str
 2. Under **Conditions**, assign the **Body / Parts** pseudo-condition to your domain SubModelPart(s) — it marks the computing domain and emits no process — then assign boundary conditions and loads to boundary SubModelParts. Each assignment shows its parameter fields inline.
 3. Under **Materials**, assign a constitutive law to each Parts SubModelPart — or pick a **material preset** and let it fill the row.
 4. Press **Generate case files**, then **Run case**. **Open results** opens the `vtk_output/` folder in the viewer.
+5. Optionally, under **Output ▸ also export as**, pick other formats (`.xdmf`, `.pvd`, `.exo`, `.msh`, `.med`). When the run finishes KKSS converts its VTK frames to each of them automatically, into a folder beside — never inside — the solver output. The same conversion is on demand under **File ▸ Convert Results to Other Formats…** and, for the assistant, `mesh__case_export_results`; the choice is saved with the case (`output.exportFormats`).
 
 Generate **refuses the case, writes nothing, and names what to fix** when anything is wrong: missing domain parts, unassigned interfaces, bad material values, unusable time stepping, dangling collection references (see below). The same checks run in the sidebar's **Preflight** card and in MCP `case_validate`, which additionally lists the Kratos `applications` the case needs and — with `checkInstall: true` — asks the configured Python which of them it cannot import.
 

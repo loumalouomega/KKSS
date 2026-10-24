@@ -205,6 +205,33 @@ export class McpManager {
     body.appendChild(actions);
     body.appendChild(this.projectSection());
     body.appendChild(this.defsSection());
+    body.appendChild(this.hooksSection());
+  }
+
+  /** Lifecycle hooks (hooks.json): listed read-only — authoring is editing the file. */
+  private hooksSection(): HTMLElement {
+    const section = el("section", "mcp-project");
+    section.appendChild(el("h3", "eyebrow", t("Lifecycle hooks")));
+    const d = this.defs;
+    if (!d) return section;
+    if (!d.hooksEnabled) section.appendChild(el("p", "mcp-hint", t("Switched off in Settings ▸ LLM Assistant: no hook runs.")));
+    section.appendChild(el("p", "mcp-hint", t("A hook can refuse a tool call or make it ask first. It can never approve one.")));
+    if (!d.hooks.length) section.appendChild(el("p", "mcp-hint", t("No hooks.json yet.")));
+    if (d.hooks.length) {
+      const list = el("ul", "mcp-list");
+      for (const h of d.hooks) {
+        const li = el("li", "mcp-row");
+        const head = el("div", "mcp-row-head");
+        head.append(el("code", "mcp-name", h.name), el("span", "ui-badge", h.source === "project" ? t("project") : t("yours")), el("span", "mcp-transport", h.event));
+        li.appendChild(head);
+        if (h.match) li.appendChild(el("p", "mcp-hint", t("Tools: {0}", { 0: h.match })));
+        li.appendChild(el("code", "mcp-launch", h.command));
+        list.appendChild(li);
+      }
+      section.appendChild(list);
+    }
+    for (const message of d.hookErrors) section.appendChild(el("p", "mcp-error", message));
+    return section;
   }
 
   /** Standing instructions, skills and prompt templates: text the user keeps in
@@ -293,9 +320,9 @@ export class McpManager {
     section.appendChild(el("h3", "eyebrow", t("Project folder")));
     const p = this.project;
     const text = !p.root
-      ? t("No project folder is set. Choose one with File ▸ Open Folder… to load its .kkss/assistant/mcp.json.")
+      ? t("No project folder is set. Choose one with File ▸ Open Folder… to load its .kkss/assistant files.")
       : p.state === "none"
-        ? t("No .kkss/assistant/mcp.json in {0}.", { 0: p.root })
+        ? t("No .kkss/assistant files in {0}.", { 0: p.root })
         : p.state === "trusted"
           ? t("Trusted. Any edit to the definition files asks again.")
           : p.state === "changed"
