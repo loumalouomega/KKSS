@@ -54,6 +54,8 @@ await scenario('chat-hooks', async c => {
     node('team-gate', 'PreToolUse', 'process.exit(2)', { match: 'cad__*' }),
   ] }));
   c.seed({
+    // Documentation captures show the optional Kraty face; acceptance runs leave it off.
+    ...(shot || promptShot ? { llmKraty: true } : {}),
     llmProvider: 'openai', llmModelOpenai: 'fixture', llmOpenaiBaseUrl: `http://127.0.0.1:${server.address().port}/v1`,
     projectRoot: project,
   });

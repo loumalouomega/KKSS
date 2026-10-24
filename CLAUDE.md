@@ -1442,6 +1442,7 @@ resubmitted automatically.
   Hooks** (`llmHooks`, default on) turns the engine off. Tests: `hooks.test.ts`,
   `hookRunner.test.ts` (real children), `hooksStore.test.ts` (real files, trust,
   processes) and the "lifecycle hooks" block of `chatService.test.ts`.
+- **Kraty is presentation only.** `app/renderer/chat/kratyCore.ts` (pure state → expression tables) and `kraty.ts` read only state the sidebar already receives; the one setting (`llmKraty`, off by default) rides `ChatComposerState.kraty`. Bubble text is fixed `t()` strings — never model, tool or conversation text — and animation is class/attribute driven because the page CSP allows no `style=`. It must never change the system prompt, `toolPolicy.ts`, the context suffix or any stored data; unprompted tips are out of scope. Documentation captures seed `llmKraty` through the e2e scenarios' `shot` env vars only.
 - **Update feed is two-part — keep both halves.** The `publish:` block in
   `electron-builder.yml` makes electron-builder emit `latest*.yml` update
   metadata and embed `app-update.yml` in each package; the release workflow

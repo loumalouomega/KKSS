@@ -636,6 +636,10 @@ if (!meshOnly) {
     stdio: "inherit", env: { ...process.env, KKSS_HOOKS_SHOT: path.join(OUT, "chat-hooks.png"), KKSS_HOOKS_PROMPT_SHOT: path.join(OUT, "chat-hooks-prompt.png") },
   });
   if (hooksShot.status !== 0) throw new Error("chat lifecycle hooks capture failed");
+  const katyShot = spawnSync(process.execPath, [path.join(root, "tools/e2e/chat-kraty.mjs")], {
+    stdio: "inherit", env: { ...process.env, KKSS_KRATY_SHOT: path.join(OUT, "chat-kraty.png") },
+  });
+  if (katyShot.status !== 0) throw new Error("chat Kraty capture failed");
   // These captures use the real CAD/mesh app, the configured manual Python
   // interpreter and actual solver-produced tutorial results. The companion uses
   // a local OpenAI-compatible fixture but routes every tool call through KKSS.

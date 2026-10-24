@@ -27,6 +27,7 @@ import type {
 
 import { kratosStatusView } from "./serverStatus";
 import { McpManager } from "./mcpManager";
+import { Kraty } from "./kraty";
 import { glyph } from "../glyphs";
 import { MAX_IMAGE_B64, MAX_IMAGES_PER_MESSAGE, MAX_PDF_B64, MAX_PDFS_PER_MESSAGE, kindOfMime } from "../../main/services/chat/chatAttachments";
 
@@ -72,6 +73,7 @@ mcpBtn.innerHTML = glyph("server");
 const mcpClose = byId<HTMLButtonElement>("mcp-close");
 mcpClose.innerHTML = glyph("x");
 const hintsEl = byId<HTMLDivElement>("template-hints");
+const kraty = new Kraty(byId<HTMLElement>("kraty"));
 /** ~tokens the standing instructions and skill catalog add to every request. */
 let standingTokens = 0;
 const mcpManager = new McpManager(
@@ -1107,7 +1109,15 @@ document.addEventListener("keydown", (event) => {
 api.onMessage((raw) => {
   const msg = raw as ChatToWebview;
   switch (msg.type) {
-    case "state":
+    case "state": {
+      const answered = new Set(msg.entries.flatMap((e) => (e.kind === "toolResult" ? [e.callId] : [])));
+      kraty.feed({
+        type: "replay",
+        busy: msg.busy,
+        openCalls: msg.entries.flatMap((e) => (e.kind === "toolCall" && !answered.has(e.callId) ? [e.callId] : [])),
+        approval: !!msg.pendingApproval,
+        lastIsError: msg.entries[msg.entries.length - 1]?.kind === "error",
+      });
       messages.textContent = "";
       streaming = null;
       armedApproval = null;
@@ -1126,10 +1136,13 @@ api.onMessage((raw) => {
       setBusy(msg.busy);
       scrollDown(true);
       break;
+    }
     case "composer":
       renderComposer(msg.composer);
+      kraty.setEnabled(msg.composer.kraty);
       break;
     case "approvalRequest":
+      kraty.feed({ type: "approvalRequest" });
       showApproval(msg.pending);
       break;
     case "toolImages":
@@ -1161,6 +1174,7 @@ api.onMessage((raw) => {
       break;
     }
     case "approvalResolved":
+      kraty.feed({ type: "approvalResolved" });
       // Normally the click already settled the row; this covers a decision
       // made elsewhere, and marks a denied call as denied rather than failed.
       if (msg.approval === "denied") {
@@ -1179,17 +1193,23 @@ api.onMessage((raw) => {
       // Assistant entries are finalized by assistantDone, which replaces the
       // streaming bubble. Rendering both messages duplicates every reply.
       if (msg.entry.kind !== "assistant") addEntry(msg.entry);
+      if (msg.entry.kind === "toolCall") kraty.feed({ type: "toolCall", callId: msg.entry.callId });
+      else if (msg.entry.kind === "toolResult") kraty.feed({ type: "toolResult", callId: msg.entry.callId });
+      else if (msg.entry.kind === "error") kraty.feed({ type: "error" });
       break;
     case "assistantStart":
+      kraty.feed({ type: "assistantStart" });
       streaming = { el: addAssistant(""), text: "" };
       break;
     case "assistantDelta":
+      kraty.feed({ type: "assistantDelta" });
       if (!streaming) streaming = { el: addAssistant(""), text: "" };
       streaming.text += msg.text;
       renderRich(streaming.el, streaming.text);
       scrollDown();
       break;
     case "assistantDone":
+      kraty.feed({ type: "assistantDone" });
       document.getElementById("announcement")!.textContent = t("Assistant response ready");
       if (streaming && msg.entry.kind === "assistant") {
         renderRich(streaming.el, msg.entry.text);
@@ -1207,6 +1227,7 @@ api.onMessage((raw) => {
       scrollDown();
       break;
     case "busy":
+      kraty.feed({ type: "busy", busy: msg.busy });
       setBusy(msg.busy);
       break;
     case "servers":

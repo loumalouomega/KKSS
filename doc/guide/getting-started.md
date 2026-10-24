@@ -226,6 +226,12 @@ Some tools return pictures — a rendered snapshot of a model, or a side-by-side
 
 These tool-result images live for as long as the app is running. They are not written into the saved conversation, so reopening it later shows the tool call and its text, without the pictures. (Files *you* attach are different — see below.)
 
+### Kraty
+
+Turn on **Settings ▸ LLM Assistant ▸ Kraty** to show a small animated face above the message box: drawn after the Kratos Multiphysics mark: a flat teal block of three extruded cells with thin white edges, the bottom cell split into triangles. The eyes sit in the top two cells and the mouth in the triangulated one (original artwork in the mark's palette, not a copy of the logo). It is off by default and never opens, focuses, sounds or pops up by itself. Its expression only mirrors what the sidebar already shows: *thinking* while the model has not started writing, *writing* while text streams in, *running a tool* while a tool call has no result yet, *waiting for your OK* while an approval prompt is open, *done* briefly when a turn ends, and a worried face after an error. The speech bubble uses fixed interface strings, never text from the model or a tool. With reduced motion enabled in the system, the expression still changes but the idle bobbing and blinking stop, and the animation pauses while the sidebar is hidden.
+
+![Kraty waiting for approval of a tool call](/screenshots/chat-kraty.png)
+
 ### Attaching images and PDFs
 
 Paste a screenshot into the message box, drop files onto the sidebar, or use the paperclip button to attach up to four images and three PDFs to a message. A thumbnail (or a file chip for a PDF) appears above the box; the **×** removes it before you send. You can send files with no text at all.

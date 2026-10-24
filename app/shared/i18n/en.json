@@ -900,5 +900,13 @@
   "No hooks.json yet.": "No hooks.json yet.",
   "Tools: {0}": "Tools: {0}",
   "No project folder is set. Choose one with File ▸ Open Folder… to load its .kkss/assistant files.": "No project folder is set. Choose one with File ▸ Open Folder… to load its .kkss/assistant files.",
-  "No .kkss/assistant files in {0}.": "No .kkss/assistant files in {0}."
+  "No .kkss/assistant files in {0}.": "No .kkss/assistant files in {0}.",
+  "Kraty": "Kraty",
+  "Show Kraty, a small animated face in the chat sidebar that reacts to what the assistant is doing. It only reflects the sidebar's own state and never speaks unprompted.": "Show Kraty, a small animated face in the chat sidebar that reacts to what the assistant is doing. It only reflects the sidebar's own state and never speaks unprompted.",
+  "Thinking…": "Thinking…",
+  "Writing…": "Writing…",
+  "Running a tool…": "Running a tool…",
+  "Waiting for your OK": "Waiting for your OK",
+  "Done": "Done",
+  "Something went wrong": "Something went wrong"
 }
