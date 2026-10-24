@@ -900,5 +900,13 @@
   "No hooks.json yet.": "Aún no hay hooks.json.",
   "Tools: {0}": "Herramientas: {0}",
   "No project folder is set. Choose one with File ▸ Open Folder… to load its .kkss/assistant files.": "No hay carpeta de proyecto. Elige una con Archivo ▸ Abrir carpeta… para cargar sus archivos de .kkss/assistant.",
-  "No .kkss/assistant files in {0}.": "No hay archivos de .kkss/assistant en {0}."
+  "No .kkss/assistant files in {0}.": "No hay archivos de .kkss/assistant en {0}.",
+  "Kraty": "Kraty",
+  "Show Kraty, a small animated face in the chat sidebar that reacts to what the assistant is doing. It only reflects the sidebar's own state and never speaks unprompted.": "Muestra a Kraty, una pequeña cara animada en la barra lateral del chat que reacciona a lo que hace el asistente. Solo refleja el estado de la propia barra y nunca habla sin que se le pida.",
+  "Thinking…": "Pensando…",
+  "Writing…": "Escribiendo…",
+  "Running a tool…": "Ejecutando una herramienta…",
+  "Waiting for your OK": "Esperando tu aprobación",
+  "Done": "Listo",
+  "Something went wrong": "Algo salió mal"
 }

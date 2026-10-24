@@ -903,6 +903,7 @@ export class ChatService {
         thinking: readThinking(),
         thinkingSupported: settings.provider !== "codex" && settings.provider !== "claude-code",
         attach: this.attachState(settings.provider),
+        kraty: stateStore.get<boolean>("llmKraty", false) === true,
       },
     });
   }

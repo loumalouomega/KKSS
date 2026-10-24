@@ -408,6 +408,8 @@ export interface ChatComposerState {
    *  in main (provider + model + the image-input setting) — the renderer carries
    *  no policy. */
   attach: { image: ChatAttachmentRefusal | null; pdf: ChatAttachmentRefusal | null };
+  /** Whether the optional Kraty face is on (Settings ▸ LLM Assistant). Presentation only. */
+  kraty: boolean;
 }
 
 /** Messages sent to the chat-sidebar renderer. */

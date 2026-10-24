@@ -754,6 +754,16 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       description: t("Run the commands in your hooks.json (and a trusted project folder's) before and after the assistant's tool calls and messages. A hook can refuse a call or make it ask first; it can never approve one. Turn off to run none."),
     },
     {
+      id: "llm.kraty",
+      label: t("Kraty"),
+      category: "LLM Assistant",
+      type: "boolean",
+      storeKey: "llmKraty",
+      default: false,
+      applies: "live",
+      description: t("Show Kraty, a small animated face in the chat sidebar that reacts to what the assistant is doing. It only reflects the sidebar's own state and never speaks unprompted."),
+    },
+    {
       id: "llm.mcpServers",
       label: t("MCP Servers"),
       category: "LLM Assistant",

@@ -39,6 +39,8 @@ await scenario('chat-defs', async c => {
   const project = path.join(c.dir, 'project');
   write(path.join(project, '.kkss', 'assistant'), 'instructions.md', 'Project-only rule.');
   c.seed({
+    // Documentation captures show the optional Kraty face; acceptance runs leave it off.
+    ...(shot ? { llmKraty: true } : {}),
     llmProvider: 'openai', llmModelOpenai: 'fixture', llmOpenaiBaseUrl: `http://127.0.0.1:${server.address().port}/v1`,
     projectRoot: project,
   });

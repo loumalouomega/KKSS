@@ -757,3 +757,67 @@ body {
 #template-hints[hidden] {
   display: none;
 }
+
+/* ---- Kraty (presentation only; class/attribute driven — the CSP allows no style=) ---- */
+
+#kraty {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s-2);
+  padding: var(--ui-s-1) var(--ui-s-3);
+}
+#kraty[hidden] { display: none; }
+.kraty-face { flex: none; line-height: 0; }
+.kraty-bubble {
+  padding: var(--ui-s-1) var(--ui-s-2);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: var(--ui-radius);
+  background: var(--vscode-editorWidget-background);
+  color: var(--vscode-foreground);
+  font-size: var(--ui-fs-sm);
+}
+.kraty-bubble[hidden] { display: none; }
+
+#kraty .k-head { fill: var(--vscode-button-background); }
+#kraty .k-tip { fill: var(--vscode-charts-yellow); }
+#kraty .k-white { fill: var(--vscode-editor-background); }
+#kraty .k-pupil { fill: var(--vscode-foreground); }
+#kraty .k-stroke { stroke: var(--vscode-foreground); stroke-width: 2.4; stroke-linecap: round; fill: none; }
+#kraty .k-stroke.k-nofill { fill: none; }
+
+/* One variant of each feature visible, chosen by the data-* the glue sets. */
+#kraty .k-brows > g, #kraty .k-eyes > g, #kraty .k-mouth > * { display: none; }
+#kraty[data-brows="flat"] .k-brow-flat,
+#kraty[data-brows="raised"] .k-brow-raised,
+#kraty[data-brows="furrowed"] .k-brow-furrowed,
+#kraty[data-brows="worried"] .k-brow-worried,
+#kraty[data-eyes="open"] .k-eye-open,
+#kraty[data-eyes="wide"] .k-eye-wide,
+#kraty[data-eyes="closed"] .k-eye-closed,
+#kraty[data-eyes="happy"] .k-eye-happy,
+#kraty[data-eyes="worried"] .k-eye-worried,
+#kraty[data-mouth="smile"] .k-mouth-smile,
+#kraty[data-mouth="flat"] .k-mouth-flat,
+#kraty[data-mouth="small"] .k-mouth-small,
+#kraty[data-mouth="open"] .k-mouth-open,
+#kraty[data-mouth="talk"] .k-mouth-talk,
+#kraty[data-mouth="frown"] .k-mouth-frown { display: inline; }
+
+/* Idle motion on top of the expression. */
+#kraty .k-body { transform-box: fill-box; transform-origin: center; animation: kraty-bob 3.2s ease-in-out infinite; }
+#kraty .k-blink { transform-box: fill-box; transform-origin: center; animation: kraty-blink 5s infinite; }
+#kraty .k-pupils { transition: transform 0.2s; }
+#kraty[data-look="left"] .k-pupils { transform: translateX(-2px); }
+#kraty[data-look="right"] .k-pupils { transform: translateX(2px); }
+#kraty[data-state="working"] .k-body { animation-duration: 0.9s; }
+#kraty.paused .k-body, #kraty.paused .k-blink { animation-play-state: paused; }
+
+@keyframes kraty-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+@keyframes kraty-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+
+/* Reduced motion keeps the expression changes and drops the idle motion. */
+@media (prefers-reduced-motion: reduce) {
+  #kraty .k-body, #kraty .k-blink { animation: none; }
+  #kraty .k-pupils { transition: none; }
+}

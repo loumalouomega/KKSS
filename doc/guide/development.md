@@ -314,6 +314,10 @@ Three text-only definitions (user docs: [Assistant extensions](./assistant-exten
 
 Tests: `test/assistantDefs.test.ts` (parsing, merging, suffix, catalog budget, expansion rules), `test/assistantDefsStore.test.ts` (temp-dir trees, symlink/size/count refusals, trust gating, edit-after-trust, `app__skill_load`), the standing-instructions block of `test/chatService.test.ts` (suffix on the request copy and not the system prompt, no accumulation in the stored transcript, expanded text stored, subscription path, byte-stable system prompt) and the real-app scenario `tools/e2e/chat-defs.mjs` (which also supplies `chat-assistant-defs.png` to `tools/screenshots.mjs`).
 
+### Kraty
+
+An optional animated face (roadmap item 10, shipped with the next release). **Presentation only:** `app/renderer/chat/kratyCore.ts` is a pure reducer from the host messages the sidebar already receives (`busy`, `assistantStart`/`Delta`/`Done`, `toolCall`/`toolResult` entries, `approvalRequest`/`Resolved`, `error`, and a `state` replay) to a `KratyState`, with expressions and bubble i18n keys as data tables; `kraty.ts` draws one inline SVG and flips `data-*` attributes that `chat.css` keys on (the page's CSP forbids `style=`). The setting `llmKraty` (registry row `llm.kraty`, default off) reaches the renderer as `ChatComposerState.kraty`, repainted on any `llm*` change. Nothing model-visible changes: no system-prompt, tool, policy or context-suffix edit. Precedence is needs-you > working > writing > waiting > error > finished > idle; `finished` times out to idle after four seconds, look-around timers pause while `document.hidden`, and `prefers-reduced-motion` drops the idle animation. Tests: `test/kraty.test.ts`; acceptance and the documentation capture: `tools/e2e/chat-kraty.mjs`.
+
 ### Lifecycle hooks
 
 User-defined commands around the assistant's tool calls and messages (roadmap item 10, shipped in 2.23.0). The user-facing rules are in [Assistant extensions](/guide/assistant-extensions#lifecycle-hooks); this section is the implementation and the invariants it must keep.

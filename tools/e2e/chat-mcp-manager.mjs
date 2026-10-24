@@ -38,6 +38,8 @@ await scenario('chat-mcp-manager', async c => {
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   c.seed({
+    // Documentation captures show the optional Kraty face; acceptance runs leave it off.
+    ...(shot ? { llmKraty: true } : {}),
     llmProvider: 'openai', llmModelOpenai: 'fixture', llmOpenaiBaseUrl: `http://127.0.0.1:${server.address().port}/v1`,
     projectRoot: project,
     assistantMcpServers: [{ id: 'acme', command: process.execPath, args: [fixture, acmeLog] }],
