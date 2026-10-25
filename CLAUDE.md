@@ -181,6 +181,8 @@ read-only mesh evaluator is
 `mesh__case_evaluate_quantity`; its app-owned persistence wrapper is
 `app__run_quantity_evaluate` and follows normal write approval.
 
+`workflows/mpiReceipt.ts` is the pure, not-yet-wired MPI receipt contract (rank-set slots, plan-frozen args, `uncertain` on a dead launcher or rank mismatch); `EnvironmentReport.mpi` stays `false` until a runner uses it end to end.
+
 The environment probe is read-only: the manual Python interpreter and uv-managed
 Kratos tool runtime are checked independently, and the latter uses offline/no-sync
 flags. Thread suggestions require the manual runner's verified thread-control API;
