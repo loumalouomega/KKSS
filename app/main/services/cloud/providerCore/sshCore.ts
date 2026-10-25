@@ -145,3 +145,59 @@ export function remoteUvxCommand(args: readonly string[]): string {
   const quoted = args.map(shQuote).join(" ");
   return `PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH" exec uvx ${quoted}`;
 }
+
+/** Ids that reach a remote shell script or JSON literal unquoted-safe. */
+const SAFE_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+export function isSafeToken(value: string): boolean {
+  return SAFE_TOKEN.test(value);
+}
+
+/**
+ * The detached runner script a guided-workflow solve uploads beside its inputs.
+ * It owns the remote receipt: `running` with its pid before the solver starts,
+ * then a terminal state when the process exits. A `cancel` marker turns that
+ * exit into `cancelled`. Process exit 0 is reported as `succeeded` with an
+ * explicit note — convergence is never inferred from it.
+ */
+export function remoteRunScript(opts: {
+  dir: string;
+  requestId: string;
+  ownerId: string;
+  argv: readonly string[];
+  env?: Readonly<Record<string, string>>;
+}): string {
+  if (!isSafeToken(opts.requestId) || !isSafeToken(opts.ownerId)) throw new Error("Unsafe request or owner id.");
+  const envs = Object.entries(opts.env ?? {}).map(([k, v]) => {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) throw new Error(`Invalid environment variable name: ${k}`);
+    return `${k}=${shQuote(v)}`;
+  });
+  const head = `{"version":1,"requestId":"${opts.requestId}","ownerId":"${opts.ownerId}"`;
+  return [
+    "#!/bin/sh",
+    // Survive the group TERM that cancels the solver, so the receipt gets written.
+    "trap : TERM",
+    `d=${shQuote(opts.dir)}`,
+    `w() { printf '%s\\n' "$1" > "$d/receipt.json.tmp" && mv -f "$d/receipt.json.tmp" "$d/receipt.json"; }`,
+    `w '${head},"state":"running","pid":'$$'}'`,
+    `cd "$d/input" || { w '${head},"state":"failed","message":"Input directory is missing."}'; exit 1; }`,
+    `env ${envs.join(" ")} ${opts.argv.map(shQuote).join(" ")} > "$d/stdout.log" 2>&1`,
+    "rc=$?",
+    `if [ -e "$d/cancel" ]; then w '${head},"state":"cancelled","exitCode":'$rc'}'`,
+    `elif [ $rc -eq 0 ]; then w '${head},"state":"succeeded","exitCode":0,"message":"Process exited 0; solver convergence is not established by exit status."}'`,
+    `else w '${head},"state":"failed","exitCode":'$rc'}'; fi`,
+    "",
+  ].join("\n");
+}
+
+export const launchCommand = (dir: string): string =>
+  `d=${shQuote(dir)}; rm -f -- "$d/cancel"; setsid nohup sh "$d/run.sh" >/dev/null 2>&1 </dev/null &`;
+export const readReceiptCommand = (dir: string): string => `cat -- ${shQuote(`${dir}/receipt.json`)}`;
+export const aliveCommand = (pid: number): string => {
+  if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error("Invalid pid.");
+  return `kill -0 ${pid}`;
+};
+/** Marks the run cancelled, then signals the runner's whole process group. */
+export const cancelCommand = (dir: string, pid: number): string => {
+  if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error("Invalid pid.");
+  return `: > ${shQuote(`${dir}/cancel`)}; kill -TERM -${pid} 2>/dev/null || kill -TERM ${pid}`;
+};

@@ -898,7 +898,19 @@ resubmitted automatically.
   install for a remote problem. The remote split (Kratos paths on the host, CAD/mesh staging
   paths local) is told to the assistant through the **context suffix**
   (`currentFiles().kratosHost`, `staging copy of host:/path`), never `SYSTEM_PROMPT`.
-  The guided-workflow queue/runner is still local-only (roadmap item 5, remaining).
+  **Guided solves can run on the ssh host (first slice).** With `remote.kratosHost` set,
+  `WorkflowService.remoteSolver()` routes *solve* tasks (only) to `workflows/remoteRunner.ts`: it
+  uploads the run's `input/` directory plus a generated `run.sh` (`sshCore.remoteRunScript`) to
+  `kkss-runs/<study>-<run>` under the login dir, starts it `setsid nohup`, and the script owns a
+  remote `receipt.json` (`running` + pid, then a terminal state; exit 0 ⇒ `succeeded` with an explicit
+  "convergence not established" note, a `cancel` marker ⇒ `cancelled`; the script traps TERM so
+  the group kill reaches the solver but not the receipt writer). Intent is persisted by the queue
+  first; failures before the launch command return `failed`, an unknown launch outcome throws (⇒
+  `uncertain`, never retried), a receipt for another owner/request throws, and a `running` receipt
+  whose pid is gone reads `uncertain`. The local environment probe is skipped for remote solves
+  (validate only checks `python3` exists on the host). Not done: artifact download/hashing (outputs
+  stay on the host, so review/quantity tools have nothing to open), remote probe of CPU/threads,
+  mesh/generate tasks (still local), live sshd and Windows/macOS verification, the fake-ssh e2e.
 - **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
   which owns both zoom re-assertion on `did-finish-load` and renderer-crash
   reporting — adding a view without it silently opts that view out of both.
