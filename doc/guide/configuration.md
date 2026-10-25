@@ -50,6 +50,7 @@ It needs a host with **WebAssembly JSPI** (`WebAssembly.Suspending`) and WebGL2,
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `kratos.pythonPath` | Python interpreter for queued and direct case runs | `python3` (`python` on Windows) |
+| `kratos.mpiRanks` | Ranks for guided queue solves; `0` keeps OpenMP threads. A positive value launches the solve under MPI on one node (here or on the ssh host); needs an MPI launcher and an MPI-enabled Kratos, otherwise the preview refuses. Solver Threads then means threads per rank | `0` (off) |
 | `kratos.threads` | Verified OpenMP threads per Kratos solve; `0` selects Auto (`available CPUs − 1`, minimum 1) | `0` (Auto) |
 | `kratos.installPath` | Compiled Kratos install, or a source checkout built in-tree. Prepended to `PYTHONPATH` and the shared-library path | pip-installed Kratos |
 | `kratos.extraEnv` | Extra variables; they override computed ones | — |

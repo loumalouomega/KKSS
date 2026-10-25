@@ -14,6 +14,8 @@ import type { KratosRuntime } from '../chat/kratosRuntime';
 import { ExecutionQueue, planRevision } from './queue';
 import type { Runner } from './queue';
 import { RemoteRunner, type RemoteSolveSpec } from './remoteRunner';
+import { MpiRunner, runLocalSh, type MpiSolveSpec } from './mpiRunner';
+import { mpiPlanArgs, mpiResources, type MpiLauncher } from './mpiReceipt';
 import type { SshRunner } from '../cloud/providers/ssh';
 import type { Receipt, Task, TaskState } from './contracts';
 import { BUILTIN_PROBLEMTYPES } from '../../../../mesh/src/problemtype/builtins';
@@ -32,7 +34,7 @@ export interface WorkflowDeps {
   root(): string | undefined;
   activeMesh(): string | undefined;
   runtime: Pick<KratosRuntime, 'discover'>;
-  environment(): { threads?: number; python: string; env: NodeJS.ProcessEnv; bundledPython?: string; installPath?: string; extraEnv?: Record<string, string> };
+  environment(): { threads?: number; mpiRanks?: number; python: string; env: NodeJS.ProcessEnv; bundledPython?: string; installPath?: string; extraEnv?: Record<string, string> };
   open(file: string): Promise<void>;
   changed(): void;
   callMcpTool?(name: string, args: Record<string, unknown>): Promise<{ isError?: boolean; structuredContent?: unknown; content?: { type?: string; text?: string }[] }>;
@@ -64,6 +66,12 @@ function changedJsonPaths(before: unknown, after: unknown, prefix = ''): string[
   }
   return [prefix || '(root)'];
 }
+/** What a queue preview freezes about the runtime; `mpiRanks` joins only when set, so threaded plans keep their revision. */
+const runtimeFingerprint = (e: { python: string; installPath?: string; extraEnv?: Record<string, string>; threads?: number; mpiRanks?: number }): string =>
+  fingerprint({ python: e.python, installPath: e.installPath ?? '', extraEnv: e.extraEnv ?? {}, threads: e.threads ?? 0, ...(e.mpiRanks ? { mpiRanks: e.mpiRanks } : {}) });
+const solveSummary = (task?: Task): string => typeof task?.args.mpiRanks === 'number'
+  ? `MPI: ${task.args.mpiRanks} ranks × ${task.args.mpiThreadsPerRank} threads (${task.args.mpiLauncher}, one node)`
+  : `Solver threads: ${task?.args.threads}`;
 export class WorkflowService {
   private stores = new Map<string, ProjectStore>();
   private report?: { key: string; baseKey: string; value: EnvironmentReport };
@@ -76,9 +84,9 @@ export class WorkflowService {
   constructor(private readonly deps: WorkflowDeps) {
     this.queue = new ExecutionQueue({
       validate: (task, store) => this.validateQueuedTask(task, store),
-      dispatch: (task, store) => this.remoteSolver(task, store)?.dispatch(task, store) ?? this.dispatchQueuedTask(task, store),
-      lookup: (task, store) => this.remoteSolver(task, store)?.lookup(task, store) ?? this.lookupQueuedTask(task, store),
-      cancel: (task, store) => this.remoteSolver(task, store)?.cancel(task, store) ?? this.cancelQueuedTask(task, store),
+      dispatch: (task, store) => this.solveRunner(task, store)?.dispatch(task, store) ?? this.dispatchQueuedTask(task, store),
+      lookup: (task, store) => this.solveRunner(task, store)?.lookup(task, store) ?? this.lookupQueuedTask(task, store),
+      cancel: (task, store) => this.solveRunner(task, store)?.cancel(task, store) ?? this.cancelQueuedTask(task, store),
     } satisfies Runner, () => this.deps.remote?.() ? (RemoteRunner.lastCpuCount ?? 1) : availableParallelism());
   }
   /**
@@ -88,7 +96,7 @@ export class WorkflowService {
    * outputs are downloaded into the run directory with checksums once the remote receipt is terminal.
    */
   private remoteSolver(task: Task, store: ProjectStore): RemoteRunner | undefined {
-    const remote = task.kind === 'solve' ? this.deps.remote?.() : undefined;
+    const remote = task.kind === 'solve' && typeof task.args.mpiRanks !== 'number' ? this.deps.remote?.() : undefined;
     if (!remote) return undefined;
     return new RemoteRunner(remote.host, remote.ssh, (t, s): RemoteSolveSpec => {
       const threads = typeof t.args.threads === 'number' ? String(t.args.threads) : undefined;
@@ -101,6 +109,27 @@ export class WorkflowService {
         env: { ...(this.deps.environment().extraEnv ?? {}), ...(threads ? { OMP_NUM_THREADS: threads } : {}) },
       };
     });
+  }
+  /** A solve frozen with an MPI rank count runs as one launcher, here or on the ssh host; undefined otherwise. */
+  private mpiSolver(task: Task, store: ProjectStore): MpiRunner | undefined {
+    if (task.kind !== 'solve' || typeof task.args.mpiRanks !== 'number') return undefined;
+    const remote = this.deps.remote?.();
+    return new MpiRunner(remote?.host ?? '', remote?.ssh ?? runLocalSh, (t, s): MpiSolveSpec => {
+      const environment = this.deps.environment();
+      const delta = Object.fromEntries(Object.entries(environment.env).filter(([k, v]) => typeof v === 'string' && process.env[k] !== v && /^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) as [string, string][]);
+      return {
+        inputDir: path.dirname(resolveReference(s.root, { kind: 'project', path: relativeOutput(t.args.mesh, 'Mesh path'), revision: '' })),
+        localDir: resolveReference(s.root, { kind: 'project', path: relativeOutput(t.args.runDirectory, 'Run directory'), revision: '' }),
+        root: s.root,
+        remoteDir: remote ? `kkss-runs/${t.studyId}-${t.runId}` : path.join(s.root, '.kkss', 'runs', t.runId, 'mpi'),
+        argv: [remote ? 'python3' : environment.python, 'MainKratos.py'],
+        env: remote ? { ...(environment.extraEnv ?? {}) } : { ...delta, ...(environment.extraEnv ?? {}) },
+        intent: { ranks: t.args.mpiRanks as number, threadsPerRank: t.args.mpiThreadsPerRank as number, launcher: t.args.mpiLauncher as MpiLauncher },
+      };
+    });
+  }
+  private solveRunner(task: Task, store: ProjectStore): Pick<Runner, 'dispatch' | 'lookup' | 'cancel'> | undefined {
+    return this.mpiSolver(task, store) ?? this.remoteSolver(task, store);
   }
   store(): ProjectStore {
     const root = this.deps.root();
@@ -593,8 +622,19 @@ export class WorkflowService {
     const sourceRevision = await fileRevision(resolveReference(store.root, study.source));
     if (sourceRevision !== study.source.revision) throw new Error('Study geometry changed. Refresh or relink it before planning.');
     const environment = this.deps.environment();
-    const runtimeRevision = fingerprint({ python: environment.python, installPath: environment.installPath ?? '', extraEnv: environment.extraEnv ?? {}, threads: environment.threads ?? 0 });
-    const threads = resolveThreads(environment.threads, availableParallelism());
+    const runtimeRevision = runtimeFingerprint(environment);
+    let threads = resolveThreads(environment.threads, availableParallelism());
+    let solveResources: NonNullable<Task['resources']> = { threads, verified: true };
+    let mpiArgs: { [key: string]: Json } = {};
+    if ((environment.mpiRanks ?? 0) > 0) {
+      const report = await this.environmentFor(problemtypeId, store.root);
+      const capability = report.manual.capabilities;
+      if (!capability.mpi || !capability.mpiLauncher) throw new Error(`MPI ranks are configured (kratos.mpiRanks) but MPI is unavailable: ${capability.mpiReason ?? 'not verified'}. Set kratos.mpiRanks to 0 for a threaded run.`);
+      threads = environment.threads || 1;
+      const intent = { ranks: environment.mpiRanks!, threadsPerRank: threads, launcher: capability.mpiLauncher };
+      if (intent.ranks * threads > report.cpuCount) throw new Error(`${intent.ranks} ranks × ${threads} threads exceed the ${report.cpuCount} available CPUs.`);
+      mpiArgs = mpiPlanArgs(intent); solveResources = mpiResources(intent);
+    }
     const meshOptions = object(study.meshing) ? JSON.parse(JSON.stringify(study.meshing)) as Json : {};
     const tasks: Task[] = [];
     if (meshTaskId) tasks.push({ id: meshTaskId, studyId: study.id, runId, kind: 'mesh', resources: { threads: 1, verified: true }, dependencies: [],
@@ -606,8 +646,8 @@ export class WorkflowService {
         caseSettingsRevision: fingerprint(study.caseSettings), sourceRevision: study.source.revision,
         ...(reuseMesh ? { meshSource: study.mesh as unknown as Json, meshRevision: study.mesh!.revision } : {}) },
       inputRevision: generationRevision, requiredArtifacts: [casePath, `${runRoot}/input/ProjectParameters.json`, `${runRoot}/input/MainKratos.py`], state: 'waiting' });
-    tasks.push({ id: solveTaskId, studyId: study.id, runId, kind: 'solve', resources: { threads, verified: true }, dependencies: [generateTaskId],
-      args: { mesh: meshPath, casePath, caseState, problemtype: problemtypeId, runDirectory: `${runRoot}/solve`, runtimeRevision, threads,
+    tasks.push({ id: solveTaskId, studyId: study.id, runId, kind: 'solve', resources: solveResources, dependencies: [generateTaskId],
+      args: { mesh: meshPath, casePath, caseState, problemtype: problemtypeId, runDirectory: `${runRoot}/solve`, runtimeRevision, threads, ...mpiArgs,
         caseSettingsRevision: fingerprint(study.caseSettings), sourceRevision: study.source.revision,
         ...(reuseMesh ? { meshSource: study.mesh as unknown as Json, meshRevision: study.mesh!.revision } : {}) },
       inputRevision: fingerprint({ generationRevision, runtimeRevision }), requiredArtifacts: [], state: 'waiting' });
@@ -624,7 +664,7 @@ export class WorkflowService {
     const built = await this.buildQueueTasks(store, study, reuseMesh, caseState);
     const previewId = randomUUID();
     const studyRevision = fingerprint({ source: study.source, mesh: study.mesh, meshing: study.meshing, caseSettings: study.caseSettings });
-    const summary = [`${built.tasks.length} tasks: ${built.tasks.map(t => t.kind).join(' → ')}`, `Run directory: .kkss/runs/${built.runId}`, `Problemtype: ${built.problemtypeId}`, `Python: ${built.runtime}`, `Solver threads: ${built.tasks.find(t => t.kind === 'solve')?.args.threads}`, 'One solve and one preparation task may overlap within the CPU budget.'];
+    const summary = [`${built.tasks.length} tasks: ${built.tasks.map(t => t.kind).join(' → ')}`, `Run directory: .kkss/runs/${built.runId}`, `Problemtype: ${built.problemtypeId}`, `Python: ${built.runtime}`, solveSummary(built.tasks.find(t => t.kind === 'solve')), 'One solve and one preparation task may overlap within the CPU budget.'];
     this.previews.set(previewId, { projectRevision: project.revision, studyRevision, studyId, tasks: built.tasks, summary });
     while (this.previews.size > 25) this.previews.delete(this.previews.keys().next().value!);
     return { previewId, studyId, runId: built.runId, tasks: built.tasks, summary, runCount: 1, reuseMesh };
@@ -739,7 +779,12 @@ export class WorkflowService {
       errors.push(...(issues.length ? issues : ['Case validation returned no successful status: ' + JSON.stringify(validation)]));
     }
     const remoteSolve = this.remoteSolver(task, store);
-    if (remoteSolve) errors.push(...await remoteSolve.validate(task, store));
+    const mpiSolve = this.mpiSolver(task, store);
+    if (mpiSolve) {
+      errors.push(...await mpiSolve.validate(task, store));
+      if (runtimeFingerprint(runtime) !== task.args.runtimeRevision) errors.push('Solver runtime settings changed after preview; approve a new plan.');
+      if (task.resources?.threads !== Number(task.args.mpiRanks) * Number(task.args.mpiThreadsPerRank)) errors.push('Solver resource reservation does not match its approved MPI allocation.');
+    } else if (remoteSolve) errors.push(...await remoteSolve.validate(task, store));
     else if (task.kind === 'solve') {
       const report = await this.environmentFor(problemtype, store.root);
       if (task.resources?.verified && task.resources.threads !== task.args.threads) errors.push('Solver resource reservation does not match its approved thread count.');
@@ -749,7 +794,7 @@ export class WorkflowService {
       if (!report.manual.capabilities.threads && task.args.threads !== undefined) errors.push('Verified thread control is unavailable.');
       if (typeof task.args.threads === 'number' && task.args.threads > report.cpuCount) errors.push('CPU budget changed; approve a new plan.');
       if (!report.manual.available) errors.push(report.manual.reason ?? 'Manual solver runtime is unavailable.');
-      if (fingerprint({ python: runtime.python, installPath: runtime.installPath ?? '', extraEnv: runtime.extraEnv ?? {}, threads: runtime.threads ?? 0 }) !== task.args.runtimeRevision) errors.push('Solver runtime settings changed after preview; approve a new plan.');
+      if (runtimeFingerprint(runtime) !== task.args.runtimeRevision) errors.push('Solver runtime settings changed after preview; approve a new plan.');
     }
     return errors;
   }

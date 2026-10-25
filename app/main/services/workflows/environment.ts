@@ -6,14 +6,17 @@ import { constants } from 'node:fs';
 import { runRuntimeCommand, type KratosRuntime } from '../chat/kratosRuntime';
 import type { SshRunner } from '../cloud/providers/ssh';
 import { cpuCountCommand, mkdirCommand, shQuote } from '../cloud/providerCore/sshCore';
+import { MPI_MODULES, type MpiLauncher } from './mpiReceipt';
+
+const LAUNCHERS: readonly MpiLauncher[] = ['mpirun', 'mpiexec', 'srun'];
 export interface RuntimeReport {
   executable?: string; version?: string; kratosVersion?: string;
   applications: { name: string; available: boolean; reason?: string }[];
   available: boolean; reason?: string; modes: string[];
-  capabilities: { threads: boolean; mpi: false; mpiReason: string; threadReason?: string };
+  capabilities: { threads: boolean; mpi: boolean; mpiReason?: string; mpiLauncher?: MpiLauncher; threadReason?: string };
 }
-const unavailableCapabilities = () => ({ threads: false, mpi: false as const,
-  mpiReason: 'This runner has no verified MPI launch and reconciliation contract.',
+const unavailableCapabilities = () => ({ threads: false, mpi: false,
+  mpiReason: 'MPI has not been verified for this runtime.',
   threadReason: 'Thread control has not been verified for this runtime.' });
 export interface EnvironmentReport {
   version: 1; checkedAt: string; requirementsComplete: boolean; directory: string;
@@ -41,7 +44,27 @@ for name in json.loads(sys.argv[1]):
    parallel=module.ParallelUtilities if hasattr(module,'ParallelUtilities') else None
    result['threadControl']=bool(parallel and callable(getattr(parallel,'SetNumThreads',None)) and callable(getattr(parallel,'GetNumThreads',None)))
  except Exception as e: result['applications'].append({'name':name,'available':False,'reason':str(e)})
+import os,shutil
+result['mpiPosix']=os.name!='nt'
+env=os.path.basename(os.environ.get('KRATOS_MPI_LAUNCHER',''))
+result['mpiLauncher']=next((l for l in ([env] if env else [])+['mpirun','mpiexec','srun'] if l in ('mpirun','mpiexec','srun') and shutil.which(l)),None)
+mpi=[]
+for name in ${JSON.stringify(MPI_MODULES)}:
+ try: importlib.import_module(name)
+ except Exception: mpi.append(name)
+result['mpiMissing']=mpi
 print('KKSS_PROBE:'+json.dumps(result))`;
+/** MPI is offered only when an MPI launcher and an MPI-enabled Kratos build were both seen by the probe. */
+function mpiCapability(available: boolean, data: { mpiPosix?: unknown; mpiLauncher?: unknown; mpiMissing?: unknown }): { mpi: boolean; mpiReason?: string; mpiLauncher?: MpiLauncher } {
+  const launcher = LAUNCHERS.find(l => l === data.mpiLauncher);
+  const missing = Array.isArray(data.mpiMissing) ? data.mpiMissing.filter((m): m is string => typeof m === 'string') : undefined;
+  if (!available) return { mpi: false, mpiReason: 'Kratos is not available in this interpreter.' };
+  if (data.mpiPosix !== true) return { mpi: false, mpiReason: 'MPI runs need a POSIX shell; this platform has none.' };
+  if (!launcher) return { mpi: false, mpiReason: 'No MPI launcher (mpirun, mpiexec or srun) was found on PATH.' };
+  if (!missing) return { mpi: false, mpiReason: 'The interpreter did not report its MPI modules.' };
+  if (missing.length) return { mpi: false, mpiReason: `This Kratos build is not MPI-enabled (${missing[0]} is not importable).` };
+  return { mpi: true, mpiLauncher: launcher };
+}
 export type Probe = typeof runRuntimeCommand;
 export async function probePython(command: string, prefix: string[], applications: string[], env: NodeJS.ProcessEnv, run: Probe = runRuntimeCommand): Promise<RuntimeReport> {
   try {
@@ -54,7 +77,7 @@ export async function probePython(command: string, prefix: string[], application
     const data = JSON.parse(line.slice(11));
     if (typeof data.executable !== 'string' || typeof data.version !== 'string' || !Array.isArray(data.applications) || !data.applications.length || data.applications.some((a: {name?: unknown; available?: unknown}) => typeof a.name !== 'string' || typeof a.available !== 'boolean')) throw new Error('Invalid interpreter report.');
     const available = data.applications.every((a: {available: boolean}) => a.available);
-    return { ...data, available, capabilities: { ...unavailableCapabilities(), threads: available && data.threadControl === true,
+    return { ...data, available, capabilities: { ...unavailableCapabilities(), threads: available && data.threadControl === true, ...mpiCapability(available, data),
       threadReason: available && data.threadControl === true ? undefined : 'The Kratos thread-control API is unavailable.' },
       modes: available ? ['output', 'terminal'] : [], reason: available ? undefined : 'Install the missing applications in this interpreter, or select another interpreter in Settings → Kratos.' };
   } catch (e) {

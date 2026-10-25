@@ -29,6 +29,32 @@ const MAX_FILES = 500, MAX_BYTES = 2_000_000_000;
 const STATES: readonly TaskState[] = ['running', 'succeeded', 'failed', 'cancelled', 'uncertain'];
 const TERMINAL: readonly TaskState[] = ['succeeded', 'failed', 'cancelled'];
 
+/** Downloads and verifies the run's outputs; files already present and matching are kept. */
+export async function fetchRunArtifacts(ssh: SshRunner, host: string, spec: RemoteSolveSpec, runId: string): Promise<Artifact[]> {
+  const listed = await ssh(host, listOutputsCommand(spec.remoteDir));
+  if (listed.code !== 0) throw new Error(listed.stderr.trim() || 'listing failed');
+  const rows = parseOutputs(listed.stdout);
+  if (rows.length > MAX_FILES) throw new Error(`Run produced ${rows.length} files (limit ${MAX_FILES}); refusing a partial download.`);
+  const base = path.resolve(spec.localDir);
+  const artifacts: Artifact[] = [];
+  let bytes = 0;
+  for (const row of rows) {
+    const rel = row.path.replace(/^input\//, '');
+    const target = path.resolve(base, rel);
+    if (target !== base && !target.startsWith(base + path.sep)) continue;
+    if (await fileRevision(target).then(r => r === row.sha256, () => false) === false) {
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      const got = await ssh(host, downloadCommand(`${spec.remoteDir}/${row.path}`), { stdoutFile: target });
+      if (got.code !== 0) throw new Error(`download of ${rel} failed: ${got.stderr.trim()}`);
+      if (await fileRevision(target) !== row.sha256) { await fs.rm(target, { force: true }); throw new Error(`${rel} failed its checksum after download.`); }
+    }
+    bytes += (await fs.stat(target)).size;
+    if (bytes > MAX_BYTES) throw new Error('Run outputs exceed the download limit.');
+    artifacts.push({ role: row.path === 'stdout.log' ? 'log' : 'result', ownerId: runId, reference: reference(spec.root, target, row.sha256) });
+  }
+  return artifacts;
+}
+
 export class RemoteRunner implements Pick<Runner, 'validate' | 'dispatch' | 'lookup' | 'cancel'> {
   constructor(private readonly host: string, private readonly ssh: SshRunner,
     private readonly spec: (task: Task, store: ProjectStore) => RemoteSolveSpec,
@@ -91,37 +117,12 @@ export class RemoteRunner implements Pick<Runner, 'validate' | 'dispatch' | 'loo
     }
     if (!TERMINAL.includes(finalState)) return { ...this.base(task), state: finalState, ...(message ? { message } : {}) };
     try {
-      const artifacts = await this.fetchArtifacts(spec, task.runId);
+      const artifacts = await fetchRunArtifacts(this.ssh, this.host, spec, task.runId);
       return { ...this.base(task), state: finalState, artifacts, ...(message ? { message } : {}) };
     } catch (error) {
       // Not terminal for the queue: the next tick retries the (idempotent) download.
       return { ...this.base(task), state: 'uncertain', message: `Remote run finished (${finalState}) but its outputs could not be fetched: ${error instanceof Error ? error.message : String(error)}` };
     }
-  }
-  /** Downloads and verifies the run's outputs; files already present and matching are kept. */
-  private async fetchArtifacts(spec: RemoteSolveSpec, runId: string): Promise<Artifact[]> {
-    const listed = await this.ssh(this.host, listOutputsCommand(spec.remoteDir));
-    if (listed.code !== 0) throw new Error(listed.stderr.trim() || 'listing failed');
-    const rows = parseOutputs(listed.stdout);
-    if (rows.length > MAX_FILES) throw new Error(`Run produced ${rows.length} files (limit ${MAX_FILES}); refusing a partial download.`);
-    const base = path.resolve(spec.localDir);
-    const artifacts: Artifact[] = [];
-    let bytes = 0;
-    for (const row of rows) {
-      const rel = row.path.replace(/^input\//, '');
-      const target = path.resolve(base, rel);
-      if (target !== base && !target.startsWith(base + path.sep)) continue;
-      if (await fileRevision(target).then(r => r === row.sha256, () => false) === false) {
-        await fs.mkdir(path.dirname(target), { recursive: true });
-        const got = await this.ssh(this.host, downloadCommand(`${spec.remoteDir}/${row.path}`), { stdoutFile: target });
-        if (got.code !== 0) throw new Error(`download of ${rel} failed: ${got.stderr.trim()}`);
-        if (await fileRevision(target) !== row.sha256) { await fs.rm(target, { force: true }); throw new Error(`${rel} failed its checksum after download.`); }
-      }
-      bytes += (await fs.stat(target)).size;
-      if (bytes > MAX_BYTES) throw new Error('Run outputs exceed the download limit.');
-      artifacts.push({ role: row.path === 'stdout.log' ? 'log' : 'result', ownerId: runId, reference: reference(spec.root, target, row.sha256) });
-    }
-    return artifacts;
   }
   async cancel(task: Task, store: ProjectStore): Promise<Receipt> {
     const spec = this.spec(task, store);
