@@ -2,7 +2,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { mpiPlanArgs, mpiResources, parseMpiReceipt, reconcileMpi } from '../app/main/services/workflows/mpiReceipt';
+import { spawnSync } from 'node:child_process';
+import { mpiRunScript, mpiPlanArgs, mpiResources, parseMpiReceipt, reconcileMpi } from '../app/main/services/workflows/mpiReceipt';
 import { ExecutionQueue, planRevision } from '../app/main/services/workflows/queue';
 import { ProjectStore } from '../app/main/services/workflows/project';
 import type { Study, Task } from '../app/main/services/workflows/contracts';
@@ -70,5 +71,22 @@ describe('MPI receipt contract', () => {
     expect(row.state).toBe('uncertain');
     expect((await store.read())!.queue.paused).toBe(true);
     expect(sent).toHaveLength(1);
+  });
+  it('runs the launch script against a stand-in launcher and writes a reconcilable receipt', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mpirun-')); roots.push(root);
+    const bin = path.join(root, 'bin'); await fs.mkdir(bin);
+    await fs.writeFile(path.join(bin, 'mpirun'), '#!/bin/sh\necho "$@ omp=$OMP_NUM_THREADS"\n[ "$FAIL" = 1 ] && exit 3\nexit 0\n', { mode: 0o755 });
+    const run = async (fail: boolean) => {
+      const dir = path.join(root, fail ? 'bad' : 'ok'); await fs.mkdir(dir);
+      const script = mpiRunScript({ dir, requestId: 't', ownerId: 's', intent: { ranks: 4, threadsPerRank: 2, launcher: 'mpirun' }, argv: ['python', 'my file.py'] });
+      const r = spawnSync('sh', ['-c', script], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAIL: fail ? '1' : '0' } });
+      expect(r.status).toBe(0);
+      return { dir, receipt: parseMpiReceipt(JSON.parse(await fs.readFile(path.join(dir, 'receipt.json'), 'utf8')), ref)! };
+    };
+    const ok = await run(false);
+    expect(await fs.readFile(path.join(ok.dir, 'stdout.log'), 'utf8')).toBe('-np 4 python my file.py omp=2\n');
+    expect(reconcileMpi(ok.receipt, false)?.state).toBe('succeeded');
+    expect(reconcileMpi((await run(true)).receipt)?.state).toBe('failed');
+    expect(() => mpiRunScript({ dir: root, requestId: 'a b', ownerId: 's', intent: { ranks: 1, threadsPerRank: 1, launcher: 'srun' }, argv: ['x'] })).toThrow();
   });
 });

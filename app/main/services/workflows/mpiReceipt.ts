@@ -83,3 +83,36 @@ export function reconcileMpi(parsed: MpiReceipt | undefined, alive?: boolean): R
     ...(message ? { message } : {}),
   };
 }
+
+const shQuote = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
+const SAFE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+/**
+ * Detached `sh` script that owns the receipt of one MPI launch: `running` with its pid first, then
+ * a terminal state when the launcher exits (a `cancel` marker turns that into `cancelled`). The
+ * rank count is argv-quoted into the launcher line; `OMP_NUM_THREADS` carries threads per rank.
+ * Exit 0 is `succeeded` with the no-convergence note. `dir` holds `receipt.json` and `stdout.log`.
+ */
+export function mpiRunScript(opts: {
+  dir: string; requestId: string; ownerId: string; intent: MpiLaunchIntent; argv: readonly string[];
+}): string {
+  checkIntent(opts.intent);
+  if (!SAFE.test(opts.requestId) || !SAFE.test(opts.ownerId)) throw new Error('Unsafe request or owner id.');
+  if (!opts.argv.length) throw new Error('MPI launch needs a command.');
+  const { ranks, threadsPerRank, launcher } = opts.intent;
+  const flag = launcher === 'srun' ? '-n' : '-np';
+  const head = `{"version":1,"requestId":"${opts.requestId}","ownerId":"${opts.ownerId}","launcher":"${launcher}","ranks":${ranks},"threadsPerRank":${threadsPerRank}`;
+  return [
+    '#!/bin/sh',
+    'trap : TERM',
+    `d=$(cd ${shQuote(opts.dir)} 2>/dev/null && pwd) || exit 1`,
+    `w() { printf '%s\\n' "$1" > "$d/receipt.json.tmp" && mv -f "$d/receipt.json.tmp" "$d/receipt.json"; }`,
+    `w '${head},"state":"running","pid":'$$'}'`,
+    `OMP_NUM_THREADS=${threadsPerRank} ${launcher} ${flag} ${ranks} ${opts.argv.map(shQuote).join(' ')} > "$d/stdout.log" 2>&1`,
+    'rc=$?',
+    `if [ -e "$d/cancel" ]; then w '${head},"state":"cancelled","exitCode":'$rc'}'`,
+    `elif [ $rc -eq 0 ]; then w '${head},"state":"succeeded","exitCode":0,"message":"MPI launcher exited 0; convergence is not established by exit status."}'`,
+    `else w '${head},"state":"failed","exitCode":'$rc'}'; fi`,
+    '',
+  ].join('\n');
+}
