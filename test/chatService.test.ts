@@ -1938,7 +1938,8 @@ describe("standing instructions, skills and prompt templates", () => {
     expect(users[1]).toContain("Always use SI units.");
     expect((users[1].match(/Standing instructions/g) ?? []).length).toBe(1);
     const id = lastState(messages).conversationId;
-    await settle(30);
+    // The store write is a real fsync + rename; wait for it rather than a fixed tick count.
+    await vi.waitFor(() => expect(stored(id)).toBeTruthy(), { timeout: 4000, interval: 10 });
     expect((stored(id)!.entries.filter((e: any) => e.kind === "user") as any[]).every((e) => !e.text.includes("Standing instructions"))).toBe(true);
   });
 
