@@ -508,7 +508,10 @@ export interface OpenFilesInfo {
    * see the staging path, so no tool changes — but the assistant must not
    * assume such a path is stable the way a plain local one is.
    */
-  cloud?: Record<string, { provider: string; name: string; folder?: string }>;
+  cloud?: Record<string, { provider: string; name: string; folder?: string; itemId?: string }>;
+  /** The ssh host the Kratos tools run on (Settings ▸ Remote), when not this
+   *  machine. Paths given to `kratos__*` tools are then paths on that host. */
+  kratosHost?: string;
 }
 
 export interface ChatDeps {
@@ -1396,7 +1399,11 @@ export class ChatService {
           const origin = files.cloud?.[p];
           const marks = [
             p === active ? "focused" : undefined,
-            origin ? `${origin.provider} staging copy` : undefined,
+            origin
+              ? origin.provider === "ssh" && origin.itemId
+                ? `staging copy of ${origin.itemId}`
+                : `${origin.provider} staging copy`
+              : undefined,
           ].filter((m): m is string => !!m);
           return marks.length ? `${p} (${marks.join(", ")})` : p;
         })
@@ -1406,6 +1413,9 @@ export class ChatService {
     const parts = [
       ...this.deps.hub.statuses().map((s) => `Tool server ${s.key}: ${s.state}${s.failure ? ` (${s.failure})` : ""}`),
       files.projectRoot ? `Project root: ${files.projectRoot}` : undefined,
+      files.kratosHost
+        ? `Kratos tools (kratos__*) run on ssh host ${files.kratosHost}: their paths are paths on that host, not the local staging paths of other tools`
+        : undefined,
       files.workflowContext ? `Simulation workflow: ${files.workflowContext}` : undefined,
       describe("CAD (pre-processing) tabs", files.cad, files.activeCad),
       describe("Mesh (post-processing) tabs", files.mesh, files.activeMesh),

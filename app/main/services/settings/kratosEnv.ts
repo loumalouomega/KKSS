@@ -12,6 +12,7 @@
 import * as fs from "node:fs";
 import { computeKratosEnv, resolveKratosInstall } from "../../../../mesh/src/problemtype/kratosEnv";
 import { stateStore } from "../stateStore";
+import { isValidHost } from "../cloud/providerCore/sshCore";
 import { effective, entryById } from "./registry";
 
 function read<T>(id: string): T {
@@ -40,4 +41,14 @@ export function kratosInstallProblem(): string | undefined {
   const installPath = read<string>("kratos.installPath");
   if (!installPath) return undefined;
   return resolveKratosInstall(installPath, fs.existsSync, process.platform).problem;
+}
+
+/**
+ * Settings ▸ Remote ▸ Run Kratos tools on: the ssh host that runs the Kratos MCP
+ * server, or undefined to run it here. An invalid value is ignored rather than
+ * passed to ssh, where a leading `-` would be read as an option.
+ */
+export function kratosRemoteHost(): string | undefined {
+  const host = read<string>("remote.kratosHost").trim();
+  return host && isValidHost(host) ? host : undefined;
 }

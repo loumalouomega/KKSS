@@ -116,6 +116,13 @@ describe("failure reporting", () => {
   ])("classifies %s conservatively", (message, category) => {
     expect(classifyStartupFailure(new Error(message)).failure).toBe(category);
   });
+  it("names ssh failures for the remote host instead of offering a local uv install", () => {
+    for (const stderr of ["me@box: Permission denied (publickey).", "Host key verification failed.", "ssh: Could not resolve hostname nope", "bash: uvx: command not found"]) {
+      const failure = classifyStartupFailure(new Error("MCP error -32000: Connection closed"), stderr);
+      expect(failure.failure).toBe("unknown");
+      expect(failure.message).toContain("remote Kratos host");
+    }
+  });
   it("prioritizes a final Python dependency error over earlier download warnings", () => {
     expect(classifyStartupFailure(new Error("connection closed"),
       "failed to download on first attempt\nModuleNotFoundError: mcp.server.fastmcp").failure).toBe("package");

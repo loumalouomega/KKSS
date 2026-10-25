@@ -43,7 +43,7 @@ import { WorkflowService } from "./services/workflows/service";
 import { manualLaunchAvailability, resolveThreads } from "./services/workflows/environment";
 import { registerAppTools, callAppTool } from "./services/chat/appTools";
 import { KratosRuntime } from "./services/chat/kratosRuntime";
-import { kratosEnvDelta } from "./services/settings/kratosEnv";
+import { kratosEnvDelta, kratosRemoteHost } from "./services/settings/kratosEnv";
 import { defaultPythonPath } from "../../mesh/src/problemtype/kratosEnv";
 import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
@@ -852,6 +852,23 @@ async function openFromCloud(): Promise<void> {
   if (ref) await openCloudFile(ref);
 }
 
+/** File ▸ Open Remote… — pick an ssh host, drill down, stage, open. */
+async function openRemote(): Promise<void> {
+  if (!cloud?.remoteHosts().length) {
+    toast("info", t("Add hosts first: Settings ▸ Remote ▸ SSH Hosts."));
+    return;
+  }
+  const ref = await cloud.browseRemote();
+  if (ref) await openCloudFile(ref);
+}
+
+/** View ▸ New Remote Shell… — shows the terminal panel and starts ssh in it. */
+async function openRemoteShell(host: string): Promise<void> {
+  if (!terminal) return;
+  if (!main?.terminalVisible()) toggleTerminal();
+  await terminal.openRemote(host);
+}
+
 /** A recents row: local path when it is an ordinary file, staging layer when
  *  the entry remembers a cloud origin. */
 function openRecentEntry(fsPath: string, mode: Mode): void {
@@ -1573,6 +1590,7 @@ app.whenReady().then(() => {
       activeCad: activeCadHost()?.currentFile,
       activeMesh: activeMeshHost()?.currentFile,
       projectRoot: projectRoot.explicit(),
+      kratosHost: kratosRemoteHost(),
       // A staged path is valid for this session but not stable across them, so
       // the assistant is told which documents are cloud-backed rather than
       // being left to assume every path it sees is durable.
@@ -1627,6 +1645,9 @@ app.whenReady().then(() => {
       connect: (id) => void cloud?.connect(id),
       disconnect: (id) => void disconnectCloud(id),
       openFromCloud: () => void openFromCloud(),
+      remoteHosts: () => cloud?.remoteHosts() ?? [],
+      openRemote: () => void openRemote(),
+      openRemoteShell: (host) => void openRemoteShell(host),
       saveNow: () => void cloud?.saveNow(),
       cacheLimitMb: () => cloud?.cacheLimitMb() ?? 0,
       setCacheLimitMb: (value) => void cloud?.setCacheLimitMb(value),

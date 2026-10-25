@@ -175,6 +175,8 @@ The model and thinking level can also be changed from the strip above the chat m
 
 **Settings ▸ Cloud Accounts** connects KKSS to Google Drive, Dropbox or OneDrive, so **File ▸ Open from Cloud…** can open a model directly — no desktop sync client required. See [Getting Started ▸ Working from cloud storage](/guide/getting-started#working-from-cloud-storage) for how a cloud document behaves once it is open.
 
+**Settings ▸ Remote** lists the ssh hosts offered by **File ▸ Open Remote…** and **View ▸ New Remote Shell…**, and can point the assistant's Kratos tools at a host. See [Remote Sessions](/guide/remote-sessions).
+
 **KKSS ships no OAuth credentials of its own.** You register a desktop/installed-app client in your own provider console and paste its client ID into the menu. That means nothing here routes through an application account you do not control — and it means there is a one-time setup step per provider:
 
 | Provider | Redirect URI to register | Client secret | Scopes requested |

@@ -109,6 +109,10 @@ What to expect in the awkward cases:
 
 The cache is trimmed on an LRU budget (**Settings ▸ Cloud Accounts ▸ Cache Size Limit…**, 2 GB by default). A document that is open, or that holds an unsent change, is never trimmed.
 
+### Working on a remote machine
+
+**File ▸ Open Remote…** opens a file from a host you listed under **Settings ▸ Remote**, over your own `ssh` setup, with the same staging and write-back behaviour as cloud storage; **View ▸ New Remote Shell…** starts an `ssh` shell in the terminal panel; and the assistant's Kratos tools can run on a remote host. See [Remote Sessions](/guide/remote-sessions).
+
 ### Picking up where you left off
 
 KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing — and the chat sidebar comes back on the conversation you were last in. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there. A cloud document KKSS has trimmed from its local cache is the exception: its tab is kept and downloaded again in the background.
@@ -338,6 +342,7 @@ The **Edit** toolbar button opens the file currently loaded in the active mode (
 | **LLM Assistant** | Provider, **Tool Approval**, **MCP Servers** (opens the sidebar's manager for your own tool servers), **Standing Instructions & Skills** and the folder holding them, **Lifecycle Hooks**, API keys, models, the OpenAI-compatible base URL, the Codex / Claude Code model and executable, and the optional context-window and price rows for models KKSS has no reviewed figures for. Keys are write-only: the page shows whether one is stored, never the key itself. |
 | **MCP Server** | Enable the localhost endpoint, its port, which tools a client may call, and copying or regenerating the token (see *AI assistant ▸ Use your own MCP client* above). |
 | **Cloud Accounts** | Per provider: client ID, client secret, and connect / disconnect. Also the cache size limit, and clearing the cache. |
+| **Remote** | SSH hosts for **File ▸ Open Remote…** and **View ▸ New Remote Shell…**, and the host that runs the assistant's Kratos tools. |
 | **Advanced** | **Flowgraph Asset Override** — development only: serve a local Flowgraph checkout instead of the bundled one. Normally empty. |
 
 The **Settings** menu keeps quick radios for **UI Theme**, **3D Scene Theme** and **Terminal Shell**, plus the checkboxes and actions it always had. **View** carries the Post-Processing **3D Renderer** beside the other viewer toggles, enabled only in that mode. Every menu entry and its row on the page stay in sync both ways. Three VS Code-only extension settings have no row, because KKSS never reaches the code that reads them: `kratos.showWhatsNew`, `kratos.preview.autoSave` and `kratos.run.launchMode`.

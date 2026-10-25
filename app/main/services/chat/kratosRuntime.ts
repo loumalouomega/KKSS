@@ -60,6 +60,11 @@ export function classifyStartupFailure(error: unknown, stderr = ""): RuntimeFail
   if (error instanceof RuntimeFailure) return error;
   const message = error instanceof Error ? error.message : String(error);
   const detail = `${message}\n${stderr}`.slice(-8192);
+  // Remote Kratos (Settings ▸ Remote): ssh's own errors, worded for the host
+  // rather than for the local uv install the banner's button would offer.
+  if (/Permission denied \(|Host key verification failed|Could not resolve hostname|ssh: connect to host|kex_exchange_identification|Connection closed by |uvx: (?:command )?not found|uvx: No such file/i.test(detail)) {
+    return new RuntimeFailure("unknown", `The remote Kratos host could not be used. ${detail.trim().slice(-500)}`);
+  }
   if (/EACCES|EPERM|ENOEXEC/.test(detail)) return new RuntimeFailure("runtime", "The uv executable could not run. Check its permissions or reinstall uv.");
   if (/no solution found|no matching distribution|could not find a version|not found in the package registry|requires-python|ModuleNotFoundError|ImportError/i.test(detail)) {
     return new RuntimeFailure("package", `The Kratos package could not be resolved. ${detail.slice(-600)}`);

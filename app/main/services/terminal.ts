@@ -11,6 +11,7 @@ import * as pty from "node-pty";
 import type { TermToHost, TermToWebview } from "../ipc";
 import { stateStore } from "./stateStore";
 import { endShell } from "./terminalShutdown";
+import { isValidHost } from "./cloud/providerCore/sshCore";
 
 /** Settings ▸ Terminal Shell override, else the platform default. */
 function configuredShell(): string {
@@ -27,6 +28,10 @@ export class TerminalService {
   private lastRows = 24;
   /** Settles when the current shell's exit has been observed (set in `spawn`). */
   private exited: Promise<void> | null = null;
+  /** True once the panel has said `termReady` (output sent earlier is lost). */
+  private panelReady = false;
+  /** One-shot: the next shell is `ssh -t <host>`; a restart afterwards is local. */
+  private remoteHost: string | undefined;
 
   /**
    * @param cwdProvider Directory for new shells (current file's dir, or home).
@@ -43,6 +48,7 @@ export class TerminalService {
         case "termReady":
           this.lastCols = msg.cols;
           this.lastRows = msg.rows;
+          this.panelReady = true;
           if (!this.proc) this.spawn();
           break;
         case "input":
@@ -74,12 +80,16 @@ export class TerminalService {
   }
 
   private spawn(): void {
-    const shell = configuredShell();
-    const proc = pty.spawn(shell, [], {
+    // The system client keeps ~/.ssh/config, the agent and known-hosts handling
+    // authoritative; a local cwd means nothing on the other machine.
+    const remote = this.remoteHost;
+    this.remoteHost = undefined;
+    const shell = remote ? "ssh" : configuredShell();
+    const proc = pty.spawn(shell, remote ? ["-t", remote] : [], {
       name: "xterm-256color",
       cols: this.lastCols,
       rows: this.lastRows,
-      cwd: this.cwdProvider() ?? os.homedir(),
+      cwd: (remote ? undefined : this.cwdProvider()) ?? os.homedir(),
       env: process.env as Record<string, string>,
     });
     this.proc = proc;
@@ -100,6 +110,19 @@ export class TerminalService {
         console.error("Terminal exit notice failed", error);
       }
     });
+  }
+
+  /**
+   * Replaces the running shell (if any) with `ssh -t <host>`. Takes effect
+   * immediately when the panel is up; otherwise at its first `termReady`.
+   */
+  async openRemote(host: string): Promise<void> {
+    if (!isValidHost(host)) return;
+    this.remoteHost = host;
+    const proc = this.proc;
+    const exited = this.exited;
+    if (proc && exited) await endShell({ kill: (signal) => proc.kill(signal), exited }, process.platform);
+    if (!this.proc && this.panelReady) this.spawn();
   }
 
   /** Whether a shell process is running (its exit has not been observed yet). */

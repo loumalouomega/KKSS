@@ -28,12 +28,15 @@ import {
   type CloudAccount,
   type CloudFile,
   type CloudRef,
+  type OAuthProviderId,
   type ProviderId,
 } from "./cloudCore";
 import type { CloudProvider, ProviderStore, TransferOptions } from "./cloudProvider";
 import { DropboxProvider } from "./providers/dropbox";
 import { GoogleDriveProvider } from "./providers/gdrive";
 import { OneDriveProvider } from "./providers/onedrive";
+import { SshProvider } from "./providers/ssh";
+import { encodeId, isValidHost } from "./providerCore/sshCore";
 import { StagingCache, type StagedDocument } from "./stagingCache";
 import { fixtureDirectory, fixtureProvider } from "./e2eProvider";
 import { CloudSync } from "./cloudSync";
@@ -68,6 +71,7 @@ export class CloudService {
   constructor(userDataDir: string = app.getPath("userData")) {
     this.cache = new StagingCache(path.join(userDataDir, "cloud-cache"));
     for (const id of PROVIDER_IDS) this.providers.set(id, makeProvider(id, storeFor(id)));
+    this.providers.set("ssh", new SshProvider());
     const fixture = fixtureDirectory(process.env, app.isPackaged);
     if (fixture) this.providers.set("dropbox", fixtureProvider(fixture));
     this.sync = new CloudSync({
@@ -189,16 +193,35 @@ export class CloudService {
           ).then((r) => r?.status);
     if (!chosen) return undefined;
     const provider = this.providers.get(chosen.id)!;
-    return this.drillDown(provider, chosen);
+    return this.drillDown(provider, chosen.account?.id ?? "", undefined, provider.label);
+  }
+
+  /** Hosts offered by File ▸ Open Remote… and the remote terminal. */
+  remoteHosts(): string[] {
+    const raw = stateStore.get<unknown>("remote.hosts");
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((h): h is string => typeof h === "string" && isValidHost(h.trim())).map((h) => h.trim());
+  }
+
+  /** File ▸ Open Remote… — pick a host, then drill down from its login directory. */
+  async browseRemote(): Promise<CloudRef | undefined> {
+    const hosts = this.remoteHosts();
+    if (!hosts.length) return undefined;
+    const host =
+      hosts.length === 1 ? hosts[0] : (await pickOne(hosts.map((h) => ({ label: h })), t("Open Remote")))?.label;
+    if (!host) return undefined;
+    return this.drillDown(this.providers.get("ssh")!, host, encodeId(host, ""), host);
   }
 
   private async drillDown(
     provider: CloudProvider,
-    status: CloudStatus
+    accountId: string,
+    rootId: string | undefined,
+    rootLabel: string
   ): Promise<CloudRef | undefined> {
     type Row = { label: string; description?: string; kind: RowKind; file?: CloudFile };
     const trail: Array<{ id: string | undefined; label: string }> = [
-      { id: undefined, label: provider.label },
+      { id: rootId, label: rootLabel },
     ];
     let pageToken: string | undefined;
     let accumulated: CloudFile[] = [];
@@ -253,7 +276,7 @@ export class CloudService {
       }
       return {
         provider: provider.id,
-        accountId: status.account?.id ?? "",
+        accountId,
         itemId: file.id,
         name: file.name,
         parentId: file.parentId ?? here.id,
@@ -430,7 +453,7 @@ function storeFor(id: ProviderId): ProviderStore {
   };
 }
 
-function makeProvider(id: ProviderId, store: ProviderStore): CloudProvider {
+function makeProvider(id: OAuthProviderId, store: ProviderStore): CloudProvider {
   switch (id) {
     case "gdrive":
       return new GoogleDriveProvider(store);

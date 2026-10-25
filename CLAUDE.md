@@ -880,6 +880,25 @@ resubmitted automatically.
   couple of KB, so a resumable session would be three round trips for nothing —
   and neither provider can finalise a *zero-byte* resumable session at all, so
   this is a correctness path, not just an optimisation.
+- **Remote (SSH) sessions reuse the cloud staging layer, and drive the system `ssh` binary only.**
+  `ssh` is a fourth `ProviderId` (`STAGED_PROVIDER_IDS`; `PROVIDER_IDS` remains the three
+  OAuth accounts so the Cloud Accounts menu is unchanged). `providers/ssh.ts` +
+  pure `providerCore/sshCore.ts` implement `CloudProvider`; `accountId` is the host and item
+  ids are `host:/abs/path`, so staging (`cloud-cache/ssh/<opaque>/<filename>`), the manifest,
+  `CloudSync`, `conflictCore`, companions, recents and session restore are shared and unchanged.
+  Non-negotiable: every ssh call is `-o BatchMode=yes` (KKSS never sees a password or
+  passphrase; no JS SSH library — the second-native-module Non-goal), `isValidHost` rejects a
+  leading `-`, and every path goes through `shQuote` — a path is data, never command text.
+  Revision is `mtime:size` with no wire precondition (check-then-upload; a narrow race remains,
+  mitigated by conflict-copy-on-doubt); upload is `cp -p` + temp file + `mv -f`. The terminal's
+  remote target is one-shot (`TerminalService.openRemote`). `remote.kratosHost` swaps the
+  Kratos MCP spec for `ssh … uvx kratos-mcp-server@<pin>` in `McpManager.connectAttempt`,
+  skipping the local uv runtime *and* the local `kratosEnvDelta` (both describe this machine);
+  `classifyStartupFailure` words ssh failures as `unknown` so the banner never offers a local uv
+  install for a remote problem. The remote split (Kratos paths on the host, CAD/mesh staging
+  paths local) is told to the assistant through the **context suffix**
+  (`currentFiles().kratosHost`, `staging copy of host:/path`), never `SYSTEM_PROMPT`.
+  The guided-workflow queue/runner is still local-only (roadmap item 5, remaining).
 - **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
   which owns both zoom re-assertion on `did-finish-load` and renderer-crash
   reporting — adding a view without it silently opts that view out of both.
