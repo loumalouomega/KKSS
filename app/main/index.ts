@@ -44,6 +44,7 @@ import { manualLaunchAvailability, resolveThreads } from "./services/workflows/e
 import { registerAppTools, callAppTool } from "./services/chat/appTools";
 import { KratosRuntime } from "./services/chat/kratosRuntime";
 import { kratosEnvDelta, kratosRemoteHost } from "./services/settings/kratosEnv";
+import { spawnSsh } from "./services/cloud/providers/ssh";
 import { defaultPythonPath } from "../../mesh/src/problemtype/kratosEnv";
 import { getSecret, setSecret } from "./services/chat/secrets";
 import { MetaMcpServer, META_SERVER_KEYS, DEFAULT_META_SERVER_PORT } from "./services/metaServer/metaServer";
@@ -1479,6 +1480,7 @@ app.whenReady().then(() => {
     open: async (file) => { await openFile(file); },
     changed: () => { void pushWorkflows(); },
     callMcpTool: (name, args) => mcpHub?.ensureStarted().callToolRaw(name, args) ?? Promise.resolve({ isError: true, content: [{ type: "text", text: "MCP manager is unavailable." }] }),
+    remote: () => { const host = kratosRemoteHost(); return host ? { host, ssh: spawnSsh } : undefined; },
     toolReady: (key) => mcpHub?.statuses().some(status => status.key === key && status.state === "ready") ?? false,
     prepareQueue: async () => {
       const hub = mcpHub;

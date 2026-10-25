@@ -13,6 +13,8 @@ import type { Evidence, Handoff, Json, Project, Quantity, Run, Study } from './c
 import type { KratosRuntime } from '../chat/kratosRuntime';
 import { ExecutionQueue, planRevision } from './queue';
 import type { Runner } from './queue';
+import { RemoteRunner, type RemoteSolveSpec } from './remoteRunner';
+import type { SshRunner } from '../cloud/providers/ssh';
 import type { Receipt, Task, TaskState } from './contracts';
 import { BUILTIN_PROBLEMTYPES } from '../../../../mesh/src/problemtype/builtins';
 import { defaultCaseState } from '../../../../mesh/src/problemtype/api';
@@ -36,6 +38,8 @@ export interface WorkflowDeps {
   callMcpTool?(name: string, args: Record<string, unknown>): Promise<{ isError?: boolean; structuredContent?: unknown; content?: { type?: string; text?: string }[] }>;
   toolReady?(key: 'cad' | 'mesh'): boolean;
   prepareQueue?(): Promise<void>;
+  /** Set while `remote.kratosHost` is configured: solves then run on that host over ssh. */
+  remote?(): { host: string; ssh: SshRunner } | undefined;
 }
 interface QueuePreview { projectRevision: number; studyRevision: string; studyId: string; tasks: Task[]; summary: string[]; studies?: Study[] }
 const text = (args: Record<string, unknown>, key: string): string => {
@@ -72,10 +76,31 @@ export class WorkflowService {
   constructor(private readonly deps: WorkflowDeps) {
     this.queue = new ExecutionQueue({
       validate: (task, store) => this.validateQueuedTask(task, store),
-      dispatch: (task, store) => this.dispatchQueuedTask(task, store),
-      lookup: (task, store) => this.lookupQueuedTask(task, store),
-      cancel: (task, store) => this.cancelQueuedTask(task, store),
-    } satisfies Runner);
+      dispatch: (task, store) => this.remoteSolver(task, store)?.dispatch(task, store) ?? this.dispatchQueuedTask(task, store),
+      lookup: (task, store) => this.remoteSolver(task, store)?.lookup(task, store) ?? this.lookupQueuedTask(task, store),
+      cancel: (task, store) => this.remoteSolver(task, store)?.cancel(task, store) ?? this.cancelQueuedTask(task, store),
+    } satisfies Runner, () => this.deps.remote?.() ? (RemoteRunner.lastCpuCount ?? 1) : availableParallelism());
+  }
+  /**
+   * The ssh runner for a solve task while a remote Kratos host is set, else
+   * undefined (local MCP path). Solves run `python3 MainKratos.py` from the
+   * uploaded `<run>/input` in `kkss-runs/<study>-<run>` under the login dir;
+   * outputs stay on the host (artifact download is not implemented yet).
+   */
+  private remoteSolver(task: Task, store: ProjectStore): RemoteRunner | undefined {
+    const remote = task.kind === 'solve' ? this.deps.remote?.() : undefined;
+    if (!remote) return undefined;
+    return new RemoteRunner(remote.host, remote.ssh, (t, s): RemoteSolveSpec => {
+      const threads = typeof t.args.threads === 'number' ? String(t.args.threads) : undefined;
+      return {
+        inputDir: path.dirname(resolveReference(s.root, { kind: 'project', path: relativeOutput(t.args.mesh, 'Mesh path'), revision: '' })),
+        localDir: resolveReference(s.root, { kind: 'project', path: relativeOutput(t.args.runDirectory, 'Run directory'), revision: '' }),
+        root: s.root,
+        remoteDir: `kkss-runs/${t.studyId}-${t.runId}`,
+        argv: ['python3', 'MainKratos.py'],
+        env: { ...(this.deps.environment().extraEnv ?? {}), ...(threads ? { OMP_NUM_THREADS: threads } : {}) },
+      };
+    });
   }
   store(): ProjectStore {
     const root = this.deps.root();
@@ -87,7 +112,7 @@ export class WorkflowService {
   context(): string {
     const baseKey = fingerprint({ ...this.deps.environment(), root: this.deps.root(), mesh: this.deps.activeMesh() });
     const report = this.report?.baseKey === baseKey ? this.report.value : undefined;
-    return JSON.stringify({ ...this.selected, runtime: report ? { manual: report.manual.available, tools: report.tools.available, checkedAt: report.checkedAt } : 'not checked or settings changed', queue: this.queueContext });
+    return JSON.stringify({ ...this.selected, ...(this.deps.remote?.() ? { solvesRunOn: this.deps.remote()!.host } : {}), runtime: report ? { manual: report.manual.available, tools: report.tools.available, checkedAt: report.checkedAt } : 'not checked or settings changed', queue: this.queueContext });
   }
   async environment(force = false): Promise<EnvironmentReport> {
     let problemtype: string | undefined;
@@ -707,7 +732,9 @@ export class WorkflowService {
       const issues = Array.isArray(validation.issues) ? validation.issues.filter((v): v is string => typeof v === 'string') : [];
       errors.push(...(issues.length ? issues : ['Case validation returned no successful status: ' + JSON.stringify(validation)]));
     }
-    if (task.kind === 'solve') {
+    const remoteSolve = this.remoteSolver(task, store);
+    if (remoteSolve) errors.push(...await remoteSolve.validate(task, store));
+    else if (task.kind === 'solve') {
       const report = await this.environmentFor(problemtype, store.root);
       if (task.resources?.verified && task.resources.threads !== task.args.threads) errors.push('Solver resource reservation does not match its approved thread count.');
       const outputReport = discoverOutputs(path.dirname(mesh));
