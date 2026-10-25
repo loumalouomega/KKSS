@@ -176,7 +176,8 @@ export function remoteRunScript(opts: {
     "#!/bin/sh",
     // Survive the group TERM that cancels the solver, so the receipt gets written.
     "trap : TERM",
-    `d=${shQuote(opts.dir)}`,
+    // Absolute before the `cd` below: the run directory is relative to the login dir.
+    `d=$(cd ${shQuote(opts.dir)} 2>/dev/null && pwd) || exit 1`,
     `w() { printf '%s\\n' "$1" > "$d/receipt.json.tmp" && mv -f "$d/receipt.json.tmp" "$d/receipt.json"; }`,
     `w '${head},"state":"running","pid":'$$'}'`,
     `cd "$d/input" || { w '${head},"state":"failed","message":"Input directory is missing."}'; exit 1; }`,

@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -93,5 +93,19 @@ describe("remote script builders", () => {
     expect(() => remoteRunScript({ dir: "d", requestId: "a'b", ownerId: "o", argv: ["x"] })).toThrow();
     expect(() => remoteRunScript({ dir: "d", requestId: "a", ownerId: "o", argv: ["x"], env: { "A;B": "1" } })).toThrow();
     expect(launchCommand("a b'c")).toContain(`'a b'\\''c'`);
+  });
+});
+
+describe("remoteRunScript with a relative run directory", () => {
+  it("writes the log and terminal receipt under the run directory, not under input/", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-relrun-"));
+    try {
+      fs.mkdirSync(path.join(home, "kkss-runs/r1/input"), { recursive: true });
+      fs.writeFileSync(path.join(home, "kkss-runs/r1/run.sh"), remoteRunScript({ dir: "kkss-runs/r1", requestId: "q", ownerId: "o", argv: ["true"] }));
+      const run = spawnSync("sh", ["kkss-runs/r1/run.sh"], { cwd: home });
+      expect(run.status).toBe(0);
+      expect(JSON.parse(fs.readFileSync(path.join(home, "kkss-runs/r1/receipt.json"), "utf8")).state).toBe("succeeded");
+      expect(fs.existsSync(path.join(home, "kkss-runs/r1/stdout.log"))).toBe(true);
+    } finally { fs.rmSync(home, { recursive: true, force: true }); }
   });
 });

@@ -654,6 +654,7 @@
   "Assistant tools": "Assistant tools",
   "Run directory{0}: {1}": "Run directory{0}: {1}",
   "Required applications: this case has no declared built-in requirements, so verification is incomplete.": "Required applications: this case has no declared built-in requirements, so verification is incomplete.",
+  "Checked on ssh host {0}: guided solves run there": "Checked on ssh host {0}: guided solves run there",
   "Available CPU cores: {0}": "Available CPU cores: {0}",
   "Available memory: {0} GiB": "Available memory: {0} GiB",
   "Suggested thread limit: {0}": "Suggested thread limit: {0}",
