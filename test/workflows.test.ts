@@ -536,6 +536,57 @@ describe('shared workflow tools', () => {
     expect(JSON.parse(service.context()).runtime).toBe('not checked or settings changed');
   });
 
+  it('drives a queued solve through the remote runner to downloaded, reviewable outputs', async () => {
+    const { spawn } = await import('node:child_process');
+    const fsSync = await import('node:fs');
+    const root = await temp(), bin = path.join(root, '..', path.basename(root) + '-bin');
+    roots.push(bin);
+    await fs.mkdir(bin, { recursive: true });
+    await fs.writeFile(path.join(bin, 'python3'), '#!/bin/sh\n[ "$1" = "-c" ] && exit 0\nprintf "# vtk DataFile Version 3.0\\n" > result.vtk\necho solver-done\n', { mode: 0o755 });
+    const oldPath = process.env.PATH; process.env.PATH = `${bin}:${oldPath}`;
+    try {
+      const ssh = (_h: string, command: string, o: { stdinFile?: string; stdoutFile?: string } = {}) => new Promise<{ code: number; stdout: string; stderr: string }>(resolve => {
+        const child = spawn('sh', ['-c', command], { cwd: root, stdio: ['pipe', 'pipe', 'pipe'] });
+        let stdout = '', stderr = '';
+        const sink = o.stdoutFile ? fsSync.createWriteStream(o.stdoutFile) : undefined;
+        if (sink) child.stdout.pipe(sink); else child.stdout.on('data', d => (stdout += d));
+        child.stderr.on('data', d => (stderr += d));
+        if (o.stdinFile) fsSync.createReadStream(o.stdinFile).pipe(child.stdin); else child.stdin.end();
+        child.on('close', code => { const done = () => resolve({ code: code ?? 1, stdout, stderr }); if (sink) sink.end(done); else done(); });
+      });
+      const geometry = path.join(root, 'beam.step'); await fs.writeFile(geometry, 'geometry');
+      const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+        runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+        open: async () => undefined, changed: () => undefined, remote: () => ({ host: 'hpc', ssh }),
+        callMcpTool: async () => ({ structuredContent: { ok: true } }) });
+      const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+      const study = await invoke('study_create', { name: 'Cantilever', source: geometry }) as Study;
+      const runId = 'remote-run', dir = `.kkss/runs/${runId}`;
+      await fs.mkdir(path.join(root, dir, 'input'), { recursive: true });
+      await fs.writeFile(path.join(root, dir, 'input', 'MainKratos.py'), '# case');
+      await fs.writeFile(path.join(root, dir, 'input', 'beam.mdpa'), 'Begin Nodes\nEnd Nodes\n');
+      const task: Task = { id: 'solve-1', studyId: study.id, runId, kind: 'solve', dependencies: [], resources: { threads: 1, verified: true },
+        args: { mesh: `${dir}/input/beam.mdpa`, casePath: `${dir}/case.json`, caseState: {}, problemtype: 'structural', runDirectory: `${dir}/solve`, threads: 1 },
+        inputRevision: 'rev', requiredArtifacts: [], state: 'waiting' };
+      await service.store().update(project => { project.queue.tasks.push(task); });
+      const plan = (await service.store().read())!;
+      await invoke('queue_resume', { planRevision: planRevision(plan.queue.tasks) });
+      for (let i = 0; i < 100; i++) {
+        const state = (await service.store().read())!.queue.tasks[0].state;
+        if (state === 'succeeded' || state === 'failed' || state === 'uncertain') break;
+        await new Promise(r => setTimeout(r, 100));
+        await invoke('queue_resume', { planRevision: planRevision((await service.store().read())!.queue.tasks) }).catch(() => undefined);
+      }
+      const done = (await service.store().read())!.queue.tasks[0];
+      expect(done.state, JSON.stringify(done.receipt)).toBe('succeeded');
+      expect(done.receipt?.message).toMatch(/convergence is not established/i);
+      expect(await fs.readFile(path.join(root, dir, 'solve', 'result.vtk'), 'utf8')).toMatch(/vtk DataFile/);
+      expect(done.receipt?.artifacts?.map(a => a.role).sort()).toEqual(['log', 'result']);
+      // Reviewable: the run is importable/reviewable from the downloaded, checksummed outputs.
+      expect(done.receipt?.artifacts?.every(a => a.reference.revision?.length === 64)).toBe(true);
+    } finally { process.env.PATH = oldPath; }
+  });
+
   it('previews and atomically enqueues isolated run and parameter-sweep destinations', async () => {
     const root = await temp(), geometry = path.join(root, 'beam.step');
     await fs.writeFile(geometry, 'geometry');

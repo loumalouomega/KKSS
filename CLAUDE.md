@@ -918,8 +918,12 @@ resubmitted automatically.
   design (the WASM kernels are local; generated inputs are uploaded). Home's `EnvironmentReport` is
   host-aware while a host is set (`checkRemoteEnvironment`: the same probe script over ssh, `nproc`, a `mkdir -p kkss-runs`
   writability check, `host` on the report, the host in every cache key; the local uv tool runtime is reported unused);
-  `tools/e2e/remote-env.mjs` drives it through a fake `ssh`/`python3` on `PATH`. Not done: live sshd and Windows/macOS
-  verification, and a fake-ssh e2e that drives a *queued solve* to a reviewable run (needs a generated case).
+  `tools/e2e/remote-env.mjs` drives it through a fake `ssh`/`python3` on `PATH`. A queued solve is
+  tested end to end through the real `WorkflowService`/queue/`RemoteRunner` with a local `sh` standing in for ssh
+  (`workflows.test.ts`); that test caught a real defect — `run.sh` `cd`s into `input/`, so a *relative* run directory
+  sent the log and terminal receipt to the wrong place and the run stayed `running` forever — fixed by resolving
+  `d` to an absolute path first (`remoteRunScript`; regression in `remoteRunner.test.ts`). The system prompt now
+  describes `solvesRunOn`. Not done: live sshd and Windows/macOS verification (roadmap item 5).
 - **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
   which owns both zoom re-assertion on `did-finish-load` and renderer-crash
   reporting — adding a view without it silently opts that view out of both.
