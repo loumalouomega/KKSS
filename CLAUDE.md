@@ -923,7 +923,7 @@ resubmitted automatically.
   (`workflows.test.ts`); that test caught a real defect — `run.sh` `cd`s into `input/`, so a *relative* run directory
   sent the log and terminal receipt to the wrong place and the run stayed `running` forever — fixed by resolving
   `d` to an absolute path first (`remoteRunScript`; regression in `remoteRunner.test.ts`). The system prompt now
-  describes `solvesRunOn`. Not done: live sshd and Windows/macOS verification (roadmap item 5).
+  describes `solvesRunOn`. Verified against a real loopback sshd from a Linux client (`test/sshdLive.test.ts`, opt-in via `KKSS_SSHD_HOST`: open/write-back/conflict copy, `ssh -tt` shell, detached solve with checksum-verified downloads, group cancel); not done: Windows/macOS clients and a non-loopback host (roadmap item 5).
 - **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
   which owns both zoom re-assertion on `did-finish-load` and renderer-crash
   reporting — adding a view without it silently opts that view out of both.
