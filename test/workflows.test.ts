@@ -1,5 +1,5 @@
 import { KRATOS_MCP_VERSION } from '../app/main/services/chat/kratosMcpVersion';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -512,6 +512,28 @@ describe('shared workflow tools', () => {
       const unknown = path.join(root, 'unknown-handoff.json'); await fs.writeFile(unknown, JSON.stringify({ version: 99 })); return unknown;
     })() })).rejects.toThrow(/Unsupported CAD handoff schema/);
     expect((await service.store().read())!.revision).toBe(before);
+  });
+
+  it('probes the ssh host instead of this machine when a remote host is configured', async () => {
+    const root = await temp();
+    const calls: string[] = [];
+    const ssh = async (_host: string, command: string) => {
+      calls.push(command);
+      if (command.startsWith('python3 ')) return { code: 0, stderr: '', stdout: `KKSS_PROBE:${JSON.stringify({ executable: '/usr/bin/python3', version: '3.12.1', threadControl: true, applications: [{ name: 'KratosMultiphysics', available: true }] })}\n` };
+      if (command.startsWith('nproc')) return { code: 0, stderr: '', stdout: '16\n' };
+      return { code: 0, stderr: '', stdout: '' };
+    };
+    const discover = vi.fn(async () => ({ command: 'uvx', args: [] }));
+    let host: string | undefined = 'hpc';
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined, runtime: { discover },
+      environment: () => ({ python: 'python', env: {} }), open: async () => undefined, changed: () => undefined,
+      remote: () => host ? { host, ssh } : undefined });
+    const report = await service.environment(true);
+    expect(report).toMatchObject({ host: 'hpc', cpuCount: 16, suggestedThreads: 15 });
+    expect(discover).not.toHaveBeenCalled();
+    expect(JSON.parse(service.context())).toMatchObject({ solvesRunOn: 'hpc', runtime: { manual: true, tools: false } });
+    host = undefined; // Clearing the host must invalidate the cached remote report.
+    expect(JSON.parse(service.context()).runtime).toBe('not checked or settings changed');
   });
 
   it('previews and atomically enqueues isolated run and parameter-sweep destinations', async () => {

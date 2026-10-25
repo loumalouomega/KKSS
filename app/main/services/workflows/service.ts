@@ -7,7 +7,7 @@ import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { writeFileAtomic } from '../atomicWrite';
 import type { AppTool } from '../chat/appTools';
-import { checkEnvironment, resolveThreads, type EnvironmentReport } from './environment';
+import { checkEnvironment, checkRemoteEnvironment, resolveThreads, type EnvironmentReport } from './environment';
 import { ProjectStore, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
 import type { Evidence, Handoff, Json, Project, Quantity, Run, Study } from './contracts';
 import type { KratosRuntime } from '../chat/kratosRuntime';
@@ -85,7 +85,7 @@ export class WorkflowService {
    * The ssh runner for a solve task while a remote Kratos host is set, else
    * undefined (local MCP path). Solves run `python3 MainKratos.py` from the
    * uploaded `<run>/input` in `kkss-runs/<study>-<run>` under the login dir;
-   * outputs stay on the host (artifact download is not implemented yet).
+   * outputs are downloaded into the run directory with checksums once the remote receipt is terminal.
    */
   private remoteSolver(task: Task, store: ProjectStore): RemoteRunner | undefined {
     const remote = task.kind === 'solve' ? this.deps.remote?.() : undefined;
@@ -110,7 +110,7 @@ export class WorkflowService {
     return store;
   }
   context(): string {
-    const baseKey = fingerprint({ ...this.deps.environment(), root: this.deps.root(), mesh: this.deps.activeMesh() });
+    const baseKey = fingerprint({ ...this.deps.environment(), root: this.deps.root(), mesh: this.deps.activeMesh(), host: this.deps.remote?.()?.host });
     const report = this.report?.baseKey === baseKey ? this.report.value : undefined;
     return JSON.stringify({ ...this.selected, ...(this.deps.remote?.() ? { solvesRunOn: this.deps.remote()!.host } : {}), runtime: report ? { manual: report.manual.available, tools: report.tools.available, checkedAt: report.checkedAt } : 'not checked or settings changed', queue: this.queueContext });
   }
@@ -125,7 +125,7 @@ export class WorkflowService {
     if (!problemtype && mesh) {
       try { problemtype = parseCaseJson(await fs.readFile(caseFilePath(mesh), 'utf8')).state?.problemtypeId; } catch { /* No selected case. */ }
     }
-    const baseKey = fingerprint({ ...this.deps.environment(), root: this.deps.root(), mesh });
+    const baseKey = fingerprint({ ...this.deps.environment(), root: this.deps.root(), mesh, host: this.deps.remote?.()?.host });
     const key = fingerprint({ baseKey, problemtype });
     if (!force && this.report?.key === key) return this.report.value;
     const value = await this.environmentFor(problemtype, this.deps.root() ?? (mesh ? path.dirname(mesh) : process.cwd()));
@@ -140,7 +140,7 @@ export class WorkflowService {
       catch { /* Report incomplete requirements for an unknown or missing case. */ }
     }
     const runtime = this.deps.environment();
-    const key = fingerprint({ runtime, meshPath: path.resolve(meshPath), problemtype });
+    const key = fingerprint({ runtime, meshPath: path.resolve(meshPath), problemtype, host: this.deps.remote?.()?.host });
     const cached = force ? undefined : this.environmentCache.get(key);
     if (cached) return cached;
     const report = await this.environmentFor(problemtype, path.dirname(meshPath));
@@ -152,6 +152,12 @@ export class WorkflowService {
     const config = this.deps.environment();
     const stage = BUILTIN_PROBLEMTYPES.find(pt => pt.decl.id === problemtype)?.decl.analysisStage;
     const application = stage?.match(/^(KratosMultiphysics\.[A-Za-z_][A-Za-z0-9_]*Application)\./)?.[1];
+    const remote = this.deps.remote?.();
+    if (remote) {
+      const report = await checkRemoteEnvironment({ host: remote.host, ssh: remote.ssh, applications: application ? [application] : [], requirementsComplete: !!application });
+      if (report.cpuCount) RemoteRunner.lastCpuCount = report.cpuCount;
+      return report;
+    }
     return checkEnvironment({ ...config, directory, applications: application ? [application] : [], requirementsComplete: !!application, runtime: this.deps.runtime });
   }
   async snapshot(): Promise<unknown> {
@@ -166,7 +172,7 @@ export class WorkflowService {
     if (!problemtypeId && this.deps.activeMesh()) {
       try { problemtypeId = parseCaseJson(await fs.readFile(caseFilePath(this.deps.activeMesh()!), 'utf8')).state?.problemtypeId; } catch { /* No case sidecar. */ }
     }
-    const reportKey = fingerprint({ baseKey: fingerprint({ ...this.deps.environment(), root: this.deps.root(), mesh: this.deps.activeMesh() }), problemtype: problemtypeId });
+    const reportKey = fingerprint({ baseKey: fingerprint({ ...this.deps.environment(), root: this.deps.root(), mesh: this.deps.activeMesh(), host: this.deps.remote?.()?.host }), problemtype: problemtypeId });
     if (this.report && this.report.key !== reportKey) this.report = undefined;
     this.queueContext = project?.queue.tasks.filter(t => ['dispatching', 'running', 'uncertain'].includes(t.state)).map(t => ({ id: t.id, studyId: t.studyId, runId: t.runId, kind: t.kind, state: t.state })) ?? [];
     return { project: project ?? null, queuePlanRevision: project ? planRevision(project.queue.tasks) : undefined,

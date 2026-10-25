@@ -654,6 +654,7 @@
   "Assistant tools": "Herramientas del asistente",
   "Run directory{0}: {1}": "Directorio de ejecución{0}: {1}",
   "Required applications: this case has no declared built-in requirements, so verification is incomplete.": "Aplicaciones necesarias: este caso no declara requisitos integrados, por lo que la verificación está incompleta.",
+  "Checked on ssh host {0}: guided solves run there": "Comprobado en el host ssh {0}: las simulaciones guiadas se ejecutan allí",
   "Available CPU cores: {0}": "Núcleos de CPU disponibles: {0}",
   "Available memory: {0} GiB": "Memoria disponible: {0} GiB",
   "Suggested thread limit: {0}": "Límite de hilos sugerido: {0}",

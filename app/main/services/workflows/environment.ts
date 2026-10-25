@@ -4,6 +4,8 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import { constants } from 'node:fs';
 import { runRuntimeCommand, type KratosRuntime } from '../chat/kratosRuntime';
+import type { SshRunner } from '../cloud/providers/ssh';
+import { cpuCountCommand, mkdirCommand, shQuote } from '../cloud/providerCore/sshCore';
 export interface RuntimeReport {
   executable?: string; version?: string; kratosVersion?: string;
   applications: { name: string; available: boolean; reason?: string }[];
@@ -17,6 +19,8 @@ export interface EnvironmentReport {
   version: 1; checkedAt: string; requirementsComplete: boolean; directory: string;
   writable: boolean; directoryReason?: string; cpuCount: number; memoryBytes: number;
   suggestedThreads?: number; manual: RuntimeReport; tools: RuntimeReport;
+  /** Set when the probe ran on an ssh host; every other field then describes that host. */
+  host?: string;
 }
 export function manualLaunchAvailability(report: EnvironmentReport): { allowed: boolean; reason?: string } {
   const reasons = [
@@ -85,6 +89,38 @@ export async function checkEnvironment(options: {
   return { version: 1, checkedAt: new Date().toISOString(), requirementsComplete: options.requirementsComplete,
     directory: options.directory, writable, directoryReason, cpuCount, memoryBytes: os.freemem(), manual, tools,
     ...(manual.available && manual.capabilities.threads ? { suggestedThreads: Math.max(1, cpuCount - 1) } : {}) };
+}
+
+/**
+ * The same probes as `checkEnvironment`, run on the ssh host that will execute guided solves.
+ * The local uv tool runtime plays no part in a remote solve, so `tools` is reported unavailable
+ * with that reason rather than borrowed from this machine.
+ */
+export async function checkRemoteEnvironment(options: {
+  host: string; ssh: SshRunner; applications: string[]; requirementsComplete: boolean; remoteDir?: string;
+}): Promise<EnvironmentReport> {
+  const { host, ssh } = options;
+  const remoteDir = options.remoteDir ?? 'kkss-runs';
+  const run: Probe = async (_command, args) => {
+    const [flag, script, json] = args.slice(-3);
+    const result = await ssh(host, `python3 ${flag} ${shQuote(script)} ${shQuote(json)}`);
+    if (result.code !== 0) throw new Error(`python3 on ${host} failed: ${result.stderr.trim() || `exit ${result.code}`}`);
+    return result.stdout;
+  };
+  const [manual, cpus, made] = await Promise.all([
+    probePython('python3', [], options.applications, {}, run),
+    ssh(host, cpuCountCommand()).catch(() => undefined),
+    ssh(host, mkdirCommand(remoteDir)).catch(() => undefined),
+  ]);
+  const parsed = Number(cpus?.stdout.trim());
+  const cpuCount = Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
+  const writable = made?.code === 0;
+  const unavailable = 'Guided solves on a remote host use that host\'s Python; the local Kratos tool runtime is not used.';
+  return { version: 1, checkedAt: new Date().toISOString(), requirementsComplete: options.requirementsComplete, host,
+    directory: `${host}:${remoteDir}`, writable, ...(writable ? {} : { directoryReason: `Could not create ${remoteDir} on ${host}.` }),
+    cpuCount, memoryBytes: 0, manual: cpuCount ? manual : { ...manual, available: false, modes: [], reason: `Could not determine the CPU count of ${host}. ${manual.reason ?? ''}`.trim() },
+    tools: { applications: [], available: false, capabilities: unavailableCapabilities(), modes: [], reason: unavailable },
+    ...(cpuCount && manual.available && manual.capabilities.threads ? { suggestedThreads: Math.max(1, cpuCount - 1) } : {}) };
 }
 
 export function resolveThreads(configured: number | undefined, cpuCount: number): number {

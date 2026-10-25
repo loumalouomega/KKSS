@@ -915,8 +915,11 @@ resubmitted automatically.
   the next tick retries (caps: 500 files, 2 GB). `validate` probes the host (`python3`, importable
   `KratosMultiphysics`, `nproc`) and rejects a thread count above the host's CPUs; the queue's CPU
   budget uses the last probed remote count while a host is set. Mesh/generate tasks stay local by
-  design (the WASM kernels are local; generated inputs are uploaded). Not done: the local
-  `EnvironmentReport` shown on Home is still the local machine's, live sshd and Windows/macOS verification, the fake-ssh e2e.
+  design (the WASM kernels are local; generated inputs are uploaded). Home's `EnvironmentReport` is
+  host-aware while a host is set (`checkRemoteEnvironment`: the same probe script over ssh, `nproc`, a `mkdir -p kkss-runs`
+  writability check, `host` on the report, the host in every cache key; the local uv tool runtime is reported unused);
+  `tools/e2e/remote-env.mjs` drives it through a fake `ssh`/`python3` on `PATH`. Not done: live sshd and Windows/macOS
+  verification, and a fake-ssh e2e that drives a *queued solve* to a reviewable run (needs a generated case).
 - **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
   which owns both zoom re-assertion on `did-finish-load` and renderer-crash
   reporting — adding a view without it silently opts that view out of both.

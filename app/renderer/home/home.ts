@@ -400,7 +400,7 @@ api.onMessage((raw) => {
       manual?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; capabilities?: { threads: boolean; mpi: boolean; mpiReason?: string }; applications?: { name: string; available: boolean; reason?: string }[] };
       tools?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; applications?: { name: string; available: boolean; reason?: string }[] };
       directory?: string; writable?: boolean; directoryReason?: string; cpuCount?: number; memoryBytes?: number;
-      suggestedThreads?: number; requirementsComplete?: boolean;
+      suggestedThreads?: number; requirementsComplete?: boolean; host?: string;
     };
     manualRuntimeAvailable = !!report.manual?.available && report.requirementsComplete !== false && report.writable === true;
     const runtimeLine = (name: string, runtime: typeof report.manual): string => {
@@ -411,6 +411,7 @@ api.onMessage((raw) => {
     const applicationLines = [report.manual, report.tools].flatMap(runtime => runtime?.applications ?? []).map(application =>
       `${application.name}: ${application.available ? t("available") : application.reason ?? t("missing")}`);
     environmentReport.textContent = [
+      report.host ? t("Checked on ssh host {0}: guided solves run there", {0: report.host}) : undefined,
       runtimeLine(t("Manual runs"), report.manual),
       runtimeLine(t("Assistant tools"), report.tools),
       ...new Set(applicationLines),
