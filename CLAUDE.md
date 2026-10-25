@@ -181,12 +181,12 @@ read-only mesh evaluator is
 `mesh__case_evaluate_quantity`; its app-owned persistence wrapper is
 `app__run_quantity_evaluate` and follows normal write approval.
 
-`workflows/mpiReceipt.ts` is the pure, not-yet-wired MPI receipt contract (rank-set slots, plan-frozen args, `uncertain` on a dead launcher or rank mismatch); `EnvironmentReport.mpi` stays `false` until a runner uses it end to end.
+`workflows/mpiReceipt.ts` is the pure MPI receipt contract (rank-set slots, plan-frozen args, per-rank pid markers, `uncertain` on a dead launcher, a short *succeeded* rank set or a dead rank under a live launcher) and `workflows/mpiRunner.ts` is the single-node runner built on it: one class for this machine (`runLocalSh`) and the ssh host, selected by `WorkflowService.solveRunner` for a solve frozen with `mpiRanks` (`kratos.mpiRanks`, 0 = off). `mpiCase.ts` rewrites only the uploaded `ProjectParameters.json` (`parallel_type: "MPI"`) and refuses a serial-only linear solver instead of swapping it. `EnvironmentReport.mpi` is `true` only when the probe saw a launcher, a POSIX shell and all three MPI modules. Verified with stand-in launchers (including a killed rank); no live MPI-enabled Kratos run exists yet, and multi-node is out of scope.
 
 The environment probe is read-only: the manual Python interpreter and uv-managed
 Kratos tool runtime are checked independently, and the latter uses offline/no-sync
 flags. Thread suggestions require the manual runner's verified thread-control API;
-MPI support remains false and rank controls stay hidden. The KKSS `RunManager` guard uses the selected problemtype's manual report to
+MPI support is reported true only by the probe above; the rank count is the `kratos.mpiRanks` setting, not a Home control. The KKSS `RunManager` guard uses the selected problemtype's manual report to
 disable the mesh Problemtype Run action and rechecks before process dispatch; an
 unconfigured guard preserves standalone mesh behavior. CAD v1 handoff manifests,
 versioned case-preparation/provenance reports, structural solve-step monitor output, mesh

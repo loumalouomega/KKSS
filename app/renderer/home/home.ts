@@ -397,7 +397,7 @@ api.onMessage((raw) => {
   else if (message?.type === "workflowState") renderWorkflow(message.value);
   else if (message?.type === "environmentReport") {
     const report = message.value as {
-      manual?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; capabilities?: { threads: boolean; mpi: boolean; mpiReason?: string }; applications?: { name: string; available: boolean; reason?: string }[] };
+      manual?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; capabilities?: { threads: boolean; mpi: boolean; mpiReason?: string; mpiLauncher?: string }; applications?: { name: string; available: boolean; reason?: string }[] };
       tools?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; applications?: { name: string; available: boolean; reason?: string }[] };
       directory?: string; writable?: boolean; directoryReason?: string; cpuCount?: number; memoryBytes?: number;
       suggestedThreads?: number; requirementsComplete?: boolean; host?: string;
@@ -421,6 +421,7 @@ api.onMessage((raw) => {
       report.memoryBytes ? t("Available memory: {0} GiB", {0: (report.memoryBytes / 1024 ** 3).toFixed(1)}) : undefined,
       report.suggestedThreads ? t("Suggested thread limit: {0}", {0: report.suggestedThreads}) : undefined,
       report.manual?.capabilities?.mpi === false ? t("MPI unavailable: {0}", {0: report.manual.capabilities.mpiReason}) : undefined,
+      report.manual?.capabilities?.mpi === true ? t("MPI available via {0}: set MPI Ranks in Settings → Kratos to run guided solves on several ranks of this node.", {0: report.manual.capabilities.mpiLauncher}) : undefined,
     ].filter(Boolean).join("\n");
     (document.getElementById("environment-actions") as HTMLElement).hidden = !!report.tools?.available;
     planRunButton.disabled = !selectedStudy || manualRuntimeAvailable === false;

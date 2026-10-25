@@ -449,6 +449,11 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       description: t("0 selects Auto (available CPUs minus one, minimum one). Queued previews freeze the allocation; changing it requires a new preview."),
     },
     {
+      id: "kratos.mpiRanks", label: t("MPI Ranks"), category: "Kratos", type: "number",
+      storeKey: "kratos.mpiRanks", default: 0, min: 0, integer: true, applies: "nextRun",
+      description: t("0 runs guided solves with OpenMP threads. A positive count launches the solve under MPI with that many ranks on one node; Solver Threads then means threads per rank (Auto uses 1). Needs an MPI launcher and an MPI-enabled Kratos build; queued previews freeze the allocation and refuse when MPI is unavailable."),
+    },
+    {
       id: "kratos.pythonPath",
       label: t("Python Interpreter"),
       category: "Kratos",

@@ -587,6 +587,77 @@ describe('shared workflow tools', () => {
     } finally { process.env.PATH = oldPath; }
   });
 
+  it('drives a queued solve through the MPI runner on this machine, with ranks frozen in the plan', async () => {
+    const root = await temp(), bin = path.join(root, '..', path.basename(root) + '-mpibin');
+    roots.push(bin);
+    await fs.mkdir(bin, { recursive: true });
+    const python = path.join(bin, 'python');
+    await fs.writeFile(python, '#!/bin/sh\n[ "$1" = "-c" ] && exit 0\ngrep -o MPI ProjectParameters.json > result.vtk\necho solver-done\n', { mode: 0o755 });
+    await fs.writeFile(path.join(bin, 'mpirun'), '#!/bin/sh\nn=$2; shift 2\ni=0; while [ $i -lt $n ]; do OMPI_COMM_WORLD_RANK=$i "$@" & pids="$pids $!"; i=$((i+1)); done\nrc=0; for p in $pids; do wait $p || rc=$?; done; exit $rc\n', { mode: 0o755 });
+    const oldPath = process.env.PATH; process.env.PATH = `${bin}:${oldPath}`;
+    try {
+      const geometry = path.join(root, 'beam.step'); await fs.writeFile(geometry, 'geometry');
+      const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+        runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python, env: {}, mpiRanks: 2 }),
+        open: async () => undefined, changed: () => undefined, callMcpTool: async () => ({ structuredContent: { ok: true } }) });
+      const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+      const study = await invoke('study_create', { name: 'Cantilever', source: geometry }) as Study;
+      const runId = 'mpi-run', dir = `.kkss/runs/${runId}`;
+      await fs.mkdir(path.join(root, dir, 'input'), { recursive: true });
+      await fs.writeFile(path.join(root, dir, 'input', 'MainKratos.py'), '# case');
+      await fs.writeFile(path.join(root, dir, 'input', 'ProjectParameters.json'), JSON.stringify({ problem_data: { parallel_type: 'OpenMP' }, solver_settings: { solver_type: 'Static' } }));
+      await fs.writeFile(path.join(root, dir, 'input', 'beam.mdpa'), 'Begin Nodes\nEnd Nodes\n');
+      const task: Task = { id: 'solve-mpi', studyId: study.id, runId, kind: 'solve', dependencies: [], resources: { threads: 2, verified: true },
+        args: { mesh: `${dir}/input/beam.mdpa`, casePath: `${dir}/case.json`, caseState: {}, problemtype: 'structural', runDirectory: `${dir}/solve`, threads: 1,
+          mpiRanks: 2, mpiThreadsPerRank: 1, mpiLauncher: 'mpirun', runtimeRevision: fingerprint({ python, installPath: '', extraEnv: {}, threads: 0, mpiRanks: 2 }) },
+        inputRevision: 'rev', requiredArtifacts: [], state: 'waiting' };
+      await service.store().update(project => { project.queue.tasks.push(task); });
+      await invoke('queue_resume', { planRevision: planRevision((await service.store().read())!.queue.tasks) });
+      for (let i = 0; i < 100; i++) {
+        const state = (await service.store().read())!.queue.tasks[0].state;
+        if (state === 'succeeded' || state === 'failed' || state === 'uncertain') break;
+        await new Promise(r => setTimeout(r, 100));
+        await invoke('queue_resume', { planRevision: planRevision((await service.store().read())!.queue.tasks) }).catch(() => undefined);
+      }
+      const done = (await service.store().read())!.queue.tasks[0];
+      expect(done.state, JSON.stringify(done.receipt)).toBe('succeeded');
+      expect(done.receipt?.message).toMatch(/convergence is not established/i);
+      expect(done.receipt?.resources).toEqual({ requestedThreads: 2, effectiveThreads: 2 });
+      expect(await fs.readFile(path.join(root, dir, 'solve', 'result.vtk'), 'utf8')).toMatch(/MPI/);
+      expect(await fs.readFile(path.join(root, dir, 'input', 'ProjectParameters.json'), 'utf8')).toMatch(/OpenMP/); // the preview's input is never rewritten
+    } finally { process.env.PATH = oldPath; }
+  });
+
+  it('freezes MPI ranks into the preview only when the probe verified a launcher and an MPI-enabled Kratos', async () => {
+    const root = await temp(), bin = path.join(root, '..', path.basename(root) + '-probe');
+    roots.push(bin);
+    await fs.mkdir(bin, { recursive: true });
+    const probe = (extra: object) => `#!/bin/sh\necho 'KKSS_PROBE:${JSON.stringify({ executable: '/py', version: '3.12', threadControl: true, applications: [{ name: 'KratosMultiphysics', available: true }], mpiPosix: true, ...extra })}'\n`;
+    const geometry = path.join(root, 'beam.step'); await fs.writeFile(geometry, 'geometry');
+    const preview = async (extra: object, mpiRanks = 2) => {
+      const python = path.join(bin, `python-${Math.random().toString(36).slice(2)}`);
+      await fs.writeFile(python, probe(extra), { mode: 0o755 });
+      const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+        runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python, env: {}, mpiRanks }),
+        open: async () => undefined, changed: () => undefined });
+      const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+      const study = await invoke('study_create', { name: `s-${Math.random()}`, source: geometry }) as Study;
+      return invoke('queue_plan_preview', { studyId: study.id, reuseMesh: false }) as Promise<{ tasks: Task[]; summary: string[] }>;
+    };
+    await expect(preview({ mpiLauncher: null, mpiMissing: [] })).rejects.toThrow(/MPI is unavailable: No MPI launcher/);
+    await expect(preview({ mpiLauncher: 'mpirun', mpiMissing: ['KratosMultiphysics.TrilinosApplication'] })).rejects.toThrow(/not MPI-enabled \(KratosMultiphysics\.TrilinosApplication is not importable\)/);
+    await expect(preview({ mpiLauncher: 'mpirun', mpiMissing: [] }, 100000)).rejects.toThrow(/exceed the \d+ available CPUs/);
+    const ok = await preview({ mpiLauncher: 'mpiexec', mpiMissing: [] });
+    const solve = ok.tasks.find(t => t.kind === 'solve')!;
+    expect(solve.args).toMatchObject({ mpiRanks: 2, mpiThreadsPerRank: 1, mpiLauncher: 'mpiexec', threads: 1 });
+    expect(solve.resources).toEqual({ threads: 2, verified: true });
+    expect(ok.summary).toContain('MPI: 2 ranks × 1 threads (mpiexec, one node)');
+    expect(ok.tasks.filter(t => t.kind !== 'solve').every(t => typeof t.args.mpiRanks !== 'number')).toBe(true);
+    // Zero ranks keeps the threaded plan byte-for-byte: no MPI keys anywhere.
+    const threaded = await preview({ mpiLauncher: 'mpirun', mpiMissing: [] }, 0);
+    expect(Object.keys(threaded.tasks.find(t => t.kind === 'solve')!.args).some(k => k.startsWith('mpi'))).toBe(false);
+  });
+
   it('previews and atomically enqueues isolated run and parameter-sweep destinations', async () => {
     const root = await temp(), geometry = path.join(root, 'beam.step');
     await fs.writeFile(geometry, 'geometry');

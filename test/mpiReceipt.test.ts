@@ -75,18 +75,23 @@ describe('MPI receipt contract', () => {
   it('runs the launch script against a stand-in launcher and writes a reconcilable receipt', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mpirun-')); roots.push(root);
     const bin = path.join(root, 'bin'); await fs.mkdir(bin);
-    await fs.writeFile(path.join(bin, 'mpirun'), '#!/bin/sh\necho "$@ omp=$OMP_NUM_THREADS"\n[ "$FAIL" = 1 ] && exit 3\nexit 0\n', { mode: 0o755 });
-    const run = async (fail: boolean) => {
-      const dir = path.join(root, fail ? 'bad' : 'ok'); await fs.mkdir(dir);
-      const script = mpiRunScript({ dir, requestId: 't', ownerId: 's', intent: { ranks: 4, threadsPerRank: 2, launcher: 'mpirun' }, argv: ['python', 'my file.py'] });
-      const r = spawnSync('sh', ['-c', script], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAIL: fail ? '1' : '0' } });
+    // Starts one process per rank with the rank exported the way Open MPI does; SHORT=n starts one fewer.
+    await fs.writeFile(path.join(bin, 'mpirun'), '#!/bin/sh\nn=$2; shift 2\n[ -n "$SHORT" ] && n=$((n-SHORT))\ni=0; while [ $i -lt $n ]; do OMPI_COMM_WORLD_RANK=$i "$@" || exit 3; i=$((i+1)); done\n', { mode: 0o755 });
+    const run = async (name: string, extra: Record<string, string> = {}, argv = ['sh', '-c', 'echo "$OMP_NUM_THREADS $K $0 $(pwd | xargs basename)"', 'my file']) => {
+      const dir = path.join(root, name); await fs.mkdir(path.join(dir, 'input'), { recursive: true });
+      const script = mpiRunScript({ dir, requestId: 't', ownerId: 's', intent: { ranks: 4, threadsPerRank: 2, launcher: 'mpirun' }, argv, env: { K: 'v w' } });
+      const r = spawnSync('sh', ['-c', script], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, ...extra } });
       expect(r.status).toBe(0);
       return { dir, receipt: parseMpiReceipt(JSON.parse(await fs.readFile(path.join(dir, 'receipt.json'), 'utf8')), ref)! };
     };
-    const ok = await run(false);
-    expect(await fs.readFile(path.join(ok.dir, 'stdout.log'), 'utf8')).toBe('-np 4 python my file.py omp=2\n');
+    const ok = await run('ok');
+    expect(await fs.readFile(path.join(ok.dir, 'stdout.log'), 'utf8')).toBe('2 v w my file input\n'.repeat(4));
+    expect(ok.receipt.effectiveRanks).toBe(4);
     expect(reconcileMpi(ok.receipt, false)?.state).toBe('succeeded');
-    expect(reconcileMpi((await run(true)).receipt)?.state).toBe('failed');
+    expect(reconcileMpi((await run('bad', {}, ['sh', '-c', 'exit 3'])).receipt)?.state).toBe('failed');
+    const short = await run('short', { SHORT: '1' });
+    expect(short.receipt.effectiveRanks).toBe(3);
+    expect(reconcileMpi(short.receipt)?.state).toBe('uncertain');
     expect(() => mpiRunScript({ dir: root, requestId: 'a b', ownerId: 's', intent: { ranks: 1, threadsPerRank: 1, launcher: 'srun' }, argv: ['x'] })).toThrow();
   });
 });

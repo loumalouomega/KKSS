@@ -1472,6 +1472,7 @@ app.whenReady().then(() => {
     environment: () => ({
       python: stateStore.get<string>("kratos.pythonPath", "") || defaultPythonPath(process.platform),
       threads: stateStore.get<number>("kratos.threads", 0),
+      mpiRanks: stateStore.get<number>("kratos.mpiRanks", 0),
       env: { ...process.env, ...kratosEnvDelta() },
       bundledPython: process.env.KKSS_KRATOS_PYTHON,
       installPath: stateStore.get<string>("kratos.installPath", "") || undefined,
@@ -1705,7 +1706,7 @@ app.whenReady().then(() => {
     if (key === "llmAssistantDefs") assistantDefs?.emit();
     if (key === "llmHooks") hookEngine?.emit();
     if (key === META_SERVER_KEYS.access || key === META_SERVER_KEYS.allowedWrites) metaServer?.refreshTools();
-    if (["kratos.pythonPath", "kratos.installPath", "kratos.extraEnv", "kratos.threads"].includes(key)) runs?.requestCapabilityRefresh();
+    if (["kratos.pythonPath", "kratos.installPath", "kratos.extraEnv", "kratos.threads", "kratos.mpiRanks"].includes(key)) runs?.requestCapabilityRefresh();
     // The renderer is read when a preview's PAGE loads, so a change cannot
     // reach a scene already on screen (upstream says the same and shows the
     // same note). Announced here rather than from the menu's click, so the
