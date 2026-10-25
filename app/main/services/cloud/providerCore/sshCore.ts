@@ -201,3 +201,29 @@ export const cancelCommand = (dir: string, pid: number): string => {
   if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error("Invalid pid.");
   return `: > ${shQuote(`${dir}/cancel`)}; kill -TERM -${pid} 2>/dev/null || kill -TERM ${pid}`;
 };
+
+/**
+ * Lists the files a remote solve produced: everything under `<dir>/input` newer
+ * than the uploaded runner script, plus the captured log, as `<sha256>  <path>`
+ * rows relative to `<dir>`. Uploaded inputs predate the script, so they are
+ * not listed. GNU `sha256sum`, then BSD/macOS `shasum`.
+ */
+export const listOutputsCommand = (dir: string): string =>
+  `cd -- ${shQuote(dir)} && { find input -type f -newer run.sh; [ -f stdout.log ] && echo stdout.log; } | ` +
+  `while IFS= read -r f; do (sha256sum -- "$f" 2>/dev/null || shasum -a 256 -- "$f"); done`;
+
+export interface OutputRow { sha256: string; path: string }
+/** Rows with a traversal, absolute or control-character path are dropped. */
+export function parseOutputs(output: string): OutputRow[] {
+  const rows: OutputRow[] = [];
+  for (const line of output.split("\n")) {
+    const m = /^([0-9a-f]{64}) [ *](.+)$/.exec(line);
+    if (!m) continue;
+    const p = m[2];
+    if (p.startsWith("/") || p.split("/").includes("..") || /[\u0000-\u001f]/.test(p)) continue;
+    rows.push({ sha256: m[1], path: p });
+  }
+  return rows;
+}
+export const cpuCountCommand = (): string => "nproc 2>/dev/null || getconf _NPROCESSORS_ONLN";
+export const kratosProbeCommand = (): string => "python3 -c 'import KratosMultiphysics'";

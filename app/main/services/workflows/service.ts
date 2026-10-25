@@ -79,7 +79,7 @@ export class WorkflowService {
       dispatch: (task, store) => this.remoteSolver(task, store)?.dispatch(task, store) ?? this.dispatchQueuedTask(task, store),
       lookup: (task, store) => this.remoteSolver(task, store)?.lookup(task, store) ?? this.lookupQueuedTask(task, store),
       cancel: (task, store) => this.remoteSolver(task, store)?.cancel(task, store) ?? this.cancelQueuedTask(task, store),
-    } satisfies Runner);
+    } satisfies Runner, () => this.deps.remote?.() ? (RemoteRunner.lastCpuCount ?? 1) : availableParallelism());
   }
   /**
    * The ssh runner for a solve task while a remote Kratos host is set, else
@@ -94,6 +94,8 @@ export class WorkflowService {
       const threads = typeof t.args.threads === 'number' ? String(t.args.threads) : undefined;
       return {
         inputDir: path.dirname(resolveReference(s.root, { kind: 'project', path: relativeOutput(t.args.mesh, 'Mesh path'), revision: '' })),
+        localDir: resolveReference(s.root, { kind: 'project', path: relativeOutput(t.args.runDirectory, 'Run directory'), revision: '' }),
+        root: s.root,
         remoteDir: `kkss-runs/${t.studyId}-${t.runId}`,
         argv: ['python3', 'MainKratos.py'],
         env: { ...(this.deps.environment().extraEnv ?? {}), ...(threads ? { OMP_NUM_THREADS: threads } : {}) },

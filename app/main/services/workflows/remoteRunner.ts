@@ -8,9 +8,9 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import type { SshRunner } from '../cloud/providers/ssh';
-import { aliveCommand, cancelCommand, launchCommand, mkdirCommand, readReceiptCommand, remoteRunScript, shQuote, uploadCommand } from '../cloud/providerCore/sshCore';
-import type { Receipt, Task, TaskState } from './contracts';
-import type { ProjectStore } from './project';
+import { aliveCommand, cancelCommand, cpuCountCommand, downloadCommand, kratosProbeCommand, launchCommand, listOutputsCommand, mkdirCommand, parseOutputs, readReceiptCommand, remoteRunScript, shQuote, uploadCommand } from '../cloud/providerCore/sshCore';
+import type { Artifact, Receipt, Task, TaskState } from './contracts';
+import { fileRevision, reference, type ProjectStore } from './project';
 import type { Runner } from './queue';
 
 export interface RemoteSolveSpec {
@@ -20,7 +20,12 @@ export interface RemoteSolveSpec {
   remoteDir: string;
   argv: string[];
   env?: Record<string, string>;
+  /** Absolute local directory the run's outputs are downloaded into. */
+  localDir: string;
+  /** Project root, for relocatable artifact references. */
+  root: string;
 }
+const MAX_FILES = 500, MAX_BYTES = 2_000_000_000;
 const STATES: readonly TaskState[] = ['running', 'succeeded', 'failed', 'cancelled', 'uncertain'];
 const TERMINAL: readonly TaskState[] = ['succeeded', 'failed', 'cancelled'];
 
@@ -28,10 +33,21 @@ export class RemoteRunner implements Pick<Runner, 'validate' | 'dispatch' | 'loo
   constructor(private readonly host: string, private readonly ssh: SshRunner,
     private readonly spec: (task: Task, store: ProjectStore) => RemoteSolveSpec,
     private readonly sleep: (ms: number) => Promise<void> = ms => new Promise(r => setTimeout(r, ms))) {}
+  /** Remote CPU count from the last successful probe, for the shared queue budget. */
+  static lastCpuCount?: number;
   async validate(task: Task, store: ProjectStore): Promise<string[]> {
     const { argv } = this.spec(task, store);
-    const probe = await this.ssh(this.host, `command -v ${shQuote(argv[0])} >/dev/null`).catch(() => undefined);
-    return probe?.code === 0 ? [] : [`Remote host ${this.host} is unreachable or has no '${argv[0]}'.`];
+    const run = (c: string) => this.ssh(this.host, c).catch(() => undefined);
+    const exe = await run(`command -v ${shQuote(argv[0])} >/dev/null`);
+    if (exe?.code !== 0) return [`Remote host ${this.host} is unreachable or has no '${argv[0]}'.`];
+    const errors: string[] = [];
+    if ((await run(kratosProbeCommand()))?.code !== 0) errors.push(`Kratos (KratosMultiphysics) is not importable by ${argv[0]} on ${this.host}.`);
+    const cpus = Number((await run(cpuCountCommand()))?.stdout.trim());
+    if (Number.isSafeInteger(cpus) && cpus > 0) {
+      RemoteRunner.lastCpuCount = cpus;
+      if (typeof task.args.threads === 'number' && task.args.threads > cpus) errors.push(`The plan asks for ${task.args.threads} threads but ${this.host} has ${cpus} CPUs; approve a new plan.`);
+    } else errors.push(`Could not determine the CPU count of ${this.host}.`);
+    return errors;
   }
   private base(task: Task) { return { version: 1 as const, requestId: task.id, ownerId: task.studyId, artifacts: [] }; }
   async dispatch(task: Task, store: ProjectStore): Promise<Receipt> {
@@ -73,7 +89,39 @@ export class RemoteRunner implements Pick<Runner, 'validate' | 'dispatch' | 'loo
       const alive = typeof raw.pid === 'number' ? await this.ssh(this.host, aliveCommand(raw.pid)) : undefined;
       if (alive?.code !== 0) { finalState = 'uncertain'; message = 'The remote solver process is gone without a terminal receipt.'; }
     }
-    return { ...this.base(task), state: finalState, ...(message ? { message } : {}) };
+    if (!TERMINAL.includes(finalState)) return { ...this.base(task), state: finalState, ...(message ? { message } : {}) };
+    try {
+      const artifacts = await this.fetchArtifacts(spec, task.runId);
+      return { ...this.base(task), state: finalState, artifacts, ...(message ? { message } : {}) };
+    } catch (error) {
+      // Not terminal for the queue: the next tick retries the (idempotent) download.
+      return { ...this.base(task), state: 'uncertain', message: `Remote run finished (${finalState}) but its outputs could not be fetched: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  }
+  /** Downloads and verifies the run's outputs; files already present and matching are kept. */
+  private async fetchArtifacts(spec: RemoteSolveSpec, runId: string): Promise<Artifact[]> {
+    const listed = await this.ssh(this.host, listOutputsCommand(spec.remoteDir));
+    if (listed.code !== 0) throw new Error(listed.stderr.trim() || 'listing failed');
+    const rows = parseOutputs(listed.stdout);
+    if (rows.length > MAX_FILES) throw new Error(`Run produced ${rows.length} files (limit ${MAX_FILES}); refusing a partial download.`);
+    const base = path.resolve(spec.localDir);
+    const artifacts: Artifact[] = [];
+    let bytes = 0;
+    for (const row of rows) {
+      const rel = row.path.replace(/^input\//, '');
+      const target = path.resolve(base, rel);
+      if (target !== base && !target.startsWith(base + path.sep)) continue;
+      if (await fileRevision(target).then(r => r === row.sha256, () => false) === false) {
+        await fs.mkdir(path.dirname(target), { recursive: true });
+        const got = await this.ssh(this.host, downloadCommand(`${spec.remoteDir}/${row.path}`), { stdoutFile: target });
+        if (got.code !== 0) throw new Error(`download of ${rel} failed: ${got.stderr.trim()}`);
+        if (await fileRevision(target) !== row.sha256) { await fs.rm(target, { force: true }); throw new Error(`${rel} failed its checksum after download.`); }
+      }
+      bytes += (await fs.stat(target)).size;
+      if (bytes > MAX_BYTES) throw new Error('Run outputs exceed the download limit.');
+      artifacts.push({ role: row.path === 'stdout.log' ? 'log' : 'result', ownerId: runId, reference: reference(spec.root, target, row.sha256) });
+    }
+    return artifacts;
   }
   async cancel(task: Task, store: ProjectStore): Promise<Receipt> {
     const spec = this.spec(task, store);

@@ -14,20 +14,22 @@ const localSh: SshRunner = (_h, command, options = {}) =>
   new Promise((resolve) => {
     const child = spawn("sh", ["-c", command], { stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "", stderr = "";
-    child.stdout.on("data", (d) => (stdout += d));
+    const sink = options.stdoutFile ? fs.createWriteStream(options.stdoutFile) : undefined;
+    if (sink) child.stdout.pipe(sink); else child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
     if (options.stdinFile) fs.createReadStream(options.stdinFile).pipe(child.stdin); else child.stdin.end();
-    child.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+    child.on("close", (code) => { if (sink) sink.end(() => resolve({ code: code ?? 1, stdout, stderr })); else resolve({ code: code ?? 1, stdout, stderr }); });
   });
 const wait = async (f: () => Promise<boolean>) => { for (let i = 0; i < 50; i++) { if (await f()) return; await new Promise(r => setTimeout(r, 100)); } throw new Error("timeout"); };
 
 const task = { id: "t1", studyId: "s1", runId: "r1", kind: "solve" } as unknown as Task;
-let remote: string, input: string;
+let remote: string, input: string, local: string;
 const mk = (argv: string[], ssh: SshRunner = localSh) =>
-  new RemoteRunner("h", ssh, () => ({ inputDir: input, remoteDir: path.join(remote, "run"), argv }), (ms) => new Promise((r) => setTimeout(r, ms)));
+  new RemoteRunner("h", ssh, () => ({ inputDir: input, remoteDir: path.join(remote, "run"), argv, localDir: local, root: local }), (ms) => new Promise((r) => setTimeout(r, ms)));
 
 beforeEach(() => {
   remote = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-rr-remote-"));
+  local = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-rr-local-"));
   input = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-rr-input-"));
   fs.writeFileSync(path.join(input, "a.txt"), "x");
 });
@@ -39,6 +41,25 @@ describe("RemoteRunner", () => {
     await wait(async () => (await r.lookup(task, {} as never))?.state === "succeeded");
     expect(fs.readFileSync(path.join(remote, "run/stdout.log"), "utf8")).toBe("x");
     expect((await r.lookup(task, {} as never))?.message).toMatch(/convergence is not established/);
+  });
+  it("downloads checksum-verified outputs, skipping inputs, and retries after a failed download", async () => {
+    const r = mk(["sh", "-c", "mkdir vtk_output && echo field > vtk_output/a.vtk"]);
+    await r.dispatch(task, {} as never);
+    await wait(async () => (await r.lookup(task, {} as never))?.state === "succeeded");
+    const receipt = (await r.lookup(task, {} as never))!;
+    expect(receipt.artifacts.map((a) => a.reference.path).sort()).toEqual(["stdout.log", "vtk_output/a.vtk"]);
+    expect(receipt.artifacts.every((a) => a.ownerId === "r1")).toBe(true);
+    expect(fs.readFileSync(path.join(local, "vtk_output/a.vtk"), "utf8")).toBe("field\n");
+    expect(fs.existsSync(path.join(local, "a.txt"))).toBe(false);
+    const flaky: SshRunner = (h, c, o) => c.startsWith("cat --") && c.includes("a.vtk") ? Promise.resolve({ code: 255, stdout: "", stderr: "reset" }) : localSh(h, c, o);
+    fs.rmSync(path.join(local, "vtk_output"), { recursive: true });
+    const broken = await mk(["true"], flaky).lookup(task, {} as never);
+    expect(broken?.state).toBe("uncertain");
+  });
+  it("validates host python, Kratos import and thread count", async () => {
+    const t = { ...task, args: { threads: 4096 } } as unknown as Task;
+    const errors = await mk(["python3", "x"]).validate(t, {} as never);
+    expect(errors.join()).toMatch(/threads|Kratos|unreachable/);
   });
   it("records a failing exit as failed", async () => {
     const r = mk(["sh", "-c", "exit 3"]);
