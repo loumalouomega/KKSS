@@ -65,6 +65,8 @@ beforeEach(() => {
 
 afterEach(() => {
   sync.dispose();
+  // Land (and neuter any in-flight) manifest write before its directory goes away.
+  cache.flushSync();
   fs.rmSync(remote, { recursive: true, force: true });
   fs.rmSync(cacheRoot, { recursive: true, force: true });
 });
