@@ -45,9 +45,11 @@ describe('MpiRunner', () => {
     const prior = process.env.SHORT; process.env.SHORT = '1';
     try {
       await r.dispatch(task, {} as never);
-      await wait(async () => (await r.lookup(task, {} as never))?.state === 'uncertain');
+      // A launcher that has exited but not yet written its final receipt also reads uncertain
+      // (different message), so wait for the rank-count message rather than the state alone.
+      await wait(async () => /Requested 3 ranks but 2/.test((await r.lookup(task, {} as never))?.message ?? ''));
     } finally { if (prior === undefined) delete process.env.SHORT; else process.env.SHORT = prior; }
-    expect((await r.lookup(task, {} as never))?.message).toMatch(/Requested 3 ranks but 2/);
+    expect((await r.lookup(task, {} as never))?.state).toBe('uncertain');
   });
   it('flags a live launcher whose rank has died as uncertain', async () => {
     const r = mk(['sh', '-c', 'sleep 30']);
