@@ -55,7 +55,8 @@ export function listCommand(dir: string): string {
 export function statCommand(remotePath: string): string {
   const p = shQuote(remotePath);
   // GNU first, BSD/macOS as the fallback; both print `<kind>|<size>|<mtime>`.
-  return `stat -L -c '%F|%s|%Y' -- ${p} 2>/dev/null || stat -L -f '%HT|%z|%m' ${p}`;
+  // LC_ALL=C: %F is a localised word ("directorio" on es_ES), and parseStat looks for "directory".
+  return `LC_ALL=C stat -L -c '%F|%s|%Y' -- ${p} 2>/dev/null || LC_ALL=C stat -L -f '%HT|%z|%m' ${p}`;
 }
 
 export function downloadCommand(remotePath: string): string {

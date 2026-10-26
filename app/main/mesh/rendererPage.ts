@@ -10,6 +10,8 @@ import {
 // rendererSelect imports the kind but does not re-export it; the declaration
 // lives with the backend-neutral rendering data it describes.
 import type { RendererKind } from "../../../mesh/src/parser/render/types";
+import { localizeHtml, pickCatalogue } from "../../../mesh/src/parser/i18n/messages";
+import { currentLocale } from "../../shared/i18n";
 import { effective, entryForVscode } from "../services/settings/registry";
 import { stateStore } from "../services/stateStore";
 
@@ -140,5 +142,24 @@ export function meshPage(outDir: string, html: string): string {
   const stored = entry?.storeKey ? stateStore.get(entry.storeKey) : undefined;
   const decision = rendererDecision(outDir, stored);
   if (decision.fallbackReason) console.warn(`[kkss] ${fallbackMessage(decision.fallbackReason)}`);
-  return applyRenderer(html, decision);
+  return applyLocale(applyRenderer(html, decision), currentLocale());
+}
+
+/**
+ * mesh 5.22's per-load localisation, mirroring `webviewChrome.buildPreviewHtml`:
+ * `<html lang>`, `data-locale` on `<body>` (non-English only, which is what
+ * `webview/main.ts` feeds to `setRuntimeLocale`) and `localizeHtml` over the
+ * body — never the head. English is the identity. Runs AFTER `applyRenderer`,
+ * which requires a bare `<body>`.
+ */
+export function applyLocale(html: string, language: string): string {
+  const lang = language.replace(/[^A-Za-z0-9_-]/g, "") || "en";
+  const bodyAt = html.indexOf("<body");
+  if (bodyAt < 0 || !/<html lang="[^"]*"/.test(html)) {
+    throw new Error("mesh page: cannot apply the locale (no <html lang> or <body> found)");
+  }
+  const head = html.slice(0, bodyAt).replace(/<html lang="[^"]*"/, `<html lang="${lang}"`);
+  let body = html.slice(bodyAt);
+  if (lang.toLowerCase() !== "en") body = body.replace("<body", `<body data-locale="${lang}"`);
+  return head + localizeHtml(body, pickCatalogue(language));
 }

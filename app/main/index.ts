@@ -23,6 +23,7 @@ import { modeForFile, modeForViewType, unsupportedSuffix } from "./router";
 import { DOCS_URL } from "./urls";
 import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsupportedLaunchFiles } from "./launch";
 import { showOpenDialog } from "./services/dialogs";
+import { openExample } from "./services/examples";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
 import { configureLicense } from "./services/license";
@@ -1660,6 +1661,7 @@ app.whenReady().then(() => {
     // The same check protocol.ts's mesh page rewrite uses, so the View menu's
     // "unavailable" note and the viewer's actual fallback cannot disagree.
     meshRendererRuntime: () => rendererAssetsPresent(__dirname),
+    openExample: (id) => void openExample(id, __dirname, (p) => openFile(p)),
     metaServer: {
       enabled: () => stateStore.get(META_SERVER_KEYS.enabled, false) ?? false,
       setEnabled: (enabled) => void setMetaServerEnabled(enabled),

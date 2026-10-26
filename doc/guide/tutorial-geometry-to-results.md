@@ -1,6 +1,8 @@
 # Geometry to results
 
 Eleven tutorials follow one workflow from geometry toward a solver result in KKSS. Each has its own page, a downloadable case and a verification record. All eleven were solved with Kratos 10.4.3 and checked against those tolerances. The dam-break case needs a one-file alias for the stock serial solver wrapper, because that release does not ship the module the wrapper imports; its page says how to create it.
+> **In the app:** every case below is built in — use **Help → Examples → (case)** to unpack it into a folder of your choice and open its geometry, no download needed.
+
 ## The eleven tutorials
 
 | Result | Physics | Tutorial | Check |

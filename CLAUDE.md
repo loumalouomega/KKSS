@@ -1598,8 +1598,15 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 82 CAD + 55 mesh + 4 aggregation + 33 app-owned
-workflow tools; 296 policy rows with the PDF reader server's twelve).
+discovery (current sets: 83 CAD + 55 mesh + 4 aggregation + 33 app-owned
+workflow tools; 297 policy rows with the PDF reader server's twelve).
+
+**The cad 3.29.0 → 3.30.0 + mesh 5.20.0 → 5.22.0 jump (Fill Surface/Round Corner/open-profile sheets, B-rep free boundaries + signed volume, `octreemesh`, `mesh_cad_surface`, mesh octree/CAD-surface/generate/segment/refine, curved quadratic cells, host/webview localisation, meshio++ 17.13.0; KKSS 2.24.0) needed two cadHost fixes, one shim/locale/page seam, one policy row and docs.**
+
+- **cad: two host fixes.** `meshingResult` now forwards `octree` (a pre-existing omission) and `octreeMesh`; Fit to CAD's summary prints `n/a` for the now-nullable `volumeRatio` (native backend, no OpenCASCADE — this was a typecheck failure). Fill Surface, Round Corner, open profiles, `splitFace.projectDir`, B-rep health facts, view snaps and the `octreemesh` option are webview/kernel-side (`MeshOptions` passthrough). `cad__mesh_cad_surface` is a `write` policy row (required `outputPath`) scoped `["path","outputPath"]` in `toolPaths.ts`: 83 CAD + 55 mesh + 4 mcp + 33 app + 110 kratos + 12 pdf = 297.
+- **Help ▸ Examples ships the tutorial zips.** `esbuild.mjs`'s `exampleCopies()` stages `doc/public/examples/tutorials/<id>.zip` (not the all-in-one `tutorial-cases.zip`) plus `LICENSE` into `out/examples/`; `services/examplesCore.ts` (pure: catalogue, `planExample` — refuses any member outside `<id>/`, traversal, absolute/drive paths, >500 files/100 MB) and `services/examples.ts` (folder picker, overwrite confirm, write, `openFile` on the geometry — else `mesh.mdpa`). It never changes the project root and opens no results (solver output isn't shipped). Labels are i18n keys typed through `Message`. Separately, `sshCore.statCommand` forces `LC_ALL=C`: `%F` is localised (`directorio` on es_ES), which made every remote folder read as a file.
+- **mesh: localisation seam.** The shim's `env.language` is a getter over the app locale (`en`/`es`), `configureLocale()` calls mesh's `setRuntimeLocale`, and `meshPage()` runs `applyLocale()` AFTER `applyRenderer()` (which still needs a bare `<body>`): `<html lang>`, `data-locale` (non-English only) and `localizeHtml` over the body, never the head; English is byte-identical. fr/de/pt ship upstream but are not reachable from `uiLanguage`. New Advanced actions, derive kinds and ops ride the provider; no new settings, workers, format keys or `meshBody()` edit.
+- **deps:** meshio++ 17.13.0 on both sides (`out/meshio/` ~91 MB raw, KaHIP linked); the runtime tests (`mesh_cad_surface` on `block.stp`) gate the shared tree.
 
 **The cad 3.28.0 → 3.29.0 + mesh 5.18.0 → 5.20.0 jump (USD/VRML/FBX display-only imports, decimal-comma Edits fields, selective mesh field reads, staged large-MDPA field delivery, timeline frame cache, webview-chrome localisation foundation, retained remesh part tree, wind-tunnel empty-part fix, VTK.js 37.4.4) needed one dialog/filter update, six packaging rows, one mesh setting, two MCP schema assertions and docs.**
 

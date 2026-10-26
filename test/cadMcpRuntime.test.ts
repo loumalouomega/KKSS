@@ -41,6 +41,16 @@ describe.skipIf(!fs.existsSync(server))("bundled CAD MCP runtime", () => {
       expect(draftFacts.faceCount).toBeGreaterThan(0);
       expect(draftFacts.counts.zeroDraft).toBeGreaterThan(0);
 
+      // cad 3.30.0's kernel-free B-rep -> surface mesh, through the staged
+      // full meshio++ artifact: block.stp closes with no open edges.
+      const surface = path.join(dir, "block-surface.stl");
+      const cadSurface = await client.callTool({
+        name: "mesh_cad_surface",
+        arguments: { path: model, outputPath: surface, targetSize: 0.5 },
+      });
+      expect(cadSurface.isError, JSON.stringify(cadSurface.content)).not.toBe(true);
+      expect(fs.existsSync(surface)).toBe(true);
+
       const mesh = path.join(dir, "model.mdpa");
       fs.writeFileSync(mesh, "Begin Nodes\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\nEnd Nodes\nBegin Elements Element3D4N\n1 0 1 2 3 4\nEnd Elements\n");
       const loaded = await client.callTool({ name: "load_model", arguments: { path: mesh } });

@@ -93,3 +93,9 @@ describe("output parsers", () => {
     expect(() => parseList("box", "bash: cd: nope\n")).toThrow();
   });
 });
+
+describe("statCommand locale", () => {
+  it("forces the C locale so a localised %F still reads as a directory", () => {
+    expect(statCommand("/x")).toContain("LC_ALL=C stat -L -c");
+  });
+});

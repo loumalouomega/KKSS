@@ -69,6 +69,14 @@ Post-Processing uses the same layout as [Pre-Processing](/guide/cad-mode#reading
 
 > The viewer's toolbar is **Reset · Pan · Quality · Field · Find · Inspect · Plots · Selection · View ▾ · Advanced ▾**: display toggles and Screenshot/Record live in **View ▾**; analysis/export/camera tools live in **Advanced ▾**. Clip is in the nav card. KKSS hides the extension's File pill and exposes file actions in the native **File** menu, including Import Mesh, grouped exports, Scientific Plot Builder, Save/Load Problem, Export Data Table, Pack Time Series and Undo/Redo (`Ctrl+Alt+Z` / `Ctrl+Alt+Shift+Z`, not the text editor's plain undo shortcuts).
 
+### Mesh Preview 5.21–5.22 additions
+
+- The Advanced menu gained **Octree mesh**, **CAD surface** and **Generate mesh** (primitive shapes) exports, plus `segment` and `refinePatches` operations for surface patches; the assistant reaches them through `mesh_derive` (`generate`, `octreeMesh`, `octree`, `cadSurface`) and `mesh_transform`.
+- View ▾ ▸ **Curved quadratic cells** draws mid-side nodes of quadratic cells (display only, off by default).
+- VTK and edit re-renders deliver geometry first, large meshes default to level of detail, and XDMF/Gmsh opens offer field checkboxes.
+- Inspect can save coordinate (**At point**) and regional (**Monitor region**) monitors in addition to entity monitors; the prompts are translated.
+- The viewer chrome and host prompts follow the KKSS language (English/Español, Settings ▸ Language).
+
 ## Import meshes and work with field units
 
 **File ▸ Import Mesh…** adds one or several files to the active mesh in one undoable **Merge mesh** operation. It offsets ids independently per entity kind and wraps each imported file in a SubModelPart named after its stem. Names that collide receive suffixes; incompatible imported fields are retained under unique names, not discarded. Coordinates are unchanged and no implicit welding occurs. Save explicitly to persist the combined mesh, or undo once to remove the entire import. Import is disabled outside an open Post-Processing document.

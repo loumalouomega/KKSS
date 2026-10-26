@@ -227,17 +227,18 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 82 cad + 55 mesh tools + 4 in-process mcp__ tools + 33 app__ tools (32 workflow + skill_load)
+    // 83 cad + 55 mesh tools + 4 in-process mcp__ tools + 33 app__ tools (32 workflow + skill_load)
     // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(296);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(297);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
-    expect(cad).toHaveLength(82);
+    expect(cad).toHaveLength(83);
+    expect(TOOL_ACCESS.cad__mesh_cad_surface).toBe("write");
     expect(mesh).toHaveLength(55);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(33);
@@ -445,6 +446,7 @@ describe("the table itself", () => {
       "cad__job_cancel",
       "cad__load_preprocess",
       "cad__measure_mesh_deviation",
+      "cad__mesh_cad_surface",
       "cad__pin_annotation",
       "cad__promote_mesh_to_brep",
       "cad__remesh_mesh",

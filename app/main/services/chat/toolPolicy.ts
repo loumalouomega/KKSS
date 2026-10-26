@@ -168,7 +168,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__queue_resume: "write",
   app__queue_resume_row: "write",
   app__queue_cancel: "write",
-  // ---- cad-preview (81) ---------------------------------------------------
+  // ---- cad-preview (83) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",
   cad__get_mass_properties: "read",
@@ -206,6 +206,9 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // always writes a new .cad.json; iga_sample and iga_evaluate are facts and
   // evaluations only.
   cad__fit_mesh_to_cad: "write",
+  // cad 3.30.0's B-rep → conforming surface mesh (meshio++ meshCadSurface):
+  // outputPath is required and a NEW mesh file always lands on disk.
+  cad__mesh_cad_surface: "write",
   cad__iga_sample: "read",
   cad__iga_refine: "write",
   cad__iga_evaluate: "read",
