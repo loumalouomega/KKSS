@@ -308,8 +308,18 @@ const shimConfigs = ["cad", "mesh"].map((mode) => ({
   logLevel: "silent",
 }));
 
+// Help ▸ Examples ships the tutorial cases (one zip each, ~11 MB together) so
+// they open without the website. tutorial-cases.zip is the bundle of all of
+// them and stays on the site.
+function exampleCopies() {
+  const dir = "doc/public/examples/tutorials";
+  const zips = fs.readdirSync(path.join(__dirname, dir)).filter((f) => f.endsWith(".zip") && f !== "tutorial-cases.zip");
+  return [...zips, "LICENSE"].map((f) => [`${dir}/${f}`, out(`examples/${f}`)]);
+}
+
 async function copyArtifacts() {
   const copies = [
+    ...exampleCopies(),
     // Submodule webview bundles + styles, untouched.
     ["cad/media/viewer.js", out("renderer/cad/viewer.js")],
     ["cad/media/viewer.css", out("renderer/cad/viewer.css")],

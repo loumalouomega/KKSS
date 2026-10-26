@@ -17,6 +17,7 @@ import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
 import { showLicense } from "./services/license";
 import { showManual } from "./services/manual";
+import { EXAMPLES } from "./services/examplesCore";
 import { showChangelog } from "./services/whatsNew";
 import { stateStore } from "./services/stateStore";
 import type { CloudStatus } from "./services/cloud/cloudService";
@@ -116,6 +117,8 @@ export interface MenuDeps {
   };
   /** Settings ▸ Open Settings… (Ctrl+,) — the full Settings page. */
   openSettings(): void;
+  /** Help ▸ Examples ▸ <case> — unpack a shipped tutorial case and open it. */
+  openExample(id: string): void;
   /**
    * Whether the experimental VTK-wasm renderer runtime ships in this build.
    * Read from the same `rendererPage.ts` check the served mesh page uses, so
@@ -874,6 +877,10 @@ export function installMenu(deps: MenuDeps): void {
       label: t("&Help"),
       submenu: [
         { label: t("KKSS Manual…"), click: () => showManual() },
+        {
+          label: t("Examples"),
+          submenu: EXAMPLES.map((e) => ({ label: t(e.label), click: () => deps.openExample(e.id) })),
+        },
         { label: t("KKSS Documentation"), click: () => void shell.openExternal(DOCS_URL) },
         {
           label: t("CAD-Preview (pre-processing submodule)"),

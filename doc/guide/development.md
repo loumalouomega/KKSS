@@ -90,6 +90,8 @@ Content comes straight from the repo's `CHANGELOG.md` — `esbuild.mjs`'s `copyA
 
 ### License window
 
+**Help ▸ Examples ▸ <case>** (`app/main/services/examples.ts`, pure core `examplesCore.ts`) unpacks a shipped tutorial case: `esbuild.mjs`'s `exampleCopies()` stages each `doc/public/examples/tutorials/<id>.zip` (plus `LICENSE`) into `out/examples/`; the service asks for a folder, confirms before replacing an existing `<id>/` directory, writes only members that `planExample` accepted (everything under `<id>/`, no traversal/absolute paths, ≤500 files and 100 MB), then opens the geometry (`.brep`/`.stp`, else `mesh.mdpa`) through `openFile`. The project root is left alone and no results open — solver output isn't shipped. Labels are typed i18n keys in both locales.
+
 **Help ▸ License…** (`app/main/services/license.ts`) is the About pattern at its smallest: a frameless singleton over `app/renderer/license/` whose one message back is `{type: "close"}` (`license:toHost`, `app/preload/licensePreload.ts`). The text it shows is the repo's `LICENSE` — `copyArtifacts()` copies it to `out/LICENSE` beside `CHANGELOG.md`, the service reads it via `__dirname` and sends the whole file inside one `license:init` message (`{version, text}`), and the renderer puts it in a selectable `<pre>`. The window title and subtitle come from the `KKSS License` / `Full license text, as shipped with this build (version {0}).` i18n keys, so the page and the menu travel together in both locales.
 
 ### The in-app manual (KKSS Manual…)
