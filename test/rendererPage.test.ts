@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { applyRenderer, rendererAssetsPresent, rendererDecision } from "../app/main/mesh/rendererPage";
+import { applyLocale, applyRenderer, rendererAssetsPresent, rendererDecision } from "../app/main/mesh/rendererPage";
 
 /** A stand-in for the generated page: the anchors the rewrite relies on. The
  *  body is emitted BARE by `tools/webviewMarkup.ts`, which is the case that has
@@ -31,6 +31,37 @@ const PAGE = [
 ].join("\n");
 
 const TAGGED_PAGE = PAGE.replace("<body>", '<body data-theme="dark">');
+
+describe("applyLocale", () => {
+  const LOCALE_PAGE =
+    '<!DOCTYPE html>\n<html lang="en">\n<head><title>File</title></head>\n<body>\n<button title="Close">Close</button>\n<script src="./x.js"></script>\n</body>\n</html>';
+
+  it("is the identity for English", () => {
+    expect(applyLocale(LOCALE_PAGE, "en")).toBe(LOCALE_PAGE);
+  });
+
+  it("sets lang and data-locale and translates the body only", () => {
+    const out = applyLocale(LOCALE_PAGE, "es");
+    expect(out).toContain('<html lang="es">');
+    expect(out).toContain('<body data-locale="es">');
+    expect(out).toContain('<button title="Cerrar">Cerrar</button>');
+    expect(out).toContain("<title>File</title>");
+  });
+
+  it("composes after the renderer rewrite", () => {
+    const withRenderer = applyRenderer(PAGE.replace("<body>", "<html lang=\"en\"><body>"), {
+      renderer: "vtkwasm",
+      base: "./vtk-wasm",
+    });
+    const out = applyLocale(withRenderer, "es");
+    expect(out).toContain('data-locale="es"');
+    expect(out).toContain('data-renderer="vtkwasm"');
+  });
+
+  it("fails loudly on a page it cannot rewrite", () => {
+    expect(() => applyLocale("<body></body>", "es")).toThrow(/cannot apply the locale/);
+  });
+});
 
 describe("applyRenderer", () => {
   it("leaves the page byte-identical for vtk.js", () => {

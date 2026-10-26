@@ -87,6 +87,7 @@ import { stateStore } from "./services/stateStore";
 import { entryForVscode, normalize, registry, toStored } from "./services/settings/registry";
 import { createStaticReportPanel } from "./services/staticReport";
 import { createPlotPanel } from "./services/plotPanel";
+import { currentLocale } from "../shared/i18n";
 
 // ---- Hooks the app injects (avoids import cycles) ---------------------------
 
@@ -630,6 +631,14 @@ export const workspace = {
 // ---- env ---------------------------------------------------------------------
 
 export const env = {
+  /**
+   * The app's own interface language (`en`/`es`), not the OS locale: mesh 5.22
+   * reads it for its host-side prompts and `previewHtml`. A getter, since the
+   * locale is configured after this module is imported.
+   */
+  get language(): string {
+    return currentLocale();
+  },
   /** Identity — KKSS has no Remote-SSH/Codespaces tunnel to resolve through. */
   asExternalUri: async (uri: Uri): Promise<Uri> => uri,
 };

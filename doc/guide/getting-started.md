@@ -401,6 +401,6 @@ A mesh tab with unsaved operations shows a dot in the tab strip; closing it, or 
 
 ### Language and keyboard navigation
 
-Choose **Settings → Language** to select English or Spanish. Restart KKSS for the change to reach menus, panels and dialogs. CAD-Preview and VSCode-MDPA-Preview keep their own interface language. Press `F6` to move forward through the visible regions and `Shift+F6` to move backward; hidden panels are skipped and closing a panel returns focus to the region that opened it. In the document tab strip, use the arrow keys or Home/End to move between tabs, Enter to activate a tab, and Delete to close it.
+Choose **Settings → Language** to select English or Spanish. Restart KKSS for the change to reach menus, panels and dialogs. The mesh viewer (chrome and monitor prompts) follows this language; CAD-Preview stays English. Press `F6` to move forward through the visible regions and `Shift+F6` to move backward; hidden panels are skipped and closing a panel returns focus to the region that opened it. In the document tab strip, use the arrow keys or Home/End to move between tabs, Enter to activate a tab, and Delete to close it.
 
 Mesh mode also provides **Selection** in the toolbar, **Properties editor…** under Advanced, and **Probe line** inside Inspect. See [selection, Properties and line probes](./mesh-mode#selection-properties-and-line-probes) for editing, export and timeline behavior. The AI assistant can select entities by predicate and apply property or selection-based edits through the mesh tools.

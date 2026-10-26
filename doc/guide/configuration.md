@@ -69,7 +69,7 @@ The **scale picker** on the right of the shell toolbar (75 %–150 %) sets how l
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
-| Language | Language of the KKSS interface (`English` or `Español`). Applies on the next launch. The embedded viewers keep their own language. | English |
+| Language | Language of the KKSS interface (`English` or `Español`). Applies on the next launch. The mesh viewer follows this language (its chrome and monitor prompts); CAD-Preview stays English. | English |
 | Project Folder | **Choose…** / **Clear** — the default folder for the terminal, file dialogs and the assistant (also **File ▸ Open Folder…**). It is a default, never a restriction. | — |
 | Restore Last Session | Reopen the previous run's documents, screen and panels at launch. `KKSS_NO_RESTORE=1` overrides it for one launch. | On |
 | Show What's New After Updates | Show the release notes the first time a new version starts. **Help ▸ What's New…** always works. | On |

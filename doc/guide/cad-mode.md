@@ -46,6 +46,8 @@ Pre-Processing mode embeds the full [CAD-Preview](https://loumalouomega.github.i
 
 The toolbar is **Fit · Tree · FE Mesh** plus four dropdowns — **View ▾** (Grid, Edges, Screenshot), **Select ▾** (selection mode + Point/Vol/Surf/Line), **Measure ▾** and **Markup ▾** — with the display modes, clip, appearance and unit controls in the view-controls panel.
 
+- **CAD-Preview 3.30.0 additions**: **Fill Surface** (smooth face over a closed loop of picked edges) and **Round Corner** (sketch-segment fillet) under *Build from selection*, open profiles that extrude/revolve into surface sheets, `splitFace` along a curve projected onto the face, **B-rep Health** free-boundary wires and signed volume, the **`octreemesh`** FE engine (tet or hex output, with its own statistics in the FE Mesh panel), keyboard view snaps (`1`–`6` for the six faces, `i` isometric) and the renamed **Cut Plane** / **REAR** labels. Fit to CAD can report `volume ratio n/a` when the native backend (no OpenCASCADE) builds the solid. The assistant's `mesh_cad_surface` tool meshes a STEP/IGES/`.cad.json` B-rep into a watertight surface mesh with no CAD kernel.
+
 ## Reading the window at a glance
 
 A CAD tab is laid out the same way in every version of the viewer:
