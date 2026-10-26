@@ -9,6 +9,10 @@ node_modules
 out
 release
 doc
+# esbuild.mjs stages these into out/examples/ (Help ▸ Examples)
+!doc/public/examples/tutorials
+!doc/public/examples/tutorials/*.zip
+!doc/public/examples/tutorials/LICENSE
 images
 test
 # Icon *sources* and the TikZ pipeline; only icons/app/*.png is built against.
@@ -23,3 +27,5 @@ icons/build-ui
 # Kept on purpose, despite looking incidental:
 #   CHANGELOG.md      — esbuild copies it into out/ for the What's New dialog
 #   icons/app/*.png   — the Linux window icon and electron-builder's app icon
+#   doc/public/examples/tutorials/*.zip + LICENSE — esbuild stages them into
+#                       out/examples/ for Help ▸ Examples (the build throws without)
