@@ -59,6 +59,8 @@ export const SCOPED_TOOL_PATH_ARGS: Readonly<Record<string, readonly string[]>> 
   // cad 3.30.0's B-rep → conforming surface mesh: the source B-rep and the
   // NEW mesh file it always writes (outputPath is required).
   cad__mesh_cad_surface: ["path", "outputPath"],
+  cad__project_to_cad: ["path", "cadPath", "outputPath"],
+  cad__grow_prism_layers: ["path", "outputPath"],
   // cad 3.19.0 IGA refine always writes a NEW .cad.json at outputPath
   // (iga_sample/iga_evaluate are facts-only and get no row).
   cad__iga_refine: ["path", "outputPath"],

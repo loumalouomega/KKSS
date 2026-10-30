@@ -5,6 +5,10 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.25.0] - 2026-10-30
+
+- feat: **CAD-Preview 3.32.0 and Mesh Preview 5.27.0** (meshio++ 17.23.0 on both sides). CAD gains a **Surface Tools** panel (project a surface mesh onto exact CAD faces, grow prism layers), the kernel-free `meshcad` surface engine, all-hexahedra octrees with hanging-node multi-point constraints (drawn as links, kept only by MDPA export, with a warning on other formats) and partitioned MDPA export (one file per MPI rank plus a `.partition.json` manifest). Mesh gains Sweep/mirror/layers and Tessellate curved cells exports, hanging-node constraint operations, `projectToCad`, and polyhedral `.vtu` round trips. The assistant gets `project_to_cad`, `grow_prism_layers` (approval-gated writes) and `check_mesh_conformity`. The theme guard now defines `--vscode-contrastBorder`. Documentation screenshots were regenerated and a Surface Tools capture added.
+
 ## [2.24.0] - 2026-10-26
 
 - feat: **CAD-Preview 3.30.0 and Mesh Preview 5.22.0.** CAD gains Fill Surface, Round Corner, open-profile sheet extrude/revolve, `splitFace` projection, B-rep Health free boundaries and signed volume, the `octreemesh` FE engine, keyboard view snaps and the Cut Plane/REAR labels; the assistant gets `mesh_cad_surface` (a kernel-free B-rep → watertight surface mesh, approval-gated as a write). Mesh gains Octree mesh, CAD surface and Generate mesh exports, `segment`/`refinePatches` operations, Curved quadratic cells, geometry-first VTK/edit delivery, large-mesh level of detail, field checkboxes for XDMF/Gmsh and coordinate/regional monitors. The mesh viewer's chrome and monitor prompts now follow the KKSS language (English/Español). meshio++ moves to 17.13.0 on both sides. **Help ▸ Examples** now lists the eleven tutorial cases: pick one, choose a folder, and KKSS unpacks the case (never silently overwriting) and opens its geometry; the zips ship in the app, so no download is needed. Fixes: SSH sessions no longer misread remote folders on non-English hosts (`stat` output is forced to the C locale); the FE Mesh panel keeps the octree statistics, and Fit to CAD no longer fails on a native-backend solid (`volume ratio n/a`).
@@ -366,6 +370,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.25.0]: https://github.com/loumalouomega/KKSS/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/loumalouomega/KKSS/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/loumalouomega/KKSS/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/loumalouomega/KKSS/compare/v2.21.0...v2.22.0

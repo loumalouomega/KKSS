@@ -69,6 +69,14 @@ Post-Processing uses the same layout as [Pre-Processing](/guide/cad-mode#reading
 
 > The viewer's toolbar is **Reset · Pan · Quality · Field · Find · Inspect · Plots · Selection · View ▾ · Advanced ▾**: display toggles and Screenshot/Record live in **View ▾**; analysis/export/camera tools live in **Advanced ▾**. Clip is in the nav card. KKSS hides the extension's File pill and exposes file actions in the native **File** menu, including Import Mesh, grouped exports, Scientific Plot Builder, Save/Load Problem, Export Data Table, Pack Time Series and Undo/Redo (`Ctrl+Alt+Z` / `Ctrl+Alt+Shift+Z`, not the text editor's plain undo shortcuts).
 
+### Mesh Preview 5.23–5.27 additions
+
+- **Advanced ▸ Sweep, mirror and layers…** (and the assistant's `mesh_derive` kinds `extrude`, `revolve`, `mirror`, `boundaryLayer`, `tetrahedralize`, `errorSize` and `checkConformity`) writes a new mesh from the open one through the matching meshio++ kernel, taking the kernel's own options as JSON. **Advanced ▸ Tessellate curved cells…** writes a linear mesh from quadratic cells. The Advanced menu is now grouped under headings.
+- **Hanging-node constraints**: the `addHangingNodeConstraints`, `createConstraint` and `deleteConstraint` operations tie every hanging node of a hexahedral or quadrilateral mesh (an octree, a refined patch) to the coarse edge or face it sits on, as one linear master–slave constraint per node and variable (a vector variable such as `DISPLACEMENT` expands to its components). They live in a `HangingNodes` SubModelPart, are drawn as links in the viewer (View ▾ ▸ constraint links) and written to MDPA.
+- **`projectToCad`**: snaps the CAD-tagged nodes of a surface mesh onto the exact faces of a B-rep (the same operation CAD's Surface Tools run).
+- **Polyhedral cells**: an original `VTK_POLYHEDRON` (or a polyhedron block from CGNS, MED or OpenFOAM) is still drawn as its tetrahedra, but the file's faces are remembered and written back to `.vtu`.
+- meshio++ 17.23.0 adds nine kernel functions, 21 procedural generators and new CAD-surface controls; `medit_sol` (values only, no geometry) stays unrouted.
+
 ### Mesh Preview 5.21–5.22 additions
 
 - The Advanced menu gained **Octree mesh**, **CAD surface** and **Generate mesh** (primitive shapes) exports, plus `segment` and `refinePatches` operations for surface patches; the assistant reaches them through `mesh_derive` (`generate`, `octreeMesh`, `octree`, `cadSurface`) and `mesh_transform`.

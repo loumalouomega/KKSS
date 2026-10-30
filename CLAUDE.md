@@ -301,8 +301,8 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**17.3.0**, the version both submodules lock
-  and the one KKSS stages; cad 3.20.0 and mesh 5.14.0 declare the same `^17.3.0`,
+  `@meshioplusplus/wasm` package (**17.23.0**, the version both submodules lock
+  and the one KKSS stages; cad 3.32.0 and mesh 5.27.0 declare the same `^17.23.0`,
   so the pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
   rather than by the pins agreeing — re-run both after either bump, and prefer
   re-aligning CAD over letting the skew grow;
@@ -1598,8 +1598,15 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 83 CAD + 55 mesh + 4 aggregation + 33 app-owned
-workflow tools; 297 policy rows with the PDF reader server's twelve).
+discovery (current sets: 86 CAD + 55 mesh + 4 aggregation + 33 app-owned
+workflow tools; 300 policy rows with the PDF reader server's twelve).
+
+**The cad 3.30.0 → 3.32.0 + mesh 5.22.0 → 5.27.0 jump (Surface Tools, `meshcad` engine, hanging-node octree + MPCs, partitioned MDPA export, mesh kernel ops, hanging-node constraint ops, `projectToCad`, polyhedral `.vtu`, meshio++ 17.23.0; KKSS 2.25.0) needed one host port, two worker modules, three policy rows and one theme variable.**
+
+- **cad: host port, message-for-message from `provider.ts`.** `cadHost.ts` gained `surfaceToolRequest` → `handleSurfaceTool` (project: mesh picker then save; prism: save; replies `surfaceToolResult`/`surfaceToolError`, epoch-guarded, never writes either input), `meshConstraints` on `loadMeshBytes` for `.mdpa` (`parseMdpaConstraintLinks`, `dropInterfaceFacets`, `mdpaConstraintSummary`; the interface facets leave the displayed surface and the Parts correlation uses the trimmed regions), `meshcad`/`constraintLinks` on `meshingResult`, the `mdpaRanks >= 2` branch of `meshingExport` (stem dialog first, mesh second, overwrite confirm for the siblings the dialog never named) and `constraintExportWarning` after a non-MDPA export. `cadCompute.worker.ts` spreads `meshProjectCad` and `prismLayers`; `cadComputeClient.ts` binds `exportMdpaPartitioned`, `projectMeshToCad`, `growPrismLayersModel` (`kernelActivity.ts` already keys them to meshio++).
+- **Policy: 86 CAD + 55 mesh + 4 mcp + 33 app + 110 kratos + 12 pdf = 300.** `cad__project_to_cad`/`cad__grow_prism_layers` are `write` (new mesh at `outputPath`; scoped in `toolPaths.ts`), `cad__check_mesh_conformity` is `read`. The mesh tool list is unchanged (new ops ride `mesh_derive`/`mesh_transform`). `test/cadMcpRuntime.test.ts` runs all three through the staged kernel worker.
+- **mesh: no host code.** The new Advanced entries (`menuExportTessellated`, `menuExportKernelOp`) are webview messages the reused providers already handle; no shim, menu, setting or `meshBody()` change. cad's `viewer.css` uses `--vscode-contrastBorder`, now defined in all four theme blocks (transparent in dark/light).
+- **Screenshots:** `tools/screenshots.mjs` captures `cad-surface-tools.png` (Advanced expanded on `bull.stp`; the actions need native dialogs). With no `xvfb-run` the harness runs on the real display, and the final `optimizationRunScenario` (a real Kratos run) can stall `--mesh-only` after every capture has been written.
 
 **The cad 3.29.0 → 3.30.0 + mesh 5.20.0 → 5.22.0 jump (Fill Surface/Round Corner/open-profile sheets, B-rep free boundaries + signed volume, `octreemesh`, `mesh_cad_surface`, mesh octree/CAD-surface/generate/segment/refine, curved quadratic cells, host/webview localisation, meshio++ 17.13.0; KKSS 2.24.0) needed two cadHost fixes, one shim/locale/page seam, one policy row and docs.**
 

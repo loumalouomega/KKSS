@@ -33,6 +33,8 @@ import type * as meshDeviation from "../../cad/src/meshDeviationHost";
 import type * as printabilityHost from "../../cad/src/printabilityHost";
 import type * as draftAnalysisHost from "../../cad/src/draftAnalysisHost";
 import type * as meshFitCad from "../../cad/src/meshFitCad";
+import type * as meshProjectCad from "../../cad/src/meshProjectCad";
+import type * as prismLayers from "../../cad/src/prismLayers";
 import type * as gltfDecode from "../../cad/src/gltfDecode";
 import type * as scadWasm from "../../cad/src/scadWasmService";
 import type * as brepCache from "./cadBRepCache";
@@ -243,6 +245,8 @@ export const cadCompute = {
   exportGeoUnrolled: rpc<typeof gmsh.exportGeoUnrolled>("exportGeoUnrolled"),
   exportMeshFormat: rpc<typeof gmsh.exportMeshFormat>("exportMeshFormat"),
   exportMdpa: rpc<typeof gmsh.exportMdpa>("exportMdpa"),
+  // cad 3.31.0: one MDPA per MPI rank + a partition manifest.
+  exportMdpaPartitioned: rpc<typeof gmsh.exportMdpaPartitioned>("exportMdpaPartitioned"),
   // cad 1.5.0: fTetWild-backed watertight repair.
   repairMesh: rpc<typeof gmsh.repairMesh>("repairMesh"),
 
@@ -297,6 +301,10 @@ export const cadCompute = {
   // closed skin (meshFitCad.ts) — the interactive half of `cad__fit_mesh_to_cad`.
   // Needs the FULL artifact's OpenCASCADE; the staged out/meshio tree serves it.
   fitMeshToCad: rpc<typeof meshFitCad.fitMeshToCad>("fitMeshToCad"),
+  // cad 3.32.0 Surface Tools (meshio++ 17.23): both keep to meshio++ in the
+  // worker, so kernelActivity.ts's meshio key already covers them.
+  projectMeshToCad: rpc<typeof meshProjectCad.projectMeshToCad>("projectMeshToCad"),
+  growPrismLayersModel: rpc<typeof prismLayers.growPrismLayersModel>("growPrismLayersModel"),
 
   // ---- meshio++ route (VTK/VTU/MED/CGNS/Exodus/XDMF/MDPA, OpenFOAM) -----
   convertToStlBoundary: rpc<typeof meshio.convertToStlBoundary>("convertToStlBoundary"),

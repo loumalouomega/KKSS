@@ -195,6 +195,15 @@ async function sessionCad() {
     // don't "helpfully" click #tree-toggle first, that closes it.
     await shoot(page, "cad-components-tree.png", "#tree-panel");
 
+    // cad 3.32.0's Surface Tools panel lives inside the collapsed Advanced
+    // group and only shows for a STEP/IGES source (bull.stp qualifies). The
+    // actions need native dialogs, so this is the panel as it opens.
+    if (await page.evaluate(() => document.getElementById("advanced-group")?.classList.contains("collapsed") ?? false)) {
+      await click(page, "#advanced-header > .panel-chevron");
+      await sleep(300);
+    }
+    await shoot(page, "cad-surface-tools.png", "#surface-tools-panel");
+
     await click(page, "#file-menu");
     await shoot(page, "cad-file-menu.png", "#file-dropdown");
 

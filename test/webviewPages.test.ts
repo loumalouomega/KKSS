@@ -47,6 +47,9 @@ describe.skipIf(!built)("generated webview pages", () => {
     // cad 3.28.0's Draft panel: same binding-by-id contract; without the panel
     // markup the draftRequest handler never gets a trigger.
     expect(html).toContain('id="draft-panel"');
+    // cad 3.32.0: the Surface Tools panel and the hanging-node links toggle.
+    expect(html).toContain('id="surface-tools-panel"');
+    expect(html).toContain('id="meshing-links-toggle"');
     // cad 3.19.0's Mesh Health ▸ Fit to CAD… button (meshio++ fitCad): same
     // binding-by-id contract as the panel itself, and the host's
     // fitMeshToCadButtonClicked handler is what makes the click do anything.
