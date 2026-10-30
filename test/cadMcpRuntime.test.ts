@@ -51,6 +51,28 @@ describe.skipIf(!fs.existsSync(server))("bundled CAD MCP runtime", () => {
       expect(cadSurface.isError, JSON.stringify(cadSurface.content)).not.toBe(true);
       expect(fs.existsSync(surface)).toBe(true);
 
+      // cad 3.32.0 (meshio++ 17.23): the three new tools through the staged
+      // kernel worker. A .vtu surface keeps the cad:face data project_to_cad
+      // needs; an unperturbed mesh_cad_surface output barely moves.
+      const faceMesh = path.join(dir, "block-faces.vtu");
+      const faces = await client.callTool({ name: "mesh_cad_surface", arguments: { path: model, outputPath: faceMesh, targetSize: 0.5 } });
+      expect(faces.isError, JSON.stringify(faces.content)).not.toBe(true);
+      const projectedPath = path.join(dir, "block-projected.vtu");
+      const projected = await client.callTool({ name: "project_to_cad", arguments: { path: faceMesh, cadPath: model, outputPath: projectedPath } });
+      expect(projected.isError, JSON.stringify(projected.content)).not.toBe(true);
+      const projectedFacts = JSON.parse((projected.content as Array<{ text?: string }>).find(c => c.text)!.text!);
+      expect(projectedFacts.numProjected).toBeGreaterThan(0);
+      expect(fs.existsSync(projectedPath)).toBe(true);
+      const layersPath = path.join(dir, "block-layers.vtu");
+      const layers = await client.callTool({
+        name: "grow_prism_layers",
+        arguments: { path: model, outputPath: layersPath, targetSize: 1, firstHeight: 0.05, numLayers: 3 },
+      });
+      expect(layers.isError, JSON.stringify(layers.content)).not.toBe(true);
+      expect(fs.existsSync(layersPath)).toBe(true);
+      const conformity = await client.callTool({ name: "check_mesh_conformity", arguments: { path: faceMesh } });
+      expect(conformity.isError, JSON.stringify(conformity.content)).not.toBe(true);
+
       const mesh = path.join(dir, "model.mdpa");
       fs.writeFileSync(mesh, "Begin Nodes\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\nEnd Nodes\nBegin Elements Element3D4N\n1 0 1 2 3 4\nEnd Elements\n");
       const loaded = await client.callTool({ name: "load_model", arguments: { path: mesh } });

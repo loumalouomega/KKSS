@@ -40,6 +40,10 @@ import * as draftAnalysisHost from "../../cad/src/draftAnalysisHost";
 // cad 3.19.0's Fit to CAD: meshio++ fitCad over a segmented, primitive-fitted
 // closed skin — the analytic counterpart of meshHeal's promotion.
 import * as meshFitCad from "../../cad/src/meshFitCad";
+// cad 3.32.0's Surface Tools panel: snap a surface mesh onto exact CAD faces
+// and grow prism layers (meshio++ 17.23, kernel-free).
+import * as meshProjectCad from "../../cad/src/meshProjectCad";
+import * as prismLayers from "../../cad/src/prismLayers";
 // cad 3.14.0 compressed glTF: Draco/meshopt geometry expansion runs in the
 // kernel worker (WASM decoders never run in the host process).
 import * as gltfDecode from "../../cad/src/gltfDecode";
@@ -83,6 +87,8 @@ const modules: Array<[string, object]> = [
   ["printabilityHost", printabilityHost],
   ["draftAnalysisHost", draftAnalysisHost],
   ["meshFitCad", meshFitCad],
+  ["meshProjectCad", meshProjectCad],
+  ["prismLayers", prismLayers],
   ["gltfDecode", gltfDecode],
   ["scadWasm", scadWasm],
   ["cadBRepCache", brepCache],

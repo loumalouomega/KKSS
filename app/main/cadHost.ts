@@ -84,8 +84,10 @@ import { finishOpen } from "./services/performance";
  * another writer made) — it is only ever set by the edits watcher, which KKSS
  * does not have, and the field is optional for exactly that reason.
  */
-import { ipcMain, WebContentsView } from "electron";
+import { dialog, ipcMain, WebContentsView } from "electron";
 import * as fs from "node:fs/promises";
+import * as fsSync from "node:fs";
+import { toast } from "./services/notifications";
 import * as path from "node:path";
 import { t } from "../shared/i18n";
 import {
@@ -166,7 +168,15 @@ import {
   SIZE_MAX_SENTINEL,
   type MeshOptions,
 } from "../../cad/src/meshOptions";
-import { meshExportFormat } from "../../cad/src/meshExportFormats";
+import { meshExportFormat, constraintExportWarning } from "../../cad/src/meshExportFormats";
+import { dropInterfaceFacets, mdpaConstraintSummary, parseMdpaConstraintLinks } from "../../cad/src/mdpaConstraints";
+import {
+  rankFileName,
+  partitionManifestName,
+  partitionManifestJson,
+  partitionWarnings,
+  PARTITION_LAYOUT_NOTE,
+} from "../../cad/src/mdpaPartition";
 import { validateMergeFacets } from "../../cad/src/meshFacetMerge";
 import { DISPLAY_UNITS, UNIT_LABELS, unitScaleFactor, type DisplayUnit } from "../../cad/src/lengthUnits";
 import { detectStepLengthUnit } from "../../cad/src/stepUnits";
@@ -1583,6 +1593,10 @@ export class CadHost {
           // "Octree mesh" and "Octree" readouts from silently disappearing.
           ...(result.octree ? { octree: result.octree } : {}),
           ...(result.octreeMesh ? { octreeMesh: result.octreeMesh } : {}),
+          // cad 3.31/3.32: the meshcad surface engine's facts, and the hanging-
+          // node octree's master/slave line segments for the links toggle.
+          meshcad: result.meshcad,
+          constraintLinks: result.constraintLinks ? encodeBuffer(result.constraintLinks) : undefined,
           worstElements: result.worstElements && {
             indices: encodeBuffer(result.worstElements.indices),
             threshold: result.worstElements.threshold,
@@ -1727,6 +1741,59 @@ export class CadHost {
             const fixedText = geo.text.replace(/Merge "[^"]*\.xao";/, `Merge "${xaoName}";`);
             return Buffer.from(fixedText, "utf8");
           }, assertJobActive);
+        } else if ((msg.target === "mdpaElements" || msg.target === "mdpaGeometries") && (options.mdpaRanks ?? 1) >= 2) {
+          // cad 3.31.0: one MDPA per MPI rank plus a manifest. The save dialog
+          // names the STEM; the files are `<stem>_<rank>.mdpa` beside it, so ask
+          // first and mesh only once the user has committed (provider.ts).
+          const format = meshExportFormat(msg.target)!;
+          const baseName = path.basename(doc.path).replace(/\.[^.]+$/, "");
+          const saveDialogPath = await showSaveDialog({
+            defaultPath: path.join(path.dirname(doc.path), `${baseName}.${format.extension}`),
+            filters: [{ name: `${format.filterLabel} — one file per rank`, extensions: [format.extension] }],
+          });
+          if (saveDialogPath) {
+            const stem = path.basename(saveDialogPath).replace(/\.mdpa$/i, "");
+            const split = await cadCompute.exportMdpaPartitioned(
+              this.runtimePath,
+              input,
+              options,
+              parts,
+              msg.target === "mdpaElements" ? "elements" : "geometries",
+              stem
+            );
+            assertJobActive();
+            const dir = path.dirname(saveDialogPath);
+            const outputs = [
+              ...split.files.map((f) => ({ file: path.join(dir, rankFileName(stem, f.rank)), bytes: Buffer.from(f.text, "utf8") })),
+              {
+                file: path.join(dir, partitionManifestName(stem)),
+                bytes: Buffer.from(partitionManifestJson(split.report, { source: path.basename(doc.path), format: msg.target }), "utf8"),
+              },
+            ];
+            // The dialog only confirmed ONE name; the siblings must not be replaced unasked.
+            const existing = outputs.filter((o) => fsSync.existsSync(o.file)).map((o) => path.basename(o.file));
+            let go = true;
+            if (existing.length > 0) {
+              const { response } = await dialog.showMessageBox({
+                type: "warning",
+                buttons: ["Overwrite", "Cancel"],
+                defaultId: 1,
+                cancelId: 1,
+                message: `${existing.length} existing file${existing.length === 1 ? "" : "s"} would be replaced: ${existing.join(", ")}`,
+              });
+              go = response === 0;
+            }
+            if (go) {
+              for (const o of outputs) await fs.writeFile(o.file, o.bytes);
+              const r = split.report;
+              this.post({
+                type: "status",
+                text: `Exported ${r.ranks} rank files (${rankFileName(stem, 0)} … ${rankFileName(stem, r.ranks - 1)}) and ${partitionManifestName(stem)} — ${r.methodUsed.toUpperCase()}, balance ${r.balanceMaxOverMean.toFixed(3)}, ${r.interfaceNodes} interface nodes (${(r.interfaceFraction * 100).toFixed(1)} %).`,
+              });
+              for (const w of [...partitionWarnings(r), PARTITION_LAYOUT_NOTE]) this.post({ type: "status", text: w });
+              savedPath = saveDialogPath;
+            }
+          }
         } else if (msg.target === "mdpaElements" || msg.target === "mdpaGeometries") {
           const format = meshExportFormat(msg.target)!;
           const text = await cadCompute.exportMdpa(
@@ -1764,6 +1831,15 @@ export class CadHost {
             assertJobActive();
             return Buffer.from(text, "utf8");
           }, assertJobActive);
+        }
+        // A hanging-node octree's constraints exist only in MDPA: any other
+        // format is a non-conforming mesh — say so after the write, never drop
+        // them silently (provider.ts).
+        const lossFormat = meshExportFormat(msg.target);
+        const lossWarning = lossFormat && savedPath ? constraintExportWarning(options, lossFormat) : null;
+        if (lossWarning) {
+          this.post({ type: "status", text: lossWarning });
+          toast("warning", lossWarning);
         }
         // Pre → post sync: a written mesh may be openable in post mode. The
         // router (in index.ts) decides whether this format actually is.
@@ -2889,6 +2965,11 @@ export class CadHost {
       return;
     }
 
+    if (msg.type === "surfaceToolRequest") {
+      if (doc.route) void this.handleSurfaceTool(doc.path, doc.route, msg);
+      return;
+    }
+
     if (msg.type === "draftRequest") {
       // cad 3.28.0's Draft panel, ported message-for-message from provider.ts:
       // facts-only draft/undercut analysis over the welded triangles any source
@@ -3353,9 +3434,32 @@ export class CadHost {
         readParts(modelPath),
       ]);
       if (epoch !== this.epoch) return [];
+      // cad 3.31.0: a Kratos deck with multi-point constraints (hanging nodes)
+      // opens with the constraint blocks stripped; read them back from the
+      // original bytes to draw the links, and take the coarse/fine interface
+      // out of the displayed boundary (provider.handleMeshio).
+      let stlBytes = boundary.stlBytes;
+      let regions = boundary.regions;
+      let constraintLinks: ReturnType<typeof parseMdpaConstraintLinks>;
+      let interfaceNote: string | undefined;
+      if (format === "mdpa") {
+        constraintLinks = parseMdpaConstraintLinks(new TextDecoder().decode(bytes));
+        if (constraintLinks && constraintLinks.interfaceQuads.length > 0) {
+          const dropped = dropInterfaceFacets(new TextDecoder().decode(stlBytes), constraintLinks.interfaceQuads);
+          if (dropped.declined) {
+            interfaceNote = "the model is too large to take the hanging-node interfaces out of the displayed surface — they are drawn as internal walls";
+          } else if (dropped.dropped > 0) {
+            stlBytes = new TextEncoder().encode(dropped.stl);
+            if (regions) {
+              const region = regions.triangleRegion.filter((_, i) => dropped.keep[i]);
+              regions = { regionNames: regions.regionNames, triangleRegion: Int32Array.from(region) };
+            }
+          }
+        }
+      }
       let parts = existingParts;
-      if (boundary.regions && existingParts.length === 0) {
-        const built = await cadCompute.buildPartsFromMeshioRegions(boundary.stlBytes, boundary.regions);
+      if (regions && existingParts.length === 0) {
+        const built = await cadCompute.buildPartsFromMeshioRegions(stlBytes, regions);
         if (epoch !== this.epoch) return [];
         if (built.length > 0) {
           parts = built;
@@ -3375,12 +3479,27 @@ export class CadHost {
       this.post({
         type: "loadMeshBytes",
         sourceFormat: format,
-        dataBase64: Buffer.from(boundary.stlBytes).toString("base64"),
+        dataBase64: Buffer.from(stlBytes).toString("base64"),
         meshioMetadata: hasMetadata ? metadata : undefined,
-        regionAssignment: boundary.regions
+        regionAssignment: regions
           ? {
-              regionNames: boundary.regions.regionNames,
-              triangleRegionIndex: encodeBuffer(boundary.regions.triangleRegion),
+              regionNames: regions.regionNames,
+              triangleRegionIndex: encodeBuffer(regions.triangleRegion),
+            }
+          : undefined,
+        meshConstraints: constraintLinks
+          ? {
+              points: encodeBuffer(constraintLinks.points),
+              indices: encodeBuffer(constraintLinks.indices),
+              constraintCount: constraintLinks.constraintCount,
+              slaveCount: constraintLinks.slaveCount,
+              variables: constraintLinks.variables,
+              truncated: constraintLinks.truncated,
+              summary: [
+                mdpaConstraintSummary(constraintLinks),
+                ...constraintLinks.notes,
+                ...(interfaceNote ? [interfaceNote] : []),
+              ].join(" · "),
             }
           : undefined,
       });
@@ -4150,6 +4269,107 @@ export class CadHost {
       );
       return result.stlBytes;
     });
+  }
+
+  /**
+   * Surface Tools panel (cad 3.32.0, meshio++ 17.23): `project_to_cad` and
+   * `grow_prism_layers` over the OPEN document's STEP/IGES source, ported
+   * message-for-message from provider.handleSurfaceTool. The host owns the
+   * dialogs (project: the mesh to snap, then a save path; prism: a save path);
+   * the compute worker does the work on raw bytes, so pending edits are NOT
+   * baked (the panel says so). Neither the CAD source nor the picked mesh is
+   * ever written. Replies `surfaceToolResult` or `surfaceToolError`.
+   */
+  private async handleSurfaceTool(
+    modelPath: string,
+    route: FileRoute,
+    msg: Extract<WebviewToHost, { type: "surfaceToolRequest" }>
+  ): Promise<void> {
+    const epoch = this.epoch;
+    const fail = (message: string, cancelled = false): void => {
+      if (epoch !== this.epoch) return;
+      this.post({ type: "surfaceToolError", requestId: msg.requestId, tool: msg.tool, message, cancelled });
+    };
+    if (route.format !== "step" && route.format !== "iges") {
+      fail("Surface tools need a STEP or IGES source (they read its exact NURBS faces).");
+      return;
+    }
+    const baseName = path.basename(modelPath).replace(/\.[^.]+$/, "");
+    try {
+      const cadBytes = await fs.readFile(modelPath);
+      const sig = (n: number): string => (Number.isFinite(n) ? Number(n.toPrecision(4)).toString() : "n/a");
+      if (msg.tool === "projectToCad") {
+        const picked = await showOpenDialog({
+          openLabel: "Project this mesh",
+          title: "Mesh to snap onto this model (must carry cad:face — a mesh_cad_surface .msh / .vtk / .vtu)",
+          filters: [{ name: "Surface mesh", extensions: ["msh", "vtk", "vtu"] }],
+          defaultPath: path.dirname(modelPath),
+        });
+        if (!picked?.length) return fail("Cancelled.", true);
+        const meshPath = picked[0];
+        const meshRoute = routeFile(meshPath);
+        if (!meshRoute || meshRoute.strategy !== "meshio") return fail("That file is not a meshio++-readable surface mesh.");
+        const savePath = await showSaveDialog({
+          defaultPath: path.join(path.dirname(modelPath), `${baseName}-projected.vtu`),
+          filters: [{ name: "Surface mesh", extensions: ["vtu", "vtk", "msh"] }],
+        });
+        if (!savePath) return fail("Cancelled.", true);
+        if (savePath === modelPath || savePath === meshPath) return fail("Choose a new file — neither input is overwritten.");
+        const ext = path.extname(savePath).toLowerCase();
+        const meshBytes = await fs.readFile(meshPath);
+        const options = msg.maxDistance > 0 ? { maxDistance: msg.maxDistance } : {};
+        const result = await cadCompute.projectMeshToCad(meshBytes, meshRoute.format, cadBytes, route.format, ext, options);
+        await fs.writeFile(savePath, result.outputBytes);
+        const r = result.report;
+        if (epoch !== this.epoch) return;
+        this.post({
+          type: "surfaceToolResult",
+          requestId: msg.requestId,
+          tool: "projectToCad",
+          written: savePath,
+          rows: [
+            ["Projected", String(r.numProjected)],
+            ["On edges", `${r.numOnEdges} (${r.numOnCurves} on curves, ${r.numCorners} corners)`],
+            ["Too far / failed", `${r.numTooFar} / ${r.numFailed}`],
+            ["Outside trim", String(r.numOutsideTrim)],
+            ["Max move", `${sig(r.maxMove)} mm`],
+          ],
+          warnings: r.warnings,
+        });
+        return;
+      }
+      const savePath = await showSaveDialog({
+        defaultPath: path.join(path.dirname(modelPath), `${baseName}-layers.vtu`),
+        filters: [{ name: "Layered mesh", extensions: ["vtu", "vtk", "msh"] }],
+      });
+      if (!savePath) return fail("Cancelled.", true);
+      if (savePath === modelPath) return fail("Choose a new file — the CAD source is never overwritten.");
+      const ext = path.extname(savePath).toLowerCase();
+      const result = await cadCompute.growPrismLayersModel(
+        { kind: "cad", bytes: cadBytes, meshioFormat: route.format, targetSize: msg.targetSize },
+        ext,
+        { firstHeight: msg.firstHeight, numLayers: msg.numLayers, growth: msg.growth, reverse: msg.reverse || undefined }
+      );
+      await fs.writeFile(savePath, result.outputBytes);
+      const r = result.report;
+      if (epoch !== this.epoch) return;
+      this.post({
+        type: "surfaceToolResult",
+        requestId: msg.requestId,
+        tool: "prismLayers",
+        written: savePath,
+        rows: [
+          ["Wedges", `${r.numWedges} over ${result.numSurfaceTriangles} surface triangles`],
+          ["Shrunk / collapsed", `${r.numShrunk} / ${r.numCollapsed}`],
+          ["Thickness", `${sig(r.minThickness)}–${sig(r.maxThickness)} mm of ${sig(r.plannedThickness)} planned`],
+          ["Min scaled Jacobian", sig(r.minScaledJacobian)],
+          ["Cap closed", r.capClosed ? "yes" : "no"],
+        ],
+        warnings: r.warnings,
+      });
+    } catch (err) {
+      fail((err as Error).message);
+    }
   }
 
   /**

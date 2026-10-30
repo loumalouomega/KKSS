@@ -168,7 +168,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__queue_resume: "write",
   app__queue_resume_row: "write",
   app__queue_cancel: "write",
-  // ---- cad-preview (83) ---------------------------------------------------
+  // ---- cad-preview (86) ---------------------------------------------------
   cad__describe_capabilities: "read",
   cad__load_model: "read",
   cad__get_mass_properties: "read",
@@ -209,6 +209,13 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // cad 3.30.0's B-rep → conforming surface mesh (meshio++ meshCadSurface):
   // outputPath is required and a NEW mesh file always lands on disk.
   cad__mesh_cad_surface: "write",
+  // cad 3.32.0 (meshio++ 17.23): project_to_cad snaps a surface mesh onto a
+  // CAD file's exact faces and grow_prism_layers grows wedges over a closed
+  // skin — both always write a NEW mesh at outputPath and never touch either
+  // input. check_mesh_conformity only reports facts (read).
+  cad__project_to_cad: "write",
+  cad__grow_prism_layers: "write",
+  cad__check_mesh_conformity: "read",
   cad__iga_sample: "read",
   cad__iga_refine: "write",
   cad__iga_evaluate: "read",
