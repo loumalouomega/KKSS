@@ -17,6 +17,7 @@ import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
 import { showLicense } from "./services/license";
 import { showManual } from "./services/manual";
+import { needsMeshDocument, postProcessingOnly, UNAVAILABLE_SUFFIX, type AvailabilityContext, type UnavailableKey } from "./services/menuAvailability";
 import { EXAMPLES } from "./services/examplesCore";
 import { showChangelog } from "./services/whatsNew";
 import { stateStore } from "./services/stateStore";
@@ -119,6 +120,12 @@ export interface MenuDeps {
   openSettings(): void;
   /** Help ▸ Examples ▸ <case> — unpack a shipped tutorial case and open it. */
   openExample(id: string): void;
+  /** F1 — the manual page for whatever screen has focus. */
+  contextHelp(): void;
+  exportProjectArchive(): void;
+  importProjectArchive(): void;
+  /** Help ▸ Export Diagnostics… — writes a redacted zip the user chooses; nothing is sent. */
+  exportDiagnostics(): void;
   /**
    * Whether the experimental VTK-wasm renderer runtime ships in this build.
    * Read from the same `rendererPage.ts` check the served mesh page uses, so
@@ -318,6 +325,8 @@ async function promptCacheLimit(deps: MenuDeps): Promise<void> {
 export function installMenu(deps: MenuDeps): void {
   const { main, activeCadHost, activeMeshHost, editor } = deps;
   const inCad = () => main.mode() === "cad";
+  const avail = (): AvailabilityContext => ({ mode: main.mode(), screen: main.screen(), hasMeshFile: !!activeMeshHost()?.currentFile });
+  const withReason = (label: string, reason: UnavailableKey | undefined) => (reason ? label + t(UNAVAILABLE_SUFFIX[reason]) : label);
   const inEditor = () => main.screen() === "editor";
   /** The WebContentsView for whichever tab is focused in the active mode
    *  screen (devtools toggle only — everything else goes through the hosts). */
@@ -385,6 +394,8 @@ export function installMenu(deps: MenuDeps): void {
           enabled: deps.projectRoot.isSet() && !stateStore.isManaged("projectRoot"),
           click: () => deps.projectRoot.clear(),
         },
+        { label: t("Export Project Archive…"), click: () => deps.exportProjectArchive() },
+        { label: t("Import Project Archive…"), click: () => deps.importProjectArchive() },
         { type: "separator" },
         {
           label: t("Open…"),
@@ -396,8 +407,8 @@ export function installMenu(deps: MenuDeps): void {
           submenu: recentFilesSubmenu(),
         },
         {
-          label: t("Import Mesh…"),
-          enabled: main.screen() === "mesh" && !!activeMeshHost()?.currentFile,
+          label: withReason(t("Import Mesh…"), needsMeshDocument(avail())),
+          enabled: !needsMeshDocument(avail()),
           click: () => void activeMeshHost()?.dispatchMenu({ type: "menuImport" }),
         },
         {
@@ -458,8 +469,8 @@ export function installMenu(deps: MenuDeps): void {
         {
           // The webview's collapsible export categories are hidden with its
           // File pill. Native submenus use the SAME upstream registry.
-          label: t("Export Mesh As"),
-          enabled: main.screen() === "mesh" && !!activeMeshHost()?.currentFile,
+          label: withReason(t("Export Mesh As"), needsMeshDocument(avail())),
+          enabled: !needsMeshDocument(avail()),
           submenu: EXPORT_MENU_GROUPS.map((group) => ({
             label: translate(group.label),
             submenu: group.extensions.map((ext) => ({
@@ -504,16 +515,16 @@ export function installMenu(deps: MenuDeps): void {
           // mesh 3.2.0's kratos.mesh.reload. Re-reads the file and REBASES the
           // edit history onto it (applied ops are replayed, not dropped), so
           // this is also how you pick up an external change on purpose.
-          label: t("Reload from Disk"),
+          label: withReason(t("Reload from Disk"), postProcessingOnly(avail())),
           accelerator: "CmdOrCtrl+Alt+R",
-          enabled: !inCad(),
+          enabled: !postProcessingOnly(avail()),
           click: () => void activeMeshHost()?.dispatchReload(),
         },
         {
           // mesh 3.7.0's kratos.mesh.exportTable — Advanced ▸ Data table…
           // owns the in-viewport route; this is the palette-command parity.
-          label: t("Export Data Table…"),
-          enabled: !inCad(),
+          label: withReason(t("Export Data Table…"), postProcessingOnly(avail())),
+          enabled: !postProcessingOnly(avail()),
           click: () => void activeMeshHost()?.dispatchMenu({ type: "menuExportTable" }),
         },
         {
@@ -524,8 +535,8 @@ export function installMenu(deps: MenuDeps): void {
           // mesh 3.8.0's kratos.case.stop — the run manager's stop ladder
           // (SIGINT → SIGTERM → SIGKILL). Runs outlive the tab that started
           // them, so this is reachable whatever the focused tab shows.
-          label: t("Stop Kratos Run"),
-          enabled: !inCad(),
+          label: withReason(t("Stop Kratos Run"), postProcessingOnly(avail())),
+          enabled: !postProcessingOnly(avail()),
           click: () => void activeMeshHost()?.dispatchCase("stop"),
         },
         {
@@ -533,8 +544,8 @@ export function installMenu(deps: MenuDeps): void {
           // files into XDMF or a PVD collection. Upstream this is reachable only
           // from the Command Palette and the Kratos Runs tree, neither of
           // which KKSS runs, so this menu item is the sole entry point.
-          label: t("Pack Time Series Into One File…"),
-          enabled: !inCad(),
+          label: withReason(t("Pack Time Series Into One File…"), postProcessingOnly(avail())),
+          enabled: !postProcessingOnly(avail()),
           click: () => void activeMeshHost()?.packSeries(),
         },
         {
@@ -544,8 +555,8 @@ export function installMenu(deps: MenuDeps): void {
           // Kratos Runs tree, so this menu item is the on-demand route; a
           // case's saved `output.exportFormats` convert automatically when a
           // run finishes (RunManager.autoConvertResults).
-          label: t("Convert Results to Other Formats…"),
-          enabled: !inCad(),
+          label: withReason(t("Convert Results to Other Formats…"), postProcessingOnly(avail())),
+          enabled: !postProcessingOnly(avail()),
           click: () => void activeMeshHost()?.dispatchCase("exportResults"),
         },
         { type: "separator" },
@@ -560,15 +571,15 @@ export function installMenu(deps: MenuDeps): void {
           // mesh-parity commands with no natural KKSS-level shortcut (Reload
           // from Disk, Save/Load Problem, Screenshot). The sidebar's own
           // Undo/Redo buttons remain the mouse route.
-          label: t("Undo Mesh Operation"),
+          label: withReason(t("Undo Mesh Operation"), postProcessingOnly(avail())),
           accelerator: "CmdOrCtrl+Alt+Z",
-          enabled: !inCad(),
+          enabled: !postProcessingOnly(avail()),
           click: () => void activeMeshHost()?.dispatchHistory("undo"),
         },
         {
-          label: t("Redo Mesh Operation"),
+          label: withReason(t("Redo Mesh Operation"), postProcessingOnly(avail())),
           accelerator: "CmdOrCtrl+Alt+Shift+Z",
-          enabled: !inCad(),
+          enabled: !postProcessingOnly(avail()),
           click: () => void activeMeshHost()?.dispatchHistory("redo"),
         },
         { type: "separator" },
@@ -877,6 +888,7 @@ export function installMenu(deps: MenuDeps): void {
       label: t("&Help"),
       submenu: [
         { label: t("KKSS Manual…"), click: () => showManual() },
+        { label: t("Help for This Screen"), accelerator: "F1", click: () => deps.contextHelp() },
         {
           label: t("Examples"),
           submenu: EXAMPLES.map((e) => ({ label: t(e.label), click: () => deps.openExample(e.id) })),
@@ -893,6 +905,7 @@ export function installMenu(deps: MenuDeps): void {
         { type: "separator" },
         { label: t("License…"), click: () => showLicense() },
         { label: t("What's New…"), click: () => showChangelog() },
+        { label: t("Export Diagnostics…"), click: () => deps.exportDiagnostics() },
         { label: t("About KKSS…"), click: () => showAbout() },
       ],
     },

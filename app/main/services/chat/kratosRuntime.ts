@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { ChatServerStatus } from "../../ipc";
+import { externalProcessEnv } from "../childEnv";
 
 export const UV_VERSION = "0.12.10";
 export type StartupFailure = NonNullable<ChatServerStatus["failure"]>;
@@ -23,7 +24,7 @@ export function runRuntimeCommand(command: string, args: string[], options: {
   return new Promise((resolve, reject) => {
     options.signal.throwIfAborted();
     const child = spawn(command, args, {
-      env: options.env ?? process.env, stdio: ["ignore", "pipe", "pipe"],
+      env: options.env ?? externalProcessEnv(process.env), stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true, detached: process.platform !== "win32",
     });
     let output = "";

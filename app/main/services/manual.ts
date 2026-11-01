@@ -26,8 +26,11 @@ let manualWin: BrowserWindow | null = null;
  */
 export const MANUAL_ROOT_URL = `kkss://docs${SITE_BASE}/index.html`;
 
-export function showManual(): void {
+/** `path` is relative to the site base (e.g. `guide/mesh-mode.html#anchor`); omitted opens the index. */
+export function showManual(path?: string): void {
+  const url = path ? `kkss://docs${SITE_BASE}/${path}` : MANUAL_ROOT_URL;
   if (manualWin && !manualWin.isDestroyed()) {
+    if (path) void manualWin.loadURL(url);
     manualWin.focus();
     return;
   }
@@ -61,5 +64,5 @@ export function showManual(): void {
   win.on("closed", () => {
     manualWin = null;
   });
-  void win.loadURL(MANUAL_ROOT_URL);
+  void win.loadURL(url);
 }

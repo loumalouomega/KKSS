@@ -24,6 +24,10 @@ import { DOCS_URL } from "./urls";
 import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsupportedLaunchFiles } from "./launch";
 import { showOpenDialog } from "./services/dialogs";
 import { openExample } from "./services/examples";
+import { exportDiagnostics } from "./services/diagnostics";
+import { exportProjectArchive, importProjectArchive } from "./services/projectArchiveUi";
+import { helpPath, type HelpContext } from "./services/helpMap";
+import { showManual } from "./services/manual";
 import { configurePicker } from "./services/quickPick";
 import { configureAbout, showAbout } from "./services/about";
 import { configureLicense } from "./services/license";
@@ -79,6 +83,7 @@ import type { HomeToHost, HomeToWebview, Mode, RecoveryInfo, Screen, ShellTabInf
 import { RecoveryService } from "./services/recovery";
 import { classifyRestore } from "./services/recoveryCore";
 import type { ListedRecovery } from "./services/recoveryCore";
+import { configureChildEnv, externalProcessEnv } from "./services/childEnv";
 
 // Must happen before app is ready.
 registerSchemes();
@@ -102,6 +107,7 @@ managedConfig(); // Validate operator configuration before opening any documents
  */
 const gotInstanceLock =
   process.env.KKSS_ALLOW_MULTIPLE_INSTANCES === "1" || app.requestSingleInstanceLock();
+configureChildEnv(app.isPackaged);
 if (!gotInstanceLock) {
   // Lands in the e2e harness's captured output, so this failure diagnoses itself.
   console.error("KKSS is already running — handing the file argument to that instance.");
@@ -1541,7 +1547,7 @@ app.whenReady().then(() => {
       python: stateStore.get<string>("kratos.pythonPath", "") || defaultPythonPath(process.platform),
       threads: stateStore.get<number>("kratos.threads", 0),
       mpiRanks: stateStore.get<number>("kratos.mpiRanks", 0),
-      env: { ...process.env, ...kratosEnvDelta() },
+      env: { ...externalProcessEnv(process.env), ...kratosEnvDelta() },
       bundledPython: process.env.KKSS_KRATOS_PYTHON,
       installPath: stateStore.get<string>("kratos.installPath", "") || undefined,
       extraEnv: stateStore.get<Record<string, string>>("kratos.extraEnv", {}) ?? {},
@@ -1728,6 +1734,15 @@ app.whenReady().then(() => {
     // The same check protocol.ts's mesh page rewrite uses, so the View menu's
     // "unavailable" note and the viewer's actual fallback cannot disagree.
     meshRendererRuntime: () => rendererAssetsPresent(__dirname),
+    exportDiagnostics: () => void exportDiagnostics({ statuses: () => mcpHub?.statuses?.(), runFiles: () => workflows?.runDiagnostics() ?? Promise.resolve([]) }),
+    exportProjectArchive: () => void exportProjectArchive(workflows),
+    importProjectArchive: () => void importProjectArchive(workflows),
+    contextHelp: () => {
+      const screen = main!.screen();
+      const ctx: HelpContext = screen === "cad" || screen === "mesh" || screen === "home" || screen === "editor" ? screen
+        : main!.chatVisible() ? "chat" : "home";
+      showManual(helpPath(ctx));
+    },
     openExample: (id) => void openExample(id, __dirname, (p) => openFile(p)),
     metaServer: {
       enabled: () => stateStore.get(META_SERVER_KEYS.enabled, false) ?? false,

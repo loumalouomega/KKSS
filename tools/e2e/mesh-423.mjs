@@ -138,8 +138,9 @@ internalField uniform ${value};
   const originalCounts = await mesh.locator('#sb-count-model').textContent();
   const nativeMenu = () => app.evaluate(({ Menu }) => {
     const file = Menu.getApplicationMenu().items.find(i => i.label === '&File').submenu;
-    const imports = file.items.find(i => i.label === 'Import Mesh…');
-    const exports = file.items.find(i => i.label === 'Export Mesh As');
+    const base = l => l.replace(/ \((?:Post-Processing only|open a mesh first)\)$/u, '');
+    const imports = file.items.find(i => base(i.label) === 'Import Mesh…');
+    const exports = file.items.find(i => base(i.label) === 'Export Mesh As');
     return { importEnabled: imports.enabled, exportEnabled: exports.enabled,
       groups: exports.submenu.items.map(i => i.label),
       shortcut: file.items.find(i => i.label === 'Export…').accelerator };

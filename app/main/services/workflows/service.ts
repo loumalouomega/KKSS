@@ -2,13 +2,17 @@ import { validateRefinement, type Refinement } from './refinement';
 import { discoverOutputs, resultCompanions } from '../../../../mesh/src/problemtype/outputDiscovery';
 import { availableParallelism } from 'node:os';
 import * as fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
 import { constants as fsConstants } from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { writeFileAtomic } from '../atomicWrite';
+import { buildChecklist } from './checklist';
+import { nextIterate, type SeekSpec, type Iterate } from './goalSeek';
+import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, safeRelative } from './projectArchive';
 import type { AppTool } from '../chat/appTools';
 import { checkEnvironment, checkRemoteEnvironment, resolveThreads, type EnvironmentReport } from './environment';
-import { ProjectStore, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
+import { ProjectStore, staleQuantities, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
 import type { Evidence, Handoff, Json, Project, Quantity, Run, Study } from './contracts';
 import type { KratosRuntime } from '../chat/kratosRuntime';
 import { ExecutionQueue, planRevision } from './queue';
@@ -1188,6 +1192,86 @@ export class WorkflowService {
       }
     });
   }
+  /** Pack `.kkss/project.json` and every project-contained file it references into one archive. */
+  async projectPack(args: Record<string, unknown>): Promise<unknown> {
+    const store = this.store(), project = await store.read();
+    if (!project) throw new Error('No project studies to pack.');
+    const includeRuns = args.includeRuns === true, out = path.resolve(text(args, 'outputPath'));
+    const files: { path: string; data: Uint8Array }[] = [], external: { owner: string; path: string }[] = [], missing: string[] = [];
+    let total = 0;
+    const add = async (rel: string) => {
+      const data = await fs.readFile(path.join(store.root, rel));
+      total += data.length;
+      if (total > 2 * 1024 ** 3) throw new Error('Project is larger than the 2 GB archive limit.');
+      files.push({ path: rel, data });
+    };
+    for (const { owner, ref } of collectProjectReferences(project, includeRuns)) {
+      if (ref.kind === 'external') { external.push({ owner, path: ref.path }); continue; }
+      const rel = safeRelative(ref.path);
+      if (!rel) throw new Error(`Unsafe reference path: ${ref.path}`);
+      try { await add(rel); } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') missing.push(rel); else throw e; }
+    }
+    if (includeRuns) for (const study of project.studies) for (const run of study.runs) {
+      const walk = async (dir: string): Promise<void> => {
+        for (const entry of await fs.readdir(path.join(store.root, dir), { withFileTypes: true }).catch(() => [])) {
+          const rel = `${dir}/${entry.name}`;
+          if (entry.isDirectory()) await walk(rel); else if (entry.isFile() && files.length < 5000) await add(rel);
+        }
+      };
+      await walk(run.directory);
+    }
+    const copy = packagedProject(project, includeRuns);
+    files.push({ path: '.kkss/project.json', data: new TextEncoder().encode(JSON.stringify(copy, null, 2) + '\n') });
+    await writeFileAtomic(out, buildArchive(project, files, external, includeRuns, new Date().toISOString()));
+    return { archive: out, files: files.length, bytes: total, includesRuns: includeRuns, external, missing };
+  }
+
+  /** Unpack into a new folder; damaged or missing members are listed, never silently skipped, and nothing existing is overwritten. */
+  async projectUnpack(args: Record<string, unknown>): Promise<unknown> {
+    const archive = path.resolve(text(args, 'archivePath')), dest = path.resolve(text(args, 'destination'));
+    const exists = (rel: string) => { try { return !!fsSync.statSync(path.join(dest, rel)); } catch { return false; } };
+    const plan = planUnpack(readStoreZip(new Uint8Array(await fs.readFile(archive))), exists);
+    if (plan.conflicts.length) return { unpacked: false, reason: 'Destination already holds files from this archive; choose an empty folder.', conflicts: plan.conflicts.slice(0, 50), problems: plan.problems };
+    for (const f of plan.files) {
+      const target = path.resolve(dest, f.path);
+      if (!target.startsWith(dest + path.sep)) throw new Error(`Unsafe path: ${f.path}`);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await writeFileAtomic(target, f.data);
+    }
+    const unresolved = plan.manifest.external.map(e => ({ ...e, exists: fsSync.existsSync(e.path) }));
+    return { unpacked: true, destination: dest, files: plan.files.length, problems: plan.problems, externalReferences: unresolved };
+  }
+
+  /** Receipt, environment report and solver-log tails of the selected run, for the diagnostics bundle. Text only, capped. */
+  async runDiagnostics(): Promise<{ name: string; text: string }[]> {
+    const out: { name: string; text: string }[] = [];
+    let store: ProjectStore;
+    try { store = this.store(); } catch { return out; }
+    const project = await store.read();
+    const study = project?.studies.find(x => x.id === project.activeStudyId);
+    const run = study?.runs.find(x => x.id === project?.activeRunId) ?? study?.runs[study.runs.length - 1];
+    if (!project || !study || !run) return out;
+    out.push({ name: 'run/receipt.json', text: JSON.stringify({ studyId: study.id, run: { id: run.id, state: run.state, settings: run.settings, resources: run.resources, outputFindings: run.outputFindings, receipt: run.receipt } }, null, 2) });
+    try { out.push({ name: 'run/environment.json', text: JSON.stringify(await this.environment(false), null, 2) }); } catch { /* optional */ }
+    const dir = path.join(store.root, run.directory);
+    const walk = async (d: string, depth: number): Promise<void> => {
+      for (const e of await fs.readdir(d, { withFileTypes: true }).catch(() => [])) {
+        const full = path.join(d, e.name);
+        if (e.isDirectory() && depth < 3) await walk(full, depth + 1);
+        else if (e.isFile() && /\.(log|out|err)$/i.test(e.name) && out.length < 12) {
+          const handle = await fs.open(full, 'r');
+          try {
+            const { size } = await handle.stat(), len = Math.min(size, 100_000), buf = Buffer.alloc(len);
+            await handle.read(buf, 0, len, size - len);
+            out.push({ name: `run/${path.relative(dir, full).split(path.sep).join('/')}`, text: buf.toString('utf8') });
+          } finally { await handle.close(); }
+        }
+      }
+    };
+    await walk(dir, 0);
+    return out;
+  }
+
   tools(): AppTool[] {
     const tool = (name: string, description: string, properties: Record<string, unknown>, required: string[], invoke: AppTool['invoke']): AppTool => ({ name: `app__${name}`, description, inputSchema: { type: 'object', properties, required, additionalProperties: false }, invoke });
     const str = { type: 'string', minLength: 1 };
@@ -1296,8 +1380,20 @@ export class WorkflowService {
         await writeFileAtomic(htmlFile, reviewHtml(review));
         return { jsonFile, htmlFile, findings: review.evidence.findings };
       }),
-      tool('queue_plan_preview', 'Preview a concrete mesh → case-generation → solve plan with exact project-relative destinations. This does not persist tasks or launch work.',
-        { studyId: str, reuseMesh: { type: 'boolean' } }, ['studyId', 'reuseMesh'], args => {
+      tool('queue_plan_preview', 'Preview a concrete mesh → case-generation → solve plan with exact project-relative destinations. This does not persist tasks or launch work. With staleOnly=true reuseMesh is derived from the study\'s recorded revisions (a stale or missing geometry/mesh rebuilds the mesh; otherwise the mesh is reused) and a study that is already current returns nothingToDo.',
+        { studyId: str, reuseMesh: { type: 'boolean' }, staleOnly: { type: 'boolean' } }, ['studyId'], async args => {
+          if (args.staleOnly === true) {
+            const store = this.store(), project = await store.read();
+            if (!project) throw new Error('Create a study before planning a run.');
+            const study = this.study(project, text(args, 'studyId'));
+            const state = await readiness(store.root, study);
+            const geometryOrMesh = [state.geometry, state.mesh].some(v => v !== 'ready');
+            const latest = study.runs[study.runs.length - 1];
+            const reevaluate = await staleQuantities(store.root, study);
+            if (!geometryOrMesh && state.case === 'ready' && latest?.state === 'succeeded' && latest.sourceRevision === study.source.revision && latest.meshRevision === study.mesh?.revision && latest.settings && fingerprint(latest.settings) === fingerprint(study.caseSettings) && true) return reevaluate.length ? { nothingToRebuild: true, readiness: state, reevaluate, note: 'Results are current but these saved quantities were evaluated on a changed result; re-run app__run_quantity_evaluate for each.' } : { nothingToDo: true, readiness: state };
+            const plan = await this.previewQueuePlan(study.id, !geometryOrMesh);
+            return { ...plan, staleOnly: true, readiness: state, reevaluate, rebuilds: geometryOrMesh ? 'mesh export, case generation and solve' : 'case generation and solve' };
+          }
           if (typeof args.reuseMesh !== 'boolean') throw new Error('Choose whether to reuse the study mesh.');
           return this.previewQueuePlan(text(args, 'studyId'), args.reuseMesh);
         }),
@@ -1389,6 +1485,22 @@ export class WorkflowService {
         await writeFileAtomic(jsonFile, JSON.stringify(comparison, null, 2) + '\n');
         await writeFileAtomic(htmlFile, comparisonHtml(comparison));
         return { jsonFile, htmlFile, findings: comparison.findings };
+      }),
+      tool('project_pack', 'Pack the project (.kkss/project.json plus every project-contained source, mesh, case input and, with includeRuns, run files) into one archive with SHA-256 hashes. External references are listed, never packed.', { outputPath: str, includeRuns: { type: 'boolean' } }, ['outputPath'], args => this.projectPack(args)),
+      tool('project_unpack', 'Unpack a project archive into an empty destination folder after verifying every hash. Damaged or missing members are reported; nothing existing is overwritten and external references are listed for relinking.', { archivePath: str, destination: str }, ['archivePath', 'destination'], args => this.projectUnpack(args)),
+      tool('goal_seek_next', 'Read-only, stateless goal-seek step. Give the target, relTolerance, lower/upper bounds, maxStep, initialStep, maxSolves and the iterates solved so far ({x, y, state}; take y from app__variants_compare parameterTables, null if missing). Returns reached, next (the value to run next as a one-value app__queue_parameter_sweep_preview), stopped (an iterate failed, was uncertain or had no value) or notReached. It never solves anything and never interpolates an answer.',
+        { target: { type: 'number' }, relTolerance: { type: 'number' }, lower: { type: 'number' }, upper: { type: 'number' }, maxStep: { type: 'number' }, initialStep: { type: 'number' }, maxSolves: { type: 'integer' },
+          iterates: { type: 'array', items: { type: 'object', properties: { x: { type: 'number' }, y: { type: ['number', 'null'] }, state: { enum: ['succeeded', 'failed', 'uncertain', 'cancelled'] } }, required: ['x', 'y', 'state'], additionalProperties: false } } },
+        ['target', 'relTolerance', 'lower', 'upper', 'maxStep', 'initialStep', 'maxSolves', 'iterates'], async args => {
+          const { iterates, ...spec } = args as unknown as SeekSpec & { iterates: Iterate[] };
+          if (!Array.isArray(iterates)) throw new Error('iterates must be an array.');
+          return nextIterate(iterates, spec);
+        }),
+      tool('study_next_step', 'Read-only: the geometry → mesh → case → run → review checklist of a study with each step done / todo / redo / blocked and the single next action (with the tool that performs it, where one exists). Derived from the recorded revisions; it computes and runs nothing.', { studyId: str }, ['studyId'], async args => {
+        const store = this.store(), project = await store.read();
+        if (!project) throw new Error('No project studies.');
+        const study = this.study(project, text(args, 'studyId'));
+        return { studyId: study.id, name: study.name, readiness: await readiness(store.root, study), ...buildChecklist(await readiness(store.root, study)) };
       }),
     ];
   }

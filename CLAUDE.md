@@ -2542,6 +2542,26 @@ restrictive. Before adding any dependency that ships in the packaged app,
 check GPL/AGPL compatibility first (same rule as cad's CLAUDE.md).
 
 
+`app__queue_plan_preview` takes `staleOnly`: reuse of the mesh is derived from `readiness()` (geometry/mesh not `ready` ⇒ rebuild the mesh) and an already-current study answers `nothingToDo`; it is still an ordinary preview the user enqueues.
+
+`workflows/goalSeek.ts` is the pure goal-seek core behind the read-only, stateless `app__goal_seek_next`: secant steps only on a finite positive slope, clipped, bounded, solve-capped; any non-succeeded or valueless iterate ends the loop (`stopped`), and no answer is ever interpolated between runs.
+
+`workflows/checklist.ts` (pure) turns `readiness()` into the study checklist behind the read-only `app__study_next_step`: ordered steps, everything after an unmet step is `blocked`, an uncertain run reads `redo` with an inspect-first message, and nothing is computed or started.
+
+## Project archive
+
+`workflows/projectArchive.ts` (pure) + `WorkflowService.projectPack/projectUnpack` (`app__project_pack` / `app__project_unpack`, both `write`, unscoped like every `app__` tool). Layout `manifest.json` + `files/<relative path>`; store-only zip (reuses `diagnosticsCore.zipStore`; the reader refuses compressed members). Without `includeRuns` the packaged `project.json` has empty runs and a paused, empty queue. External references are listed in the manifest, never packed. Unpack verifies every SHA-256, lists `missing`/`damaged`/`unsafe` members instead of failing whole, and refuses (returning the conflicts) when any destination file already exists. **File ▸ Export/Import Project Archive…** (`projectArchiveUi.ts`) call the same two service methods.
+
+`services/helpMap.ts` (pure) maps a screen to a manual page/anchor for **F1** (Help ▸ Help for This Screen, `showManual(path)`); `test/helpMap.test.ts` fails when a target heading is renamed.
+
+`services/menuAvailability.ts` owns the reason for a disabled menu item (`postProcessingOnly`, `needsMeshDocument`); `menu.ts` derives both `enabled` and the label suffix from the same call, so they cannot drift. Add new gated items through it.
+
+`doc/guide/verification.md` is generated from `doc/public/examples/tutorials/*/verification.json` by `tools/tutorials/verificationPage.mjs`; `test/verificationPage.test.ts` fails on drift (`UPDATE_VERIFICATION_PAGE=1` rewrites). Re-run it after republishing a tutorial.
+
+## Child environments and diagnostics
+
+`services/childEnv.ts` (`externalProcessEnv`, configured once from `app.isPackaged`) strips packager loader/home variables and Electron switches from every user-program environment: the terminal, uv/uvx and Kratos MCP children, Kratos runtime commands and solver runs. The Node MCP children keep `ELECTRON_RUN_AS_NODE` and the raw environment on purpose. `services/diagnosticsCore.ts` (pure) + `diagnostics.ts` back **Help ▸ Export Diagnostics…**: a store-only zip with a manifest, settings with secrets reduced to `isSet`, MCP statuses, the selected run's receipt/environment/log tails (`WorkflowService.runDiagnostics`, 100 kB per log, ≤ 12 files) and home/temp path placeholders. Nothing is transmitted. `doc/guide/configuration.md`'s two reference islands are generated (`test/docsReference.test.ts`; `UPDATE_DOCS_REFERENCE=1` rewrites them).
+
 ## Kratos MCP jobs panel
 
 `JobsService` (`app/main/services/jobs.ts`) is one app-wide observer sharing

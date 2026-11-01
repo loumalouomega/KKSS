@@ -12,6 +12,7 @@ import type { TermToHost, TermToWebview } from "../ipc";
 import { stateStore } from "./stateStore";
 import { endShell } from "./terminalShutdown";
 import { isValidHost } from "./cloud/providerCore/sshCore";
+import { externalProcessEnv } from "./childEnv";
 
 /** Settings ▸ Terminal Shell override, else the platform default. */
 function configuredShell(): string {
@@ -90,7 +91,7 @@ export class TerminalService {
       cols: this.lastCols,
       rows: this.lastRows,
       cwd: (remote ? undefined : this.cwdProvider()) ?? os.homedir(),
-      env: process.env as Record<string, string>,
+      env: externalProcessEnv(process.env) as Record<string, string>,
     });
     this.proc = proc;
     let markExited = (): void => undefined;
