@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildArchive, collectReferences, packagedProject, planUnpack, readStoreZip, safeRelative } from "../app/main/services/workflows/projectArchive";
+import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, safeRelative } from "../app/main/services/workflows/projectArchive";
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const ref = (path: string, kind = "project") => ({ kind, path, revision: "r" }) as any;
@@ -13,8 +13,8 @@ describe("project archive", () => {
     expect(safeRelative("a\\b.txt")).toBe("a/b.txt");
   });
   it("collects run references only on request", () => {
-    expect(collectReferences(project, false)).toHaveLength(2);
-    expect(collectReferences(project, true)).toHaveLength(3);
+    expect(collectProjectReferences(project, false)).toHaveLength(2);
+    expect(collectProjectReferences(project, true)).toHaveLength(3);
     const p = packagedProject(project, false);
     expect(p.studies[0].runs).toEqual([]); expect(p.queue).toEqual({ paused: true, tasks: [] });
     expect(project.studies[0].runs).toHaveLength(1);

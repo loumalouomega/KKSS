@@ -2542,6 +2542,8 @@ restrictive. Before adding any dependency that ships in the packaged app,
 check GPL/AGPL compatibility first (same rule as cad's CLAUDE.md).
 
 
+`app__queue_plan_preview` takes `staleOnly`: reuse of the mesh is derived from `readiness()` (geometry/mesh not `ready` ⇒ rebuild the mesh) and an already-current study answers `nothingToDo`; it is still an ordinary preview the user enqueues.
+
 ## Project archive
 
 `workflows/projectArchive.ts` (pure) + `WorkflowService.projectPack/projectUnpack` (`app__project_pack` / `app__project_unpack`, both `write`, unscoped like every `app__` tool). Layout `manifest.json` + `files/<relative path>`; store-only zip (reuses `diagnosticsCore.zipStore`; the reader refuses compressed members). Without `includeRuns` the packaged `project.json` has empty runs and a paused, empty queue. External references are listed in the manifest, never packed. Unpack verifies every SHA-256, lists `missing`/`damaged`/`unsafe` members instead of failing whole, and refuses (returning the conflicts) when any destination file already exists. No menu entry yet: the assistant path is the only front end.

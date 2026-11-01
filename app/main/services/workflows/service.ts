@@ -7,7 +7,7 @@ import { constants as fsConstants } from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { writeFileAtomic } from '../atomicWrite';
-import { buildArchive, collectReferences, packagedProject, planUnpack, readStoreZip, safeRelative } from './projectArchive';
+import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, safeRelative } from './projectArchive';
 import type { AppTool } from '../chat/appTools';
 import { checkEnvironment, checkRemoteEnvironment, resolveThreads, type EnvironmentReport } from './environment';
 import { ProjectStore, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
@@ -1203,7 +1203,7 @@ export class WorkflowService {
       if (total > 2 * 1024 ** 3) throw new Error('Project is larger than the 2 GB archive limit.');
       files.push({ path: rel, data });
     };
-    for (const { owner, ref } of collectReferences(project, includeRuns)) {
+    for (const { owner, ref } of collectProjectReferences(project, includeRuns)) {
       if (ref.kind === 'external') { external.push({ owner, path: ref.path }); continue; }
       const rel = safeRelative(ref.path);
       if (!rel) throw new Error(`Unsafe reference path: ${ref.path}`);
@@ -1348,8 +1348,19 @@ export class WorkflowService {
         await writeFileAtomic(htmlFile, reviewHtml(review));
         return { jsonFile, htmlFile, findings: review.evidence.findings };
       }),
-      tool('queue_plan_preview', 'Preview a concrete mesh → case-generation → solve plan with exact project-relative destinations. This does not persist tasks or launch work.',
-        { studyId: str, reuseMesh: { type: 'boolean' } }, ['studyId', 'reuseMesh'], args => {
+      tool('queue_plan_preview', 'Preview a concrete mesh → case-generation → solve plan with exact project-relative destinations. This does not persist tasks or launch work. With staleOnly=true reuseMesh is derived from the study\'s recorded revisions (a stale or missing geometry/mesh rebuilds the mesh; otherwise the mesh is reused) and a study that is already current returns nothingToDo.',
+        { studyId: str, reuseMesh: { type: 'boolean' }, staleOnly: { type: 'boolean' } }, ['studyId'], async args => {
+          if (args.staleOnly === true) {
+            const store = this.store(), project = await store.read();
+            if (!project) throw new Error('Create a study before planning a run.');
+            const study = this.study(project, text(args, 'studyId'));
+            const state = await readiness(store.root, study);
+            const geometryOrMesh = [state.geometry, state.mesh].some(v => v !== 'ready');
+            const latest = study.runs[study.runs.length - 1];
+            if (!geometryOrMesh && state.case === 'ready' && latest?.state === 'succeeded' && latest.sourceRevision === study.source.revision && latest.meshRevision === study.mesh?.revision && latest.settings && fingerprint(latest.settings) === fingerprint(study.caseSettings)) return { nothingToDo: true, readiness: state };
+            const plan = await this.previewQueuePlan(study.id, !geometryOrMesh);
+            return { ...plan, staleOnly: true, readiness: state, rebuilds: geometryOrMesh ? 'mesh export, case generation and solve' : 'case generation and solve' };
+          }
           if (typeof args.reuseMesh !== 'boolean') throw new Error('Choose whether to reuse the study mesh.');
           return this.previewQueuePlan(text(args, 'studyId'), args.reuseMesh);
         }),

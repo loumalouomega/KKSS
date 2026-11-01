@@ -22,7 +22,7 @@ export function safeRelative(p: string): string | undefined {
 }
 
 /** Every reference a project holds, tagged with its owner. Run references only when `includeRuns`. */
-export function collectReferences(project: Project, includeRuns: boolean): { owner: string; ref: Reference }[] {
+export function collectProjectReferences(project: Project, includeRuns: boolean): { owner: string; ref: Reference }[] {
   const out: { owner: string; ref: Reference }[] = [];
   for (const s of project.studies) {
     out.push({ owner: `${s.id}:source`, ref: s.source });
