@@ -30,7 +30,7 @@ Run `ssh -o BatchMode=yes <host> true` in a terminal: it must succeed without an
 
 ## Reporting a problem
 
-Attach the app version (Help ▸ About), the generated case folder, the solver log and, if the app crashed, the renderer-crash toast text. Home paths in logs may identify you; remove them before sharing.
+**Help ▸ Export Diagnostics…** writes one zip you choose the location of: app, Electron and Kratos MCP versions, platform, every setting (secrets reduced to *set / not set*) and a `manifest.json` listing each file. Home and temporary paths are replaced by placeholders and nothing is sent anywhere; review it, then attach it. Also attach the app version (Help ▸ About), the generated case folder, the solver log and, if the app crashed, the renderer-crash toast text. Home paths in logs may identify you; remove them before sharing.
 
 ## Coming from GiD
 
@@ -40,3 +40,7 @@ Attach the app version (Help ▸ About), the generated case folder, the solver l
 | Condition | Boundary condition card bound to a SubModelPart |
 | Group / layer | SubModelPart / view layer |
 | `.post.bin` | Result file opened in Post-Processing mode |
+
+## A solver or `uv` behaves differently inside the packaged app
+
+KKSS removes variables the packager sets for itself (`LD_LIBRARY_PATH`, `APPDIR`, `APPIMAGE`, `PYTHONHOME`, Electron switches, AppImage `PATH` entries) from the environment of Python, Kratos, uv and the terminal. If a tool still loads the wrong library, run `env` in the terminal panel and include it in your report.

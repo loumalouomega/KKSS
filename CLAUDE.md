@@ -2542,6 +2542,10 @@ restrictive. Before adding any dependency that ships in the packaged app,
 check GPL/AGPL compatibility first (same rule as cad's CLAUDE.md).
 
 
+## Child environments and diagnostics
+
+`services/childEnv.ts` (`externalProcessEnv`, configured once from `app.isPackaged`) strips packager loader/home variables and Electron switches from every user-program environment: the terminal, uv/uvx and Kratos MCP children, Kratos runtime commands and solver runs. The Node MCP children keep `ELECTRON_RUN_AS_NODE` and the raw environment on purpose. `services/diagnosticsCore.ts` (pure) + `diagnostics.ts` back **Help ▸ Export Diagnostics…**: a store-only zip with a manifest, settings with secrets reduced to `isSet`, and home/temp path placeholders. Nothing is transmitted. `doc/guide/configuration.md`'s two reference islands are generated (`test/docsReference.test.ts`; `UPDATE_DOCS_REFERENCE=1` rewrites them).
+
 ## Kratos MCP jobs panel
 
 `JobsService` (`app/main/services/jobs.ts`) is one app-wide observer sharing

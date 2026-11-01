@@ -119,6 +119,8 @@ export interface MenuDeps {
   openSettings(): void;
   /** Help ▸ Examples ▸ <case> — unpack a shipped tutorial case and open it. */
   openExample(id: string): void;
+  /** Help ▸ Export Diagnostics… — writes a redacted zip the user chooses; nothing is sent. */
+  exportDiagnostics(): void;
   /**
    * Whether the experimental VTK-wasm renderer runtime ships in this build.
    * Read from the same `rendererPage.ts` check the served mesh page uses, so
@@ -893,6 +895,7 @@ export function installMenu(deps: MenuDeps): void {
         { type: "separator" },
         { label: t("License…"), click: () => showLicense() },
         { label: t("What's New…"), click: () => showChangelog() },
+        { label: t("Export Diagnostics…"), click: () => deps.exportDiagnostics() },
         { label: t("About KKSS…"), click: () => showAbout() },
       ],
     },
