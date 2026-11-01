@@ -54,10 +54,12 @@ export interface Study {
   id: string; name: string; source: Reference; meshing: Json; mesh?: Reference;
   meshSourceRevision?: string; meshOptionsRevision?: string; caseSettings: Json;
   caseMeshRevision?: string; runs: Run[]; parentId?: string; handoff?: Handoff;
+  /** Set on a geometry-sweep row: the model it was copied from and the variable it overrides. */
+  geometry?: { baseSource: Reference; variable: string; expression: string };
 }
 export interface Task {
   resources?: { threads: number; verified: boolean };
-  id: string; studyId: string; runId: string; kind: 'mesh' | 'generate' | 'solve';
+  id: string; studyId: string; runId: string; kind: 'geometry' | 'mesh' | 'generate' | 'solve';
   dependencies: string[]; args: { [key: string]: Json }; inputRevision: string;
   requiredArtifacts: string[]; state: TaskState; receipt?: Receipt; error?: string;
 }

@@ -153,6 +153,7 @@ const queueStatus = document.getElementById("queue-status") as HTMLElement;
 const duplicateButton = document.getElementById("study-duplicate") as HTMLButtonElement;
 const planRunButton = document.getElementById("study-plan-run") as HTMLButtonElement;
 const planSweepButton = document.getElementById("study-plan-sweep") as HTMLButtonElement;
+const planGeometrySweepButton = document.getElementById("study-plan-geometry-sweep") as HTMLButtonElement;
 let workflowSnapshot: { project?: { studies?: { id: string; handoff?: { units?: { length?: string | null } } }[]; queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; queuePlanRevision?: string } | undefined;
 let workflowAction: "queue-preview" | "queue-enqueue" | "queue-resume" | "region-refs" | "region-preview" | undefined;
 let manualRuntimeAvailable: boolean | undefined;
@@ -172,7 +173,7 @@ function confirmAction(title: string, detail: string, accept: () => void): void 
 
 function workflowCall(tool: string, args: Record<string, unknown>): void {
   if (workflowPending) return;
-  workflowAction = ["queue_plan_preview", "queue_parameter_sweep_preview", "queue_retry_variant_preview"].includes(tool) ? "queue-preview"
+  workflowAction = ["queue_plan_preview", "queue_parameter_sweep_preview", "queue_geometry_sweep_preview", "queue_retry_variant_preview"].includes(tool) ? "queue-preview"
     : tool === "queue_enqueue" ? "queue-enqueue" : tool === "queue_resume" ? "queue-resume"
     : tool === "study_region_references" ? "region-refs" : tool === "study_region_rename" && args.apply !== true ? "region-preview" : undefined;
   workflowPending = true; form.setBusy(true);
@@ -212,6 +213,18 @@ planSweepButton.addEventListener("click", () => {
     if (!Array.isArray(values) || values.length < 1 || values.length > 50) throw new Error(t("Enter 1–50 values in a JSON array."));
 
     workflowCall("queue_parameter_sweep_preview", { studyId: study.id, reuseMesh: reuseMesh(inputs), parameterPath: inputs.parameterPath, values });
+  });
+});
+document.getElementById("study-plan-geometry-sweep")!.addEventListener("click", () => {
+  const study = selectedStudy; if (!study) return;
+  form.open(t("Plan geometry sweep"), [
+    { name: "variable", label: t("CAD document variable to sweep (the model must define it):") },
+    { name: "values", label: t("Values as a JSON array of numbers or expressions (maximum 50):"), value: "[10, 20, 30]", multiline: true },
+  ], inputs => {
+    let values: unknown;
+    try { values = JSON.parse(inputs.values); } catch { throw new Error(t("Enter a valid JSON array.")); }
+    if (!Array.isArray(values) || values.length < 1 || values.length > 50) throw new Error(t("Enter 1–50 values in a JSON array."));
+    workflowCall("queue_geometry_sweep_preview", { studyId: study.id, variable: inputs.variable.trim(), values });
   });
 });
 document.getElementById("queue-resume")!.addEventListener("click", () => {
@@ -370,7 +383,7 @@ function renderWorkflow(raw: unknown): void {
     selectedStudy = active;
     duplicateButton.disabled = false;
     planRunButton.disabled = manualRuntimeAvailable === false;
-    planSweepButton.disabled = manualRuntimeAvailable === false;
+    planGeometrySweepButton.disabled = planSweepButton.disabled = manualRuntimeAvailable === false;
     const states = value.readiness?.[active.id] ?? {};
     selectedRunId = value.project?.activeRunId ?? active.runs?.[Math.max(0, (active.runs?.length ?? 0) - 1)]?.id;
     (document.getElementById("study-open-geometry") as HTMLButtonElement).disabled = states.geometry !== "ready";
@@ -434,7 +447,7 @@ function renderWorkflow(raw: unknown): void {
       row.append(actions); variantContainer.append(row);
     }
   } else {
-    selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
+    selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; planGeometrySweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
     for (const id of ["study-open-geometry", "study-open-mesh", "study-open-case", "study-open-results"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
     for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-compare-runs", "study-region-refs", "study-region-rename", "study-evaluate-quantity", "study-refinement", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
   }
@@ -501,7 +514,7 @@ api.onMessage((raw) => {
     ].filter(Boolean).join("\n");
     (document.getElementById("environment-actions") as HTMLElement).hidden = !!report.tools?.available;
     planRunButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
-    planSweepButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
+    planGeometrySweepButton.disabled = planSweepButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
     const queue = workflowSnapshot?.project?.queue;
     (document.getElementById("queue-resume") as HTMLButtonElement).disabled = !queue?.paused || !queue.tasks.length || manualRuntimeAvailable === false;
   }

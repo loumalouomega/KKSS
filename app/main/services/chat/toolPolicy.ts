@@ -162,6 +162,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__queue_plan_preview: "read",
   app__queue_variants_preview: "read",
   app__queue_parameter_sweep_preview: "read",
+  app__queue_geometry_sweep_preview: "read",
   app__queue_retry_variant_preview: "read",
   app__queue_inspect: "read",
   app__queue_enqueue: "write",

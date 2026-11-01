@@ -114,6 +114,15 @@ ever an explicit, previewed, `expectedSettingsRevision`-bound edit of the study'
 recorded case settings; never infer or auto-apply one. Non-MDPA meshes report
 `available: false` instead of a guessed listing.
 
+Geometry sweeps never edit the user's model: a row is a `geometry` task that
+copies the source and its sidecars into the row's run directory and overrides
+one CAD document variable there (`workflows/geometrySweep.ts`). The copy keeps
+the base file's bytes, so the row keeps the base content revision; variable
+values live only in the copied `.edits.json`. The preview writes nothing, a
+changed base model or sidecar invalidates the plan, an existing destination is
+`uncertain` (never overwritten or resubmitted), and a row whose new mesh lost a
+region the case references (name-only comparison) is refused before its solve.
+
 The Home navigator exposes source relinking/copy-in, mesh/case navigation,
 single-run and parameter-sweep previews, queue pause/resume/cancel, run review,
 and parent/variant comparisons. Parameter sweeps create fresh studies only when

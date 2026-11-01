@@ -972,5 +972,8 @@
   "Move {0} reference(s) from {1} to {2} in this study's case settings? Names only: the mesh is not changed.": "¿Mover {0} referencia(s) de {1} a {2} en los ajustes del caso de este estudio? Solo nombres: la malla no cambia.",
   "{0} reference(s) would change.": "Cambiarían {0} referencia(s).",
   "Region references": "Referencias de región",
-  "Rename region": "Renombrar región"
+  "Rename region": "Renombrar región",
+  "Plan geometry sweep": "Planificar barrido de geometría",
+  "CAD document variable to sweep (the model must define it):": "Variable del documento CAD a barrer (el modelo debe definirla):",
+  "Values as a JSON array of numbers or expressions (maximum 50):": "Valores como matriz JSON de números o expresiones (máximo 50):"
 }

@@ -108,5 +108,15 @@ await scenario('home-workflows', async c => {
   await form.waitFor({ state: 'hidden' });
   await home.locator('#study-region-refs:enabled').click();
   await until(async () => /✓ Inflow/.test(await home.locator('#run-review').textContent()), 'rename applied');
+  const studiesBefore = project().studies.length;
+  // Geometry sweep: preview only (nothing is written), two rows, distinct run directories.
+  await home.locator('#study-plan-geometry-sweep:enabled').click();
+  await home.locator('#workflow-input-variable').fill('L');
+  await home.locator('#workflow-input-values').fill('[10, 20]');
+  await form.locator('[type=submit]').click();
+  await until(async () => /2 geometry rows|geometry rows/.test(await home.locator('#run-review').textContent()) || /Queue preview/.test(await form.textContent()), 'geometry sweep preview');
+  assert.match(await form.textContent(), /geometry rows/);
+  assert.equal(project().studies.length, studiesBefore, 'the geometry preview wrote no studies');
+  await form.locator('[type=button]:not([type=submit]), .workflow-cancel').first().click().catch(() => {});
   assert.deepEqual(errors, []);
 });
