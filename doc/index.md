@@ -49,4 +49,4 @@ features:
 2. Launch **KKSS** and pick a task on the home screen — **🔷 Pre-Processing** (CAD), **🔶 Post-Processing** (mesh/results), or the text editor. The toolbar switches screens at any time (`Ctrl+0` returns Home).
 3. Press `Ctrl+O` (or click **Open…**) and pick a model: CAD files open in Pre-Processing mode, `.mdpa`/VTK files in Post-Processing mode.
 
-See [Getting Started](/guide/getting-started) for a tour of both modes.
+See [Getting Started](/guide/getting-started) for a tour of both modes. Something not working? See [Troubleshooting](/guide/troubleshooting) and [Known limitations](/guide/known-limitations).
