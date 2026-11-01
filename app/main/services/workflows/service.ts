@@ -7,6 +7,7 @@ import { constants as fsConstants } from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { writeFileAtomic } from '../atomicWrite';
+import { buildChecklist } from './checklist';
 import { nextIterate, type SeekSpec, type Iterate } from './goalSeek';
 import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, safeRelative } from './projectArchive';
 import type { AppTool } from '../chat/appTools';
@@ -1495,6 +1496,12 @@ export class WorkflowService {
           if (!Array.isArray(iterates)) throw new Error('iterates must be an array.');
           return nextIterate(iterates, spec);
         }),
+      tool('study_next_step', 'Read-only: the geometry → mesh → case → run → review checklist of a study with each step done / todo / redo / blocked and the single next action (with the tool that performs it, where one exists). Derived from the recorded revisions; it computes and runs nothing.', { studyId: str }, ['studyId'], async args => {
+        const store = this.store(), project = await store.read();
+        if (!project) throw new Error('No project studies.');
+        const study = this.study(project, text(args, 'studyId'));
+        return { studyId: study.id, name: study.name, readiness: await readiness(store.root, study), ...buildChecklist(await readiness(store.root, study)) };
+      }),
     ];
   }
 }
