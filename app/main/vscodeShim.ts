@@ -190,8 +190,20 @@ export class Uri {
     return new Uri(p, true);
   }
 
-  /** Non-file URIs only (e.g. the localhost URL flowgraphController forks). */
+  /**
+   * Non-file URIs (e.g. the localhost URL flowgraphController forks) stay
+   * opaque. A `file://` string is the one form this shim itself produces
+   * (`toString()`), and mesh's `restoreOpsFromBackup` parses a `backupId` back
+   * with `Uri.parse(...).fsPath` — so it round-trips to a file Uri, which is
+   * what lets a recovery checkpoint be restored through the provider's own path.
+   */
   static parse(value: string): Uri {
+    if (value.startsWith("file://")) {
+      const rest = value.slice("file://".length);
+      // `file:///C:/x` and `file://C:/x` (toString on Windows) both mean C:\x.
+      const drive = /^\/?([A-Za-z]:\/.*)$/.exec(rest);
+      return new Uri(drive ? nodePath.normalize(drive[1]) : nodePath.normalize(rest), true);
+    }
     return new Uri(value, false);
   }
 

@@ -40,6 +40,7 @@
         <button id="study-duplicate" class="btn-link" type="button" disabled data-i18n="Duplicate">Duplicate</button>
         <button id="study-plan-run" class="btn-link" type="button" disabled data-i18n="Plan run">Plan run</button>
         <button id="study-plan-sweep" class="btn-link" type="button" disabled data-i18n="Plan sweep">Plan sweep</button>
+        <button id="study-plan-geometry-sweep" class="btn-link" type="button" disabled data-i18n="Plan geometry sweep">Plan geometry sweep</button>
       </div>
       <label id="study-picker-label" hidden><span data-i18n="Study">Study</span>
         <select id="study-picker"></select>
@@ -62,6 +63,8 @@
         <button id="study-refinement" class="btn-link" type="button" disabled data-i18n="Refinement metadata">Refinement metadata</button>
         <button id="study-evaluate-quantity" class="btn-link" type="button" disabled data-i18n="Evaluate quantity">Evaluate quantity</button>
         <button id="study-review-run" class="btn-link" type="button" disabled data-i18n="Review run">Review run</button>
+        <button id="study-region-refs" class="btn-link" type="button" disabled data-i18n="Region references">Region references</button>
+        <button id="study-region-rename" class="btn-link" type="button" disabled data-i18n="Rename region">Rename region</button>
         <button id="study-compare-runs" class="btn-link" type="button" disabled data-i18n="Compare runs">Compare runs</button>
         <button id="study-export-review" class="btn-link" type="button" disabled data-i18n="Export review">Export review</button>
         <button id="study-compare-variants" class="btn-link" type="button" disabled data-i18n="Compare variants">Compare variants</button>
@@ -85,6 +88,13 @@
         <button id="environment-install" class="btn-link" type="button" data-i18n="Install uv for KKSS">Install uv for KKSS</button>
       </div>
       <div id="workflow-error" role="alert" hidden></div>
+    </section>
+    <section id="recovery" class="home-section" aria-labelledby="recovery-title" hidden>
+      <div id="recovery-head" class="home-section-head">
+        <h2 id="recovery-title" class="eyebrow" data-i18n="Unsaved work from an interrupted session">Unsaved work from an interrupted session</h2>
+      </div>
+      <p id="recovery-note" class="recovery-note" data-i18n="KKSS closed before this was saved. Nothing is restored until you choose.">KKSS closed before this was saved. Nothing is restored until you choose.</p>
+      <div id="recovery-list"></div>
     </section>
     <section id="recents" class="home-section" hidden>
       <div id="recents-head" class="home-section-head">

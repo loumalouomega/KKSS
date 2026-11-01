@@ -90,6 +90,18 @@ function setDirty(value: boolean): void {
   renderPath();
 }
 
+// Crash recovery: a debounced copy of the buffer while it is dirty. Never a save —
+// main stores it away from the user's file and drops it once the buffer is clean.
+const CHECKPOINT_DELAY_MS = 2000;
+let checkpointTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleCheckpoint(): void {
+  if (checkpointTimer) clearTimeout(checkpointTimer);
+  checkpointTimer = setTimeout(() => {
+    checkpointTimer = undefined;
+    if (dirty) api.post({ type: "checkpoint", content: view.state.doc.toString() });
+  }, CHECKPOINT_DELAY_MS);
+}
+
 function save(saveAs: boolean): void {
   api.post({ type: "saveContent", content: view.state.doc.toString(), saveAs });
 }
@@ -105,7 +117,7 @@ const extensions = (lang: EditorLanguage): Extension[] => [
   preferences.of(preferenceExtensions(appearance)),
   language.of(languageExtension(lang)),
   EditorView.updateListener.of((update) => {
-    if (update.docChanged && !loading) setDirty(true);
+    if (update.docChanged && !loading) { setDirty(true); scheduleCheckpoint(); }
   }),
 ];
 
@@ -130,9 +142,11 @@ api.onMessage((raw) => {
       view.scrollDOM.tabIndex = 0;
       view.scrollDOM.setAttribute("aria-label", t("Text editor"));
       loading = false;
-      currentPath = msg.path;
+      currentPath = msg.path || null;
       dirty = false;
       renderPath();
+      // Recovered work is unsaved by definition: tell main and re-arm the checkpoint.
+      if (msg.dirty) { setDirty(true); scheduleCheckpoint(); }
       view.focus();
       break;
     case "saved":

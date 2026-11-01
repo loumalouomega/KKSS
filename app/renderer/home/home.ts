@@ -13,7 +13,7 @@ import { WorkflowForm, type WorkflowField } from "./workflowForm";
 import { HOME_BUTTONS } from "./homeConfig";
 import { convergencePlots } from "../../shared/convergencePlots";
 import { TOOLBAR_ICONS } from "../shell/shellIcons";
-import type { HomeToWebview, ProjectRootInfo, RecentEntry } from "../../main/ipc";
+import type { HomeToWebview, ProjectRootInfo, RecentEntry, RecoveryInfo } from "../../main/ipc";
 
 declare global {
   interface Window {
@@ -82,6 +82,64 @@ function renderRecents(entries: RecentEntry[]): void {
   recents.hidden = entries.length === 0;
 }
 
+const recovery = document.getElementById("recovery") as HTMLElement;
+const recoveryList = document.getElementById("recovery-list") as HTMLDivElement;
+
+/** Task codes main stores with a checkpoint; anything unknown is simply not shown. */
+function recoveryTaskText(code: string | undefined): string | null {
+  return code === "kratosRun" ? t("A Kratos run was active.") : null;
+}
+
+function recoveryButton(label: string, key: string, type: "recoveryRestore" | "recoveryShow" | "recoveryDiscard", disabled = false): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn";
+  button.textContent = label;
+  button.disabled = disabled;
+  button.addEventListener("click", () => api.post({ type, key }));
+  return button;
+}
+
+function renderRecovery(entries: RecoveryInfo[]): void {
+  recoveryList.replaceChildren();
+  for (const entry of entries) {
+    const row = document.createElement("div");
+    row.className = "recovery-row";
+    row.setAttribute("role", "group");
+    // textContent throughout: a file name is data, never markup.
+    const title = document.createElement("div");
+    title.className = "recovery-title";
+    title.textContent = entry.kind === "mesh"
+      ? t("Mesh operations on {0}", { 0: entry.name })
+      : entry.name ? t("Text editor changes to {0}", { 0: entry.name }) : t("Untitled text editor buffer");
+    row.append(title);
+    const detail = document.createElement("div");
+    detail.className = "recovery-detail";
+    const when = entry.savedAt ? t("Saved {0}", { 0: new Date(entry.savedAt).toLocaleString() }) : "";
+    detail.textContent = [when, recoveryTaskText(entry.task)].filter(Boolean).join(" · ");
+    if (detail.textContent) row.append(detail);
+    if (entry.verdict !== "restorable") {
+      const warn = document.createElement("div");
+      warn.className = "recovery-warn";
+      warn.setAttribute("role", "note");
+      warn.textContent = entry.verdict === "sourceMissing"
+        ? t("The original file no longer exists, so this cannot be restored.")
+        : t("The file changed after this was saved, so it will not be restored over it.");
+      row.append(warn);
+    }
+    const actions = document.createElement("div");
+    actions.className = "recovery-actions";
+    actions.append(
+      recoveryButton(entry.kind === "mesh" ? t("Restore into a new tab") : t("Restore into the text editor"), entry.key, "recoveryRestore", entry.verdict !== "restorable"),
+      recoveryButton(t("Show file"), entry.key, "recoveryShow"),
+      recoveryButton(t("Discard"), entry.key, "recoveryDiscard"),
+    );
+    row.append(actions);
+    recoveryList.append(row);
+  }
+  recovery.hidden = entries.length === 0;
+}
+
 const projectRootSection = document.getElementById("project-root") as HTMLElement;
 const projectRootPath = document.getElementById("project-root-path") as HTMLElement;
 
@@ -95,8 +153,9 @@ const queueStatus = document.getElementById("queue-status") as HTMLElement;
 const duplicateButton = document.getElementById("study-duplicate") as HTMLButtonElement;
 const planRunButton = document.getElementById("study-plan-run") as HTMLButtonElement;
 const planSweepButton = document.getElementById("study-plan-sweep") as HTMLButtonElement;
+const planGeometrySweepButton = document.getElementById("study-plan-geometry-sweep") as HTMLButtonElement;
 let workflowSnapshot: { project?: { studies?: { id: string; handoff?: { units?: { length?: string | null } } }[]; queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; queuePlanRevision?: string } | undefined;
-let workflowAction: "queue-preview" | "queue-enqueue" | "queue-resume" | undefined;
+let workflowAction: "queue-preview" | "queue-enqueue" | "queue-resume" | "region-refs" | "region-preview" | undefined;
 let manualRuntimeAvailable: boolean | undefined;
 let selectedStudy: { id: string; name: string } | undefined;
 let selectedRunId: string | undefined;
@@ -114,8 +173,9 @@ function confirmAction(title: string, detail: string, accept: () => void): void 
 
 function workflowCall(tool: string, args: Record<string, unknown>): void {
   if (workflowPending) return;
-  workflowAction = ["queue_plan_preview", "queue_parameter_sweep_preview", "queue_retry_variant_preview"].includes(tool) ? "queue-preview"
-    : tool === "queue_enqueue" ? "queue-enqueue" : tool === "queue_resume" ? "queue-resume" : undefined;
+  workflowAction = ["queue_plan_preview", "queue_parameter_sweep_preview", "queue_geometry_sweep_preview", "queue_retry_variant_preview"].includes(tool) ? "queue-preview"
+    : tool === "queue_enqueue" ? "queue-enqueue" : tool === "queue_resume" ? "queue-resume"
+    : tool === "study_region_references" ? "region-refs" : tool === "study_region_rename" && args.apply !== true ? "region-preview" : undefined;
   workflowPending = true; form.setBusy(true);
   workflowError.hidden = true;
   api.post({ type: "workflow", tool: `app__${tool}`, args });
@@ -141,18 +201,40 @@ planRunButton.addEventListener("click", () => {
     workflowCall("queue_plan_preview", { studyId: study.id, reuseMesh: reuseMesh(values) });
   });
 });
+/** "All combinations" or "Paired lists" → the tools' mode argument. */
+const sweepModes = (): readonly string[] => [t("All combinations"), t("Paired lists")];
+const sweepMode = (inputs: Record<string, string>): "grid" | "paired" => inputs.combinations === t("Paired lists") ? "paired" : "grid";
+/** Parses `{"name": [values…], …}` into the {name, values} list both preview tools take. */
+function parseSweepObject(raw: string): { name: string; values: unknown[] }[] {
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw new Error(t("Enter a valid JSON object.")); }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(t("Enter a valid JSON object."));
+  const entries = Object.entries(parsed as Record<string, unknown>);
+  if (entries.length < 1 || entries.length > 4) throw new Error(t("Sweep 1–4 parameters."));
+  return entries.map(([name, values]) => {
+    if (!Array.isArray(values) || values.length < 1 || values.length > 50) throw new Error(t("Enter 1–50 values in a JSON array."));
+    return { name, values };
+  });
+}
 planSweepButton.addEventListener("click", () => {
   const study = selectedStudy; if (!study) return;
   form.open(t("Plan sweep"), [
-    { name: "parameterPath", label: t("Case setting path (for example values.problem.timeStep):") },
-    { name: "values", label: t("Sweep values as a JSON array (maximum 50):"), value: "[0.05, 0.1, 0.2]", multiline: true },
+    { name: "parameters", label: t("Case settings to sweep as a JSON object, one array of values per dotted path (maximum 4 paths, 50 rows):"), value: '{"values.problem.timeStep": [0.05, 0.1, 0.2]}', multiline: true },
+    { name: "combinations", label: t("Combine the lists as:"), choices: sweepModes(), value: t("All combinations") },
     ...meshFields(meshReady(study.id)),
   ], inputs => {
-    let values: unknown;
-    try { values = JSON.parse(inputs.values); } catch { throw new Error(t("Enter a valid JSON array.")); }
-    if (!Array.isArray(values) || values.length < 1 || values.length > 50) throw new Error(t("Enter 1–50 values in a JSON array."));
-
-    workflowCall("queue_parameter_sweep_preview", { studyId: study.id, reuseMesh: reuseMesh(inputs), parameterPath: inputs.parameterPath, values });
+    const parameters = parseSweepObject(inputs.parameters).map(entry => ({ path: entry.name, values: entry.values }));
+    workflowCall("queue_parameter_sweep_preview", { studyId: study.id, reuseMesh: reuseMesh(inputs), parameters, mode: sweepMode(inputs) });
+  });
+});
+document.getElementById("study-plan-geometry-sweep")!.addEventListener("click", () => {
+  const study = selectedStudy; if (!study) return;
+  form.open(t("Plan geometry sweep"), [
+    { name: "variables", label: t("CAD document variables to sweep as a JSON object, one array of numbers or expressions per variable (the model must define them):"), value: '{"L": [10, 20, 30]}', multiline: true },
+    { name: "combinations", label: t("Combine the lists as:"), choices: sweepModes(), value: t("All combinations") },
+  ], inputs => {
+    const variables = parseSweepObject(inputs.variables);
+    workflowCall("queue_geometry_sweep_preview", { studyId: study.id, variables, mode: sweepMode(inputs) });
   });
 });
 document.getElementById("queue-resume")!.addEventListener("click", () => {
@@ -213,6 +295,20 @@ for (const [id, tool] of [["study-review-run", "run_review"], ["study-export-rev
     if (selectedStudy && selectedRunId) workflowCall(tool, { studyId: selectedStudy.id, runId: selectedRunId });
   });
 }
+document.getElementById("study-region-refs")!.addEventListener("click", () => {
+  if (selectedStudy) workflowCall("study_region_references", { studyId: selectedStudy.id });
+});
+let pendingRename: { studyId: string; renames: { from: string; to: string }[] } | undefined;
+document.getElementById("study-region-rename")!.addEventListener("click", () => {
+  const study = selectedStudy; if (!study) return;
+  form.open(t("Rename region references"), [
+    { name: "from", label: t("Region path in the case settings (for example Structure/Inlet):") },
+    { name: "to", label: t("New region path in the mesh:") },
+  ], values => {
+    pendingRename = { studyId: study.id, renames: [{ from: values.from.trim(), to: values.to.trim() }] };
+    workflowCall("study_region_rename", { ...pendingRename, apply: false });
+  });
+});
 document.getElementById("study-compare-runs")!.addEventListener("click", () => {
   // mesh 5.17.0's in-editor run comparison on study runs: the selected run is
   // the left side, the form picks the right side from the study's other runs.
@@ -297,7 +393,7 @@ function renderWorkflow(raw: unknown): void {
     selectedStudy = active;
     duplicateButton.disabled = false;
     planRunButton.disabled = manualRuntimeAvailable === false;
-    planSweepButton.disabled = manualRuntimeAvailable === false;
+    planGeometrySweepButton.disabled = planSweepButton.disabled = manualRuntimeAvailable === false;
     const states = value.readiness?.[active.id] ?? {};
     selectedRunId = value.project?.activeRunId ?? active.runs?.[Math.max(0, (active.runs?.length ?? 0) - 1)]?.id;
     (document.getElementById("study-open-geometry") as HTMLButtonElement).disabled = states.geometry !== "ready";
@@ -311,6 +407,8 @@ function renderWorkflow(raw: unknown): void {
     (document.getElementById("study-import-run") as HTMLButtonElement).disabled = !states.mesh || states.mesh !== "ready";
     (document.getElementById("study-review-run") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-compare-runs") as HTMLButtonElement).disabled = !selectedRunId || (active.runs?.length ?? 0) < 2;
+    (document.getElementById("study-region-refs") as HTMLButtonElement).disabled = states.mesh === "missing" || !states.mesh;
+    (document.getElementById("study-region-rename") as HTMLButtonElement).disabled = states.case === "missing" || !states.case;
     (document.getElementById("study-evaluate-quantity") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-refinement") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-export-review") as HTMLButtonElement).disabled = !selectedRunId;
@@ -359,9 +457,9 @@ function renderWorkflow(raw: unknown): void {
       row.append(actions); variantContainer.append(row);
     }
   } else {
-    selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
+    selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; planGeometrySweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
     for (const id of ["study-open-geometry", "study-open-mesh", "study-open-case", "study-open-results"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
-    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-compare-runs", "study-evaluate-quantity", "study-refinement", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
+    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-compare-runs", "study-region-refs", "study-region-rename", "study-evaluate-quantity", "study-refinement", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
   }
   const queue = value.project?.queue;
   const tasks = queue?.tasks ?? [];
@@ -393,6 +491,7 @@ function renderProjectRoot(info: ProjectRootInfo): void {
 api.onMessage((raw) => {
   const message = raw as HomeToWebview;
   if (message?.type === "recents") renderRecents(message.entries);
+  if (message?.type === "recovery") renderRecovery(message.entries);
   else if (message?.type === "projectRoot") renderProjectRoot(message);
   else if (message?.type === "workflowState") renderWorkflow(message.value);
   else if (message?.type === "environmentReport") {
@@ -425,7 +524,7 @@ api.onMessage((raw) => {
     ].filter(Boolean).join("\n");
     (document.getElementById("environment-actions") as HTMLElement).hidden = !!report.tools?.available;
     planRunButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
-    planSweepButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
+    planGeometrySweepButton.disabled = planSweepButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
     const queue = workflowSnapshot?.project?.queue;
     (document.getElementById("queue-resume") as HTMLButtonElement).disabled = !queue?.paused || !queue.tasks.length || manualRuntimeAvailable === false;
   }
@@ -438,6 +537,32 @@ api.onMessage((raw) => {
     if (Array.isArray(samples) && samples.every(s => s && typeof s === "object" && typeof s.iteration === "number" &&
       (s.converged === null || typeof s.converged === "boolean"))) {
       plots.innerHTML = convergencePlots(samples);
+    }
+    if (workflowAction === "region-refs" && value && typeof value === "object") {
+      workflowAction = undefined;
+      const report = (value as { report?: { available?: boolean; unavailableReason?: string; regions?: { path: string; status: string; possibleRename?: string; references: { owner: string; label: string }[] }[]; newRegions?: string[] } }).report;
+      const lines: string[] = [t("Region references (matched by name only):")];
+      if (!report?.available) lines.push(report?.unavailableReason ?? t("Not available for this mesh."));
+      else {
+        for (const row of report.regions ?? []) {
+          const used = row.references.map(r => `${r.owner} ${r.label}`).join(", ");
+          lines.push(`${row.status === "kept" ? "✓" : "✗"} ${row.path} — ${used}${row.possibleRename ? ` → ${t("possible rename: {0}", {0: row.possibleRename})}` : ""}`);
+        }
+        if (report.newRegions?.length) lines.push(t("In the mesh, not referenced: {0}", {0: report.newRegions.join(", ")}));
+      }
+      (document.getElementById("run-review") as HTMLElement).textContent = lines.join("\n");
+      return;
+    }
+    if (workflowAction === "region-preview" && value && typeof value === "object" && pendingRename) {
+      workflowAction = undefined;
+      const preview = value as { wouldChange?: number; settingsRevision?: string };
+      const request = pendingRename; pendingRename = undefined;
+      const rename = request.renames[0];
+      if (preview.settingsRevision && preview.wouldChange) confirmAction(t("Rename region references"),
+        t("Move {0} reference(s) from {1} to {2} in this study's case settings? Names only: the mesh is not changed.", {0: String(preview.wouldChange), 1: rename.from, 2: rename.to}),
+        () => workflowCall("study_region_rename", { ...request, apply: true, expectedSettingsRevision: preview.settingsRevision }));
+      (document.getElementById("run-review") as HTMLElement).textContent = t("{0} reference(s) would change.", {0: String(preview.wouldChange ?? 0)});
+      return;
     }
     if (workflowAction === "queue-preview" && value && typeof value === "object") {
       const preview = value as { previewId?: string; summary?: string[]; tasks?: { kind: string; id: string; runId: string }[]; runId?: string };

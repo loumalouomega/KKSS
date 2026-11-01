@@ -81,14 +81,16 @@ Set **Settings → Kratos → Solver threads** to a positive OpenMP allocation, 
 | **Relink geometry**, **Copy geometry in project** | Repairs a missing or changed source; makes a project-local copy | `app__study_relink_source`, `app__study_copy_source_into_project` |
 | **Attach mesh**, **Set case snapshot** | Records an exported mesh's revision and adjacent case setup; sets the case state or meshing options (a meshing change makes the attached mesh stale) | `app__study_attach_mesh`, `app__study_set_settings` |
 | **Open geometry / mesh / case / results** | Opens the stage in its existing viewer | `app__study_open` |
-| **Plan run**, **Plan sweep** | Previews isolated tasks; expands one setting path into up to 50 variants | `app__queue_plan_preview`, `app__queue_parameter_sweep_preview` |
+| **Plan run**, **Plan sweep** | Previews isolated tasks; expands one or several setting paths (all combinations or paired lists, up to 50 rows) into variants | `app__queue_plan_preview`, `app__queue_parameter_sweep_preview` |
+| **Plan geometry sweep** | Sweeps CAD document variables (the model must already define them; up to four, as all combinations or paired lists, 50 rows maximum — the expansion is shown before anything is persisted). Each row copies the model into its own run directory, sets the variable on the copy, then meshes, generates and solves; your model and its sidecars are never edited. A row whose new mesh no longer has a region the case references (matched by name only) stops before its solve. Nothing is written until you persist the paused plan. | `app__queue_geometry_sweep_preview` |
 | **Persist paused plan** → **Start plan** | Stores the previewed plan paused, then starts it | `app__queue_enqueue`, `app__queue_resume` |
 | **Pause queue**, **Resume queue**, **Cancel task** | Holds the queue, restarts it, or cancels the selected task | `app__queue_pause`, `app__queue_resume`, `app__queue_cancel` |
 | **Resume row**, **Retry row** | Starts one waiting variant row; previews a fresh-identity retry for a failed row | `app__queue_resume_row`, `app__queue_retry_variant_preview` |
 | **Import latest run** | Imports a terminal run as an immutable input snapshot | `app__study_import_run` |
 | **Review run**, **Export review** | Offline review of a run; JSON/HTML export | `app__run_review`, `app__run_review_export` |
 | **Compare runs** | Facts-only report for two runs of one study | `app__run_compare` |
-| **Compare variants**, **Export comparison** | Parent/variant comparison; offline export | `app__variants_compare`, `app__variants_compare_export` |
+| **Region references**, **Rename region** | Lists the SubModelPart regions the study's case settings point at and whether the attached MDPA mesh still has each (a re-attach reports this too); **Rename region** previews, then moves those references on confirmation. Matching is **by name only** — a lost region may be a rename or a deletion, and KKSS never guesses. Other mesh formats are not compared. | `app__study_region_references`, `app__study_region_rename` |
+| **Compare variants**, **Export comparison** | Parent/variant comparison; offline export For a sweep it also tabulates the swept parameters against each compatible saved quantity (a parameter or value a row lacks stays *missing*, never zero) and plots the value against a numeric swept parameter in the export. | `app__variants_compare`, `app__variants_compare_export` |
 | **Evaluate quantity**, **Refinement metadata** | Saves a revision-bound quantity; records the sizing assumptions of a run | `app__run_quantity_evaluate`, `app__run_refinement_set` |
 
 ### Working from cloud storage
@@ -118,6 +120,16 @@ The cache is trimmed on an LRU budget (**Settings ▸ Cloud Accounts ▸ Cache S
 KKSS reopens your last session on launch: every document you had open in each mode, which one was focused, the screen you were on, and whether the terminal or chat panel was showing — and the chat sidebar comes back on the conversation you were last in. Documents that have since been deleted or moved are quietly dropped, with a note saying how many — you never land on a tab pointing at a file that isn't there. A cloud document KKSS has trimmed from its local cache is the exception: its tab is kept and downloaded again in the background.
 
 Turn it off with **Settings ▸ Restore Last Session** to start clean every time. (Setting `KKSS_NO_RESTORE=1` in the environment does the same for one launch, which is handy if a particular document is giving the viewer trouble.) Opening a file from the command line always wins: it takes the screen and gets its own tab, leaving the restored documents untouched.
+
+### Recovering unsaved work after a crash
+
+Unsaved mesh operations and unsaved text-editor changes are copied to a recovery folder a moment after you make them (about a second and a half for a mesh, two seconds for the editor), and removed again as soon as you save, revert or close them. If KKSS is killed, crashes or loses power, the next launch shows a **Unsaved work from an interrupted session** notice on Home (and a toast pointing at it). Each entry offers **Restore into a new tab** (or **Restore into the text editor**), **Show file** and **Discard**.
+
+- Nothing is applied for you. An entry stays on Home until you restore or discard it, so you can decide later.
+- A mesh entry replays its recorded operations over the original file in a **new** tab, which starts out unsaved; the file on disk is never touched until you save. If the file changed after the checkpoint (or is gone), Restore is disabled and you can still show or discard the entry.
+- A text-editor entry is restored only when the editor has no unsaved changes of its own. It is shown as unsaved; nothing is written to your file.
+- The notice also says when a Kratos run was active at the time, so you know what the interrupted session was doing. Solver runs themselves are not affected.
+- CAD tabs need none of this: their edits already autosave beside the model.
 
 The toolbar also has an **interface-scale** picker on the right (75 %–150 %) for adjusting how large the whole app appears — useful on high-DPI or low-resolution displays. It scales every part of the window (toolbar, viewers, terminal, chat) together, is remembered across launches, and can also be driven from the keyboard: `Ctrl +` / `Ctrl -` step through the sizes and `Ctrl+Shift+0` resets to 100 % (also under **View ▸ Zoom In / Zoom Out / Reset Zoom**).
 

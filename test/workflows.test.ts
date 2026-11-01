@@ -682,6 +682,136 @@ describe('shared workflow tools', () => {
     expect(queued.planRevision).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it('expands multi-parameter case sweeps as a grid or paired lists, shows the expansion first, and persists nothing', async () => {
+    const root = await temp(), geometry = path.join(root, 'beam.step');
+    await fs.writeFile(geometry, 'geometry');
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_create', { name: 'Beam', source: geometry }) as Study;
+    const parameters = [{ path: 'values.problem.timeStep', values: [0.05, 0.1] }, { path: 'values.problem.endTime', values: [1, 2, 3] }];
+    type Preview = { previewId: string; runCount: number; summary: string[]; expansion: { mode: string; count: number }; variants: { name: string; differences: string[] }[] };
+    const grid = await invoke('queue_parameter_sweep_preview', { studyId: study.id, reuseMesh: false, parameters }) as Preview;
+    expect(grid.runCount).toBe(6);
+    expect(grid.expansion).toMatchObject({ mode: 'grid', count: 6 });
+    expect(grid.summary[0]).toMatch(/grid 2 × 3 = 6 rows/);
+    expect(grid.variants[0].name).toBe('values.problem.timeStep=0.05, values.problem.endTime=1');
+    expect(grid.variants.some(v => v.differences.includes('values.problem.timeStep') && v.differences.includes('values.problem.endTime'))).toBe(true);
+    expect((await service.store().read())!.studies).toHaveLength(1);
+    await expect(invoke('queue_parameter_sweep_preview', { studyId: study.id, reuseMesh: false, parameters, mode: 'paired' })).rejects.toThrow(/equal length/);
+    await expect(invoke('queue_parameter_sweep_preview', { studyId: study.id, reuseMesh: false, parameters, parameterPath: 'values.problem.timeStep', values: [1] })).rejects.toThrow(/not both/);
+    const paired = await invoke('queue_parameter_sweep_preview', { studyId: study.id, reuseMesh: false, mode: 'paired',
+      parameters: [{ path: 'values.problem.timeStep', values: [0.05, 0.1] }, { path: 'values.problem.endTime', values: [1, 2] }] }) as Preview;
+    expect(paired.runCount).toBe(2);
+    await invoke('queue_enqueue', { previewId: grid.previewId });
+    expect((await service.store().read())!.studies).toHaveLength(7);
+  });
+
+  it('applies several CAD variables per geometry row and refuses an unknown one', async () => {
+    const root = await temp(), geometry = path.join(root, 'plate.step');
+    await fs.writeFile(geometry, 'geometry');
+    let variables = [{ name: 'L', expr: '10', value: 10, error: null }, { name: 'W', expr: '5', value: 5, error: null }];
+    const sets: unknown[] = [];
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined,
+      callMcpTool: async (name, args) => {
+        if (name === 'cad__get_state') return { structuredContent: { variables } };
+        if (name === 'cad__set_variables') { sets.push(args.variables); variables = (args.variables as { name: string; expr: string }[]).map(v => ({ ...v, value: 0, error: null })); return { structuredContent: { variables } }; }
+        throw new Error(`unexpected ${name}`);
+      } });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_create', { name: 'Plate', source: geometry }) as Study;
+    const preview = await invoke('queue_geometry_sweep_preview', { studyId: study.id, mode: 'paired',
+      variables: [{ name: 'L', values: [20, 30] }, { name: 'W', values: [2, 3] }] }) as { previewId: string; runCount: number; expansion: { count: number } };
+    expect(preview).toMatchObject({ runCount: 2, expansion: { count: 2 } });
+    await expect(invoke('queue_geometry_sweep_preview', { studyId: study.id, variable: 'L', values: [1], variables: [] })).rejects.toThrow(/not both/);
+    await invoke('queue_enqueue', { previewId: preview.previewId });
+    const geo = (await service.store().read())!.queue.tasks.filter(t => t.kind === 'geometry')[0];
+    const dispatch = (task: Task) => (service as unknown as { dispatchQueuedTask(t: Task, s: unknown): Promise<{ state: string; message?: string }> }).dispatchQueuedTask(task, service.store());
+    expect(await dispatch(geo)).toMatchObject({ state: 'succeeded' });
+    expect(sets[0]).toEqual([{ name: 'L', expr: '20' }, { name: 'W', expr: '2' }]);
+    const bad = await invoke('queue_geometry_sweep_preview', { studyId: study.id, variables: [{ name: 'L', values: [1] }, { name: 'H', values: [1] }] }) as { previewId: string };
+    await invoke('queue_enqueue', { previewId: bad.previewId });
+    const badTask = (await service.store().read())!.queue.tasks.filter(t => t.kind === 'geometry').slice(-1)[0];
+    expect(await dispatch(badTask)).toMatchObject({ state: 'failed', message: expect.stringMatching(/defines no variable "H"/) });
+  });
+
+  it('plans a geometry sweep as copy → mesh → generate → solve, writes nothing, and copies without touching the model', async () => {
+    const root = await temp(), geometry = path.join(root, 'plate.step');
+    await fs.writeFile(geometry, 'geometry'); await fs.writeFile(`${geometry}.edits.json`, '{"base":true}');
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    let variables = [{ name: 'L', expr: '10', value: 10, error: null }, { name: 'W', expr: 'L/2', value: 5, error: null }];
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined,
+      callMcpTool: async (name, args) => {
+        calls.push({ name, args });
+        if (name === 'cad__get_state') return { structuredContent: { variables } };
+        if (name === 'cad__set_variables') { variables = (args.variables as { name: string; expr: string }[]).map(v => ({ ...v, value: 0, error: null })); return { structuredContent: { variables } }; }
+        throw new Error(`unexpected ${name}`);
+      } });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_create', { name: 'Plate', source: geometry }) as Study;
+    const preview = await invoke('queue_geometry_sweep_preview', { studyId: study.id, variable: 'L', values: [20, 30] }) as { previewId: string; runCount: number; variants: { runId: string; geometry: { variables: Record<string, string> } }[] };
+    expect(preview.runCount).toBe(2);
+    expect(preview.variants.map(v => v.geometry.variables.L)).toEqual(['20', '30']);
+    expect((await service.store().read())!.studies).toHaveLength(1);
+    expect(await fs.readdir(root)).not.toContain('.kkss/runs');
+    await expect(invoke('queue_geometry_sweep_preview', { studyId: study.id, variable: 'L', values: [] })).rejects.toThrow(/1–50/);
+
+    await invoke('queue_enqueue', { previewId: preview.previewId });
+    const project = (await service.store().read())!;
+    const rowTasks = project.queue.tasks.filter(t => t.runId === preview.variants[0].runId);
+    expect(rowTasks.map(t => t.kind)).toEqual(['geometry', 'mesh', 'generate', 'solve']);
+    const [geo, mesh] = rowTasks;
+    expect(mesh.dependencies).toEqual([geo.id]);
+    const row = project.studies.find(s => s.id === geo.studyId)!;
+    expect(row.source.path).toBe(`.kkss/runs/${geo.runId}/geometry/plate.step`);
+    expect(row.source.revision).toBe(project.studies[0].source.revision); // same bytes ⇒ same content revision
+    expect(mesh.args.sourceRevision).toBe(row.source.revision);
+
+    const receipt = await (service as unknown as { dispatchQueuedTask(t: Task, s: unknown): Promise<{ state: string; artifacts: { role: string }[] }> }).dispatchQueuedTask(geo, service.store());
+    expect(receipt).toMatchObject({ state: 'succeeded', artifacts: [{ role: 'geometry' }] });
+    const copy = path.join(root, geo.args.destination as string);
+    expect(await fs.readFile(copy, 'utf8')).toBe('geometry');
+    expect(await fs.readFile(`${copy}.edits.json`, 'utf8')).toBe('{"base":true}');
+    expect(await fs.readFile(geometry, 'utf8')).toBe('geometry'); // the user's model is untouched
+    const set = calls.find(c => c.name === 'cad__set_variables')!;
+    expect(set.args.path).toBe(copy);
+    expect(set.args.variables).toEqual([{ name: 'L', expr: '20' }, { name: 'W', expr: 'L/2' }]);
+
+    // A model that defines no such variable fails the row instead of silently changing nothing.
+    const bad = await invoke('queue_geometry_sweep_preview', { studyId: study.id, variable: 'H', values: [1] }) as { previewId: string };
+    await invoke('queue_enqueue', { previewId: bad.previewId });
+    const badTask = (await service.store().read())!.queue.tasks.filter(t => t.kind === 'geometry').slice(-1)[0];
+    expect(await (service as unknown as { dispatchQueuedTask(t: Task, s: unknown): Promise<{ state: string; message?: string }> }).dispatchQueuedTask(badTask, service.store()))
+      .toMatchObject({ state: 'failed', message: expect.stringMatching(/defines no variable "H"/) });
+  });
+
+  it('stops a geometry row before its solve when the re-exported mesh lost a region the case references', async () => {
+    const root = await temp(), geometry = path.join(root, 'plate.step');
+    await fs.writeFile(geometry, 'geometry');
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined,
+      callMcpTool: async (name) => name === 'mesh__case_validate' ? { structuredContent: { ok: true } } : { structuredContent: {} } });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_create', { name: 'Plate', source: geometry }) as Study;
+    await invoke('study_set_settings', { studyId: study.id, caseSettings: { problemtypeId: 'structural', assignments: [{ conditionId: 'c', smpPath: 'Inlet', values: {} }] } });
+    const preview = await invoke('queue_geometry_sweep_preview', { studyId: study.id, variable: 'L', values: [20] }) as { previewId: string };
+    await invoke('queue_enqueue', { previewId: preview.previewId });
+    const tasks = (await service.store().read())!.queue.tasks;
+    const generate = tasks.find(t => t.kind === 'generate')!;
+    await fs.mkdir(path.dirname(path.join(root, generate.args.mesh as string)), { recursive: true });
+    const validate = (task: Task) => (service as unknown as { validateQueuedTask(t: Task, s: unknown): Promise<string[]> }).validateQueuedTask(task, service.store());
+    await fs.writeFile(path.join(root, generate.args.mesh as string), 'Begin Nodes\n1 0 0 0\nEnd Nodes\nBegin SubModelPart Outlet\nEnd SubModelPart\n');
+    expect((await validate(generate)).join('\n')).toMatch(/no longer has Inlet.*matched by name only/);
+    await fs.writeFile(path.join(root, generate.args.mesh as string), 'Begin Nodes\n1 0 0 0\nEnd Nodes\nBegin SubModelPart Inlet\nEnd SubModelPart\n');
+    expect((await validate(generate)).join('\n')).not.toMatch(/no longer has/);
+  });
+
   it('dispatches mesh work with durable CAD owner/request identities and reconciles by receipt', async () => {
     const root = await temp(), geometry = path.join(root, 'beam.step');
     await fs.writeFile(geometry, 'geometry');
@@ -792,6 +922,36 @@ describe('shared workflow tools', () => {
     expect(await fs.readFile(replacement, 'utf8')).toBe('replacement');
     current = (await service.store().read())!.studies[0];
     expect((await readiness(root, current)).mesh).toBe('stale');
+  });
+
+  it('reports region carry-over on attach and renames references only on an explicit, revision-bound apply', async () => {
+    const root = await temp(), geometry = path.join(root, 'plate.step'), mesh = path.join(root, 'plate.mdpa'), renamed = path.join(root, 'plate2.mdpa');
+    await fs.writeFile(geometry, 'geometry');
+    const body = (name: string) => `Begin Nodes\n1 0 0 0\nEnd Nodes\nBegin SubModelPart ${name}\nEnd SubModelPart\n`;
+    await fs.writeFile(mesh, body('Inlet')); await fs.writeFile(renamed, body('Inflow'));
+    await fs.writeFile(caseFilePath(mesh), JSON.stringify({ problemtypeId: 'structural', assignments: [{ conditionId: 'c', smpPath: 'Inlet', values: {} }] }));
+    await fs.writeFile(caseFilePath(renamed), JSON.stringify({ problemtypeId: 'structural', assignments: [{ conditionId: 'c', smpPath: 'Inlet', values: {} }] }));
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_create', { name: 'Plate', source: geometry }) as Study;
+    const first = await invoke('study_attach_mesh', { studyId: study.id, meshPath: mesh }) as { regionCarryOver: { current: { lost: number } } };
+    expect(first.regionCarryOver.current.lost).toBe(0);
+    const second = await invoke('study_attach_mesh', { studyId: study.id, meshPath: renamed }) as { regionCarryOver: { current: { lost: number; regions: { possibleRename?: string }[] } } };
+    expect(second.regionCarryOver.current.lost).toBe(1);
+    const refs = await invoke('study_region_references', { studyId: study.id }) as { settingsRevision: string; report: { regions: { path: string; status: string }[] } };
+    expect(refs.report.regions).toMatchObject([{ path: 'Inlet', status: 'lost' }]);
+    const before = JSON.stringify((await service.store().read())!.studies[0].caseSettings);
+    const preview = await invoke('study_region_rename', { studyId: study.id, renames: [{ from: 'Inlet', to: 'Inflow' }] }) as { applied: boolean; wouldChange: number };
+    expect(preview).toMatchObject({ applied: false, wouldChange: 1 });
+    expect(JSON.stringify((await service.store().read())!.studies[0].caseSettings)).toBe(before);
+    await expect(invoke('study_region_rename', { studyId: study.id, renames: [{ from: 'Inlet', to: 'Inflow' }], apply: true })).rejects.toThrow(/expectedSettingsRevision/);
+    await expect(invoke('study_region_rename', { studyId: study.id, renames: [{ from: 'Inlet', to: 'Inflow' }], apply: true, expectedSettingsRevision: 'stale' })).rejects.toThrow(/changed since/);
+    const done = await invoke('study_region_rename', { studyId: study.id, renames: [{ from: 'Inlet', to: 'Inflow' }], apply: true, expectedSettingsRevision: refs.settingsRevision }) as { applied: boolean; changed: number };
+    expect(done).toMatchObject({ applied: true, changed: 1 });
+    const after = await invoke('study_region_references', { studyId: study.id }) as { report: { lost: number } };
+    expect(after.report.lost).toBe(0);
   });
 
   it('attaches a mesh, imports a terminal run without its process identity, and exports an honest offline review', async () => {

@@ -87,6 +87,7 @@ import { configureDerivedRunner } from "../../../mesh/src/parser/derivedRunner";
 import { runDerivedInWorker } from "../../../mesh/src/derivedWorkerClient";
 import { packSeries } from "../../../mesh/src/sequenceExport";
 import { Uri } from "../vscodeShim";
+import type { RecoveryService } from "../services/recovery";
 import { stateStore } from "../services/stateStore";
 import { showQuickPick } from "../services/quickPick";
 import { t } from "../../shared/i18n";
@@ -244,6 +245,16 @@ export interface MeshHostHooks {
   onDirtyChanged(): void;
 }
 
+/** Crash-recovery wiring (services/recovery.ts); absent in tests/headless tools. */
+export interface MeshRecoveryOptions {
+  service: RecoveryService;
+  /** What the session is doing right now, for the notice on the next launch. */
+  task?: () => string | undefined;
+}
+
+/** Idle time after the last edit before the recipe is checkpointed. */
+const CHECKPOINT_DELAY_MS = 1500;
+
 export class MeshHost {
   private readonly mdpaProvider: MdpaEditorProvider;
   private readonly vtkProvider: VtkEditorProvider;
@@ -256,6 +267,12 @@ export class MeshHost {
   private currentPath: string | undefined;
   private pendingOpen: string | undefined;
   private dirtyFlag = false;
+  /** Per-tab checkpoint identity; stable for this host's lifetime. */
+  private readonly checkpointId = `mesh-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`;
+  private checkpointTimer: NodeJS.Timeout | undefined;
+  /** Hot-exit style backup to hand the next provider open (recovery restore). */
+  private pendingBackup: string | undefined;
+  private onRestoredApplied: (() => void) | undefined;
 
   constructor(
     private readonly view: WebContentsView,
@@ -266,7 +283,8 @@ export class MeshHost {
     /** Shared across every open mesh tab — a run outlives its tab. */
     runs: RunManager,
     /** Shared across every open mesh tab — one globalState-backed list. */
-    recents: RecentMeshStore
+    recents: RecentMeshStore,
+    private readonly recovery?: MeshRecoveryOptions
   ) {
     // MMG wiring, mirroring mesh/src/extension.ts activate().
     // mesh 5.5.0 also runs the meshio++ oracle ops and the meshio++ writes in
@@ -319,8 +337,10 @@ export class MeshHost {
     // markDirty() upstream only fires on an actual applied/undone operation —
     // never at initial load — so a freshly opened file is never spuriously
     // dirty.
-    this.mdpaProvider.onDidChangeCustomDocument(() => this.setDirty(true));
-    this.vtkProvider.onDidChangeCustomDocument(() => this.setDirty(true));
+    // Every applied operation changes the recipe, so each one re-arms the
+    // checkpoint (the first also flips the dirty flag).
+    this.mdpaProvider.onDidChangeCustomDocument(() => { this.setDirty(true); this.scheduleCheckpoint(); });
+    this.vtkProvider.onDidChangeCustomDocument(() => { this.setDirty(true); this.scheduleCheckpoint(); });
 
     ipcMain.on("mesh:toHost", (event, msg: { type?: string }) => {
       if (event.sender !== view.webContents) return;
@@ -335,6 +355,8 @@ export class MeshHost {
    *  unsaved edits first must check isDirty() themselves (index.ts's
    *  closeTab). */
   dispose(): void {
+    this.cancelCheckpoint();
+    void this.recovery?.service.clear(this.checkpointId);
     this.currentPanel?.dispose();
     this.currentPanel = undefined;
     this.currentDocument?.dispose();
@@ -354,7 +376,58 @@ export class MeshHost {
   private setDirty(value: boolean): void {
     if (this.dirtyFlag === value) return;
     this.dirtyFlag = value;
+    // Saved, reverted or replaced: the work is no longer only in memory.
+    if (!value) { this.cancelCheckpoint(); void this.recovery?.service.clear(this.checkpointId); }
     this.hooks.onDirtyChanged();
+  }
+
+  private scheduleCheckpoint(): void {
+    if (!this.recovery) return;
+    this.cancelCheckpoint();
+    this.checkpointTimer = setTimeout(() => { void this.checkpointNow(); }, CHECKPOINT_DELAY_MS);
+    this.checkpointTimer.unref?.();
+  }
+
+  private cancelCheckpoint(): void {
+    if (this.checkpointTimer) clearTimeout(this.checkpointTimer);
+    this.checkpointTimer = undefined;
+  }
+
+  /**
+   * Writes the operation recipe through the provider's own
+   * `backupCustomDocument` (the same call `saveForShutdown` uses), so a crash
+   * keeps what a clean quit would have. The provider refuses while its mesh has
+   * not loaded; that leaves the previous checkpoint standing, so a refusal is
+   * not an error here. Resolves true once a checkpoint is on disk.
+   */
+  async checkpointNow(): Promise<boolean> {
+    this.cancelCheckpoint();
+    const { recovery, currentProvider: provider, currentDocument: document, currentPath: file } = this;
+    if (!recovery || !provider || !document || !file || !this.dirtyFlag) return false;
+    try {
+      return await recovery.service.checkpointMesh(
+        this.checkpointId, file,
+        async (destination) => { await provider.backupCustomDocument(document as never, { destination: Uri.file(destination) as never }, DUMMY_TOKEN); },
+        recovery.task?.(),
+      );
+    } catch (error) {
+      if (process.env.KKSS_E2E) console.log("[mesh] checkpoint skipped:", String(error));
+      return false;
+    }
+  }
+
+  /**
+   * Opens `fsPath` and replays a recovery checkpoint's operation recipe over it
+   * through the provider's own `restoreOpsFromBackup` (the shim parses the
+   * `file://` backup id back to a path). The tab starts dirty — the recovered
+   * operations are unsaved work — and `applied` runs once a fresh checkpoint of
+   * them exists, so the old entry is only discarded after an equivalent one is
+   * on disk again.
+   */
+  openRecovered(fsPath: string, recipeFile: string, applied: () => void): void {
+    this.openPath(fsPath); // resets any earlier pending backup
+    this.pendingBackup = Uri.file(recipeFile).toString();
+    this.onRestoredApplied = applied;
   }
 
   private dispatch(msg: { type?: string }): void {
@@ -384,6 +457,8 @@ export class MeshHost {
    *  that need to guard on unsaved edits first must check isDirty()
    *  themselves (index.ts's openFile). */
   openPath(fsPath: string): void {
+    this.pendingBackup = undefined;
+    this.onRestoredApplied = undefined;
     this.currentPanel?.dispose(); // fires the provider's onDidDispose cleanup
     this.currentPanel = undefined;
     this.currentDocument?.dispose();
@@ -510,8 +585,12 @@ export class MeshHost {
     // backupId stays undefined — KKSS has no hot-exit analogue, and even if it
     // did, restoreOpsFromBackup's vscode.Uri.parse(backupId) would hit the
     // shim's Uri.parse, whose .fsPath throws for a non-file Uri (vscodeShim.ts).
+    // A recovery restore is the one deliberate exception: it names the
+    // checkpoint's recipe, which restoreOpsFromBackup reads back.
+    const backupId = this.pendingBackup;
+    this.pendingBackup = undefined;
     const openContext = {
-      backupId: undefined,
+      backupId,
       untitledDocumentData: undefined,
     } as unknown as vscodeTypes.CustomDocumentOpenContext;
     const document = await provider.openCustomDocument(
@@ -533,5 +612,21 @@ export class MeshHost {
       panel as unknown as vscodeTypes.WebviewPanel,
       DUMMY_TOKEN
     );
+    if (backupId) {
+      this.setDirty(true);
+      const applied = this.onRestoredApplied;
+      this.onRestoredApplied = undefined;
+      // The recipe replays once the mesh has loaded, so a checkpoint taken now
+      // would be refused; retry until it lands (bounded) before reporting.
+      void this.confirmRestoredCheckpoint(applied);
+    }
+  }
+
+  private async confirmRestoredCheckpoint(applied: (() => void) | undefined): Promise<void> {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      if (this.currentPanel === undefined) return;
+      if (await this.checkpointNow()) { applied?.(); return; }
+    }
   }
 }

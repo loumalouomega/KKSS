@@ -48,11 +48,14 @@ export type EditorToHost =
   | { type: "editorReady" }
   | { type: "openFile" }
   | { type: "saveContent"; content: string; saveAs: boolean }
-  | { type: "dirty"; dirty: boolean };
+  | { type: "dirty"; dirty: boolean }
+  /** Debounced copy of a dirty buffer, for crash recovery (never a save). */
+  | { type: "checkpoint"; content: string };
 
 /** Messages sent to the text-editor renderer. */
 export type EditorToWebview =
-  | { type: "doc"; path: string; content: string; language: EditorLanguage }
+  /** `dirty` is set when the buffer holds recovered, unsaved work. */
+  | { type: "doc"; path: string; content: string; language: EditorLanguage; dirty?: boolean }
   | { type: "saved"; path: string }
   | { type: "requestSave"; saveAs: boolean };
 
@@ -581,10 +584,25 @@ export type HomeToHost =
   | { type: "openRecent"; path: string; mode: Mode }
   | { type: "clearRecents" }
   | { type: "chooseProjectRoot" }
-  | { type: "clearProjectRoot" };
+  | { type: "clearProjectRoot" }
+  | { type: "recoveryRestore" | "recoveryShow" | "recoveryDiscard"; key: string };
+
+/** One interrupted-session entry offered on Home (see services/recovery.ts). */
+export interface RecoveryInfo {
+  /** Opaque to the renderer; main validates it against what it listed. */
+  key: string;
+  kind: "mesh" | "editor";
+  name: string;
+  path: string | null;
+  savedAt: number;
+  task?: string;
+  /** Whether the document is as it was; anything but "restorable" disables Restore. */
+  verdict: "restorable" | "sourceChanged" | "sourceMissing";
+}
 
 /** Messages pushed to the home-screen renderer. */
 export type HomeToWebview = { type: "recents"; entries: RecentEntry[] } | ProjectRootInfo
+  | { type: "recovery"; entries: RecoveryInfo[] }
   | { type: "workflowState" | "environmentReport" | "workflowResult"; value: unknown }
   | { type: "workflowBusy"; busy: boolean }
   | { type: "workflowError"; message: string };

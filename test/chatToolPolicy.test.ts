@@ -227,12 +227,12 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 86 cad + 55 mesh tools + 4 in-process mcp__ tools + 33 app__ tools (32 workflow + skill_load)
+    // 86 cad + 55 mesh tools + 4 in-process mcp__ tools + 35 app__ tools (34 workflow + skill_load)
     // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(300);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(303);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
@@ -241,7 +241,7 @@ describe("the table itself", () => {
     expect(TOOL_ACCESS.cad__mesh_cad_surface).toBe("write");
     expect(mesh).toHaveLength(55);
     expect(meta).toHaveLength(4);
-    expect(app).toHaveLength(33);
+    expect(app).toHaveLength(36);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
     expect(kratos).toHaveLength(110);
     const pdf = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("pdf__"));
@@ -419,6 +419,7 @@ describe("the table itself", () => {
       "app__study_import_handoff",
       "app__study_import_run",
       "app__study_open",
+      "app__study_region_rename",
       "app__study_relink_source",
       "app__study_select",
       "app__study_set_settings",
