@@ -975,5 +975,12 @@
   "Rename region": "Renombrar región",
   "Plan geometry sweep": "Planificar barrido de geometría",
   "CAD document variable to sweep (the model must define it):": "Variable del documento CAD a barrer (el modelo debe definirla):",
-  "Values as a JSON array of numbers or expressions (maximum 50):": "Valores como matriz JSON de números o expresiones (máximo 50):"
+  "Values as a JSON array of numbers or expressions (maximum 50):": "Valores como matriz JSON de números o expresiones (máximo 50):",
+  "All combinations": "Todas las combinaciones",
+  "Paired lists": "Listas emparejadas",
+  "Enter a valid JSON object.": "Introduce un objeto JSON válido.",
+  "Sweep 1–4 parameters.": "Barre de 1 a 4 parámetros.",
+  "Case settings to sweep as a JSON object, one array of values per dotted path (maximum 4 paths, 50 rows):": "Ajustes del caso a barrer como objeto JSON, una matriz de valores por ruta con puntos (máximo 4 rutas, 50 filas):",
+  "Combine the lists as:": "Combinar las listas como:",
+  "CAD document variables to sweep as a JSON object, one array of numbers or expressions per variable (the model must define them):": "Variables del documento CAD a barrer como objeto JSON, una matriz de números o expresiones por variable (el modelo debe definirlas):"
 }

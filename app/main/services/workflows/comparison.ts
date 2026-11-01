@@ -2,6 +2,7 @@ import { table, jsonTwin } from './reportHtml';
 import { meshSensitivity, type MeshSensitivity } from './refinement';
 import type { Evidence, Json, Run, Study } from './contracts';
 import { fingerprint } from './project';
+import { parameterPlotSvg } from './parameterTable';
 
 export interface VariantRow {
   studyId: string; name: string; settings: Json; state: string; runId?: string;
@@ -20,6 +21,8 @@ export interface VariantComparison {
   classification: 'mesh-sensitivity' | 'solver-parameter' | 'mixed' | 'unchanged' | 'incomplete'; rows: VariantRow[];
   differences: { studyId: string; changes: SettingChange[] }[];
   quantities: QuantityComparison[]; findings: string[];
+  /** Swept-parameter × quantity tables; additive, so version 2 documents without it still parse. */
+  parameterTables?: import('./parameterTable').ParameterTable[];
 }
 function paths(before: unknown, after: unknown, prefix = ''): string[] {
   if (fingerprint(before) === fingerprint(after)) return [];
@@ -108,5 +111,11 @@ export function comparisonHtml(comparison: VariantComparison): string {
       + table('Assumptions and diagnostics', ['Type', 'Description'], [...m.assumptions.map(a => ['Assumption', a]), ...m.unavailableReasons.map(r => ['Unavailable', r]), ['Safety factor', m.safetyFactor]])
       + table('Refinement inputs', ['Run', 'Mesh revision', 'h (m)', 'Quantity', 'Metadata'], m.inputs.map(i => [i.runId, i.meshRevision, i.h, i.value, i.refinement]));
   }).join('');
-  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Variant comparison — ${escape(comparison.parentName)}</title><style>body{font:15px system-ui;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#222}table{border-collapse:collapse;width:100%;margin:1rem 0}td,th{border:1px solid #bbb;padding:.45rem;text-align:left;overflow-wrap:anywhere}li{margin:.3rem 0}</style><h1>Variant comparison: ${escape(comparison.parentName)}</h1><p>Study type: ${escape(comparison.classification)}</p><h2>Runs</h2><table><thead><tr><th>Study</th><th>Process</th><th>Variation</th><th>Convergence</th><th>Elapsed</th><th>Input differences</th></tr></thead><tbody>${rowHtml}</tbody></table><h2>Setting changes</h2><ul>${changesHtml || '<li>No setting changes</li>'}</ul><h2>Compatible scalar quantities</h2><table><thead><tr><th>Definition</th><th>Unit</th><th>Values by row</th></tr></thead><tbody>${quantityHtml || '<tr><td colspan="3">No selected quantities</td></tr>'}</tbody></table><ul>${comparison.findings.map(finding => `<li>${escape(finding)}</li>`).join('')}</ul>${resources}${sensitivity}${jsonTwin(comparison)}</html>`;
+  const swept = (comparison.parameterTables ?? []).map(t => {
+    const head = ['Study', ...t.parameters, `Value${t.unit ? ` (${t.unit})` : ''}`];
+    return table(`Swept parameters: ${t.quantity.kind} ${t.quantity.field}/${t.quantity.component} · ${t.quantity.region} · t=${t.quantity.time} · ${t.quantity.reduction}`, head,
+      t.rows.map(row => [row.name, ...t.parameters.map(name => row.parameters[name] === null ? 'missing' : row.parameters[name]), row.value === null ? 'missing' : row.value]))
+      + parameterPlotSvg(t) + (t.findings.length ? `<ul>${t.findings.map(f => `<li>${escape(f)}</li>`).join('')}</ul>` : '');
+  }).join('');
+  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Variant comparison — ${escape(comparison.parentName)}</title><style>body{font:15px system-ui;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#222}table{border-collapse:collapse;width:100%;margin:1rem 0}td,th{border:1px solid #bbb;padding:.45rem;text-align:left;overflow-wrap:anywhere}li{margin:.3rem 0}</style><h1>Variant comparison: ${escape(comparison.parentName)}</h1><p>Study type: ${escape(comparison.classification)}</p><h2>Runs</h2><table><thead><tr><th>Study</th><th>Process</th><th>Variation</th><th>Convergence</th><th>Elapsed</th><th>Input differences</th></tr></thead><tbody>${rowHtml}</tbody></table><h2>Setting changes</h2><ul>${changesHtml || '<li>No setting changes</li>'}</ul><h2>Compatible scalar quantities</h2><table><thead><tr><th>Definition</th><th>Unit</th><th>Values by row</th></tr></thead><tbody>${quantityHtml || '<tr><td colspan="3">No selected quantities</td></tr>'}</tbody></table><ul>${comparison.findings.map(finding => `<li>${escape(finding)}</li>`).join('')}</ul>${swept}${resources}${sensitivity}${jsonTwin(comparison)}</html>`;
 }

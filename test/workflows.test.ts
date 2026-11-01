@@ -682,6 +682,62 @@ describe('shared workflow tools', () => {
     expect(queued.planRevision).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it('expands multi-parameter case sweeps as a grid or paired lists, shows the expansion first, and persists nothing', async () => {
+    const root = await temp(), geometry = path.join(root, 'beam.step');
+    await fs.writeFile(geometry, 'geometry');
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_create', { name: 'Beam', source: geometry }) as Study;
+    const parameters = [{ path: 'values.problem.timeStep', values: [0.05, 0.1] }, { path: 'values.problem.endTime', values: [1, 2, 3] }];
+    type Preview = { previewId: string; runCount: number; summary: string[]; expansion: { mode: string; count: number }; variants: { name: string; differences: string[] }[] };
+    const grid = await invoke('queue_parameter_sweep_preview', { studyId: study.id, reuseMesh: false, parameters }) as Preview;
+    expect(grid.runCount).toBe(6);
+    expect(grid.expansion).toMatchObject({ mode: 'grid', count: 6 });
+    expect(grid.summary[0]).toMatch(/grid 2 × 3 = 6 rows/);
+    expect(grid.variants[0].name).toBe('values.problem.timeStep=0.05, values.problem.endTime=1');
+    expect(grid.variants.some(v => v.differences.includes('values.problem.timeStep') && v.differences.includes('values.problem.endTime'))).toBe(true);
+    expect((await service.store().read())!.studies).toHaveLength(1);
+    await expect(invoke('queue_parameter_sweep_preview', { studyId: study.id, reuseMesh: false, parameters, mode: 'paired' })).rejects.toThrow(/equal length/);
+    await expect(invoke('queue_parameter_sweep_preview', { studyId: study.id, reuseMesh: false, parameters, parameterPath: 'values.problem.timeStep', values: [1] })).rejects.toThrow(/not both/);
+    const paired = await invoke('queue_parameter_sweep_preview', { studyId: study.id, reuseMesh: false, mode: 'paired',
+      parameters: [{ path: 'values.problem.timeStep', values: [0.05, 0.1] }, { path: 'values.problem.endTime', values: [1, 2] }] }) as Preview;
+    expect(paired.runCount).toBe(2);
+    await invoke('queue_enqueue', { previewId: grid.previewId });
+    expect((await service.store().read())!.studies).toHaveLength(7);
+  });
+
+  it('applies several CAD variables per geometry row and refuses an unknown one', async () => {
+    const root = await temp(), geometry = path.join(root, 'plate.step');
+    await fs.writeFile(geometry, 'geometry');
+    let variables = [{ name: 'L', expr: '10', value: 10, error: null }, { name: 'W', expr: '5', value: 5, error: null }];
+    const sets: unknown[] = [];
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined,
+      callMcpTool: async (name, args) => {
+        if (name === 'cad__get_state') return { structuredContent: { variables } };
+        if (name === 'cad__set_variables') { sets.push(args.variables); variables = (args.variables as { name: string; expr: string }[]).map(v => ({ ...v, value: 0, error: null })); return { structuredContent: { variables } }; }
+        throw new Error(`unexpected ${name}`);
+      } });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_create', { name: 'Plate', source: geometry }) as Study;
+    const preview = await invoke('queue_geometry_sweep_preview', { studyId: study.id, mode: 'paired',
+      variables: [{ name: 'L', values: [20, 30] }, { name: 'W', values: [2, 3] }] }) as { previewId: string; runCount: number; expansion: { count: number } };
+    expect(preview).toMatchObject({ runCount: 2, expansion: { count: 2 } });
+    await expect(invoke('queue_geometry_sweep_preview', { studyId: study.id, variable: 'L', values: [1], variables: [] })).rejects.toThrow(/not both/);
+    await invoke('queue_enqueue', { previewId: preview.previewId });
+    const geo = (await service.store().read())!.queue.tasks.filter(t => t.kind === 'geometry')[0];
+    const dispatch = (task: Task) => (service as unknown as { dispatchQueuedTask(t: Task, s: unknown): Promise<{ state: string; message?: string }> }).dispatchQueuedTask(task, service.store());
+    expect(await dispatch(geo)).toMatchObject({ state: 'succeeded' });
+    expect(sets[0]).toEqual([{ name: 'L', expr: '20' }, { name: 'W', expr: '2' }]);
+    const bad = await invoke('queue_geometry_sweep_preview', { studyId: study.id, variables: [{ name: 'L', values: [1] }, { name: 'H', values: [1] }] }) as { previewId: string };
+    await invoke('queue_enqueue', { previewId: bad.previewId });
+    const badTask = (await service.store().read())!.queue.tasks.filter(t => t.kind === 'geometry').slice(-1)[0];
+    expect(await dispatch(badTask)).toMatchObject({ state: 'failed', message: expect.stringMatching(/defines no variable "H"/) });
+  });
+
   it('plans a geometry sweep as copy → mesh → generate → solve, writes nothing, and copies without touching the model', async () => {
     const root = await temp(), geometry = path.join(root, 'plate.step');
     await fs.writeFile(geometry, 'geometry'); await fs.writeFile(`${geometry}.edits.json`, '{"base":true}');
@@ -698,9 +754,9 @@ describe('shared workflow tools', () => {
       } });
     const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
     const study = await invoke('study_create', { name: 'Plate', source: geometry }) as Study;
-    const preview = await invoke('queue_geometry_sweep_preview', { studyId: study.id, variable: 'L', values: [20, 30] }) as { previewId: string; runCount: number; variants: { runId: string; geometry: { variable: string; expression: string } }[] };
+    const preview = await invoke('queue_geometry_sweep_preview', { studyId: study.id, variable: 'L', values: [20, 30] }) as { previewId: string; runCount: number; variants: { runId: string; geometry: { variables: Record<string, string> } }[] };
     expect(preview.runCount).toBe(2);
-    expect(preview.variants.map(v => v.geometry.expression)).toEqual(['20', '30']);
+    expect(preview.variants.map(v => v.geometry.variables.L)).toEqual(['20', '30']);
     expect((await service.store().read())!.studies).toHaveLength(1);
     expect(await fs.readdir(root)).not.toContain('.kkss/runs');
     await expect(invoke('queue_geometry_sweep_preview', { studyId: study.id, variable: 'L', values: [] })).rejects.toThrow(/1–50/);

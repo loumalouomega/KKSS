@@ -123,6 +123,12 @@ changed base model or sidecar invalidates the plan, an existing destination is
 `uncertain` (never overwritten or resubmitted), and a row whose new mesh lost a
 region the case references (name-only comparison) is refused before its solve.
 
+Multi-parameter sweeps (`workflows/sweepExpansion.ts`) compute and cap the row
+count (50) before allocating rows, so an oversized grid is refused with its
+arithmetic; paired lists must have equal length. Comparison `parameterTables`
+keep a missing parameter or value as `null` — never zero — and the exported
+plot is an inline SVG with no script or external assets.
+
 The Home navigator exposes source relinking/copy-in, mesh/case navigation,
 single-run and parameter-sweep previews, queue pause/resume/cancel, run review,
 and parent/variant comparisons. Parameter sweeps create fresh studies only when

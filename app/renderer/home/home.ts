@@ -201,30 +201,40 @@ planRunButton.addEventListener("click", () => {
     workflowCall("queue_plan_preview", { studyId: study.id, reuseMesh: reuseMesh(values) });
   });
 });
+/** "All combinations" or "Paired lists" → the tools' mode argument. */
+const sweepModes = (): readonly string[] => [t("All combinations"), t("Paired lists")];
+const sweepMode = (inputs: Record<string, string>): "grid" | "paired" => inputs.combinations === t("Paired lists") ? "paired" : "grid";
+/** Parses `{"name": [values…], …}` into the {name, values} list both preview tools take. */
+function parseSweepObject(raw: string): { name: string; values: unknown[] }[] {
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw new Error(t("Enter a valid JSON object.")); }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(t("Enter a valid JSON object."));
+  const entries = Object.entries(parsed as Record<string, unknown>);
+  if (entries.length < 1 || entries.length > 4) throw new Error(t("Sweep 1–4 parameters."));
+  return entries.map(([name, values]) => {
+    if (!Array.isArray(values) || values.length < 1 || values.length > 50) throw new Error(t("Enter 1–50 values in a JSON array."));
+    return { name, values };
+  });
+}
 planSweepButton.addEventListener("click", () => {
   const study = selectedStudy; if (!study) return;
   form.open(t("Plan sweep"), [
-    { name: "parameterPath", label: t("Case setting path (for example values.problem.timeStep):") },
-    { name: "values", label: t("Sweep values as a JSON array (maximum 50):"), value: "[0.05, 0.1, 0.2]", multiline: true },
+    { name: "parameters", label: t("Case settings to sweep as a JSON object, one array of values per dotted path (maximum 4 paths, 50 rows):"), value: '{"values.problem.timeStep": [0.05, 0.1, 0.2]}', multiline: true },
+    { name: "combinations", label: t("Combine the lists as:"), choices: sweepModes(), value: t("All combinations") },
     ...meshFields(meshReady(study.id)),
   ], inputs => {
-    let values: unknown;
-    try { values = JSON.parse(inputs.values); } catch { throw new Error(t("Enter a valid JSON array.")); }
-    if (!Array.isArray(values) || values.length < 1 || values.length > 50) throw new Error(t("Enter 1–50 values in a JSON array."));
-
-    workflowCall("queue_parameter_sweep_preview", { studyId: study.id, reuseMesh: reuseMesh(inputs), parameterPath: inputs.parameterPath, values });
+    const parameters = parseSweepObject(inputs.parameters).map(entry => ({ path: entry.name, values: entry.values }));
+    workflowCall("queue_parameter_sweep_preview", { studyId: study.id, reuseMesh: reuseMesh(inputs), parameters, mode: sweepMode(inputs) });
   });
 });
 document.getElementById("study-plan-geometry-sweep")!.addEventListener("click", () => {
   const study = selectedStudy; if (!study) return;
   form.open(t("Plan geometry sweep"), [
-    { name: "variable", label: t("CAD document variable to sweep (the model must define it):") },
-    { name: "values", label: t("Values as a JSON array of numbers or expressions (maximum 50):"), value: "[10, 20, 30]", multiline: true },
+    { name: "variables", label: t("CAD document variables to sweep as a JSON object, one array of numbers or expressions per variable (the model must define them):"), value: '{"L": [10, 20, 30]}', multiline: true },
+    { name: "combinations", label: t("Combine the lists as:"), choices: sweepModes(), value: t("All combinations") },
   ], inputs => {
-    let values: unknown;
-    try { values = JSON.parse(inputs.values); } catch { throw new Error(t("Enter a valid JSON array.")); }
-    if (!Array.isArray(values) || values.length < 1 || values.length > 50) throw new Error(t("Enter 1–50 values in a JSON array."));
-    workflowCall("queue_geometry_sweep_preview", { studyId: study.id, variable: inputs.variable.trim(), values });
+    const variables = parseSweepObject(inputs.variables);
+    workflowCall("queue_geometry_sweep_preview", { studyId: study.id, variables, mode: sweepMode(inputs) });
   });
 });
 document.getElementById("queue-resume")!.addEventListener("click", () => {

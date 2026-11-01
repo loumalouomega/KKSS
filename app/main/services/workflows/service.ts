@@ -31,6 +31,8 @@ import { renderRunComparisonMarkdown } from '../../../../mesh/src/problemtype/ru
 import { makeReview, reviewHtml } from './review';
 import { compareVariants, comparisonHtml } from './comparison';
 import { GEOMETRY_ROW_CAP, geometryDestination, overrideVariable, sidecarCandidates, variableExpressions } from './geometrySweep';
+import { parameterTables } from './parameterTable';
+import { expandSweep, parseSweepMode, type SweepMode } from './sweepExpansion';
 import { applyRenames, carryOverReport, collectReferences, listMdpaRegions, parseRenames, type CarryOverReport } from './regionReferences';
 export interface WorkflowDeps {
   root(): string | undefined;
@@ -643,7 +645,10 @@ export class WorkflowService {
       const evidence = run ? (await this.buildRunReview(study.id, run.id)).review.evidence : undefined;
       return { study, ...(run ? { run } : {}), ...(evidence ? { evidence } : {}) };
     }));
-    return { store, comparison: compareVariants(parent, candidates) };
+    const comparison = compareVariants(parent, candidates);
+    const tables = parameterTables(comparison, studies);
+    if (tables.some(table => table.parameters.length)) comparison.parameterTables = tables;
+    return { store, comparison };
   }
   private async invokeMcp(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
     if (!this.deps.callMcpTool) throw new WorkflowToolError('MCP execution is not connected.', true);
@@ -658,7 +663,7 @@ export class WorkflowService {
     }
     return message ? { text: message } : {};
   }
-  private async buildQueueTasks(store: ProjectStore, study: Study, reuseMesh: boolean, caseState: Json, geometry?: { variable: string; expression: string }): Promise<{ runId: string; tasks: Task[]; problemtypeId: string; runtime: string }> {
+  private async buildQueueTasks(store: ProjectStore, study: Study, reuseMesh: boolean, caseState: Json, geometry?: { variables: Record<string, string> }): Promise<{ runId: string; tasks: Task[]; problemtypeId: string; runtime: string }> {
     if (geometry && reuseMesh) throw new Error('A geometry sweep always re-meshes; mesh reuse is not possible.');
     if (reuseMesh && !study.mesh) throw new Error('This study has no mesh to reuse.');
     if (reuseMesh && (await readiness(store.root, study)).mesh !== 'ready') throw new Error('The study mesh is stale or missing; regenerate it or repair the study before reuse.');
@@ -680,10 +685,10 @@ export class WorkflowService {
         try { sidecars[path.basename(file)] = await fileRevision(file); } catch { /* absent sidecar: nothing to copy */ }
       }
       study.source = { kind: 'project', path: destination, revision: baseSource.revision };
-      study.geometry = { baseSource, variable: geometry.variable, expression: geometry.expression };
+      study.geometry = { baseSource, variables: { ...geometry.variables } };
       geometryTask = { id: geometryTaskId!, studyId: study.id, runId, kind: 'geometry', resources: { threads: 1, verified: true }, dependencies: [],
-        args: { baseSource: baseSource as unknown as Json, destination, variable: geometry.variable, expression: geometry.expression, sidecarRevisions: sidecars },
-        inputRevision: fingerprint({ baseRevision: baseSource.revision, variable: geometry.variable, expression: geometry.expression, sidecars }),
+        args: { baseSource: baseSource as unknown as Json, destination, variables: { ...geometry.variables }, sidecarRevisions: sidecars },
+        inputRevision: fingerprint({ baseRevision: baseSource.revision, variables: geometry.variables, sidecars }),
         requiredArtifacts: [destination], state: 'waiting' };
     }
     const meshName = reuseMesh ? path.basename(study.mesh!.path) : path.basename(study.source.path).replace(/\.[^.]+$/, '.mdpa');
@@ -770,8 +775,10 @@ export class WorkflowService {
     while (this.previews.size > 25) this.previews.delete(this.previews.keys().next().value!);
     return { previewId, studyId, runCount: rows.length, reuseMesh, summary, variants: built.map(({ study, runId }) => ({ id: study.id, name: study.name, runId, destination: `.kkss/runs/${runId}`, differences: changedJsonPaths(baselineSettings, study.caseSettings) })) };
   }
-  private async previewGeometrySweep(studyId: string, variable: unknown, values: unknown): Promise<Record<string, unknown>> {
-    const { name, expressions } = variableExpressions(variable, values);
+  private async previewGeometrySweep(studyId: string, variables: { name: unknown; values: unknown }[], mode: SweepMode = 'grid'): Promise<Record<string, unknown>> {
+    if (!Array.isArray(variables) || variables.length < 1) throw new Error('Provide at least one variable.');
+    const checked = variables.map(entry => variableExpressions(entry.name, entry.values));
+    const expansion = expandSweep(checked.map(entry => ({ name: entry.name, values: entry.expressions })), mode);
     const store = this.store(), project = await store.read();
     if (!project) throw new Error('Create a study before planning a geometry sweep.');
     const base = this.study(project, studyId);
@@ -780,23 +787,25 @@ export class WorkflowService {
     if (!decl) throw new Error(`Problemtype "${problemtypeId}" has no declared parameter schema.`);
     const caseState = base.caseSettings && object(base.caseSettings) ? JSON.parse(JSON.stringify(base.caseSettings)) as Json : JSON.parse(JSON.stringify(defaultCaseState(decl))) as Json;
     const built = [];
-    for (const expression of expressions) {
-      const row = duplicateStudy(base, `${base.name} ${name}=${expression}`, false, caseState);
-      const plan = await this.buildQueueTasks(store, row, false, caseState, { variable: name, expression });
+    for (const swept of expansion.rows) {
+      const row = duplicateStudy(base, `${base.name} ${swept.label}`, false, caseState);
+      const plan = await this.buildQueueTasks(store, row, false, caseState, { variables: swept.assignment as Record<string, string> });
       built.push({ study: row, ...plan });
     }
     const previewId = randomUUID(), tasks = built.flatMap(plan => plan.tasks);
     const studyRevision = fingerprint({ source: base.source, mesh: base.mesh, meshing: base.meshing, caseSettings: base.caseSettings });
-    const summary = [`${tasks.length} tasks for ${built.length} geometry rows (${GEOMETRY_ROW_CAP} maximum)`, 'Each row: copy the model into its run directory → set the variable there → mesh → generate → solve. Your model is never edited.',
+    const summary = [`Sweep: ${expansion.summary} (cap ${GEOMETRY_ROW_CAP}, shown before anything is persisted)`, `${tasks.length} tasks for ${built.length} geometry rows`, 'Each row: copy the model into its run directory → set the variable there → mesh → generate → solve. Your model is never edited.',
       'If a row loses a region the case references (matched by name only), its solve is not started.',
       ...built.map(({ study, runId }) => `${study.name} → .kkss/runs/${runId}`)];
     this.previews.set(previewId, { projectRevision: project.revision, studyRevision, studyId, tasks, summary, studies: built.map(row => row.study) });
     while (this.previews.size > 25) this.previews.delete(this.previews.keys().next().value!);
-    return { previewId, studyId, runCount: built.length, reuseMesh: false, summary, variants: built.map(({ study, runId }) => ({ id: study.id, name: study.name, runId, destination: `.kkss/runs/${runId}`, geometry: study.geometry })) };
+    return { previewId, studyId, runCount: built.length, reuseMesh: false, summary, expansion: { mode, count: expansion.count, summary: expansion.summary }, variants: built.map(({ study, runId }) => ({ id: study.id, name: study.name, runId, destination: `.kkss/runs/${runId}`, geometry: study.geometry })) };
   }
-  private async previewParameterQueue(studyId: string, reuseMesh: boolean, parameterPath: string, values: Json[]): Promise<Record<string, unknown>> {
-    if (!/^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/.test(parameterPath)) throw new Error('Parameter path must use dotted object keys.');
-    if (!values.length || values.length > 50) throw new Error('A parameter sweep must contain 1–50 values.');
+  private async previewParameterQueue(studyId: string, reuseMesh: boolean, parameters: { name: string; values: Json[] }[], mode: SweepMode = 'grid'): Promise<Record<string, unknown>> {
+    for (const parameter of parameters) {
+      if (!/^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/.test(parameter.name)) throw new Error('Parameter path must use dotted object keys.');
+    }
+    const expansion = expandSweep(parameters, mode);
     const project = await this.store().read();
     if (!project) throw new Error('Create a study before planning variants.');
     const source = this.study(project, studyId);
@@ -804,20 +813,24 @@ export class WorkflowService {
     const decl = BUILTIN_PROBLEMTYPES.find(pt => pt.decl.id === problemtypeId)?.decl;
     if (!decl) throw new Error(`Problemtype "${problemtypeId}" has no declared parameter schema.`);
     const base = source.caseSettings && object(source.caseSettings) ? source.caseSettings : defaultCaseState(decl) as unknown as Json;
-    const keys = parameterPath.split('.');
-    const rows = values.map(value => {
+    const rows = expansion.rows.map(row => {
       const settings = JSON.parse(JSON.stringify(base)) as Record<string, unknown>;
-      let target = settings;
-      for (const key of keys.slice(0, -1)) {
-        if (!object(target[key])) throw new Error(`Parameter path "${parameterPath}" does not exist in the case settings.`);
-        target = target[key] as Record<string, unknown>;
+      for (const [parameterPath, value] of Object.entries(row.assignment)) {
+        const keys = parameterPath.split('.');
+        let target = settings;
+        for (const key of keys.slice(0, -1)) {
+          if (!object(target[key])) throw new Error(`Parameter path "${parameterPath}" does not exist in the case settings.`);
+          target = target[key] as Record<string, unknown>;
+        }
+        const last = keys[keys.length - 1];
+        if (!(last in target)) throw new Error(`Parameter path "${parameterPath}" does not exist in the case settings.`);
+        target[last] = value;
       }
-      const last = keys[keys.length - 1];
-      if (!(last in target)) throw new Error(`Parameter path "${parameterPath}" does not exist in the case settings.`);
-      target[last] = value;
-      return { name: `${parameterPath}=${typeof value === 'string' ? value : JSON.stringify(value)}`, settings: settings as Json };
+      return { name: row.label, settings: settings as Json };
     });
-    return this.previewVariantQueue(studyId, reuseMesh, rows);
+    const preview = await this.previewVariantQueue(studyId, reuseMesh, rows);
+    if (Array.isArray(preview.summary)) preview.summary = [`Sweep: ${expansion.summary} (cap 50, shown before anything is persisted)`, ...preview.summary as string[]];
+    return { ...preview, expansion: { mode, count: expansion.count, summary: expansion.summary } };
   }
   private async enqueuePreview(previewId: string): Promise<{ planRevision: string; tasks: Task[] }> {
     const preview = this.previews.get(previewId);
@@ -889,7 +902,7 @@ export class WorkflowService {
       const listing = await this.meshRegions(validationMesh);
       if (listing.regions) {
         const lost = carryOverReport(collectReferences(state as unknown as Json), listing.regions).regions.filter(row => row.status === 'lost');
-        if (lost.length) errors.push(`With ${study.geometry.variable} = ${study.geometry.expression} the mesh no longer has ${lost.map(row => row.path).join(', ')}, which the case still references (matched by name only); the solve was not started.`);
+        if (lost.length) errors.push(`With ${Object.entries(study.geometry.variables).map(([name, expression]) => `${name} = ${expression}`).join(', ')} the mesh no longer has ${lost.map(row => row.path).join(', ')}, which the case still references (matched by name only); the solve was not started.`);
       } else errors.push(`Regions could not be compared for this geometry row (${listing.reason ?? 'unknown reason'}); the solve was not started.`);
     }
     const validation = await this.queuedTool(task, 'mesh__case_validate', { meshPath: validationMesh, problemtype, state }).catch(error => {
@@ -943,15 +956,17 @@ export class WorkflowService {
         for (const sidecar of sidecarCandidates(baseFile)) {
           if (await fs.access(sidecar).then(() => true, () => false)) await copyTo(sidecar, destination + path.basename(sidecar).slice(path.basename(baseFile).length), false);
         }
-        const variable = String(task.args.variable);
+        const assignments = Object.entries(task.args.variables as Record<string, string>);
         const state = await this.queuedTool(task, 'cad__get_state', { path: destination });
         const existing = Array.isArray(state.variables) ? state.variables.filter((v): v is { name: string; expr: string } => object(v) && typeof v.name === 'string' && typeof v.expr === 'string') : [];
-        let next;
-        try { next = overrideVariable(existing, variable, String(task.args.expression)); }
+        let next = existing;
+        try { for (const [name, expression] of assignments) next = overrideVariable(next, name, String(expression)); }
         catch (error) { throw new WorkflowToolError(error instanceof Error ? error.message : String(error), false); }
         const applied = await this.queuedTool(task, 'cad__set_variables', { path: destination, variables: next });
-        const set = Array.isArray(applied.variables) ? applied.variables.find((v: unknown) => object(v) && v.name === variable) : undefined;
-        if (!object(set) || set.expr !== task.args.expression || set.error) throw new WorkflowToolError(`CAD did not accept ${variable} = ${String(task.args.expression)}${object(set) && set.error ? `: ${String(set.error)}` : ''}.`, false);
+        for (const [name, expression] of assignments) {
+          const set = Array.isArray(applied.variables) ? applied.variables.find((v: unknown) => object(v) && v.name === name) : undefined;
+          if (!object(set) || set.expr !== expression || set.error) throw new WorkflowToolError(`CAD did not accept ${name} = ${String(expression)}${object(set) && set.error ? `: ${String(set.error)}` : ''}.`, false);
+        }
         return outputReceipt('succeeded', [{ role: 'geometry', path: destination }]);
       }
       if (task.kind === 'mesh') {
@@ -1068,8 +1083,10 @@ export class WorkflowService {
       const destination = resolveReference(root, { kind: 'project', path: relativeOutput(task.args.destination, 'Geometry destination'), revision: '' });
       try {
         const state = await this.queuedTool(task, 'cad__get_state', { path: destination });
-        const found = Array.isArray(state.variables) ? state.variables.find((v: unknown) => object(v) && v.name === task.args.variable) : undefined;
-        if (!object(found) || found.expr !== task.args.expression) return undefined;
+        for (const [name, expression] of Object.entries(task.args.variables as Record<string, string>)) {
+          const found = Array.isArray(state.variables) ? state.variables.find((v: unknown) => object(v) && v.name === name) : undefined;
+          if (!object(found) || found.expr !== expression) return undefined;
+        }
         return { version: 1, requestId: task.id, ownerId: task.studyId, state: 'succeeded', artifacts: [{ role: 'geometry', ownerId: task.runId, reference: reference(root, destination, await fileRevision(destination)) }] };
       } catch { return undefined; }
     }
@@ -1289,14 +1306,30 @@ export class WorkflowService {
           if (typeof args.reuseMesh !== 'boolean' || !Array.isArray(args.rows) || args.rows.some(row => !object(row) || typeof row.name !== 'string' || !object(row.settings))) throw new Error('Choose mesh reuse and provide explicit variant rows.');
           return this.previewVariantQueue(text(args, 'studyId'), args.reuseMesh, args.rows as { name: string; settings: Json }[]);
         }),
-      tool('queue_parameter_sweep_preview', 'Expand one case setting dotted path and up to 50 values into a concrete paused-queue plan. This preview writes nothing and starts no runs.',
-        { studyId: str, reuseMesh: { type: 'boolean' }, parameterPath: str, values: { type: 'array', minItems: 1, maxItems: 50, items: {} } }, ['studyId', 'reuseMesh', 'parameterPath', 'values'], args => {
-          if (typeof args.reuseMesh !== 'boolean' || !Array.isArray(args.values)) throw new Error('Choose mesh reuse and provide parameter values.');
-          return this.previewParameterQueue(text(args, 'studyId'), args.reuseMesh, text(args, 'parameterPath'), args.values as Json[]);
+      tool('queue_parameter_sweep_preview', 'Expand case setting dotted paths and values into a concrete paused-queue plan of up to 50 rows. Give either parameterPath + values (one parameter), or parameters: [{path, values}] (up to 4) with mode "grid" (all combinations, the default) or "paired" (equal-length lists, row i takes value i of each). The expansion is shown here, before anything is persisted. This preview writes nothing and starts no runs.',
+        { studyId: str, reuseMesh: { type: 'boolean' }, parameterPath: str, values: { type: 'array', minItems: 1, maxItems: 50, items: {} },
+          parameters: { type: 'array', minItems: 1, maxItems: 4, items: { type: 'object', properties: { path: str, values: { type: 'array', minItems: 1, maxItems: 50, items: {} } }, required: ['path', 'values'], additionalProperties: false } },
+          mode: { enum: ['grid', 'paired'] } }, ['studyId', 'reuseMesh'], args => {
+          if (typeof args.reuseMesh !== 'boolean') throw new Error('Choose mesh reuse and provide parameter values.');
+          if (args.parameters !== undefined && (args.parameterPath !== undefined || args.values !== undefined)) throw new Error('Give either parameters or parameterPath + values, not both.');
+          const parameters = args.parameters !== undefined
+            ? (Array.isArray(args.parameters) ? args.parameters.map(entry => {
+                if (!object(entry) || typeof entry.path !== 'string' || !Array.isArray(entry.values)) throw new Error('Each parameter needs a path and a values array.');
+                return { name: entry.path, values: entry.values as Json[] };
+              }) : (() => { throw new Error('parameters must be a list.'); })())
+            : (typeof args.parameterPath === 'string' && Array.isArray(args.values) ? [{ name: args.parameterPath, values: args.values as Json[] }] : (() => { throw new Error('Provide parameters, or parameterPath and values.'); })());
+          return this.previewParameterQueue(text(args, 'studyId'), args.reuseMesh, parameters, parseSweepMode(args.mode));
         }),
-      tool('queue_geometry_sweep_preview', 'Preview a 1–50 row geometry sweep: one CAD document variable takes each value in turn. Each row copies the model into its own run directory, sets the variable on the copy, then meshes, generates and solves. Writes nothing and starts nothing; the model must already define the variable and your own files are never edited. A row that loses a region the case references is stopped before its solve (matched by name only).',
-        { studyId: str, variable: str, values: { type: 'array', minItems: 1, maxItems: GEOMETRY_ROW_CAP, items: {} } }, ['studyId', 'variable', 'values'], args =>
-          this.previewGeometrySweep(text(args, 'studyId'), args.variable, args.values)),
+      tool('queue_geometry_sweep_preview', 'Preview a 1–50 row geometry sweep over CAD document variables the model already defines. Give either variable + values (one variable), or variables: [{name, values}] (up to 4) with mode "grid" (all combinations, the default) or "paired" (equal-length lists). Each row copies the model into its own run directory, sets the variables on the copy, then meshes, generates and solves. Writes nothing and starts nothing; your own files are never edited. A row that loses a region the case references is stopped before its solve (matched by name only).',
+        { studyId: str, variable: str, values: { type: 'array', minItems: 1, maxItems: GEOMETRY_ROW_CAP, items: {} },
+          variables: { type: 'array', minItems: 1, maxItems: 4, items: { type: 'object', properties: { name: str, values: { type: 'array', minItems: 1, maxItems: GEOMETRY_ROW_CAP, items: {} } }, required: ['name', 'values'], additionalProperties: false } },
+          mode: { enum: ['grid', 'paired'] } }, ['studyId'], args => {
+          if (args.variables !== undefined && (args.variable !== undefined || args.values !== undefined)) throw new Error('Give either variables or variable + values, not both.');
+          const variables = args.variables !== undefined
+            ? (Array.isArray(args.variables) ? args.variables.map(entry => { if (!object(entry)) throw new Error('Each variable needs a name and values.'); return { name: entry.name, values: entry.values }; }) : (() => { throw new Error('variables must be a list.'); })())
+            : [{ name: args.variable, values: args.values }];
+          return this.previewGeometrySweep(text(args, 'studyId'), variables, parseSweepMode(args.mode));
+        }),
       tool('queue_retry_variant_preview', 'Preview one fresh retry row for a failed or cancelled variant. Keeps it in the same comparison group and never overwrites the previous run.',
         { studyId: str, reuseMesh: { type: 'boolean' } }, ['studyId', 'reuseMesh'], async args => {
           if (typeof args.reuseMesh !== 'boolean') throw new Error('Choose whether to reuse the variant mesh.');

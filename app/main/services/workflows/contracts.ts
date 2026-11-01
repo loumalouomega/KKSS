@@ -55,7 +55,7 @@ export interface Study {
   meshSourceRevision?: string; meshOptionsRevision?: string; caseSettings: Json;
   caseMeshRevision?: string; runs: Run[]; parentId?: string; handoff?: Handoff;
   /** Set on a geometry-sweep row: the model it was copied from and the variable it overrides. */
-  geometry?: { baseSource: Reference; variable: string; expression: string };
+  geometry?: { baseSource: Reference; variables: Record<string, string> };
 }
 export interface Task {
   resources?: { threads: number; verified: boolean };
