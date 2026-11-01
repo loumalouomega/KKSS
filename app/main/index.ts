@@ -75,7 +75,10 @@ import { latestResultFile } from "../../mesh/src/problemtype/runCore";
 import { groupVtkFiles, findGroupForFile } from "../../mesh/src/parser/vtkFileGroup";
 import { TIMELINE_EXTENSIONS } from "../../mesh/src/parser/meshFormats";
 import { syncFilePair } from "./services/layerSync";
-import type { HomeToHost, HomeToWebview, Mode, Screen, ShellTabInfo, ShellToHost } from "./ipc";
+import type { HomeToHost, HomeToWebview, Mode, RecoveryInfo, Screen, ShellTabInfo, ShellToHost } from "./ipc";
+import { RecoveryService } from "./services/recovery";
+import { classifyRestore } from "./services/recoveryCore";
+import type { ListedRecovery } from "./services/recoveryCore";
 
 // Must happen before app is ready.
 registerSchemes();
@@ -169,6 +172,10 @@ let runs: RunManager | null = null;
 let recents: RecentMeshStore | null = null;
 let terminal: TerminalService | null = null;
 let editor: EditorService | null = null;
+/** Crash-recovery checkpoints (services/recovery.ts). Created in the ready block. */
+let recovery: RecoveryService | null = null;
+/** What the Home recovery notice currently lists, by the opaque key it was sent. */
+const recoveryListed = new Map<string, ListedRecovery>();
 let chat: ChatService | null = null;
 let mcpHub: McpHub | null = null;
 let userServers: UserServerStore | null = null;
@@ -240,6 +247,64 @@ function pushRecents(): void {
           : describeWithin(root, entry.path, home),
       })),
   });
+}
+
+/** A short code (translated by the Home renderer) for what the session was doing. */
+function recoveryTask(): string | undefined {
+  return runs?.list().some(run => run.status === "starting" || run.status === "running") ? "kratosRun" : undefined;
+}
+
+/**
+ * Offers interrupted-session entries on Home. Nothing is applied here: an entry
+ * stays until the user restores or discards it, so declining today does not
+ * cost the work tomorrow. The keys are opaque and re-validated on every action.
+ */
+async function pushRecovery(): Promise<void> {
+  if (!recovery || !main) return;
+  const listed = await recovery.list();
+  recoveryListed.clear();
+  const entries: RecoveryInfo[] = [];
+  for (const item of listed) {
+    const { entry } = item;
+    const key = `${path.basename(item.directory)}/${entry.id}`;
+    recoveryListed.set(key, item);
+    const stat = entry.originalPath ? await fsSync.promises.stat(entry.originalPath).then(s => ({ mtimeMs: s.mtimeMs, size: s.size }), () => null) : null;
+    entries.push({
+      key,
+      kind: entry.kind,
+      name: entry.originalPath ? path.basename(entry.originalPath) : "",
+      path: entry.originalPath,
+      savedAt: entry.savedAt,
+      ...(entry.task ? { task: entry.task } : {}),
+      verdict: classifyRestore(entry, stat),
+    });
+  }
+  sendHome({ type: "recovery", entries });
+}
+
+/** Restore into new work, then discard the entry only once an equivalent live checkpoint exists. */
+async function restoreRecovery(key: string): Promise<void> {
+  const item = recoveryListed.get(key);
+  if (!item || !recovery || !main) return;
+  const { entry } = item;
+  const stat = entry.originalPath ? await fsSync.promises.stat(entry.originalPath).then(s => ({ mtimeMs: s.mtimeMs, size: s.size }), () => null) : null;
+  if (classifyRestore(entry, stat) !== "restorable") {
+    toast("warning", t("{0} changed since this was saved, so it was not restored. Use Show file or Discard.", { 0: entry.originalPath ? path.basename(entry.originalPath) : "" }));
+    return;
+  }
+  const done = () => { void recovery?.discard(item).then(pushRecovery); };
+  if (entry.kind === "mesh") {
+    const recipe = recovery.recipeFileOf(item);
+    if (!recipe || !fsSync.existsSync(recipe)) { toast("warning", t("The saved operations for this mesh are missing.")); return; }
+    const tab = createTab("mesh");
+    meshHosts.get(tab.id)?.openRecovered(entry.originalPath, recipe, done);
+    setScreen("mesh");
+    return;
+  }
+  if (!editor) return;
+  if (editor.isDirty()) { toast("warning", t("Save or close the text editor's current changes before restoring another buffer.")); return; }
+  editor.openRecovered(entry.originalPath, entry.content);
+  void editor.checkpointCurrent().then(ok => { if (ok) done(); });
 }
 
 /** Pushes the project root to the shell chip and the home screen. Only an
@@ -681,7 +746,7 @@ function createTab(mode: Mode) {
     }
     meshHosts.set(
       tab.id,
-      new MeshHost(tab.view, __dirname, meshHostHooks(tab.id), flowgraph, runs, recents)
+      new MeshHost(tab.view, __dirname, meshHostHooks(tab.id), flowgraph, runs, recents, recovery ? { service: recovery, task: recoveryTask } : undefined)
     );
   }
   // Pipe webview console output through main for headless debugging/e2e.
@@ -1354,6 +1419,7 @@ app.whenReady().then(() => {
   configureLocale();
   configureAppearance();
   configurePerformance();
+  recovery = new RecoveryService(path.join(app.getPath("userData"), "recovery"));
   main = createMainWindow(__dirname, stateStore.get<number>(UI_ZOOM_KEY, DEFAULT_ZOOM) ?? DEFAULT_ZOOM, {
     onViewCrash,
     onViewUnresponsive: (ref) => { if (!quitting) unresponsiveGuard.unresponsive(viewKey(ref), ref); },
@@ -1426,6 +1492,7 @@ app.whenReady().then(() => {
     getWindow: () => main!.win,
     showEditor: () => setScreen("editor"),
     onTitle: (fileName, dirty) => sendShell({ type: "title", view: "editor", fileName, dirty }),
+    recovery: recovery ? { service: recovery, task: recoveryTask } : undefined,
   });
 
   // Closing the window is the one destructive path for an unsaved buffer —
@@ -1781,6 +1848,15 @@ app.whenReady().then(() => {
       pushRecents();
       pushProjectRoot();
       void pushWorkflows();
+      void pushRecovery();
+      return;
+    }
+    if (msg.type === "recoveryRestore" || msg.type === "recoveryShow" || msg.type === "recoveryDiscard") {
+      const item = typeof msg.key === "string" ? recoveryListed.get(msg.key) : undefined;
+      if (!item) return;
+      if (msg.type === "recoveryRestore") void restoreRecovery(msg.key);
+      else if (msg.type === "recoveryShow") shell.showItemInFolder(item.entry.originalPath && fsSync.existsSync(item.entry.originalPath) ? item.entry.originalPath : path.join(item.directory, item.files[0]));
+      else void recovery?.discard(item).then(pushRecovery);
       return;
     }
     if (msg.type === "checkEnvironment") { void checkSimulationEnvironment(); return; }
@@ -1914,6 +1990,11 @@ app.whenReady().then(() => {
 
   // Each external open gets an empty tab, preserving restored and active work.
   reportUnsupported(...startupUnsupported);
+  // Interrupted-session work is offered, never applied: a toast points at the
+  // Home notice, which keeps the entries until the user decides.
+  void pushRecovery().then(() => {
+    if (recoveryListed.size > 0) toast("warning", t("Unsaved work from an interrupted session was found."), { label: t("Review"), run: () => setScreen("home") });
+  }).catch(error => console.error("Recovery scan failed", error));
   launchQueue.ready(file => {
     const mode = modeForFile(file, main!.mode());
     if (!mode) return;
@@ -2043,6 +2124,9 @@ app.on("will-quit", () => {
   // a spawned child isn't re-parented to init with a broken stdout pipe.
   runs?.dispose();
   recents?.dispose();
+  // A clean close: this session's checkpoints are resolved (saved, discarded
+  // by the close prompts, or already written as flat shutdown entries).
+  recovery?.dispose();
 });
 
 app.on("window-all-closed", () => {

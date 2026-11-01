@@ -119,6 +119,16 @@ KKSS reopens your last session on launch: every document you had open in each mo
 
 Turn it off with **Settings ▸ Restore Last Session** to start clean every time. (Setting `KKSS_NO_RESTORE=1` in the environment does the same for one launch, which is handy if a particular document is giving the viewer trouble.) Opening a file from the command line always wins: it takes the screen and gets its own tab, leaving the restored documents untouched.
 
+### Recovering unsaved work after a crash
+
+Unsaved mesh operations and unsaved text-editor changes are copied to a recovery folder a moment after you make them (about a second and a half for a mesh, two seconds for the editor), and removed again as soon as you save, revert or close them. If KKSS is killed, crashes or loses power, the next launch shows a **Unsaved work from an interrupted session** notice on Home (and a toast pointing at it). Each entry offers **Restore into a new tab** (or **Restore into the text editor**), **Show file** and **Discard**.
+
+- Nothing is applied for you. An entry stays on Home until you restore or discard it, so you can decide later.
+- A mesh entry replays its recorded operations over the original file in a **new** tab, which starts out unsaved; the file on disk is never touched until you save. If the file changed after the checkpoint (or is gone), Restore is disabled and you can still show or discard the entry.
+- A text-editor entry is restored only when the editor has no unsaved changes of its own. It is shown as unsaved; nothing is written to your file.
+- The notice also says when a Kratos run was active at the time, so you know what the interrupted session was doing. Solver runs themselves are not affected.
+- CAD tabs need none of this: their edits already autosave beside the model.
+
 The toolbar also has an **interface-scale** picker on the right (75 %–150 %) for adjusting how large the whole app appears — useful on high-DPI or low-resolution displays. It scales every part of the window (toolbar, viewers, terminal, chat) together, is remembered across launches, and can also be driven from the keyboard: `Ctrl +` / `Ctrl -` step through the sizes and `Ctrl+Shift+0` resets to 100 % (also under **View ▸ Zoom In / Zoom Out / Reset Zoom**).
 
 | 🔷 Pre-Processing | 🔶 Post-Processing |

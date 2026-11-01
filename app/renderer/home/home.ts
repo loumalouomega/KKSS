@@ -13,7 +13,7 @@ import { WorkflowForm, type WorkflowField } from "./workflowForm";
 import { HOME_BUTTONS } from "./homeConfig";
 import { convergencePlots } from "../../shared/convergencePlots";
 import { TOOLBAR_ICONS } from "../shell/shellIcons";
-import type { HomeToWebview, ProjectRootInfo, RecentEntry } from "../../main/ipc";
+import type { HomeToWebview, ProjectRootInfo, RecentEntry, RecoveryInfo } from "../../main/ipc";
 
 declare global {
   interface Window {
@@ -80,6 +80,64 @@ function renderRecents(entries: RecentEntry[]): void {
     recentsList.appendChild(button);
   }
   recents.hidden = entries.length === 0;
+}
+
+const recovery = document.getElementById("recovery") as HTMLElement;
+const recoveryList = document.getElementById("recovery-list") as HTMLDivElement;
+
+/** Task codes main stores with a checkpoint; anything unknown is simply not shown. */
+function recoveryTaskText(code: string | undefined): string | null {
+  return code === "kratosRun" ? t("A Kratos run was active.") : null;
+}
+
+function recoveryButton(label: string, key: string, type: "recoveryRestore" | "recoveryShow" | "recoveryDiscard", disabled = false): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn";
+  button.textContent = label;
+  button.disabled = disabled;
+  button.addEventListener("click", () => api.post({ type, key }));
+  return button;
+}
+
+function renderRecovery(entries: RecoveryInfo[]): void {
+  recoveryList.replaceChildren();
+  for (const entry of entries) {
+    const row = document.createElement("div");
+    row.className = "recovery-row";
+    row.setAttribute("role", "group");
+    // textContent throughout: a file name is data, never markup.
+    const title = document.createElement("div");
+    title.className = "recovery-title";
+    title.textContent = entry.kind === "mesh"
+      ? t("Mesh operations on {0}", { 0: entry.name })
+      : entry.name ? t("Text editor changes to {0}", { 0: entry.name }) : t("Untitled text editor buffer");
+    row.append(title);
+    const detail = document.createElement("div");
+    detail.className = "recovery-detail";
+    const when = entry.savedAt ? t("Saved {0}", { 0: new Date(entry.savedAt).toLocaleString() }) : "";
+    detail.textContent = [when, recoveryTaskText(entry.task)].filter(Boolean).join(" · ");
+    if (detail.textContent) row.append(detail);
+    if (entry.verdict !== "restorable") {
+      const warn = document.createElement("div");
+      warn.className = "recovery-warn";
+      warn.setAttribute("role", "note");
+      warn.textContent = entry.verdict === "sourceMissing"
+        ? t("The original file no longer exists, so this cannot be restored.")
+        : t("The file changed after this was saved, so it will not be restored over it.");
+      row.append(warn);
+    }
+    const actions = document.createElement("div");
+    actions.className = "recovery-actions";
+    actions.append(
+      recoveryButton(entry.kind === "mesh" ? t("Restore into a new tab") : t("Restore into the text editor"), entry.key, "recoveryRestore", entry.verdict !== "restorable"),
+      recoveryButton(t("Show file"), entry.key, "recoveryShow"),
+      recoveryButton(t("Discard"), entry.key, "recoveryDiscard"),
+    );
+    row.append(actions);
+    recoveryList.append(row);
+  }
+  recovery.hidden = entries.length === 0;
 }
 
 const projectRootSection = document.getElementById("project-root") as HTMLElement;
@@ -393,6 +451,7 @@ function renderProjectRoot(info: ProjectRootInfo): void {
 api.onMessage((raw) => {
   const message = raw as HomeToWebview;
   if (message?.type === "recents") renderRecents(message.entries);
+  if (message?.type === "recovery") renderRecovery(message.entries);
   else if (message?.type === "projectRoot") renderProjectRoot(message);
   else if (message?.type === "workflowState") renderWorkflow(message.value);
   else if (message?.type === "environmentReport") {

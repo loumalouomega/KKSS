@@ -14,6 +14,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { EditorLanguage, EditorToHost, EditorToWebview } from "../ipc";
 import { writeFileAtomic } from "./atomicWrite";
+import type { RecoveryService } from "./recovery";
 import { toast } from "./notifications";
 import { projectRoot } from "./projectRoot";
 
@@ -48,7 +49,11 @@ export interface EditorDeps {
   showEditor(): void;
   /** Update the shell title line for the editor view. */
   onTitle(fileName: string | null, dirty: boolean): void;
+  /** Crash-recovery checkpoints for the dirty buffer; absent in tests. */
+  recovery?: { service: RecoveryService; task?: () => string | undefined };
 }
+
+const EDITOR_CHECKPOINT_ID = "editor";
 
 export class EditorService {
   private currentPath: string | null = null;
@@ -85,7 +90,18 @@ export class EditorService {
           break;
         case "dirty":
           this.dirty = msg.dirty;
+          // Clean again (saved or reverted): nothing is only-in-memory any more.
+          if (!msg.dirty) void this.deps.recovery?.service.clear(EDITOR_CHECKPOINT_ID);
           this.title();
+          break;
+        case "checkpoint":
+          // The renderer debounces these; a stale one racing a save must not
+          // resurrect a checkpoint for a buffer that is now clean.
+          if (this.dirty && typeof msg.content === "string") {
+            const recovery = this.deps.recovery;
+            void recovery?.service.checkpointEditor(EDITOR_CHECKPOINT_ID, this.currentPath, msg.content, recovery.task?.())
+              .catch(error => console.error("Editor checkpoint failed", error));
+          }
           break;
       }
     });
@@ -170,6 +186,28 @@ export class EditorService {
     this.title();
   }
 
+  /**
+   * Shows a recovered buffer as unsaved work (never written to disk here).
+   * `originalPath` null = an untitled buffer. Resolves once the renderer has
+   * been handed it; the caller discards the old entry after re-checkpointing.
+   */
+  openRecovered(originalPath: string | null, content: string): void {
+    this.currentPath = originalPath;
+    this.dirty = true;
+    this.lastDoc = { type: "doc", path: originalPath ?? "", content, language: originalPath ? languageFor(originalPath) : "plain", dirty: true };
+    this.send(this.lastDoc);
+    this.deps.showEditor();
+    this.title();
+  }
+
+  /** Writes the current dirty buffer's checkpoint now (after a recovered open). */
+  async checkpointCurrent(): Promise<boolean> {
+    const recovery = this.deps.recovery;
+    const doc = this.lastDoc;
+    if (!recovery || !this.dirty || !doc || doc.type !== "doc") return false;
+    return recovery.service.checkpointEditor(EDITOR_CHECKPOINT_ID, this.currentPath, doc.content, recovery.task?.());
+  }
+
   /** Asks the renderer for its buffer; save() runs when it answers. */
   requestSave(saveAs: boolean): void {
     this.send({ type: "requestSave", saveAs });
@@ -218,6 +256,7 @@ export class EditorService {
     await fs.promises.writeFile(target, content, "utf8");
     this.currentPath = target;
     this.dirty = false;
+    void this.deps.recovery?.service.clear(EDITOR_CHECKPOINT_ID);
     this.send({ type: "saved", path: target });
     this.title();
     if (this.pendingClose) {

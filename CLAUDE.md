@@ -925,7 +925,7 @@ resubmitted automatically.
   (`workflows.test.ts`); that test caught a real defect — `run.sh` `cd`s into `input/`, so a *relative* run directory
   sent the log and terminal receipt to the wrong place and the run stayed `running` forever — fixed by resolving
   `d` to an absolute path first (`remoteRunScript`; regression in `remoteRunner.test.ts`). The system prompt now
-  describes `solvesRunOn`. Verified against a real loopback sshd from a Linux client (`test/sshdLive.test.ts`, opt-in via `KKSS_SSHD_HOST`: open/write-back/conflict copy, `ssh -tt` shell, detached solve with checksum-verified downloads, group cancel); not done: Windows/macOS clients and a non-loopback host (roadmap item 5).
+  describes `solvesRunOn`. Verified against a real loopback sshd from a Linux client (`test/sshdLive.test.ts`, opt-in via `KKSS_SSHD_HOST`: open/write-back/conflict copy, `ssh -tt` shell, detached solve with checksum-verified downloads, group cancel); not done: Windows/macOS clients and a non-loopback host (roadmap item 11).
 - **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
   which owns both zoom re-assertion on `did-finish-load` and renderer-crash
   reporting — adding a view without it silently opts that view out of both.
@@ -1010,6 +1010,24 @@ resubmitted automatically.
   one flat space with KKSS's own — and a mesh bump can claim a new one. **Check
   a new key against the submodule tree before using it**; `recentFiles`,
   `session` and `restoreSession` were chosen that way.
+- **Recovery is offered, never applied, and ownership is pid + start time.**
+  `services/recovery.ts` (glue) over `recoveryCore.ts` (pure) checkpoints a dirty
+  mesh tab's operation recipe and the dirty editor buffer into
+  `<userData>/recovery/<pid>-<startSeconds>/` through `atomicWrite.ts`, clears
+  them on save/revert/close, and removes the folder on a clean `will-quit`. A
+  folder is orphaned when its pid is dead **or reused** (a different start
+  time); an unreadable start time on a live pid keeps the folder — a kept
+  orphan is tidy-up, a deleted live checkpoint is lost work. Orphans (plus the
+  legacy flat files `saveForShutdown` writes) are listed on Home with Restore /
+  Show / Discard, keyed by an opaque string main re-validates; they stay until
+  the user decides. A mesh restore opens a **new** tab through the provider's
+  own `restoreOpsFromBackup` (the shim's `Uri.parse` round-trips `file://`
+  strings for exactly this), is refused when the source changed or vanished, and
+  discards the old entry only after the restored tab has re-checkpointed. The
+  editor restore refuses over unsaved editor text and never writes the user's
+  file. Restores record nothing in recents. CAD tabs need none of it. Task codes
+  stored with a checkpoint (`kratosRun`) are translated by the Home renderer,
+  never stored as prose. Chat parity: none.
 - **Session restore is opt-out, prunes first, and never records.** Gated by
   `KKSS_E2E` (the e2e harnesses launch the real app, so a restore would perturb
   every case and screenshot unless `KKSS_E2E_RESTORE=1` opts in), `KKSS_NO_RESTORE=1`, and **Settings ▸ Restore Last
