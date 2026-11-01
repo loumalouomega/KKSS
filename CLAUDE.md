@@ -2550,6 +2550,8 @@ check GPL/AGPL compatibility first (same rule as cad's CLAUDE.md).
 
 `services/helpMap.ts` (pure) maps a screen to a manual page/anchor for **F1** (Help ▸ Help for This Screen, `showManual(path)`); `test/helpMap.test.ts` fails when a target heading is renamed.
 
+`services/menuAvailability.ts` owns the reason for a disabled menu item (`postProcessingOnly`, `needsMeshDocument`); `menu.ts` derives both `enabled` and the label suffix from the same call, so they cannot drift. Add new gated items through it.
+
 ## Child environments and diagnostics
 
 `services/childEnv.ts` (`externalProcessEnv`, configured once from `app.isPackaged`) strips packager loader/home variables and Electron switches from every user-program environment: the terminal, uv/uvx and Kratos MCP children, Kratos runtime commands and solver runs. The Node MCP children keep `ELECTRON_RUN_AS_NODE` and the raw environment on purpose. `services/diagnosticsCore.ts` (pure) + `diagnostics.ts` back **Help ▸ Export Diagnostics…**: a store-only zip with a manifest, settings with secrets reduced to `isSet`, and home/temp path placeholders. Nothing is transmitted. `doc/guide/configuration.md`'s two reference islands are generated (`test/docsReference.test.ts`; `UPDATE_DOCS_REFERENCE=1` rewrites them).
