@@ -987,5 +987,16 @@
   "Diagnostics written to {0}": "Diagnostics written to {0}",
   "Help for This Screen": "Help for This Screen",
   " (Post-Processing only)": " (Post-Processing only)",
-  " (open a mesh first)": " (open a mesh first)"
+  " (open a mesh first)": " (open a mesh first)",
+  "Export Project Archive…": "Export Project Archive…",
+  "Import Project Archive…": "Import Project Archive…",
+  "What should the archive contain?": "What should the archive contain?",
+  "Sources and meshes only": "Sources and meshes only",
+  "Include run files": "Include run files",
+  "Choose a project folder on Home first.": "Choose a project folder on Home first.",
+  "Archive written to {0}: {1} files, {2} missing, {3} external references not packed.": "Archive written to {0}: {1} files, {2} missing, {3} external references not packed.",
+  "Choose an empty folder to unpack into": "Choose an empty folder to unpack into",
+  "Unpack here": "Unpack here",
+  "Nothing was unpacked.": "Nothing was unpacked.",
+  "Unpacked {0} files; {1} damaged or missing, {2} external references need relinking.": "Unpacked {0} files; {1} damaged or missing, {2} external references need relinking."
 }

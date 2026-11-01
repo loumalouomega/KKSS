@@ -2546,7 +2546,7 @@ check GPL/AGPL compatibility first (same rule as cad's CLAUDE.md).
 
 ## Project archive
 
-`workflows/projectArchive.ts` (pure) + `WorkflowService.projectPack/projectUnpack` (`app__project_pack` / `app__project_unpack`, both `write`, unscoped like every `app__` tool). Layout `manifest.json` + `files/<relative path>`; store-only zip (reuses `diagnosticsCore.zipStore`; the reader refuses compressed members). Without `includeRuns` the packaged `project.json` has empty runs and a paused, empty queue. External references are listed in the manifest, never packed. Unpack verifies every SHA-256, lists `missing`/`damaged`/`unsafe` members instead of failing whole, and refuses (returning the conflicts) when any destination file already exists. No menu entry yet: the assistant path is the only front end.
+`workflows/projectArchive.ts` (pure) + `WorkflowService.projectPack/projectUnpack` (`app__project_pack` / `app__project_unpack`, both `write`, unscoped like every `app__` tool). Layout `manifest.json` + `files/<relative path>`; store-only zip (reuses `diagnosticsCore.zipStore`; the reader refuses compressed members). Without `includeRuns` the packaged `project.json` has empty runs and a paused, empty queue. External references are listed in the manifest, never packed. Unpack verifies every SHA-256, lists `missing`/`damaged`/`unsafe` members instead of failing whole, and refuses (returning the conflicts) when any destination file already exists. **File ▸ Export/Import Project Archive…** (`projectArchiveUi.ts`) call the same two service methods.
 
 `services/helpMap.ts` (pure) maps a screen to a manual page/anchor for **F1** (Help ▸ Help for This Screen, `showManual(path)`); `test/helpMap.test.ts` fails when a target heading is renamed.
 

@@ -25,6 +25,7 @@ import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsup
 import { showOpenDialog } from "./services/dialogs";
 import { openExample } from "./services/examples";
 import { exportDiagnostics } from "./services/diagnostics";
+import { exportProjectArchive, importProjectArchive } from "./services/projectArchiveUi";
 import { helpPath, type HelpContext } from "./services/helpMap";
 import { showManual } from "./services/manual";
 import { configurePicker } from "./services/quickPick";
@@ -1734,6 +1735,8 @@ app.whenReady().then(() => {
     // "unavailable" note and the viewer's actual fallback cannot disagree.
     meshRendererRuntime: () => rendererAssetsPresent(__dirname),
     exportDiagnostics: () => void exportDiagnostics(),
+    exportProjectArchive: () => void exportProjectArchive(workflows),
+    importProjectArchive: () => void importProjectArchive(workflows),
     contextHelp: () => {
       const screen = main!.screen();
       const ctx: HelpContext = screen === "cad" || screen === "mesh" || screen === "home" || screen === "editor" ? screen

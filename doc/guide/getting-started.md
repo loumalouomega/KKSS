@@ -93,7 +93,7 @@ Set **Settings → Kratos → Solver threads** to a positive OpenMP allocation, 
 | **Compare variants**, **Export comparison** | Parent/variant comparison; offline export For a sweep it also tabulates the swept parameters against each compatible saved quantity (a parameter or value a row lacks stays *missing*, never zero) and plots the value against a numeric swept parameter in the export. | `app__variants_compare`, `app__variants_compare_export` |
 | **Evaluate quantity**, **Refinement metadata** | Saves a revision-bound quantity; records the sizing assumptions of a run | `app__run_quantity_evaluate`, `app__run_refinement_set` |
 
-**Sharing a project.** The assistant's `app__project_pack` writes `.kkss/project.json` plus every project-contained source, mesh, case input and (with `includeRuns`) run file into one archive with a SHA-256 manifest; `app__project_unpack` restores it into an empty folder, lists damaged or missing members, refuses traversal and absolute paths, never overwrites and reports external references that need relinking. Archives are store-only zips KKSS wrote itself.
+**Sharing a project.** **File ▸ Export Project Archive…** writes `.kkss/project.json` plus every project-contained source, mesh and case input (optionally the run files too) into one archive with a SHA-256 manifest; **Import Project Archive…** unpacks it into a folder you pick. Import verifies every hash, lists damaged or missing files instead of failing whole, refuses traversal and absolute paths, never overwrites existing files, and reports external references that need relinking. The assistant has the same operations as `app__project_pack` / `app__project_unpack`. Archives are store-only zips KKSS wrote itself.
 
 ### Working from cloud storage
 

@@ -987,5 +987,16 @@
   "Diagnostics written to {0}": "Diagnósticos escritos en {0}",
   "Help for This Screen": "Ayuda de esta pantalla",
   " (Post-Processing only)": " (solo Post-procesado)",
-  " (open a mesh first)": " (abra una malla primero)"
+  " (open a mesh first)": " (abra una malla primero)",
+  "Export Project Archive…": "Exportar archivo de proyecto…",
+  "Import Project Archive…": "Importar archivo de proyecto…",
+  "What should the archive contain?": "¿Qué debe contener el archivo?",
+  "Sources and meshes only": "Solo fuentes y mallas",
+  "Include run files": "Incluir archivos de ejecución",
+  "Choose a project folder on Home first.": "Elija primero una carpeta de proyecto en Inicio.",
+  "Archive written to {0}: {1} files, {2} missing, {3} external references not packed.": "Archivo escrito en {0}: {1} archivos, {2} ausentes, {3} referencias externas sin empaquetar.",
+  "Choose an empty folder to unpack into": "Elija una carpeta vacía donde desempaquetar",
+  "Unpack here": "Desempaquetar aquí",
+  "Nothing was unpacked.": "No se desempaquetó nada.",
+  "Unpacked {0} files; {1} damaged or missing, {2} external references need relinking.": "Se desempaquetaron {0} archivos; {1} dañados o ausentes, {2} referencias externas por reenlazar."
 }

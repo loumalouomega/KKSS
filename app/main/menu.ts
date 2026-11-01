@@ -122,6 +122,8 @@ export interface MenuDeps {
   openExample(id: string): void;
   /** F1 — the manual page for whatever screen has focus. */
   contextHelp(): void;
+  exportProjectArchive(): void;
+  importProjectArchive(): void;
   /** Help ▸ Export Diagnostics… — writes a redacted zip the user chooses; nothing is sent. */
   exportDiagnostics(): void;
   /**
@@ -392,6 +394,8 @@ export function installMenu(deps: MenuDeps): void {
           enabled: deps.projectRoot.isSet() && !stateStore.isManaged("projectRoot"),
           click: () => deps.projectRoot.clear(),
         },
+        { label: t("Export Project Archive…"), click: () => deps.exportProjectArchive() },
+        { label: t("Import Project Archive…"), click: () => deps.importProjectArchive() },
         { type: "separator" },
         {
           label: t("Open…"),
