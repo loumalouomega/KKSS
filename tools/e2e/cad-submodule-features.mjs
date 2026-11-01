@@ -55,5 +55,5 @@ await scenario('cad-submodule-features', async c => {
   await warpScale.waitFor();
   assert.equal(await warpScale.getAttribute('max'), '1000');
   await warpScale.evaluate(el => { el.value = '1000'; el.dispatchEvent(new Event('input', { bubbles: true })); });
-  await mesh.locator('#field-panel').getByText('1000.0×', { exact: true }).waitFor();
+  await mesh.locator('#field-panel').getByText('1000×', { exact: true }).waitFor();
 });
