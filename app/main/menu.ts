@@ -119,6 +119,8 @@ export interface MenuDeps {
   openSettings(): void;
   /** Help ▸ Examples ▸ <case> — unpack a shipped tutorial case and open it. */
   openExample(id: string): void;
+  /** F1 — the manual page for whatever screen has focus. */
+  contextHelp(): void;
   /** Help ▸ Export Diagnostics… — writes a redacted zip the user chooses; nothing is sent. */
   exportDiagnostics(): void;
   /**
@@ -879,6 +881,7 @@ export function installMenu(deps: MenuDeps): void {
       label: t("&Help"),
       submenu: [
         { label: t("KKSS Manual…"), click: () => showManual() },
+        { label: t("Help for This Screen"), accelerator: "F1", click: () => deps.contextHelp() },
         {
           label: t("Examples"),
           submenu: EXAMPLES.map((e) => ({ label: t(e.label), click: () => deps.openExample(e.id) })),

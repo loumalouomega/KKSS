@@ -386,6 +386,7 @@ Opening a very large mesh can freeze a viewer for a while — that is normal, an
 | — | **File ▸ Open Folder…** sets the project folder; **Clear Project Root** reverts to inferring it |
 | — | **File ▸ Open Recent** reopens one of the last ten files, in the mode it was opened in |
 | — | **File ▸ New Blank Model…** creates an empty `.brep` to build from scratch (Pre-Processing) |
+| `F1` | Open the manual at the section for the focused screen (Home, editor, CAD, Post-Processing, chat) |
 | `Ctrl+W` | Close the focused tab |
 | `Ctrl+S` | Save (CAD: flush sidecars, then write unbaked edits into the STEP/IGES/BREP/STL/OBJ/PLY source · Mesh: overwrite the source file) |
 | `Ctrl+Shift+S` | Save As |
