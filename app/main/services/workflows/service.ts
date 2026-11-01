@@ -1241,6 +1241,36 @@ export class WorkflowService {
     return { unpacked: true, destination: dest, files: plan.files.length, problems: plan.problems, externalReferences: unresolved };
   }
 
+  /** Receipt, environment report and solver-log tails of the selected run, for the diagnostics bundle. Text only, capped. */
+  async runDiagnostics(): Promise<{ name: string; text: string }[]> {
+    const out: { name: string; text: string }[] = [];
+    let store: ProjectStore;
+    try { store = this.store(); } catch { return out; }
+    const project = await store.read();
+    const study = project?.studies.find(x => x.id === project.activeStudyId);
+    const run = study?.runs.find(x => x.id === project?.activeRunId) ?? study?.runs[study.runs.length - 1];
+    if (!project || !study || !run) return out;
+    out.push({ name: 'run/receipt.json', text: JSON.stringify({ studyId: study.id, run: { id: run.id, state: run.state, settings: run.settings, resources: run.resources, outputFindings: run.outputFindings, receipt: run.receipt } }, null, 2) });
+    try { out.push({ name: 'run/environment.json', text: JSON.stringify(await this.environment(false), null, 2) }); } catch { /* optional */ }
+    const dir = path.join(store.root, run.directory);
+    const walk = async (d: string, depth: number): Promise<void> => {
+      for (const e of await fs.readdir(d, { withFileTypes: true }).catch(() => [])) {
+        const full = path.join(d, e.name);
+        if (e.isDirectory() && depth < 3) await walk(full, depth + 1);
+        else if (e.isFile() && /\.(log|out|err)$/i.test(e.name) && out.length < 12) {
+          const handle = await fs.open(full, 'r');
+          try {
+            const { size } = await handle.stat(), len = Math.min(size, 100_000), buf = Buffer.alloc(len);
+            await handle.read(buf, 0, len, size - len);
+            out.push({ name: `run/${path.relative(dir, full).split(path.sep).join('/')}`, text: buf.toString('utf8') });
+          } finally { await handle.close(); }
+        }
+      }
+    };
+    await walk(dir, 0);
+    return out;
+  }
+
   tools(): AppTool[] {
     const tool = (name: string, description: string, properties: Record<string, unknown>, required: string[], invoke: AppTool['invoke']): AppTool => ({ name: `app__${name}`, description, inputSchema: { type: 'object', properties, required, additionalProperties: false }, invoke });
     const str = { type: 'string', minLength: 1 };

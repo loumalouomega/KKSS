@@ -30,7 +30,7 @@ Run `ssh -o BatchMode=yes <host> true` in a terminal: it must succeed without an
 
 ## Reporting a problem
 
-**Help ▸ Export Diagnostics…** writes one zip you choose the location of: app, Electron and Kratos MCP versions, platform, every setting (secrets reduced to *set / not set*) and a `manifest.json` listing each file. Home and temporary paths are replaced by placeholders and nothing is sent anywhere; review it, then attach it. Also attach the app version (Help ▸ About), the generated case folder, the solver log and, if the app crashed, the renderer-crash toast text. Home paths in logs may identify you; remove them before sharing.
+**Help ▸ Export Diagnostics…** writes one zip you choose the location of: app, Electron and Kratos MCP versions, platform, every setting (secrets reduced to *set / not set*), the MCP server statuses, the selected run's receipt, environment report and solver-log tails, and a `manifest.json` listing each file. Home and temporary paths are replaced by placeholders and nothing is sent anywhere; review it, then attach it. Also attach the app version (Help ▸ About), the generated case folder, the solver log and, if the app crashed, the renderer-crash toast text. Home paths in logs may identify you; remove them before sharing.
 
 ## Coming from GiD
 

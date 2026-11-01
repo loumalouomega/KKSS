@@ -12,7 +12,7 @@ import { KRATOS_MCP_VERSION } from "./chat/kratosMcpVersion";
 import { buildBundle, redactPaths, redactSettings, textFile, zipStore } from "./diagnosticsCore";
 
 /** Everything the bundle holds is built here; nothing is sent anywhere. */
-export async function exportDiagnostics(extra: { statuses?: () => unknown } = {}): Promise<void> {
+export async function exportDiagnostics(extra: { statuses?: () => unknown; runFiles?: () => Promise<{ name: string; text: string }[]> } = {}): Promise<void> {
   try {
     const dest = await showSaveDialog({
       title: t("Export Diagnostics…"),
@@ -32,6 +32,7 @@ export async function exportDiagnostics(extra: { statuses?: () => unknown } = {}
       textFile("settings.json", json(settings)),
       textFile("mcp-servers.json", json(extra.statuses?.() ?? null)),
     ];
+    for (const f of (await extra.runFiles?.().catch(() => [])) ?? []) files.push(textFile(f.name, redactPaths(f.text, r)));
     await writeFileAtomic(dest, Buffer.from(zipStore(buildBundle(files, new Date().toISOString()))));
     toast("info", t("Diagnostics written to {0}", { 0: dest }));
   } catch (err) {

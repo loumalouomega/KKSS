@@ -1734,7 +1734,7 @@ app.whenReady().then(() => {
     // The same check protocol.ts's mesh page rewrite uses, so the View menu's
     // "unavailable" note and the viewer's actual fallback cannot disagree.
     meshRendererRuntime: () => rendererAssetsPresent(__dirname),
-    exportDiagnostics: () => void exportDiagnostics(),
+    exportDiagnostics: () => void exportDiagnostics({ statuses: () => mcpHub?.statuses?.(), runFiles: () => workflows?.runDiagnostics() ?? Promise.resolve([]) }),
     exportProjectArchive: () => void exportProjectArchive(workflows),
     importProjectArchive: () => void importProjectArchive(workflows),
     contextHelp: () => {
