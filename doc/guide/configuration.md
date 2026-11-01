@@ -211,3 +211,528 @@ Note that the user-data dir is **not** inside your project folder, so syncing a 
 ## Command-line
 
 `kkss <file>` opens the given model on startup in the mode the file's extension implies. Several files may be given (`kkss a.step b.mdpa`); each opens in its own tab in the mode its extension implies, and duplicates are opened once. A relative path is resolved against the directory you ran the command from, including when the file is forwarded to an already-running KKSS. `kkss://open?file=<path>` links open the same way.
+
+## Settings reference
+
+Generated from `app/main/services/settings/registry.ts`; do not edit between the markers (`UPDATE_DOCS_REFERENCE=1 npm test -- docsReference` rewrites it, and CI fails when it drifts). Secrets are stored encrypted and never shown.
+
+<!-- reference:settings-reference:begin -->
+
+#### Appearance
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| UI Theme | `appearance.uiTheme` | one of `system`, `dark`, `light`, `hcDark`, `hcLight` | `system` | live | `uiTheme` |
+| 3D Scene Theme | `appearance.sceneTheme` | one of `auto`, `dark`, `light`, `scientific` | `auto` | nextOpen | `sceneTheme` |
+| UI Font Family | `appearance.fontFamily` | string | empty | live | `uiFontFamily` |
+| UI Font Size | `appearance.fontSize` | number | `13` | live | `uiFontSize` |
+| Interface Scale | `appearance.zoom` | one of `0.75`, `0.9`, `1`, `1.1`, `1.25`, `1.5` | `1` | live | `uiZoom` |
+
+#### General
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| Language | `general.language` | one of `en`, `es` | `en` | nextStart | `uiLanguage` |
+| Project Folder | `general.projectRoot` | action | — | — | `projectRoot` |
+| Restore Last Session | `general.restoreSession` | boolean | `true` | nextStart | `restoreSession` |
+| Show What's New After Updates | `general.showWhatsNew` | boolean | `true` | nextStart | `showWhatsNew` |
+| Update Channel | `general.updateChannel` | one of `stable`, `prerelease` | `stable` | live | `updateChannel` |
+
+#### CAD Viewer
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| Background | `cadPreview.background` | color | `#1e1e1e` | nextOpen | `cadBackground` |
+| Up Axis | `cadPreview.upAxis` | one of `y`, `z` | `y` | nextOpen | `cadUpAxis` |
+| Show Grid & Axes on Open | `cadPreview.showGridAndAxesOnOpen` | boolean | `true` | nextOpen | `cadShowGridAndAxesOnOpen` |
+| Default Mesh Size | `cadPreview.defaultMeshSizePreset` | one of `coarse`, `medium`, `fine` | `medium` | nextOpen | `cadDefaultMeshSizePreset` |
+| Tessellation Quality | `cadPreview.tessellationQuality` | one of `draft`, `standard`, `fine` | `standard` | nextRun | `cadTessellationQuality` |
+| OpenSCAD Binary | `cadPreview.openscadBinary` | path | `openscad` | nextOpen | `cadOpenscadBinary` |
+| OpenSCAD Backend | `cadPreview.openscadBackend` | one of `auto`, `cgal`, `manifold` | `auto` | nextOpen | `cadOpenscadBackend` |
+| OpenSCAD Library Folders | `cadPreview.openscadLibraryPaths` | stringList | empty | nextOpen | `cadOpenscadLibraryPaths` |
+| Kernel Job Timeout (minutes) | `cadPreview.kernelTimeoutMinutes` | number | `5` | nextOpen | `cadKernelTimeoutMinutes` |
+
+#### Mesh Viewer
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| Large-Mesh Summary Threshold (MB) | `kratos.preview.summaryThresholdMb` | number | `250` | nextOpen | `meshSummaryThresholdMb` |
+| Timeline Frame Cache (MB) | `kratos.preview.frameCacheMb` | number | `256` | live | `meshFrameCacheMb` |
+| 3D Renderer | `kratos.preview.renderer` | one of `vtkjs`, `vtkwasm` | `vtkjs` | nextOpen | `kratos.preview.renderer` |
+| Plot Extraction Cache | `kratos.plots.persistentCache` | boolean | `false` | live | `kratos.plots.persistentCache` |
+| Mesh Export Provenance | `kratos.export.provenance` | one of `auto`, `sidecar`, `none` | `auto` | live | `kratos.export.provenance` |
+| Flowgraph Split | `kratos.flowgraph.splitOrientation` | one of `horizontal`, `vertical` | `horizontal` | nextOpen | `kratos.flowgraph.splitOrientation` |
+
+#### Kratos
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| Solver Threads | `kratos.threads` | number | `0` | nextRun | `kratos.threads` |
+| MPI Ranks | `kratos.mpiRanks` | number | `0` | nextRun | `kratos.mpiRanks` |
+| Python Interpreter | `kratos.pythonPath` | path | empty | nextRun | `kratos.pythonPath` |
+| Kratos Install | `kratos.installPath` | path | empty | nextRun | `kratos.installPath` |
+| Extra Environment | `kratos.extraEnv` | stringMap | empty | nextRun | `kratos.extraEnv` |
+| Problemtype Folders | `kratos.problemtypes.extraPaths` | stringList | `[".kratos/problemtypes"]` | nextOpen | `kratos.problemtypes.extraPaths` |
+| Material Library Folders | `kratos.materials.extraPaths` | stringList | `[".kratos/materials"]` | nextOpen | `kratos.materials.extraPaths` |
+| Batch Recipe Folders | `kratos.recipes.extraPaths` | stringList | `[".kratos/recipes"]` | nextOpen | `kratos.recipes.extraPaths` |
+| Stop Runs on Quit | `kratos.run.stopOnWindowClose` | boolean | `true` | live | `kratos.run.stopOnWindowClose` |
+| Isolate Runs | `kratos.run.isolate` | boolean | `false` | nextRun | `kratos.run.isolate` |
+| Runs Folder | `kratos.run.runsFolder` | string | `runs` | nextRun | `kratos.run.runsFolder` |
+| Simulation Environment | `kratos.environment` | action | — | — | — |
+| Kratos Assistant Tools | `kratos.tools` | action | — | — | — |
+
+#### Text Editor
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| Font Size | `editor.fontSize` | number | `13` | live | `editor.fontSize` |
+| Font Family | `editor.fontFamily` | string | empty | live | `editor.fontFamily` |
+| Tab Size | `editor.tabSize` | number | `4` | live | `editor.tabSize` |
+| Word Wrap | `editor.wordWrap` | boolean | `false` | live | `editor.wordWrap` |
+| Line Numbers | `editor.lineNumbers` | boolean | `true` | live | `editor.lineNumbers` |
+
+#### Terminal
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| Shell | `terminal.shell` | one of ``, `/bin/bash`, `/bin/zsh` | empty | nextShell | `terminalShell` |
+| Font Size | `terminal.fontSize` | number | `13` | live | `terminal.fontSize` |
+| Font Family | `terminal.fontFamily` | string | empty | live | `terminal.fontFamily` |
+| Scrollback Lines | `terminal.scrollback` | number | `5000` | live | `terminal.scrollback` |
+| Cursor Style | `terminal.cursorStyle` | one of `block`, `underline`, `bar` | `block` | live | `terminal.cursorStyle` |
+| Cursor Blink | `terminal.cursorBlink` | boolean | `true` | live | `terminal.cursorBlink` |
+
+#### LLM Assistant
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| Provider | `llm.provider` | one of `anthropic`, `openai`, `opencode-zen`, `opencode-go`, `codex`, `claude-code` | `anthropic` | live | `llmProvider` |
+| Tool Approval | `llm.toolApproval` | one of `askOnWrite`, `askAlways`, `never` | `askOnWrite` | live | `llmToolApproval` |
+| Standing Instructions & Skills | `llm.assistantDefs` | boolean | `true` | live | `llmAssistantDefs` |
+| Instructions, Skills & Prompts Folder | `llm.assistantDefsFolder` | action | — | — | — |
+| Lifecycle Hooks | `llm.hooks` | boolean | `true` | live | `llmHooks` |
+| Kraty | `llm.kraty` | boolean | `false` | live | `llmKraty` |
+| MCP Servers | `llm.mcpServers` | action | — | — | — |
+| Anthropic API Key | `llm.anthropicKey` | secret | — | live | `llmKeyAnthropic` |
+| Anthropic Model | `llm.anthropicModel` | string | empty | live | `llmModelAnthropic` |
+| OpenAI-compatible API Key | `llm.openaiKey` | secret | — | live | `llmKeyOpenai` |
+| OpenAI-compatible Base URL | `llm.openaiBaseUrl` | string | empty | live | `llmOpenaiBaseUrl` |
+| OpenAI-compatible Model | `llm.openaiModel` | string | empty | live | `llmModelOpenai` |
+| OpenCode API Key | `llm.opencodeKey` | secret | — | live | `llmKeyOpencode` |
+| OpenCode Zen Model | `llm.zenModel` | string | empty | live | `llmModelZen` |
+| OpenCode Go Model | `llm.goModel` | string | empty | live | `llmModelGo` |
+| Codex Model | `llm.codexModel` | string | empty | live | `llmModelCodex` |
+| Codex Executable | `llm.codexExecutable` | path | empty | live | `llmCodexExecutable` |
+| Claude Code Model | `llm.claudeCodeModel` | string | empty | live | `llmModelClaudeCode` |
+| Claude Code Executable | `llm.claudeCodeExecutable` | path | empty | live | `llmClaudeCodeExecutable` |
+| Thinking | `llm.thinking` | one of `auto`, `off`, `low`, `high` | `auto` | live | `llmThinking` |
+| Max Output Tokens | `llm.maxOutputTokens` | number | — | live | `llmMaxOutputTokens` |
+| Allow Image Attachments (OpenAI-compatible) | `llm.imageInput` | boolean | `false` | live | `llmImageInput` |
+| Custom Context Window (tokens) | `llm.customContextWindow` | number | — | live | `llmCustomContextWindow` |
+| Custom Input Price (USD per 1M tokens) | `llm.customInputPrice` | number | — | live | `llmCustomInputPrice` |
+| Custom Output Price (USD per 1M tokens) | `llm.customOutputPrice` | number | — | live | `llmCustomOutputPrice` |
+| Custom Cache Read Price (USD per 1M tokens) | `llm.customCacheReadPrice` | number | — | live | `llmCustomCacheReadPrice` |
+| Custom Cache Write Price (USD per 1M tokens) | `llm.customCacheWritePrice` | number | — | live | `llmCustomCacheWritePrice` |
+
+#### MCP Server
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| Enable External Access | `mcpServer.enabled` | boolean | `false` | live | `metaServerEnabled` |
+| Port | `mcpServer.port` | number | `7391` | nextStart | `metaServerPort` |
+| Allowed Tools | `mcpServer.access` | one of `readOnly`, `readListed`, `all` | `readOnly` | live | `metaServerAccess` |
+| Allowed Write Tools | `mcpServer.allowedWrites` | stringList | empty | live | `metaServerAllowedTools` |
+| Address & Token | `mcpServer.token` | action | — | — | — |
+
+#### Cloud Accounts
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| Google Drive Client ID | `cloud.gdrive.clientId` | string | empty | live | `cloud.gdrive.clientId` |
+| Google Drive Client Secret | `cloud.gdrive.clientSecret` | secret | — | live | `cloud.gdrive.clientSecret` |
+| Google Drive Account | `cloud.gdrive.account` | action | — | — | — |
+| Dropbox Client ID | `cloud.dropbox.clientId` | string | empty | live | `cloud.dropbox.clientId` |
+| Dropbox Client Secret | `cloud.dropbox.clientSecret` | secret | — | live | `cloud.dropbox.clientSecret` |
+| Dropbox Account | `cloud.dropbox.account` | action | — | — | — |
+| OneDrive Client ID | `cloud.onedrive.clientId` | string | empty | live | `cloud.onedrive.clientId` |
+| OneDrive Client Secret | `cloud.onedrive.clientSecret` | secret | — | live | `cloud.onedrive.clientSecret` |
+| OneDrive Account | `cloud.onedrive.account` | action | — | — | — |
+| Cache Size Limit (MB) | `cloud.cacheLimitMb` | number | `2048` | live | `cloudCacheLimitMb` |
+| Cloud Cache | `cloud.cache` | action | — | — | — |
+
+#### Remote
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| SSH Hosts | `remote.hosts` | stringList | empty | live | `remote.hosts` |
+| Run Kratos tools on | `remote.kratosHost` | string | empty | nextStart | `remote.kratosHost` |
+
+#### Advanced
+
+| Setting | Id | Type | Default | Applies | Store key |
+| --- | --- | --- | --- | --- | --- |
+| Flowgraph Asset Override | `kratos.flowgraph.assetPathOverride` | path | empty | nextStart | `kratos.flowgraph.assetPathOverride` |
+
+<!-- reference:settings-reference:end -->
+
+## Assistant tool reference
+
+Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read* tools run without a prompt; *write* (and unlisted) tools are approved in the transcript. A project-folder grant is offered only for tools with listed path arguments.
+
+<!-- reference:tool-reference:begin -->
+
+| Server | Tools | Read | Write | Path-scoped |
+| --- | --- | --- | --- | --- |
+| `app` | 36 | 14 | 22 | 0 |
+| `cad` | 86 | 43 | 43 | 39 |
+| `kratos` | 110 | 45 | 65 | 44 |
+| `mcp` | 4 | 4 | 0 | 0 |
+| `mesh` | 55 | 21 | 34 | 28 |
+| `pdf` | 12 | 12 | 0 | 0 |
+
+<details><summary><code>app</code> (36)</summary>
+
+| Tool | Class | Project-folder grant |
+| --- | --- | --- |
+| `app__check_simulation_environment` | read | — |
+| `app__queue_cancel` | write | — |
+| `app__queue_enqueue` | write | — |
+| `app__queue_geometry_sweep_preview` | read | — |
+| `app__queue_inspect` | read | — |
+| `app__queue_parameter_sweep_preview` | read | — |
+| `app__queue_pause` | write | — |
+| `app__queue_plan_preview` | read | — |
+| `app__queue_reorder` | write | — |
+| `app__queue_resume` | write | — |
+| `app__queue_resume_row` | write | — |
+| `app__queue_retry_variant_preview` | read | — |
+| `app__queue_variants_preview` | read | — |
+| `app__run_compare` | read | — |
+| `app__run_quantity_evaluate` | write | — |
+| `app__run_refinement_set` | write | — |
+| `app__run_review` | read | — |
+| `app__run_review_export` | write | — |
+| `app__skill_load` | read | — |
+| `app__study_attach_mesh` | write | — |
+| `app__study_copy_source_into_project` | write | — |
+| `app__study_create` | write | — |
+| `app__study_duplicate` | write | — |
+| `app__study_import_handoff` | write | — |
+| `app__study_import_run` | write | — |
+| `app__study_list` | read | — |
+| `app__study_open` | write | — |
+| `app__study_region_references` | read | — |
+| `app__study_region_rename` | write | — |
+| `app__study_relink_source` | write | — |
+| `app__study_select` | write | — |
+| `app__study_set_settings` | write | — |
+| `app__variants_compare` | read | — |
+| `app__variants_compare_export` | write | — |
+| `app__variants_create` | write | — |
+| `app__variants_preview` | read | — |
+
+</details>
+
+<details><summary><code>cad</code> (86)</summary>
+
+| Tool | Class | Project-folder grant |
+| --- | --- | --- |
+| `cad__analyze_passages` | read | — |
+| `cad__apply_edit_ops` | write | paths: `path` |
+| `cad__apply_mesh_preset` | write | paths: `path`, `libraryPath` |
+| `cad__assign_layer` | write | paths: `path` |
+| `cad__batch_export` | write | — |
+| `cad__check_brep_health` | read | — |
+| `cad__check_draft` | read | — |
+| `cad__check_handoff_manifest` | read | — |
+| `cad__check_interference` | read | — |
+| `cad__check_interference_all` | read | — |
+| `cad__check_mesh_conformity` | read | — |
+| `cad__check_mesh_health` | read | — |
+| `cad__check_mesh_quality` | read | — |
+| `cad__check_printability` | read | — |
+| `cad__check_tolerance` | read | — |
+| `cad__compare_mesh_refinement` | write | paths: `path`, `outputDir` |
+| `cad__compare_models` | read | — |
+| `cad__convert_scad` | write | paths: `path`, `outputPath`, `libraryPaths` |
+| `cad__decompose_to_primitives` | write | paths: `path`, `outputPath`, `saveScript.libraryPath` |
+| `cad__describe_capabilities` | read | — |
+| `cad__download_standard_part` | write | paths: `outputPath` |
+| `cad__estimate_mesh_budget` | read | — |
+| `cad__export_brep` | write | paths: `path`, `outputPath` |
+| `cad__export_drawing_sheet` | write | paths: `path`, `outputPath`, `libraryPath` |
+| `cad__export_mesh` | write | paths: `path`, `outputPath`, `handoffPath`, `receiptPath` |
+| `cad__export_svg_silhouette` | write | paths: `path`, `outputPath` |
+| `cad__export_technical_drawing` | write | paths: `path`, `outputPath` |
+| `cad__export_tessellated_stl` | write | paths: `path`, `outputPath`, `libraryPath` |
+| `cad__fit_mesh_region` | write | paths: `path` |
+| `cad__fit_mesh_to_cad` | write | paths: `path`, `outputPath`, `cadJsonPath` |
+| `cad__generate_bom` | read | — |
+| `cad__generate_hole_table` | read | — |
+| `cad__generate_mesh` | read | — |
+| `cad__generate_prep_report` | write | paths: `path`, `outputDir`, `manifestPath` |
+| `cad__get_mass_properties` | read | — |
+| `cad__get_state` | read | — |
+| `cad__grow_prism_layers` | write | paths: `path`, `outputPath` |
+| `cad__hit_test` | read | — |
+| `cad__iga_evaluate` | read | — |
+| `cad__iga_refine` | write | paths: `path`, `outputPath` |
+| `cad__iga_sample` | read | — |
+| `cad__import_svg` | write | paths: `path`, `svgPath` |
+| `cad__inspect` | read | — |
+| `cad__inspect_meshio_fields` | read | — |
+| `cad__job_cancel` | write | — |
+| `cad__job_status` | read | — |
+| `cad__list_layers` | read | — |
+| `cad__list_mesh_presets` | read | — |
+| `cad__list_parametric_scripts` | read | — |
+| `cad__list_scad_parameters` | read | — |
+| `cad__list_sheet_templates` | read | — |
+| `cad__list_standard_hole_sizes` | read | — |
+| `cad__list_workspace_models` | read | — |
+| `cad__load_model` | read | — |
+| `cad__load_preprocess` | write | paths: `zipPath`, `outputPath` |
+| `cad__measure` | read | — |
+| `cad__measure_exact` | read | — |
+| `cad__measure_mesh_deviation` | write | paths: `path`, `deviationMeshPath` |
+| `cad__mesh_cad_surface` | write | paths: `path`, `outputPath` |
+| `cad__pin_annotation` | write | paths: `path` |
+| `cad__project_to_cad` | write | paths: `path`, `cadPath`, `outputPath` |
+| `cad__promote_mesh_to_brep` | write | paths: `path`, `outputPath` |
+| `cad__recognize_primitives` | read | — |
+| `cad__remesh_mesh` | write | paths: `path`, `outputPath` |
+| `cad__remove_edit_op` | write | paths: `path` |
+| `cad__render_ops_prefix` | read | — |
+| `cad__render_snapshot` | read | — |
+| `cad__repair_mesh` | write | paths: `path`, `outputPath` |
+| `cad__resolve_selector` | read | — |
+| `cad__run_parametric_script` | write | — |
+| `cad__run_saved_script` | write | — |
+| `cad__save_mesh_preset` | write | paths: `libraryPath` |
+| `cad__save_model` | write | paths: `path` |
+| `cad__save_parametric_script` | write | paths: `libraryPath` |
+| `cad__save_preprocess` | write | paths: `path`, `outputPath` |
+| `cad__save_sheet_template` | write | paths: `libraryPath` |
+| `cad__screenshot_shape` | read | — |
+| `cad__search_standard_parts` | read | — |
+| `cad__segment_mesh_surface` | read | — |
+| `cad__set_layer` | write | paths: `path` |
+| `cad__set_mesh_options` | write | paths: `path` |
+| `cad__set_part` | write | paths: `path` |
+| `cad__set_plane` | write | paths: `path` |
+| `cad__set_variables` | write | paths: `path` |
+| `cad__synthesize_selector` | read | — |
+| `cad__transform_mesh` | write | paths: `path`, `outputPath` |
+
+</details>
+
+<details><summary><code>kratos</code> (110)</summary>
+
+| Tool | Class | Project-folder grant |
+| --- | --- | --- |
+| `kratos__add_boundary_condition` | write | paths: `parameters_file` |
+| `kratos__add_output_process` | write | paths: `parameters_file`, `output_path`, `output_file` |
+| `kratos__add_remeshing_process` | write | paths: `parameters_file` |
+| `kratos__configure_checkpoints` | write | paths: `case_dir`, `parameters_file` |
+| `kratos__create_cosim_project` | write | — |
+| `kratos__create_fsi_project` | write | — |
+| `kratos__create_materials` | write | paths: `output_file` |
+| `kratos__create_multistage_project` | write | paths: `directory` |
+| `kratos__create_project` | write | paths: `directory` |
+| `kratos__create_project_parameters` | write | paths: `output_file` |
+| `kratos__explain_project_parameters` | read | — |
+| `kratos__export_case_to_flowgraph` | write | paths: `parameters_file`, `output_file` |
+| `kratos__import_flowgraph_to_case` | write | paths: `graph_file`, `output_file` |
+| `kratos__job_cancel` | write | — |
+| `kratos__job_checkpoints` | read | — |
+| `kratos__job_list` | read | — |
+| `kratos__job_logs` | read | — |
+| `kratos__job_rerun` | write | — |
+| `kratos__job_resume` | write | — |
+| `kratos__job_status` | read | — |
+| `kratos__kratos_check_installation` | read | — |
+| `kratos__kratos_get_process_defaults` | read | — |
+| `kratos__kratos_get_solver_defaults` | read | — |
+| `kratos__kratos_get_variable_info` | read | — |
+| `kratos__kratos_install` | write | — |
+| `kratos__kratos_list_applications` | read | — |
+| `kratos__kratos_list_conditions` | read | — |
+| `kratos__kratos_list_constitutive_laws` | read | — |
+| `kratos__kratos_list_elements` | read | — |
+| `kratos__kratos_list_processes` | read | — |
+| `kratos__kratos_list_solvers` | read | — |
+| `kratos__kratos_list_variables` | read | — |
+| `kratos__list_linear_solver_presets` | read | — |
+| `kratos__list_material_presets` | read | — |
+| `kratos__list_templates` | read | — |
+| `kratos__materials_check` | read | — |
+| `kratos__materials_get` | read | — |
+| `kratos__materials_remove_property` | write | paths: `materials_file` |
+| `kratos__materials_set_property` | write | paths: `materials_file` |
+| `kratos__mdpa_add_entities` | write | paths: `path`, `output` |
+| `kratos__mdpa_add_nodes` | write | paths: `path`, `output` |
+| `kratos__mdpa_convert_cells` | write | paths: `path`, `output` |
+| `kratos__mdpa_create_geometry_mesh` | write | paths: `path` |
+| `kratos__mdpa_create_structured_mesh` | write | paths: `path` |
+| `kratos__mdpa_create_sub_model_part` | write | paths: `path`, `output` |
+| `kratos__mdpa_delete_entities` | write | paths: `path`, `output` |
+| `kratos__mdpa_delete_nodes` | write | paths: `path`, `output` |
+| `kratos__mdpa_delete_table` | write | paths: `path`, `output` |
+| `kratos__mdpa_edit_sub_model_part` | write | paths: `path`, `output` |
+| `kratos__mdpa_extract` | write | paths: `path`, `output` |
+| `kratos__mdpa_extract_boundary` | write | paths: `path`, `output` |
+| `kratos__mdpa_extrude` | write | paths: `path`, `output` |
+| `kratos__mdpa_get_data_blocks` | read | — |
+| `kratos__mdpa_get_entities` | read | — |
+| `kratos__mdpa_get_nodes` | read | — |
+| `kratos__mdpa_inspect` | read | — |
+| `kratos__mdpa_merge` | write | paths: `path`, `other`, `output` |
+| `kratos__mdpa_move_nodes` | write | paths: `path`, `output` |
+| `kratos__mdpa_quality` | read | — |
+| `kratos__mdpa_renumber` | write | paths: `path`, `output` |
+| `kratos__mdpa_select_nodes` | read | — |
+| `kratos__mdpa_set_elemental_data` | write | paths: `path`, `output` |
+| `kratos__mdpa_set_entity_properties` | write | paths: `path`, `output` |
+| `kratos__mdpa_set_nodal_data` | write | paths: `path`, `output` |
+| `kratos__mdpa_set_properties` | write | paths: `path`, `output` |
+| `kratos__mdpa_set_sub_model_part_data` | write | paths: `path`, `output` |
+| `kratos__mdpa_set_table` | write | paths: `path`, `output` |
+| `kratos__mdpa_transform` | write | paths: `path`, `output` |
+| `kratos__mdpa_validate` | read | — |
+| `kratos__mesh_export` | write | paths: `path`, `output` |
+| `kratos__mesh_generate_gmsh` | write | paths: `output`, `cad_file` |
+| `kratos__mesh_import` | write | paths: `source`, `output` |
+| `kratos__mesh_remesh` | write | paths: `input_mdpa`, `output_mdpa` |
+| `kratos__project_add_process` | write | — |
+| `kratos__project_delete_setting` | write | paths: `parameters_file` |
+| `kratos__project_get_setting` | read | — |
+| `kratos__project_list_processes` | read | — |
+| `kratos__project_remove_process` | write | paths: `parameters_file` |
+| `kratos__project_set_setting` | write | — |
+| `kratos__project_update_process` | write | — |
+| `kratos__project_update_solver` | write | — |
+| `kratos__results_animate` | write | paths: `files`, `gif_path` |
+| `kratos__results_compare` | write | — |
+| `kratos__results_convergence` | read | — |
+| `kratos__results_list` | read | — |
+| `kratos__results_probe` | read | — |
+| `kratos__results_render` | write | paths: `file`, `image_path` |
+| `kratos__results_summary` | read | — |
+| `kratos__results_time_history` | write | — |
+| `kratos__run_simulation` | write | — |
+| `kratos__session_advance` | write | — |
+| `kratos__session_close` | write | — |
+| `kratos__session_exec_python` | write | — |
+| `kratos__session_field_summary` | read | — |
+| `kratos__session_get_parameters` | read | — |
+| `kratos__session_inspect_element` | read | — |
+| `kratos__session_inspect_node` | read | — |
+| `kratos__session_list` | read | — |
+| `kratos__session_model_info` | read | — |
+| `kratos__session_set_nodal_values` | write | — |
+| `kratos__session_start` | write | — |
+| `kratos__session_status` | read | — |
+| `kratos__study_cancel` | write | — |
+| `kratos__study_list` | read | — |
+| `kratos__study_results` | write | paths: `csv_file` |
+| `kratos__study_resume` | write | — |
+| `kratos__study_start` | write | — |
+| `kratos__study_status` | read | — |
+| `kratos__validate_case` | read | — |
+| `kratos__validate_project_parameters` | read | — |
+
+</details>
+
+<details><summary><code>mcp</code> (4)</summary>
+
+| Tool | Class | Project-folder grant |
+| --- | --- | --- |
+| `mcp__get_prompt` | read | — |
+| `mcp__list_prompts` | read | — |
+| `mcp__list_resources` | read | — |
+| `mcp__read_resource` | read | — |
+
+</details>
+
+<details><summary><code>mesh</code> (55)</summary>
+
+| Tool | Class | Project-folder grant |
+| --- | --- | --- |
+| `mesh__case_compare` | read | — |
+| `mesh__case_convergence` | write | paths: `meshPath`, `outputPath` |
+| `mesh__case_estimate_timestep` | read | — |
+| `mesh__case_evaluate_quantity` | read | — |
+| `mesh__case_export_results` | write | paths: `meshPath`, `folder` |
+| `mesh__case_generate` | write | paths: `meshPath`, `casePath` |
+| `mesh__case_material_assign` | write | paths: `meshPath`, `smpPath`, `casePath` |
+| `mesh__case_monitors` | write | paths: `meshPath`, `outputPath`, `resultPath`, `run.recordPath` |
+| `mesh__case_optimization` | write | paths: `meshPath`, `outputPath` |
+| `mesh__case_optimization_cad` | write | paths: `meshPath`, `outputPath` |
+| `mesh__case_rom` | read | — |
+| `mesh__case_run` | write | — |
+| `mesh__case_status` | read | — |
+| `mesh__case_stop` | write | — |
+| `mesh__case_validate` | read | — |
+| `mesh__case_write_state` | write | paths: `meshPath` |
+| `mesh__material_preset_import` | write | paths: `path` |
+| `mesh__material_preset_list` | read | — |
+| `mesh__mesh_batch_transform` | write | paths: `paths`, `recipePath`, `outputDir` |
+| `mesh__mesh_capabilities` | read | — |
+| `mesh__mesh_compare` | write | paths: `pathA`, `pathB`, `outputPath` |
+| `mesh__mesh_convert` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_curvature` | read | — |
+| `mesh__mesh_derive` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_export_table` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_extract_skin` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_extract_submodelpart` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_field_integrate` | read | — |
+| `mesh__mesh_field_series` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_find_entity` | read | — |
+| `mesh__mesh_flow_balance` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_info` | read | — |
+| `mesh__mesh_pack_series` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_periodic` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_probe` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_quality` | read | — |
+| `mesh__mesh_resample` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_select` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_size` | read | — |
+| `mesh__mesh_split` | write | paths: `path`, `outputDir` |
+| `mesh__mesh_transform` | write | paths: `path`, `recipePath`, `outputPath` |
+| `mesh__plot_dataset` | write | — |
+| `mesh__plot_preset` | write | — |
+| `mesh__plot_run_bind` | read | — |
+| `mesh__plot_run_resolve` | read | — |
+| `mesh__plot_run_target` | read | — |
+| `mesh__plot_runs` | read | — |
+| `mesh__plot_table_read` | read | — |
+| `mesh__plot_time_cursor` | read | — |
+| `mesh__problem_pack` | write | paths: `meshPath`, `outputPath`, `recipePath` |
+| `mesh__problem_unpack` | write | paths: `archivePath`, `destDir` |
+| `mesh__problemtype_describe` | write | — |
+| `mesh__problemtype_list` | write | — |
+| `mesh__wind_tunnel_generate` | write | paths: `bodyPath`, `bodies.path`, `outputFolder` |
+| `mesh__wind_tunnel_plan` | read | — |
+
+</details>
+
+<details><summary><code>pdf</code> (12)</summary>
+
+| Tool | Class | Project-folder grant |
+| --- | --- | --- |
+| `pdf__compare_pdf_pages` | read | — |
+| `pdf__extract_pdf_images` | read | — |
+| `pdf__extract_pdf_links` | read | — |
+| `pdf__extract_pdf_tables` | read | — |
+| `pdf__get_pdf_annotations` | read | — |
+| `pdf__get_pdf_info` | read | — |
+| `pdf__get_pdf_outline` | read | — |
+| `pdf__get_pdf_page_info` | read | — |
+| `pdf__get_pdf_text_stats` | read | — |
+| `pdf__read_pdf_as_images` | read | — |
+| `pdf__read_pdf_as_text` | read | — |
+| `pdf__search_pdf_text` | read | — |
+
+</details>
+
+<!-- reference:tool-reference:end -->
