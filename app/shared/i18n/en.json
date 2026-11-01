@@ -961,5 +961,16 @@
   "Show file": "Show file",
   "Discard": "Discard",
   "Unsaved work from an interrupted session was found.": "Unsaved work from an interrupted session was found.",
-  "Review": "Review"
+  "Review": "Review",
+  "Rename region references": "Rename region references",
+  "Region path in the case settings (for example Structure/Inlet):": "Region path in the case settings (for example Structure/Inlet):",
+  "New region path in the mesh:": "New region path in the mesh:",
+  "Region references (matched by name only):": "Region references (matched by name only):",
+  "Not available for this mesh.": "Not available for this mesh.",
+  "possible rename: {0}": "possible rename: {0}",
+  "In the mesh, not referenced: {0}": "In the mesh, not referenced: {0}",
+  "Move {0} reference(s) from {1} to {2} in this study's case settings? Names only: the mesh is not changed.": "Move {0} reference(s) from {1} to {2} in this study's case settings? Names only: the mesh is not changed.",
+  "{0} reference(s) would change.": "{0} reference(s) would change.",
+  "Region references": "Region references",
+  "Rename region": "Rename region"
 }

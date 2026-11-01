@@ -106,6 +106,14 @@ references explicit. Queue dispatch must persist intent before starting work,
 and an unconfirmed dispatch stays uncertain until its runner can reconcile it.
 Do not claim solver convergence from process exit alone.
 
+Region references are matched **by name only** (`workflows/regionReferences.ts`):
+a lost region may be a rename or a delete plus an add, and nothing here can tell
+which until CAD emits Part rename/delete events (upstream work, roadmap item 4).
+The carry-over report is advisory — attach is unchanged — and a rename is only
+ever an explicit, previewed, `expectedSettingsRevision`-bound edit of the study's
+recorded case settings; never infer or auto-apply one. Non-MDPA meshes report
+`available: false` instead of a guessed listing.
+
 The Home navigator exposes source relinking/copy-in, mesh/case navigation,
 single-run and parameter-sweep previews, queue pause/resume/cancel, run review,
 and parent/variant comparisons. Parameter sweeps create fresh studies only when

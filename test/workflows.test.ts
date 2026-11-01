@@ -794,6 +794,36 @@ describe('shared workflow tools', () => {
     expect((await readiness(root, current)).mesh).toBe('stale');
   });
 
+  it('reports region carry-over on attach and renames references only on an explicit, revision-bound apply', async () => {
+    const root = await temp(), geometry = path.join(root, 'plate.step'), mesh = path.join(root, 'plate.mdpa'), renamed = path.join(root, 'plate2.mdpa');
+    await fs.writeFile(geometry, 'geometry');
+    const body = (name: string) => `Begin Nodes\n1 0 0 0\nEnd Nodes\nBegin SubModelPart ${name}\nEnd SubModelPart\n`;
+    await fs.writeFile(mesh, body('Inlet')); await fs.writeFile(renamed, body('Inflow'));
+    await fs.writeFile(caseFilePath(mesh), JSON.stringify({ problemtypeId: 'structural', assignments: [{ conditionId: 'c', smpPath: 'Inlet', values: {} }] }));
+    await fs.writeFile(caseFilePath(renamed), JSON.stringify({ problemtypeId: 'structural', assignments: [{ conditionId: 'c', smpPath: 'Inlet', values: {} }] }));
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const study = await invoke('study_create', { name: 'Plate', source: geometry }) as Study;
+    const first = await invoke('study_attach_mesh', { studyId: study.id, meshPath: mesh }) as { regionCarryOver: { current: { lost: number } } };
+    expect(first.regionCarryOver.current.lost).toBe(0);
+    const second = await invoke('study_attach_mesh', { studyId: study.id, meshPath: renamed }) as { regionCarryOver: { current: { lost: number; regions: { possibleRename?: string }[] } } };
+    expect(second.regionCarryOver.current.lost).toBe(1);
+    const refs = await invoke('study_region_references', { studyId: study.id }) as { settingsRevision: string; report: { regions: { path: string; status: string }[] } };
+    expect(refs.report.regions).toMatchObject([{ path: 'Inlet', status: 'lost' }]);
+    const before = JSON.stringify((await service.store().read())!.studies[0].caseSettings);
+    const preview = await invoke('study_region_rename', { studyId: study.id, renames: [{ from: 'Inlet', to: 'Inflow' }] }) as { applied: boolean; wouldChange: number };
+    expect(preview).toMatchObject({ applied: false, wouldChange: 1 });
+    expect(JSON.stringify((await service.store().read())!.studies[0].caseSettings)).toBe(before);
+    await expect(invoke('study_region_rename', { studyId: study.id, renames: [{ from: 'Inlet', to: 'Inflow' }], apply: true })).rejects.toThrow(/expectedSettingsRevision/);
+    await expect(invoke('study_region_rename', { studyId: study.id, renames: [{ from: 'Inlet', to: 'Inflow' }], apply: true, expectedSettingsRevision: 'stale' })).rejects.toThrow(/changed since/);
+    const done = await invoke('study_region_rename', { studyId: study.id, renames: [{ from: 'Inlet', to: 'Inflow' }], apply: true, expectedSettingsRevision: refs.settingsRevision }) as { applied: boolean; changed: number };
+    expect(done).toMatchObject({ applied: true, changed: 1 });
+    const after = await invoke('study_region_references', { studyId: study.id }) as { report: { lost: number } };
+    expect(after.report.lost).toBe(0);
+  });
+
   it('attaches a mesh, imports a terminal run without its process identity, and exports an honest offline review', async () => {
     const root = await temp(), geometry = path.join(root, 'beam.step'), mesh = path.join(root, 'beam.mdpa');
     await fs.writeFile(geometry, 'geometry');

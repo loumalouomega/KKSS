@@ -86,4 +86,27 @@ await scenario('home-workflows', async c => {
   const saved = project().studies[0].runs[0];
   assert.ok(saved.evidence, 'quantity evaluation persists evidence');
   assert.match(await home.locator('#run-review').textContent(), /"value": 4/);
+  // Region carry-over: a re-exported mesh renamed a region; the report says so and the rename is explicit.
+  const regionMesh = path.join(c.dir, 'regions.mdpa');
+  fs.writeFileSync(regionMesh, 'Begin Nodes\n1 0 0 0\nEnd Nodes\nBegin SubModelPart Inflow\nEnd SubModelPart\n');
+  fs.writeFileSync(path.join(c.dir, 'regions.kratoscase.json'), JSON.stringify({ problemtypeId: 'structural', assignments: [{ conditionId: 'c', smpPath: 'Inlet', values: {} }] }));
+  await form.waitFor({ state: 'hidden' });
+  await home.locator('.workflow-more summary').click();
+  await home.locator('#study-attach-mesh:enabled').click();
+  await home.locator('#workflow-input-meshPath').fill(regionMesh);
+  await form.locator('[type=submit]').click();
+  await form.waitFor({ state: 'hidden' });
+  await home.locator('#study-region-refs:enabled').click();
+  await until(async () => /Inlet/.test(await home.locator('#run-review').textContent()), 'region report shown');
+  assert.match(await home.locator('#run-review').textContent(), /✗ Inlet.*not referenced: Inflow/s);
+  await home.locator('#study-region-rename:enabled').click();
+  await home.locator('#workflow-input-from').fill('Inlet');
+  await home.locator('#workflow-input-to').fill('Inflow');
+  await form.locator('[type=submit]').click();
+  await until(async () => /Move 1 reference/.test(await form.textContent()), 'rename preview confirmation');
+  await form.locator('[type=submit]').click();
+  await form.waitFor({ state: 'hidden' });
+  await home.locator('#study-region-refs:enabled').click();
+  await until(async () => /✓ Inflow/.test(await home.locator('#run-review').textContent()), 'rename applied');
+  assert.deepEqual(errors, []);
 });

@@ -88,6 +88,7 @@ Set **Settings → Kratos → Solver threads** to a positive OpenMP allocation, 
 | **Import latest run** | Imports a terminal run as an immutable input snapshot | `app__study_import_run` |
 | **Review run**, **Export review** | Offline review of a run; JSON/HTML export | `app__run_review`, `app__run_review_export` |
 | **Compare runs** | Facts-only report for two runs of one study | `app__run_compare` |
+| **Region references**, **Rename region** | Lists the SubModelPart regions the study's case settings point at and whether the attached MDPA mesh still has each (a re-attach reports this too); **Rename region** previews, then moves those references on confirmation. Matching is **by name only** — a lost region may be a rename or a deletion, and KKSS never guesses. Other mesh formats are not compared. | `app__study_region_references`, `app__study_region_rename` |
 | **Compare variants**, **Export comparison** | Parent/variant comparison; offline export | `app__variants_compare`, `app__variants_compare_export` |
 | **Evaluate quantity**, **Refinement metadata** | Saves a revision-bound quantity; records the sizing assumptions of a run | `app__run_quantity_evaluate`, `app__run_refinement_set` |
 

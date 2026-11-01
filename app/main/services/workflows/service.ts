@@ -30,6 +30,7 @@ import { compareRuns } from '../../../../mesh/src/problemtype/runCompare';
 import { renderRunComparisonMarkdown } from '../../../../mesh/src/problemtype/runComparisonReport';
 import { makeReview, reviewHtml } from './review';
 import { compareVariants, comparisonHtml } from './comparison';
+import { applyRenames, carryOverReport, collectReferences, listMdpaRegions, parseRenames, type CarryOverReport } from './regionReferences';
 export interface WorkflowDeps {
   root(): string | undefined;
   activeMesh(): string | undefined;
@@ -231,8 +232,50 @@ export class WorkflowService {
     if (!study) throw new Error('Unknown study.');
     return study;
   }
+  /** Region paths of a mesh. Only MDPA has a cheap text listing; any other format reports why it cannot (never guesses). */
+  private async meshRegions(file: string): Promise<{ regions?: string[]; reason?: string }> {
+    if (path.extname(file).toLowerCase() !== '.mdpa') return { reason: 'Region listing is only available for MDPA meshes; other formats are not compared.' };
+    try { return { regions: listMdpaRegions(await fs.readFile(file, 'utf8')) }; }
+    catch (error) { return { reason: `Cannot read the mesh: ${error instanceof Error ? error.message : String(error)}` }; }
+  }
+  private async regionReferences(args: Record<string, unknown>): Promise<unknown> {
+    const store = this.store(), project = await store.read();
+    if (!project) throw new Error('No project studies.');
+    const study = this.study(project, text(args, 'studyId'));
+    if (!study.mesh) throw new Error('This study has no attached mesh.');
+    const meshFile = resolveReference(store.root, study.mesh);
+    const before = await fileRevision(meshFile);
+    const { regions, reason } = await this.meshRegions(meshFile);
+    // The listing is only trustworthy if the mesh did not change while it was read.
+    if (regions && await fileRevision(meshFile) !== before) throw new Error('The mesh changed while its regions were read. Try again.');
+    return { studyId: study.id, meshRevision: before, settingsRevision: fingerprint(study.caseSettings), report: carryOverReport(collectReferences(study.caseSettings), regions, reason) };
+  }
+  private async renameRegions(args: Record<string, unknown>): Promise<unknown> {
+    const renames = parseRenames(args.renames);
+    const apply = args.apply === true;
+    if (apply && (typeof args.expectedSettingsRevision !== 'string' || !args.expectedSettingsRevision)) throw new Error('expectedSettingsRevision (from app__study_region_references) is required to apply.');
+    const run = (study: Study) => {
+      if (study.caseSettings === null) throw new Error('This study has no case settings to rename in.');
+      return applyRenames(study.caseSettings, renames);
+    };
+    if (!apply) {
+      const store = this.store(), project = await store.read();
+      if (!project) throw new Error('No project studies.');
+      const study = this.study(project, text(args, 'studyId'));
+      const { changed } = run(study);
+      return { applied: false, wouldChange: changed, settingsRevision: fingerprint(study.caseSettings), note: 'Names only: nothing was written. Re-call with apply=true and expectedSettingsRevision to apply.' };
+    }
+    return this.change(p => {
+      const study = this.study(p, text(args, 'studyId'));
+      if (fingerprint(study.caseSettings) !== args.expectedSettingsRevision) throw new Error('The study settings changed since they were read. Read the references again before renaming.');
+      const { settings, changed } = run(study);
+      study.caseSettings = settings;
+      return { applied: true, changed, settingsRevision: fingerprint(study.caseSettings) };
+    });
+  }
   private async attachMesh(args: Record<string, unknown>): Promise<unknown> {
     const file = path.resolve(text(args, 'meshPath')), revision = await fileRevision(file);
+    const listing = await this.meshRegions(file);
     let caseState: Json | undefined;
     try {
       const parsed = parseCaseJson(await fs.readFile(caseFilePath(file), 'utf8'));
@@ -243,10 +286,19 @@ export class WorkflowService {
       study.mesh = reference(store.root, file, revision);
       study.meshSourceRevision = study.source.revision;
       study.meshOptionsRevision = fingerprint(study.meshing);
+      const previousSettings = study.caseSettings;
       study.caseSettings = caseState ?? null;
       study.caseMeshRevision = caseState ? revision : undefined;
       p.activeStudyId = study.id; delete p.activeRunId;
-      return { mesh: study.mesh, caseAvailable: !!caseState };
+      // Reported, never acted on: the attach above is unchanged. `discarded` covers
+      // the settings this attach replaced, which is where a rename would be noticed.
+      const regionCarryOver: { basis: 'name-only'; current: CarryOverReport; discarded?: CarryOverReport } = {
+        basis: 'name-only', current: carryOverReport(collectReferences(study.caseSettings), listing.regions, listing.reason),
+      };
+      if (previousSettings !== null && fingerprint(previousSettings) !== fingerprint(study.caseSettings)) {
+        regionCarryOver.discarded = carryOverReport(collectReferences(previousSettings), listing.regions, listing.reason);
+      }
+      return { mesh: study.mesh, caseAvailable: !!caseState, regionCarryOver };
     });
   }
   private async importHandoff(args: Record<string, unknown>): Promise<Study> {
@@ -1049,6 +1101,8 @@ export class WorkflowService {
         p.studies.push(study); p.activeStudyId = study.id; delete p.activeRunId; return study;
       })),
       tool('study_attach_mesh', 'Attach an existing exported mesh to a study and record its content revision. Imports a neighboring case setup when present.', { studyId: str, meshPath: str }, ['studyId', 'meshPath'], args => this.attachMesh(args)),
+      tool('study_region_references', 'Read-only: list the SubModelPart regions a study\'s case settings reference (assignments, materials, collections) and whether the attached MDPA mesh still has each one. Matching is by name only; a suggested rename is a hint, not a fact.', { studyId: str }, ['studyId'], args => this.regionReferences(args)),
+      tool('study_region_rename', 'Move case-setting references from one region path to another (children follow). Without apply=true this only previews. Applying needs expectedSettingsRevision from app__study_region_references and edits the study\'s recorded case settings only.', { studyId: str, renames: { type: 'array', items: { type: 'object', properties: { from: str, to: str }, required: ['from', 'to'] } }, apply: { type: 'boolean' }, expectedSettingsRevision: str }, ['studyId', 'renames'], args => this.renameRegions(args)),
       tool('study_relink_source', 'Explicitly relink a study to a geometry file after verifying it exists. Existing mesh and run artifacts are retained and become stale when their source revision differs.', { studyId: str, sourcePath: str }, ['studyId', 'sourcePath'], async args => {
         const file = path.resolve(text(args, 'sourcePath')), revision = await fileRevision(file);
         return this.change((project, current) => {

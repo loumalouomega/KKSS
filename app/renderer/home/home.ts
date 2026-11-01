@@ -154,7 +154,7 @@ const duplicateButton = document.getElementById("study-duplicate") as HTMLButton
 const planRunButton = document.getElementById("study-plan-run") as HTMLButtonElement;
 const planSweepButton = document.getElementById("study-plan-sweep") as HTMLButtonElement;
 let workflowSnapshot: { project?: { studies?: { id: string; handoff?: { units?: { length?: string | null } } }[]; queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; queuePlanRevision?: string } | undefined;
-let workflowAction: "queue-preview" | "queue-enqueue" | "queue-resume" | undefined;
+let workflowAction: "queue-preview" | "queue-enqueue" | "queue-resume" | "region-refs" | "region-preview" | undefined;
 let manualRuntimeAvailable: boolean | undefined;
 let selectedStudy: { id: string; name: string } | undefined;
 let selectedRunId: string | undefined;
@@ -173,7 +173,8 @@ function confirmAction(title: string, detail: string, accept: () => void): void 
 function workflowCall(tool: string, args: Record<string, unknown>): void {
   if (workflowPending) return;
   workflowAction = ["queue_plan_preview", "queue_parameter_sweep_preview", "queue_retry_variant_preview"].includes(tool) ? "queue-preview"
-    : tool === "queue_enqueue" ? "queue-enqueue" : tool === "queue_resume" ? "queue-resume" : undefined;
+    : tool === "queue_enqueue" ? "queue-enqueue" : tool === "queue_resume" ? "queue-resume"
+    : tool === "study_region_references" ? "region-refs" : tool === "study_region_rename" && args.apply !== true ? "region-preview" : undefined;
   workflowPending = true; form.setBusy(true);
   workflowError.hidden = true;
   api.post({ type: "workflow", tool: `app__${tool}`, args });
@@ -271,6 +272,20 @@ for (const [id, tool] of [["study-review-run", "run_review"], ["study-export-rev
     if (selectedStudy && selectedRunId) workflowCall(tool, { studyId: selectedStudy.id, runId: selectedRunId });
   });
 }
+document.getElementById("study-region-refs")!.addEventListener("click", () => {
+  if (selectedStudy) workflowCall("study_region_references", { studyId: selectedStudy.id });
+});
+let pendingRename: { studyId: string; renames: { from: string; to: string }[] } | undefined;
+document.getElementById("study-region-rename")!.addEventListener("click", () => {
+  const study = selectedStudy; if (!study) return;
+  form.open(t("Rename region references"), [
+    { name: "from", label: t("Region path in the case settings (for example Structure/Inlet):") },
+    { name: "to", label: t("New region path in the mesh:") },
+  ], values => {
+    pendingRename = { studyId: study.id, renames: [{ from: values.from.trim(), to: values.to.trim() }] };
+    workflowCall("study_region_rename", { ...pendingRename, apply: false });
+  });
+});
 document.getElementById("study-compare-runs")!.addEventListener("click", () => {
   // mesh 5.17.0's in-editor run comparison on study runs: the selected run is
   // the left side, the form picks the right side from the study's other runs.
@@ -369,6 +384,8 @@ function renderWorkflow(raw: unknown): void {
     (document.getElementById("study-import-run") as HTMLButtonElement).disabled = !states.mesh || states.mesh !== "ready";
     (document.getElementById("study-review-run") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-compare-runs") as HTMLButtonElement).disabled = !selectedRunId || (active.runs?.length ?? 0) < 2;
+    (document.getElementById("study-region-refs") as HTMLButtonElement).disabled = states.mesh === "missing" || !states.mesh;
+    (document.getElementById("study-region-rename") as HTMLButtonElement).disabled = states.case === "missing" || !states.case;
     (document.getElementById("study-evaluate-quantity") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-refinement") as HTMLButtonElement).disabled = !selectedRunId;
     (document.getElementById("study-export-review") as HTMLButtonElement).disabled = !selectedRunId;
@@ -419,7 +436,7 @@ function renderWorkflow(raw: unknown): void {
   } else {
     selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
     for (const id of ["study-open-geometry", "study-open-mesh", "study-open-case", "study-open-results"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
-    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-compare-runs", "study-evaluate-quantity", "study-refinement", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
+    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-compare-runs", "study-region-refs", "study-region-rename", "study-evaluate-quantity", "study-refinement", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
   }
   const queue = value.project?.queue;
   const tasks = queue?.tasks ?? [];
@@ -497,6 +514,32 @@ api.onMessage((raw) => {
     if (Array.isArray(samples) && samples.every(s => s && typeof s === "object" && typeof s.iteration === "number" &&
       (s.converged === null || typeof s.converged === "boolean"))) {
       plots.innerHTML = convergencePlots(samples);
+    }
+    if (workflowAction === "region-refs" && value && typeof value === "object") {
+      workflowAction = undefined;
+      const report = (value as { report?: { available?: boolean; unavailableReason?: string; regions?: { path: string; status: string; possibleRename?: string; references: { owner: string; label: string }[] }[]; newRegions?: string[] } }).report;
+      const lines: string[] = [t("Region references (matched by name only):")];
+      if (!report?.available) lines.push(report?.unavailableReason ?? t("Not available for this mesh."));
+      else {
+        for (const row of report.regions ?? []) {
+          const used = row.references.map(r => `${r.owner} ${r.label}`).join(", ");
+          lines.push(`${row.status === "kept" ? "✓" : "✗"} ${row.path} — ${used}${row.possibleRename ? ` → ${t("possible rename: {0}", {0: row.possibleRename})}` : ""}`);
+        }
+        if (report.newRegions?.length) lines.push(t("In the mesh, not referenced: {0}", {0: report.newRegions.join(", ")}));
+      }
+      (document.getElementById("run-review") as HTMLElement).textContent = lines.join("\n");
+      return;
+    }
+    if (workflowAction === "region-preview" && value && typeof value === "object" && pendingRename) {
+      workflowAction = undefined;
+      const preview = value as { wouldChange?: number; settingsRevision?: string };
+      const request = pendingRename; pendingRename = undefined;
+      const rename = request.renames[0];
+      if (preview.settingsRevision && preview.wouldChange) confirmAction(t("Rename region references"),
+        t("Move {0} reference(s) from {1} to {2} in this study's case settings? Names only: the mesh is not changed.", {0: String(preview.wouldChange), 1: rename.from, 2: rename.to}),
+        () => workflowCall("study_region_rename", { ...request, apply: true, expectedSettingsRevision: preview.settingsRevision }));
+      (document.getElementById("run-review") as HTMLElement).textContent = t("{0} reference(s) would change.", {0: String(preview.wouldChange ?? 0)});
+      return;
     }
     if (workflowAction === "queue-preview" && value && typeof value === "object") {
       const preview = value as { previewId?: string; summary?: string[]; tasks?: { kind: string; id: string; runId: string }[]; runId?: string };

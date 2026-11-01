@@ -961,5 +961,16 @@
   "Show file": "Mostrar archivo",
   "Discard": "Descartar",
   "Unsaved work from an interrupted session was found.": "Se encontró trabajo sin guardar de una sesión interrumpida.",
-  "Review": "Revisar"
+  "Review": "Revisar",
+  "Rename region references": "Renombrar referencias de región",
+  "Region path in the case settings (for example Structure/Inlet):": "Ruta de la región en los ajustes del caso (por ejemplo Structure/Inlet):",
+  "New region path in the mesh:": "Nueva ruta de la región en la malla:",
+  "Region references (matched by name only):": "Referencias de región (coincidencia solo por nombre):",
+  "Not available for this mesh.": "No disponible para esta malla.",
+  "possible rename: {0}": "posible cambio de nombre: {0}",
+  "In the mesh, not referenced: {0}": "En la malla, sin referenciar: {0}",
+  "Move {0} reference(s) from {1} to {2} in this study's case settings? Names only: the mesh is not changed.": "¿Mover {0} referencia(s) de {1} a {2} en los ajustes del caso de este estudio? Solo nombres: la malla no cambia.",
+  "{0} reference(s) would change.": "Cambiarían {0} referencia(s).",
+  "Region references": "Referencias de región",
+  "Rename region": "Renombrar región"
 }

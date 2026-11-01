@@ -137,6 +137,8 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__study_list: "read",
   app__study_open: "write",
   app__study_attach_mesh: "write",
+  app__study_region_references: "read",
+  app__study_region_rename: "write",
   app__study_copy_source_into_project: "write",
   app__study_import_run: "write",
   app__study_relink_source: "write",
