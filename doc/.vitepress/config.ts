@@ -39,6 +39,7 @@ export default defineConfig({
           { text: 'Assistant Extensions', link: '/guide/assistant-extensions' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' },
+          { text: 'Verification', link: '/guide/verification' },
           { text: 'Known Limitations', link: '/guide/known-limitations' },
           { text: 'Troubleshooting', link: '/guide/troubleshooting' },
           { text: 'Remote Sessions (SSH)', link: '/guide/remote-sessions' },
@@ -85,6 +86,7 @@ export default defineConfig({
           { text: 'Assistant Extensions', link: '/guide/assistant-extensions' },
           { text: 'File Formats', link: '/guide/file-formats' },
           { text: 'Configuration', link: '/guide/configuration' },
+          { text: 'Verification', link: '/guide/verification' },
           { text: 'Known Limitations', link: '/guide/known-limitations' },
           { text: 'Troubleshooting', link: '/guide/troubleshooting' },
           { text: 'Remote Sessions (SSH)', link: '/guide/remote-sessions' }
