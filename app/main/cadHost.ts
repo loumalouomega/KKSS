@@ -150,7 +150,7 @@ import {
   replayTail,
   type ParsedEdits,
 } from "../../cad/src/editsSidecar";
-import { parseMeshJson, serializeMeshJson, generateGeoScript } from "../../cad/src/meshOptionsSidecar";
+import { parseMeshJson, parseMeshJsonWithNotes, serializeMeshJson, generateGeoScript } from "../../cad/src/meshOptionsSidecar";
 import { parseAnnotationsJson, serializeAnnotationsJson } from "../../cad/src/annotationsSidecar";
 import { parseViewStateJson, serializeViewStateJson } from "../../cad/src/viewStateSidecar";
 import { buildPreprocessZip, readPreprocessZip } from "../../cad/src/preprocessArchive";
@@ -516,6 +516,16 @@ const readBundledMeshPresets = async (runtimePath: string): Promise<MeshPresetLi
  *  a bad row rather than the file). */
 const readBundledProcessLimits = async (runtimePath: string) =>
   parseProcessLimits(await readTextOrEmpty(bundledProcessLimitsPath(runtimePath)));
+
+const readMeshOptionsWithNotes = async (
+  modelPath: string
+): Promise<{ options: MeshOptions; legacyNotes: string[] }> => {
+  try {
+    return parseMeshJsonWithNotes(await fs.readFile(`${modelPath}${CAD_SIDECAR.meshOptions}`, "utf8"));
+  } catch {
+    return { options: DEFAULT_MESH_OPTIONS, legacyNotes: [] };
+  }
+};
 
 const readMeshOptions = async (modelPath: string): Promise<MeshOptions> => {
   try {
@@ -3534,7 +3544,11 @@ export class CadHost {
 
   private async sendMeshOptions(): Promise<void> {
     if (!this.doc) return;
-    this.post({ type: "meshingOptions", options: await readMeshOptions(this.doc.path) });
+    // cad 3.33.0 (provider.sendMeshOptions): fields the stored sidecar predates
+    // are reported as status lines, not silently defaulted.
+    const { options, legacyNotes } = await readMeshOptionsWithNotes(this.doc.path);
+    this.post({ type: "meshingOptions", options });
+    for (const note of legacyNotes) this.post({ type: "status", text: `Mesh options: ${note}` });
   }
 
   /**

@@ -227,19 +227,19 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 86 cad + 55 mesh tools + 4 in-process mcp__ tools + 39 app__ tools (38 workflow + skill_load)
+    // 86 cad + 59 mesh tools + 4 in-process mcp__ tools + 39 app__ tools (38 workflow + skill_load)
     // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(307);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(311);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
     expect(cad).toHaveLength(86);
     expect(TOOL_ACCESS.cad__mesh_cad_surface).toBe("write");
-    expect(mesh).toHaveLength(55);
+    expect(mesh).toHaveLength(59);
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(40);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
@@ -478,9 +478,11 @@ describe("the table itself", () => {
       "mesh__case_optimization",
       "mesh__case_optimization_cad",
       "mesh__case_run",
+      "mesh__case_run_quantity",
       "mesh__case_stop",
       "mesh__case_write_state",
       "mesh__material_preset_import",
+      "mesh__mesh_ale_quality",
       "mesh__mesh_batch_transform",
       "mesh__mesh_compare",
       "mesh__mesh_convert",
@@ -489,10 +491,12 @@ describe("the table itself", () => {
       "mesh__mesh_extract_skin",
       "mesh__mesh_extract_submodelpart",
       "mesh__mesh_field_series",
+      "mesh__mesh_fit_primitives",
       "mesh__mesh_flow_balance",
       "mesh__mesh_pack_series",
       "mesh__mesh_periodic",
       "mesh__mesh_probe",
+      "mesh__mesh_recover_flux",
       "mesh__mesh_resample",
       "mesh__mesh_select",
       "mesh__mesh_split",

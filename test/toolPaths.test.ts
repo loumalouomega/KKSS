@@ -109,6 +109,7 @@ describe("scope table", () => {
       "cad__run_parametric_script",
       "cad__run_saved_script",
       "mesh__case_run",
+      "mesh__case_run_quantity",
       "mesh__case_stop",
       "mesh__plot_dataset",
       // mesh 5.10.0: its `params` is opaque (a tableRelationship preset carries

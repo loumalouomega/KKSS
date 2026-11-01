@@ -69,6 +69,12 @@ Post-Processing uses the same layout as [Pre-Processing](/guide/cad-mode#reading
 
 > The viewer's toolbar is **Reset · Pan · Quality · Field · Find · Inspect · Plots · Selection · View ▾ · Advanced ▾**: display toggles and Screenshot/Record live in **View ▾**; analysis/export/camera tools live in **Advanced ▾**. Clip is in the nav card. KKSS hides the extension's File pill and exposes file actions in the native **File** menu, including Import Mesh, grouped exports, Scientific Plot Builder, Save/Load Problem, Export Data Table, Pack Time Series and Undo/Redo (`Ctrl+Alt+Z` / `Ctrl+Alt+Shift+Z`, not the text editor's plain undo shortcuts).
 
+### Mesh Preview 5.28.0 additions
+
+- **Axisymmetric measures**: planar r-z meshes accept `revolveAbout` in part measures, region integrals and flow balance (line boundaries sweep 2πr).
+- **New assistant tools** (approval-gated, since each can write a file): `mesh_recover_flux` (per-area traction/flux recovered from nodal reactions), `mesh_ale_quality` (moving-mesh validity per frame against the first frame), `mesh_fit_primitives` (planes, spheres, cylinders, cones and tori of a surface mesh) and `case_run_quantity` (one saved monitor tabulated across isolated runs).
+- Case settings accept unit-suffixed values, `case_validate` recommends a wall element size and solver, the Plots menu gains a polar family, and the Field panel adds auto deform scale, symmetric colour range, min/max markers and a pick stack. Reopenable view state records the new settings in the sidecar's `view` key.
+
 ### Mesh Preview 5.23–5.27 additions
 
 - **Advanced ▸ Sweep, mirror and layers…** (and the assistant's `mesh_derive` kinds `extrude`, `revolve`, `mirror`, `boundaryLayer`, `tetrahedralize`, `errorSize` and `checkConformity`) writes a new mesh from the open one through the matching meshio++ kernel, taking the kernel's own options as JSON. **Advanced ▸ Tessellate curved cells…** writes a linear mesh from quadratic cells. The Advanced menu is now grouped under headings.

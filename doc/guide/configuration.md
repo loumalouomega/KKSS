@@ -387,7 +387,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad` | 86 | 43 | 43 | 39 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
-| `mesh` | 55 | 21 | 34 | 28 |
+| `mesh` | 59 | 21 | 38 | 31 |
 | `pdf` | 12 | 12 | 0 | 0 |
 
 <details><summary><code>app</code> (40)</summary>
@@ -658,7 +658,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>mesh</code> (55)</summary>
+<details><summary><code>mesh</code> (59)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
@@ -674,12 +674,14 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `mesh__case_optimization_cad` | write | paths: `meshPath`, `outputPath` |
 | `mesh__case_rom` | read | — |
 | `mesh__case_run` | write | — |
+| `mesh__case_run_quantity` | write | — |
 | `mesh__case_status` | read | — |
 | `mesh__case_stop` | write | — |
 | `mesh__case_validate` | read | — |
 | `mesh__case_write_state` | write | paths: `meshPath` |
 | `mesh__material_preset_import` | write | paths: `path` |
 | `mesh__material_preset_list` | read | — |
+| `mesh__mesh_ale_quality` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_batch_transform` | write | paths: `paths`, `recipePath`, `outputDir` |
 | `mesh__mesh_capabilities` | read | — |
 | `mesh__mesh_compare` | write | paths: `pathA`, `pathB`, `outputPath` |
@@ -692,12 +694,14 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `mesh__mesh_field_integrate` | read | — |
 | `mesh__mesh_field_series` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_find_entity` | read | — |
+| `mesh__mesh_fit_primitives` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_flow_balance` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_info` | read | — |
 | `mesh__mesh_pack_series` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_periodic` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_probe` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_quality` | read | — |
+| `mesh__mesh_recover_flux` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_resample` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_select` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_size` | read | — |
