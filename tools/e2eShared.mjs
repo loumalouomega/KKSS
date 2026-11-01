@@ -214,7 +214,9 @@ export async function until(check, label = "condition", timeout = 30_000) {
 
 export async function menu(app, label) {
   return app.evaluate(({ Menu }, label) => {
-    const find = (m) => { for (const i of m.items) { if (i.label === label) return i; const nested = i.submenu && find(i.submenu); if (nested) return nested; } };
+    // Mode-gated items carry a reason suffix when disabled (menuAvailability.ts): match the base label.
+    const base = (l) => l.replace(/ \((?:Post-Processing only|open a mesh first)\)$/u, "");
+    const find = (m) => { for (const i of m.items) { if (base(i.label) === label) return i; const nested = i.submenu && find(i.submenu); if (nested) return nested; } };
     const item = find(Menu.getApplicationMenu());
     if (!item || !item.enabled) throw new Error(`Unavailable menu: ${label}`);
     item.click(item);

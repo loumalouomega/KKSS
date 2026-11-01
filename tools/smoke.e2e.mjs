@@ -105,7 +105,8 @@ async function attempt(c) {
     await app.evaluate(({ Menu }, isMesh) => {
       const find = (label, menu = Menu.getApplicationMenu()) => {
         for (const item of menu.items) {
-          if (item.label === label) return item;
+          // Disabled mode-gated items carry a reason suffix (menuAvailability.ts); match the base label.
+          if (item.label.replace(/ \((?:Post-Processing only|open a mesh first)\)$/u, "") === label) return item;
           if (item.submenu) {
             const found = find(label, item.submenu);
             if (found) return found;
