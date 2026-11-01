@@ -2,10 +2,12 @@ import { validateRefinement, type Refinement } from './refinement';
 import { discoverOutputs, resultCompanions } from '../../../../mesh/src/problemtype/outputDiscovery';
 import { availableParallelism } from 'node:os';
 import * as fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
 import { constants as fsConstants } from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { writeFileAtomic } from '../atomicWrite';
+import { buildArchive, collectReferences, packagedProject, planUnpack, readStoreZip, safeRelative } from './projectArchive';
 import type { AppTool } from '../chat/appTools';
 import { checkEnvironment, checkRemoteEnvironment, resolveThreads, type EnvironmentReport } from './environment';
 import { ProjectStore, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
@@ -1188,6 +1190,56 @@ export class WorkflowService {
       }
     });
   }
+  /** Pack `.kkss/project.json` and every project-contained file it references into one archive. */
+  async projectPack(args: Record<string, unknown>): Promise<unknown> {
+    const store = this.store(), project = await store.read();
+    if (!project) throw new Error('No project studies to pack.');
+    const includeRuns = args.includeRuns === true, out = path.resolve(text(args, 'outputPath'));
+    const files: { path: string; data: Uint8Array }[] = [], external: { owner: string; path: string }[] = [], missing: string[] = [];
+    let total = 0;
+    const add = async (rel: string) => {
+      const data = await fs.readFile(path.join(store.root, rel));
+      total += data.length;
+      if (total > 2 * 1024 ** 3) throw new Error('Project is larger than the 2 GB archive limit.');
+      files.push({ path: rel, data });
+    };
+    for (const { owner, ref } of collectReferences(project, includeRuns)) {
+      if (ref.kind === 'external') { external.push({ owner, path: ref.path }); continue; }
+      const rel = safeRelative(ref.path);
+      if (!rel) throw new Error(`Unsafe reference path: ${ref.path}`);
+      try { await add(rel); } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') missing.push(rel); else throw e; }
+    }
+    if (includeRuns) for (const study of project.studies) for (const run of study.runs) {
+      const walk = async (dir: string): Promise<void> => {
+        for (const entry of await fs.readdir(path.join(store.root, dir), { withFileTypes: true }).catch(() => [])) {
+          const rel = `${dir}/${entry.name}`;
+          if (entry.isDirectory()) await walk(rel); else if (entry.isFile() && files.length < 5000) await add(rel);
+        }
+      };
+      await walk(run.directory);
+    }
+    const copy = packagedProject(project, includeRuns);
+    files.push({ path: '.kkss/project.json', data: new TextEncoder().encode(JSON.stringify(copy, null, 2) + '\n') });
+    await writeFileAtomic(out, buildArchive(project, files, external, includeRuns, new Date().toISOString()));
+    return { archive: out, files: files.length, bytes: total, includesRuns: includeRuns, external, missing };
+  }
+
+  /** Unpack into a new folder; damaged or missing members are listed, never silently skipped, and nothing existing is overwritten. */
+  async projectUnpack(args: Record<string, unknown>): Promise<unknown> {
+    const archive = path.resolve(text(args, 'archivePath')), dest = path.resolve(text(args, 'destination'));
+    const exists = (rel: string) => { try { return !!fsSync.statSync(path.join(dest, rel)); } catch { return false; } };
+    const plan = planUnpack(readStoreZip(new Uint8Array(await fs.readFile(archive))), exists);
+    if (plan.conflicts.length) return { unpacked: false, reason: 'Destination already holds files from this archive; choose an empty folder.', conflicts: plan.conflicts.slice(0, 50), problems: plan.problems };
+    for (const f of plan.files) {
+      const target = path.resolve(dest, f.path);
+      if (!target.startsWith(dest + path.sep)) throw new Error(`Unsafe path: ${f.path}`);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await writeFileAtomic(target, f.data);
+    }
+    const unresolved = plan.manifest.external.map(e => ({ ...e, exists: fsSync.existsSync(e.path) }));
+    return { unpacked: true, destination: dest, files: plan.files.length, problems: plan.problems, externalReferences: unresolved };
+  }
+
   tools(): AppTool[] {
     const tool = (name: string, description: string, properties: Record<string, unknown>, required: string[], invoke: AppTool['invoke']): AppTool => ({ name: `app__${name}`, description, inputSchema: { type: 'object', properties, required, additionalProperties: false }, invoke });
     const str = { type: 'string', minLength: 1 };
@@ -1390,6 +1442,8 @@ export class WorkflowService {
         await writeFileAtomic(htmlFile, comparisonHtml(comparison));
         return { jsonFile, htmlFile, findings: comparison.findings };
       }),
+      tool('project_pack', 'Pack the project (.kkss/project.json plus every project-contained source, mesh, case input and, with includeRuns, run files) into one archive with SHA-256 hashes. External references are listed, never packed.', { outputPath: str, includeRuns: { type: 'boolean' } }, ['outputPath'], args => this.projectPack(args)),
+      tool('project_unpack', 'Unpack a project archive into an empty destination folder after verifying every hash. Damaged or missing members are reported; nothing existing is overwritten and external references are listed for relinking.', { archivePath: str, destination: str }, ['archivePath', 'destination'], args => this.projectUnpack(args)),
     ];
   }
 }

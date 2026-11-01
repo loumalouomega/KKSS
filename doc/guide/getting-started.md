@@ -93,6 +93,8 @@ Set **Settings → Kratos → Solver threads** to a positive OpenMP allocation, 
 | **Compare variants**, **Export comparison** | Parent/variant comparison; offline export For a sweep it also tabulates the swept parameters against each compatible saved quantity (a parameter or value a row lacks stays *missing*, never zero) and plots the value against a numeric swept parameter in the export. | `app__variants_compare`, `app__variants_compare_export` |
 | **Evaluate quantity**, **Refinement metadata** | Saves a revision-bound quantity; records the sizing assumptions of a run | `app__run_quantity_evaluate`, `app__run_refinement_set` |
 
+**Sharing a project.** The assistant's `app__project_pack` writes `.kkss/project.json` plus every project-contained source, mesh, case input and (with `includeRuns`) run file into one archive with a SHA-256 manifest; `app__project_unpack` restores it into an empty folder, lists damaged or missing members, refuses traversal and absolute paths, never overwrites and reports external references that need relinking. Archives are store-only zips KKSS wrote itself.
+
 ### Working from cloud storage
 
 If you would rather not run a sync client at all, **Settings ▸ Cloud Accounts** connects KKSS directly to Google Drive, Dropbox or OneDrive, and **File ▸ Open from Cloud…** browses it. You bring your own OAuth client — see [Configuration ▸ Cloud accounts](/guide/configuration#cloud-accounts) for the one-time setup.

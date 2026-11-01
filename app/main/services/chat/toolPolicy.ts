@@ -157,6 +157,8 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__study_select: "write",
   app__study_set_settings: "write",
   app__study_duplicate: "write",
+  app__project_pack: "write",
+  app__project_unpack: "write",
   app__variants_preview: "read",
   app__variants_compare: "read",
   app__queue_plan_preview: "read",
