@@ -312,6 +312,12 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__mesh_field_integrate: "read",
   mesh__mesh_flow_balance: "write",
   mesh__mesh_curvature: "read",
+  // mesh 5.28.0: each accepts an optional output path (a mesh or a .csv), so
+  // all four are write-shaped like mesh_flow_balance above.
+  mesh__mesh_recover_flux: "write",
+  mesh__mesh_ale_quality: "write",
+  mesh__mesh_fit_primitives: "write",
+  mesh__case_run_quantity: "write",
   mesh__mesh_compare: "write",
   mesh__mesh_derive: "write",
   mesh__mesh_size: "read",

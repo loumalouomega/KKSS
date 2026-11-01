@@ -5,6 +5,10 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.26.0] - 2026-11-01
+
+- feat: **CAD-Preview 3.33.0 and Mesh Preview 5.28.0.** CAD gains rule-defined Part membership (plane, box and surface-type rules re-evaluated after every edit, with a Rule… entry in the Parts panel), `addParametricCurve` and unit-suffixed expressions; legacy mesh-option fields are reported as status lines. Mesh gains axisymmetric (revolved) measures and flow balance, unit-suffixed case values, a polar plot family and new Field-panel controls. The assistant gets `mesh_recover_flux`, `mesh_ale_quality`, `mesh_fit_primitives` and `case_run_quantity` (approval-gated).
+
 ## [2.25.0] - 2026-10-30
 
 - feat: **CAD-Preview 3.32.0 and Mesh Preview 5.27.0** (meshio++ 17.23.0 on both sides). CAD gains a **Surface Tools** panel (project a surface mesh onto exact CAD faces, grow prism layers), the kernel-free `meshcad` surface engine, all-hexahedra octrees with hanging-node multi-point constraints (drawn as links, kept only by MDPA export, with a warning on other formats) and partitioned MDPA export (one file per MPI rank plus a `.partition.json` manifest). Mesh gains Sweep/mirror/layers and Tessellate curved cells exports, hanging-node constraint operations, `projectToCad`, and polyhedral `.vtu` round trips. The assistant gets `project_to_cad`, `grow_prism_layers` (approval-gated writes) and `check_mesh_conformity`. The theme guard now defines `--vscode-contrastBorder`. Documentation screenshots were regenerated and a Surface Tools capture added.
@@ -370,6 +374,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.26.0]: https://github.com/loumalouomega/KKSS/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/loumalouomega/KKSS/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/loumalouomega/KKSS/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/loumalouomega/KKSS/compare/v2.22.0...v2.23.0
