@@ -11,7 +11,7 @@ import { nextIterate, type SeekSpec, type Iterate } from './goalSeek';
 import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, safeRelative } from './projectArchive';
 import type { AppTool } from '../chat/appTools';
 import { checkEnvironment, checkRemoteEnvironment, resolveThreads, type EnvironmentReport } from './environment';
-import { ProjectStore, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
+import { ProjectStore, staleQuantities, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
 import type { Evidence, Handoff, Json, Project, Quantity, Run, Study } from './contracts';
 import type { KratosRuntime } from '../chat/kratosRuntime';
 import { ExecutionQueue, planRevision } from './queue';
@@ -1358,9 +1358,10 @@ export class WorkflowService {
             const state = await readiness(store.root, study);
             const geometryOrMesh = [state.geometry, state.mesh].some(v => v !== 'ready');
             const latest = study.runs[study.runs.length - 1];
-            if (!geometryOrMesh && state.case === 'ready' && latest?.state === 'succeeded' && latest.sourceRevision === study.source.revision && latest.meshRevision === study.mesh?.revision && latest.settings && fingerprint(latest.settings) === fingerprint(study.caseSettings)) return { nothingToDo: true, readiness: state };
+            const reevaluate = await staleQuantities(store.root, study);
+            if (!geometryOrMesh && state.case === 'ready' && latest?.state === 'succeeded' && latest.sourceRevision === study.source.revision && latest.meshRevision === study.mesh?.revision && latest.settings && fingerprint(latest.settings) === fingerprint(study.caseSettings) && true) return reevaluate.length ? { nothingToRebuild: true, readiness: state, reevaluate, note: 'Results are current but these saved quantities were evaluated on a changed result; re-run app__run_quantity_evaluate for each.' } : { nothingToDo: true, readiness: state };
             const plan = await this.previewQueuePlan(study.id, !geometryOrMesh);
-            return { ...plan, staleOnly: true, readiness: state, rebuilds: geometryOrMesh ? 'mesh export, case generation and solve' : 'case generation and solve' };
+            return { ...plan, staleOnly: true, readiness: state, reevaluate, rebuilds: geometryOrMesh ? 'mesh export, case generation and solve' : 'case generation and solve' };
           }
           if (typeof args.reuseMesh !== 'boolean') throw new Error('Choose whether to reuse the study mesh.');
           return this.previewQueuePlan(text(args, 'studyId'), args.reuseMesh);

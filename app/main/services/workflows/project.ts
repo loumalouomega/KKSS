@@ -102,3 +102,15 @@ export function previewVariants(source: Study, rows: { name: string; settings: J
   if (!rows.length || rows.length > 50) throw new Error('A sweep must contain 1–50 explicit variant rows.');
   return rows.map(row => ({ ...structuredClone(row), changed: fingerprint(row.settings) !== fingerprint(source.caseSettings) }));
 }
+/** Saved quantities of the latest run whose result file no longer matches the revision they were evaluated on. */
+export async function staleQuantities(root: string, study: Study): Promise<{ runId: string; field: string; component: string; region: string; time: number; reason: 'changed' | 'missing' }[]> {
+  const run = study.runs[study.runs.length - 1];
+  const out: { runId: string; field: string; component: string; region: string; time: number; reason: 'changed' | 'missing' }[] = [];
+  for (const q of run?.evidence?.quantities ?? []) {
+    let reason: 'changed' | 'missing' | undefined;
+    try { if (await fileRevision(resolveReference(root, q.source)) !== q.source.revision) reason = 'changed'; }
+    catch { reason = 'missing'; }
+    if (reason) out.push({ runId: run!.id, field: q.field, component: q.component, region: q.region, time: q.time, reason });
+  }
+  return out;
+}
