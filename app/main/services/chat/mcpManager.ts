@@ -30,6 +30,7 @@ import { remoteUvxCommand, sshArgs } from "../cloud/providerCore/sshCore";
 import { classifyStartupFailure, type KratosRuntime } from "./kratosRuntime";
 import type { ToolDef } from "./providers/types";
 import { PROVIDER_TOOL_NAME_RE } from "./userServers";
+import { externalProcessEnv } from "../childEnv";
 
 /** `cad`/`mesh`/`kratos`/`pdf`, or the id of a user- or project-configured server. */
 export type ServerKey = string;
@@ -211,7 +212,7 @@ export function buildServerSpecs(outDir: string): ServerSpec[] {
       command: "uvx",
       // The pinned server imports mcp.server.fastmcp, removed by MCP Python 2.x.
       args: ["--with", "mcp<2", `kratos-mcp-server@${KRATOS_MCP_VERSION}`],
-      env: { ...process.env } as Record<string, string>,
+      env: externalProcessEnv(process.env) as Record<string, string>,
     },
     {
       // Preconfigured PDF reader: lets every provider read a PDF by path, and
@@ -221,7 +222,7 @@ export function buildServerSpecs(outDir: string): ServerSpec[] {
       name: PDF_MCP_PACKAGE,
       command: "uvx",
       args: ["--with", "mcp<2", `${PDF_MCP_PACKAGE}@${PDF_MCP_VERSION}`],
-      env: { ...process.env } as Record<string, string>,
+      env: externalProcessEnv(process.env) as Record<string, string>,
     },
   ];
 }
@@ -432,7 +433,7 @@ export class McpManager {
           ...spec,
           command: "ssh",
           args: sshArgs(remoteHost, remoteUvxCommand(spec.args)),
-          env: { ...process.env } as Record<string, string>,
+          env: externalProcessEnv(process.env) as Record<string, string>,
         };
       } else if (viaUv && this.runtime) {
         // Only Kratos owns installing uv: a PDF server that fails for want of uv
@@ -452,7 +453,7 @@ export class McpManager {
         // `bundled` is the Docker image's own kratos-mcp-server launcher, which
         // is no use for another package — the PDF spec keeps its plain uvx.
         if (kratos || !runtime.bundled) {
-          spec = { ...spec, command: runtime.command, args: runtime.bundled ? runtime.args : [...runtime.args, ...spec.args], env: { ...process.env } as Record<string, string> };
+          spec = { ...spec, command: runtime.command, args: runtime.bundled ? runtime.args : [...runtime.args, ...spec.args], env: externalProcessEnv(process.env) as Record<string, string> };
         }
       }
       if (kratos && !remoteHost && this.kratosEnv) spec = { ...spec, env: { ...spec.env, ...this.kratosEnv() } };

@@ -14,6 +14,7 @@ import { computeKratosEnv, resolveKratosInstall } from "../../../../mesh/src/pro
 import { stateStore } from "../stateStore";
 import { isValidHost } from "../cloud/providerCore/sshCore";
 import { effective, entryById } from "./registry";
+import { externalProcessEnv } from "../childEnv";
 
 function read<T>(id: string): T {
   const entry = entryById(id)!;
@@ -32,7 +33,7 @@ export function kratosEnvDelta(): Record<string, string> {
     platform: process.platform,
     installPath,
     extraEnv: read<Record<string, string>>("kratos.extraEnv"),
-    base: process.env,
+    base: externalProcessEnv(process.env),
   });
 }
 

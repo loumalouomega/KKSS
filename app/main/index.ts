@@ -79,6 +79,7 @@ import type { HomeToHost, HomeToWebview, Mode, RecoveryInfo, Screen, ShellTabInf
 import { RecoveryService } from "./services/recovery";
 import { classifyRestore } from "./services/recoveryCore";
 import type { ListedRecovery } from "./services/recoveryCore";
+import { configureChildEnv, externalProcessEnv } from "./services/childEnv";
 
 // Must happen before app is ready.
 registerSchemes();
@@ -102,6 +103,7 @@ managedConfig(); // Validate operator configuration before opening any documents
  */
 const gotInstanceLock =
   process.env.KKSS_ALLOW_MULTIPLE_INSTANCES === "1" || app.requestSingleInstanceLock();
+configureChildEnv(app.isPackaged);
 if (!gotInstanceLock) {
   // Lands in the e2e harness's captured output, so this failure diagnoses itself.
   console.error("KKSS is already running — handing the file argument to that instance.");
@@ -1541,7 +1543,7 @@ app.whenReady().then(() => {
       python: stateStore.get<string>("kratos.pythonPath", "") || defaultPythonPath(process.platform),
       threads: stateStore.get<number>("kratos.threads", 0),
       mpiRanks: stateStore.get<number>("kratos.mpiRanks", 0),
-      env: { ...process.env, ...kratosEnvDelta() },
+      env: { ...externalProcessEnv(process.env), ...kratosEnvDelta() },
       bundledPython: process.env.KKSS_KRATOS_PYTHON,
       installPath: stateStore.get<string>("kratos.installPath", "") || undefined,
       extraEnv: stateStore.get<Record<string, string>>("kratos.extraEnv", {}) ?? {},
