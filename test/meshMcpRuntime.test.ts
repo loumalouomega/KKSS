@@ -56,6 +56,13 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
     expect(tools.find(t => t.name === 'mesh_convert')?.inputSchema.properties).toHaveProperty('fields');
     const source = path.join(dir, 'square.mdpa');
     fs.writeFileSync(source, fixture);
+    // mesh 5.29.0 (meshio++ 18): read-only self-intersection report. The
+    // fixture's two triangles share an edge, so the exact test finds a clean
+    // surface; ids and counts come back without writing anything.
+    expect(tools.find(t => t.name === 'mesh_intersections')?.inputSchema.properties).toHaveProperty('otherPath');
+    const intersections = await call('mesh_intersections', { path: source });
+    expect(JSON.stringify(intersections)).toMatch(/clean/);
+    expect(JSON.stringify(intersections)).not.toMatch(/"clean":false/);
     const capabilities = await call('mesh_capabilities');
     expect(JSON.stringify(capabilities)).toContain('vtk');
     expect(capabilities.exportFidelity.version).toBe(2);

@@ -1961,7 +1961,16 @@ describe("standing instructions, skills and prompt templates", () => {
     expect(entry.entry.text).toBe("Review beam.stl for problems.");
     await settle(30);
     const id = lastState(messages).conversationId;
-    expect((stored(id)!.entries[0] as any).text).toBe("Review beam.stl for problems.");
+    // The blob is an fsync + rename queued beside its index row, so on a loaded
+    // runner it can land after any fixed tick budget. Wait for the file itself:
+    // reading through the store while the blob is still missing can also drop
+    // the conversation's index row (TranscriptStore.load does that), which is
+    // why the poll does not call stored() until the file exists.
+    const blob = path.join(dir, `${id}.json`);
+    await vi.waitFor(() => {
+      expect(fs.existsSync(blob)).toBe(true);
+      expect((stored(id)!.entries[0] as any).text).toBe("Review beam.stl for problems.");
+    }, { timeout: 4000, interval: 10 });
   });
 
   it("leaves paths, unknown names and escaped slashes exactly as typed", async () => {

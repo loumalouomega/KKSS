@@ -88,6 +88,12 @@ describe.skipIf(!built)("generated webview pages", () => {
     ]) {
       expect(html).toContain(anchor);
     }
+    // mesh 5.29.0's Mesh Modification forms (Select region, Wall thickness) and
+    // the optimizeVolume objective/ring fields arrive with the imported sidebar
+    // fragment; webview/meshMod.ts binds each by id.
+    for (const anchor of ['id="selreg-form"', 'id="thick-form"', 'data-op="selectRegion"', 'data-op="thickness"', 'id="ov-ring"']) {
+      expect(html).toContain(anchor);
+    }
     // #stats is filled by renderStats() wherever it sits — it must still exist.
     expect(html).toContain('id="stats"');
     // mesh 4.x's document chip and status bar: the providers post `documentInfo`

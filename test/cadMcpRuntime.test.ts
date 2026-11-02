@@ -73,6 +73,24 @@ describe.skipIf(!fs.existsSync(server))("bundled CAD MCP runtime", () => {
       const conformity = await client.callTool({ name: "check_mesh_conformity", arguments: { path: faceMesh } });
       expect(conformity.isError, JSON.stringify(conformity.content)).not.toBe(true);
 
+      // cad 3.34.0 (meshio++ 18): the three surface analyses through the same
+      // staged kernel worker, over block.stp's own skin. Facts only.
+      const facts = (r: unknown) => JSON.parse(((r as { content: unknown }).content as Array<{ text?: string }>).find(c => c.text)!.text!);
+      const inter = await client.callTool({ name: "find_mesh_intersections", arguments: { path: surface } });
+      expect(inter.isError, JSON.stringify(inter.content)).not.toBe(true);
+      expect(facts(inter).intersections.clean).toBe(true);
+      const thick = await client.callTool({ name: "measure_mesh_thickness", arguments: { path: surface, direction: "inward" } });
+      expect(thick.isError, JSON.stringify(thick.content)).not.toBe(true);
+      const thickness = facts(thick).thickness;
+      expect(thickness.numHit + thickness.numMissed).toBe(facts(inter).numTriangles);
+      // A hit has a positive distance; with no hit the statistics are null, never 0.
+      if (thickness.numHit > 0) expect(thickness.min).toBeGreaterThan(0);
+      else expect(thickness.min).toBeNull();
+      const region = await client.callTool({ name: "select_mesh_region", arguments: { path: surface, box: [-1e6, -1e6, -1e6, 1e6, 1e6, 1e6] } });
+      expect(region.isError, JSON.stringify(region.content)).not.toBe(true);
+      // A box around everything selects every triangle of the skin.
+      expect(facts(region).selection.numSelected).toBe(facts(inter).numTriangles);
+
       const mesh = path.join(dir, "model.mdpa");
       fs.writeFileSync(mesh, "Begin Nodes\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\nEnd Nodes\nBegin Elements Element3D4N\n1 0 1 2 3 4\nEnd Elements\n");
       const loaded = await client.callTool({ name: "load_model", arguments: { path: mesh } });
