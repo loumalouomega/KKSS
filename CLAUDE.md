@@ -324,8 +324,8 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**17.23.0**, the version both submodules lock
-  and the one KKSS stages; cad 3.32.0 and mesh 5.27.0 declare the same `^17.23.0`,
+  `@meshioplusplus/wasm` package (**18.0.0**, the version both submodules lock
+  and the one KKSS stages; cad 3.34.0 and mesh 5.29.0 declare `18.0.0`/`^18.0.0`,
   so the pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
   rather than by the pins agreeing — re-run both after either bump, and prefer
   re-aligning CAD over letting the skew grow;
@@ -1204,7 +1204,7 @@ resubmitted automatically.
   what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 292-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
+  `test/chatToolPolicy.test.ts` pins the exact 315-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1639,8 +1639,15 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 86 CAD + 55 mesh + 4 aggregation + 33 app-owned
-workflow tools; 300 policy rows with the PDF reader server's twelve).
+discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 40 app-owned
+workflow tools; 315 policy rows with the PDF reader server's twelve).
+
+**The cad 3.33.0 → 3.34.0 + mesh 5.28.0 → 5.29.0 jump (meshio++ 18.0.0, three CAD surface analyses, `mesh_intersections`, region selection, wall thickness, polyhedral dual/MMG/Hessian derives; KKSS 2.27.0) needed four policy rows, one prompt sentence and tests — no host code.**
+
+- **cad: MCP-side only.** `analyzeSurfaceMesh` is one kernel-worker function behind `find_mesh_intersections`, `measure_mesh_thickness` and `select_mesh_region`; `kernelActivity.ts` keys it to meshio++ upstream and `cadComputeClient.ts`/`cadCompute.worker.ts` need no binding because no host handler calls it. The five new Mesh Ops operations are `meshioOpsRequest` payloads and Mesh Ops panel fields already served by the shared bundle; `provider.ts` is unchanged.
+- **mesh: markup arrives through the imported fragment.** `webviewChrome.ts` gained the **Select region** and **Wall thickness** forms and the `optimizeVolume` objective/ring fields inside the imported sidebar fragment, so `meshBody()` needs no edit (anchors added in `test/webviewPages.test.ts`). No new `vscode.*` API, `globalState` key, setting, worker or theme variable.
+- **meshio++ 18.0.0 on both sides** (major, no reader/writer key change). The full artifact now links MMG 5.8 (LGPL-3.0-or-later) and Netgen (LGPL-2.1) — GPL-3.0-or-later compatible, licence unchanged; ELAS is excluded so `move` throws. The shared `out/meshio/` tree is still gated by the two runtime parity tests.
+- **Policy: 89 CAD + 60 mesh + 4 mcp + 40 app + 110 kratos + 12 pdf = 315.** `cad__find_mesh_intersections`, `cad__measure_mesh_thickness`, `cad__select_mesh_region` and `mesh__mesh_intersections` are `read` (no output path; `mesh_derive findIntersections` is the already-`write` twin). A thickness ray that reaches nothing reports `null`, never 0 — keep that wording in the prompt.
 
 **The cad 3.32.0 → 3.33.0 + mesh 5.27.0 → 5.28.0 jump (rule-defined Parts, `addParametricCurve`, unit-suffixed expressions, revolved measures, four new mesh tools; KKSS 2.26.0) needed one host port and four policy rows.**
 

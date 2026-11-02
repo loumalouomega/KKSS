@@ -384,10 +384,10 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | Server | Tools | Read | Write | Path-scoped |
 | --- | --- | --- | --- | --- |
 | `app` | 40 | 16 | 24 | 0 |
-| `cad` | 86 | 43 | 43 | 39 |
+| `cad` | 89 | 46 | 43 | 39 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
-| `mesh` | 59 | 21 | 38 | 31 |
+| `mesh` | 60 | 22 | 38 | 31 |
 | `pdf` | 12 | 12 | 0 | 0 |
 
 <details><summary><code>app</code> (40)</summary>
@@ -437,7 +437,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>cad</code> (86)</summary>
+<details><summary><code>cad</code> (89)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
@@ -469,6 +469,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__export_svg_silhouette` | write | paths: `path`, `outputPath` |
 | `cad__export_technical_drawing` | write | paths: `path`, `outputPath` |
 | `cad__export_tessellated_stl` | write | paths: `path`, `outputPath`, `libraryPath` |
+| `cad__find_mesh_intersections` | read | — |
 | `cad__fit_mesh_region` | write | paths: `path` |
 | `cad__fit_mesh_to_cad` | write | paths: `path`, `outputPath`, `cadJsonPath` |
 | `cad__generate_bom` | read | — |
@@ -499,6 +500,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__measure` | read | — |
 | `cad__measure_exact` | read | — |
 | `cad__measure_mesh_deviation` | write | paths: `path`, `deviationMeshPath` |
+| `cad__measure_mesh_thickness` | read | — |
 | `cad__mesh_cad_surface` | write | paths: `path`, `outputPath` |
 | `cad__pin_annotation` | write | paths: `path` |
 | `cad__project_to_cad` | write | paths: `path`, `cadPath`, `outputPath` |
@@ -520,6 +522,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__screenshot_shape` | read | — |
 | `cad__search_standard_parts` | read | — |
 | `cad__segment_mesh_surface` | read | — |
+| `cad__select_mesh_region` | read | — |
 | `cad__set_layer` | write | paths: `path` |
 | `cad__set_mesh_options` | write | paths: `path` |
 | `cad__set_part` | write | paths: `path` |
@@ -658,7 +661,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>mesh</code> (59)</summary>
+<details><summary><code>mesh</code> (60)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
@@ -697,6 +700,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `mesh__mesh_fit_primitives` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_flow_balance` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_info` | read | — |
+| `mesh__mesh_intersections` | read | — |
 | `mesh__mesh_pack_series` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_periodic` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_probe` | write | paths: `path`, `outputPath` |

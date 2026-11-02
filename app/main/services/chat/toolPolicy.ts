@@ -223,6 +223,13 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__project_to_cad: "write",
   cad__grow_prism_layers: "write",
   cad__check_mesh_conformity: "read",
+  // cad 3.34.0 (meshio++ 18): three facts-only surface analyses over a mesh
+  // source (one `analyzeSurfaceMesh` kernel call). None takes an output path,
+  // so all three are read — a thickness ray that hits nothing reports null
+  // statistics, never zero.
+  cad__find_mesh_intersections: "read",
+  cad__measure_mesh_thickness: "read",
+  cad__select_mesh_region: "read",
   cad__iga_sample: "read",
   cad__iga_refine: "write",
   cad__iga_evaluate: "read",
@@ -318,6 +325,10 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__mesh_ale_quality: "write",
   mesh__mesh_fit_primitives: "write",
   mesh__case_run_quantity: "write",
+  // mesh 5.29.0: reports where a surface meets itself (or a second surface);
+  // facts and ids only, no output path (mesh_derive findIntersections is the
+  // writing twin and is already `write`).
+  mesh__mesh_intersections: "read",
   mesh__mesh_compare: "write",
   mesh__mesh_derive: "write",
   mesh__mesh_size: "read",
