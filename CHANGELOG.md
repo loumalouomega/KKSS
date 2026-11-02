@@ -5,6 +5,10 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.27.1] - 2026-11-02
+
+- Test-only fix for CI: the chat test that checks the saved transcript now waits for the file to be written instead of a fixed tick count, so slower runners no longer fail it. No app changes since 2.27.0.
+
 ## [2.27.0] - 2026-11-02
 
 - feat: **CAD-Preview 3.34.0 and Mesh Preview 5.29.0** (meshio++ 18.0.0 on both sides; the full artifact now links MMG 5.8 and Netgen, both GPL-compatible, so the licence is unchanged). CAD gains three facts-only surface analyses for the assistant — `find_mesh_intersections`, `measure_mesh_thickness` (a ray that reaches nothing reports `null`, never 0) and `select_mesh_region` — and five Mesh Ops operations (`tetToPoly`, `polyToTet`, `optimizeVolume`, `adapt`, `discretizeLevelset`). Mesh gains **Select region** and **Wall thickness** in Mesh Modification, self-intersection reports in the Mesh-analysis panel (`mesh_intersections`), kernel `adapt`/`discretizeLevelset`/`meshDomain`/`metricFromHessian`/`tetToPoly` derives, Netgen-backed `tetrahedralize` that keeps the surface, and an `optimizeVolume` objective. All four new assistant tools are read-only and run without an approval prompt (315 policy rows). Tests cover the staged CAD and mesh MCP servers and the new sidebar forms.
@@ -378,6 +382,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.27.1]: https://github.com/loumalouomega/KKSS/compare/v2.27.0...v2.27.1
 [2.27.0]: https://github.com/loumalouomega/KKSS/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/loumalouomega/KKSS/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/loumalouomega/KKSS/compare/v2.24.0...v2.25.0
