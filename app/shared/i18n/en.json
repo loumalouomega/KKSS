@@ -1059,5 +1059,6 @@
   "Run": "Run",
   "done": "done",
   "to do": "to do",
-  "redo": "redo"
+  "redo": "redo",
+  " (not connected)": " (not connected)"
 }

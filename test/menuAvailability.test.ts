@@ -3,6 +3,7 @@ import {
   INFO_ID_PREFIX,
   clearProjectRoot,
   needsClientId,
+  needsConnection,
   needsMeshDocument,
   needsRemoteHost,
   postProcessingOnly,
@@ -26,6 +27,8 @@ describe("menu availability reasons", () => {
     expect(needsRemoteHost(2)).toBeUndefined();
     expect(needsClientId(false)).toBe("needsClientId");
     expect(needsClientId(true)).toBeUndefined();
+    expect(needsConnection(false)).toBe("notConnected");
+    expect(needsConnection(true)).toBeUndefined();
     expect(clearProjectRoot(false, false)).toBe("noProjectRoot");
     expect(clearProjectRoot(true, true)).toBe("managed");
     expect(clearProjectRoot(true, false)).toBeUndefined();

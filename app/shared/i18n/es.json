@@ -1059,5 +1059,6 @@
   "Run": "Ejecución",
   "done": "hecho",
   "to do": "pendiente",
-  "redo": "rehacer"
+  "redo": "rehacer",
+  " (not connected)": " (no conectado)"
 }

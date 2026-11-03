@@ -17,7 +17,7 @@ import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
 import { showLicense } from "./services/license";
 import { showManual } from "./services/manual";
-import { clearProjectRoot, INFO_ID_PREFIX, managedSetting, needsClientId, needsMeshDocument, needsRemoteHost, postProcessingOnly, UNAVAILABLE_SUFFIX, type AvailabilityContext, type UnavailableKey } from "./services/menuAvailability";
+import { clearProjectRoot, INFO_ID_PREFIX, managedSetting, needsClientId, needsConnection, needsMeshDocument, needsRemoteHost, postProcessingOnly, UNAVAILABLE_SUFFIX, type AvailabilityContext, type UnavailableKey } from "./services/menuAvailability";
 import { EXAMPLES } from "./services/examplesCore";
 import { showChangelog } from "./services/whatsNew";
 import { stateStore } from "./services/stateStore";
@@ -277,8 +277,8 @@ function cloudAccountsSubmenu(deps: MenuDeps): Electron.MenuItemConstructorOptio
           click: () => deps.cloud.connect(status.id),
         },
         {
-          label: t("Disconnect…"),
-          enabled: status.connected,
+          label: withReason(t("Disconnect…"), needsConnection(status.connected)),
+          enabled: !needsConnection(status.connected),
           click: () => deps.cloud.disconnect(status.id),
         },
       ],

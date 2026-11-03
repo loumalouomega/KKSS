@@ -7,6 +7,7 @@ export type UnavailableKey =
   | "managed"
   | "noRemoteHosts"
   | "needsClientId"
+  | "notConnected"
   | "noProjectRoot";
 
 export interface AvailabilityContext { mode: "cad" | "mesh"; screen: string; hasMeshFile: boolean }
@@ -36,6 +37,11 @@ export function needsClientId(hasClientId: boolean): UnavailableKey | undefined 
   return hasClientId ? undefined : "needsClientId";
 }
 
+/** Cloud Disconnect only makes sense for a connected account. */
+export function needsConnection(connected: boolean): UnavailableKey | undefined {
+  return connected ? undefined : "notConnected";
+}
+
 /** Clear Project Root: managed wins (the root cannot change), else needs a stored root. */
 export function clearProjectRoot(isSet: boolean, isManaged: boolean): UnavailableKey | undefined {
   return managedSetting(isManaged) ?? (isSet ? undefined : "noProjectRoot");
@@ -47,6 +53,7 @@ export const UNAVAILABLE_SUFFIX = {
   managed: " (set by the environment)",
   noRemoteHosts: " (no SSH hosts configured)",
   needsClientId: " (set the Client ID first)",
+  notConnected: " (not connected)",
   noProjectRoot: " (no project folder set)",
 } as const satisfies Record<UnavailableKey, string>;
 
