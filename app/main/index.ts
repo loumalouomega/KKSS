@@ -24,7 +24,8 @@ import { modeForFile, modeForViewType, unsupportedSuffix } from "./router";
 import { DOCS_URL } from "./urls";
 import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsupportedLaunchFiles } from "./launch";
 import { showOpenDialog } from "./services/dialogs";
-import { openExample } from "./services/examples";
+import { openExample, extractExample } from "./services/examples";
+import { nextStepContext, type NextStepContext } from "./services/workflows/checklist";
 import { exportDiagnostics } from "./services/diagnostics";
 import { exportProjectArchive, importProjectArchive } from "./services/projectArchiveUi";
 import { helpPath, type HelpContext } from "./services/helpMap";
@@ -216,9 +217,43 @@ function sendHome(message: HomeToWebview): void {
   main.home.webContents.send("home:toWebview", message);
 }
 
+/** The active study's next checklist step for the chat's (synchronous) context suffix; refreshed with every workflow push. */
+let activeNextStep: NextStepContext | undefined;
+
 async function pushWorkflows(): Promise<void> {
   try { sendHome({ type: "workflowState", value: await workflows?.snapshot() }); }
   catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
+  try {
+    const checklist = (await workflows?.activeNextStep()) ?? null;
+    activeNextStep = checklist ? nextStepContext(checklist) : undefined;
+    sendHome({ type: "nextStep", value: checklist });
+  } catch { activeNextStep = undefined; }
+}
+
+/**
+ * New Simulation wizard: put the geometry in place (an example is extracted into
+ * a folder the user picks; "own" is a file picker), create a study on it through
+ * the same `app__study_create` Home's New study uses (project-relative reference
+ * rules live in the service), and report back. Opens nothing and records no recents.
+ */
+async function wizardStart(kind: "example" | "own", id: string | undefined): Promise<void> {
+  try {
+    let source: string | undefined;
+    if (kind === "example") {
+      if (typeof id !== "string") return void sendHome({ type: "wizardDone" });
+      source = await extractExample(id, __dirname);
+    } else {
+      source = (await showOpenDialog({ title: translate("Choose the geometry for the new simulation"), openLabel: translate("Use this geometry") }))?.[0];
+    }
+    if (!source) return void sendHome({ type: "wizardDone" });
+    const result = await callAppTool("app__study_create", { source, name: path.basename(source, path.extname(source)) });
+    const value = result.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+    if (result.isError) { sendHome({ type: "workflowError", message: value }); return; }
+    let studyId: string | undefined;
+    try { studyId = (JSON.parse(value) as { id?: string }).id; } catch { /* the push below still shows the new study */ }
+    await pushWorkflows();
+    sendHome({ type: "wizardDone", studyId });
+  } catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
 }
 
 async function checkSimulationEnvironment(): Promise<void> {
@@ -1691,6 +1726,7 @@ app.whenReady().then(() => {
     projectRoot: () => projectRoot.explicit(),
     currentFiles: () => ({
       workflowContext: workflows?.context(),
+      nextStep: activeNextStep,
       cad: [...cadHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
       mesh: [...meshHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
       activeCad: activeCadHost()?.currentFile,
@@ -1914,6 +1950,10 @@ app.whenReady().then(() => {
         }
         void pushWorkflows();
       }).catch(error => sendHome({ type: "workflowError", message: String(error) }));
+      return;
+    }
+    if (msg.type === "wizardStart") {
+      if (msg.kind === "example" || msg.kind === "own") void wizardStart(msg.kind, msg.id);
       return;
     }
     if (msg.type === "retrySimulationTools") {

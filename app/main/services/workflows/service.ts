@@ -7,7 +7,7 @@ import { constants as fsConstants } from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { writeFileAtomic } from '../atomicWrite';
-import { buildChecklist } from './checklist';
+import { buildChecklist, type ChecklistStep } from './checklist';
 import { nextIterate, type SeekSpec, type Iterate } from './goalSeek';
 import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readZip, unresolvedExternal, safeRelative } from './projectArchive';
 import type { AppTool } from '../chat/appTools';
@@ -214,6 +214,15 @@ export class WorkflowService {
     this.queueContext = project?.queue.tasks.filter(t => ['dispatching', 'running', 'uncertain'].includes(t.state)).map(t => ({ id: t.id, studyId: t.studyId, runId: t.runId, kind: t.kind, state: t.state })) ?? [];
     return { project: project ?? null, queuePlanRevision: project ? planRevision(project.queue.tasks) : undefined,
       readiness: Object.fromEntries(await Promise.all((project?.studies ?? []).map(async s => [s.id, await readiness(store.root, s)]))), environment: this.report?.value };
+  }
+  /** The active study's checklist (the `study_next_step` shape), or null with no project/study. Read-only. */
+  async activeNextStep(): Promise<{ studyId: string; name: string; readiness: Record<string, string>; steps: ChecklistStep[]; next?: ChecklistStep } | null> {
+    if (!this.deps.root()) return null;
+    const store = this.store(), project = await store.read();
+    const study = project?.studies.find(s => s.id === project.activeStudyId);
+    if (!project || !study) return null;
+    const state = await readiness(store.root, study);
+    return { studyId: study.id, name: study.name, readiness: state, ...buildChecklist(state) };
   }
   private startQueuePolling(): void {
     if (this.queueTimer) return;

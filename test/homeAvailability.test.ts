@@ -39,6 +39,8 @@ describe("home availability reasons", () => {
   });
   it("needs a project folder to create a study", () => {
     expect(homeAvailability(mk({ hasProjectFolder: false }))["study-create"]).toBe("noProjectFolder");
+    expect(homeAvailability(mk({ hasProjectFolder: false }))["study-wizard"]).toBe("noProjectFolder");
+    expect(homeAvailability(mk({ hasStudy: false }))["study-wizard"]).toBeUndefined();
   });
   it("reports queue reasons", () => {
     expect(homeAvailability(mk({ queue: { paused: false, taskStates: [] } }))["queue-resume"]).toBe("queueEmpty");

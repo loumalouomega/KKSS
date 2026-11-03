@@ -580,6 +580,7 @@ export type HomeToHost =
   | { type: "checkEnvironment" }
   | { type: "retrySimulationTools"; install: boolean }
   | { type: "workflow"; tool: string; args: Record<string, unknown> }
+  | { type: "wizardStart"; kind: "example" | "own"; id?: string }
   | { type: "action"; action: HomeAction }
   | { type: "openRecent"; path: string; mode: Mode }
   | { type: "clearRecents" }
@@ -605,6 +606,10 @@ export type HomeToWebview = { type: "recents"; entries: RecentEntry[] } | Projec
   | { type: "recovery"; entries: RecoveryInfo[] }
   | { type: "workflowState" | "environmentReport" | "workflowResult"; value: unknown }
   | { type: "workflowBusy"; busy: boolean }
+  /** New Simulation wizard finished (studyId absent = cancelled); the form closes. */
+  | { type: "wizardDone"; studyId?: string }
+  /** The active study's `study_next_step` result (null = none), pushed with every workflow state. */
+  | { type: "nextStep"; value: unknown }
   | { type: "workflowError"; message: string };
 
 /** Messages posted by the shell toolbar renderer. */

@@ -496,6 +496,9 @@ const DENIED_TEXT =
  *  which one is currently focused — see the Context suffix's doc comment. */
 export interface OpenFilesInfo {
   workflowContext?: string;
+  /** The active study's single next checklist action (app__study_next_step).
+   *  Context-suffix only — the system prompt must stay byte-stable. */
+  nextStep?: { studyId: string; name: string; step: string; tool?: string };
   cad: string[];
   mesh: string[];
   activeCad?: string | null;
@@ -1418,6 +1421,9 @@ export class ChatService {
         ? `Kratos tools (kratos__*) run on ssh host ${files.kratosHost}: their paths are paths on that host, not the local staging paths of other tools`
         : undefined,
       files.workflowContext ? `Simulation workflow: ${files.workflowContext}` : undefined,
+      files.nextStep
+        ? `Active study next step: ${JSON.stringify({ studyId: files.nextStep.studyId, name: files.nextStep.name, step: files.nextStep.step, ...(files.nextStep.tool ? { tool: files.nextStep.tool } : {}) })}`
+        : undefined,
       describe("CAD (pre-processing) tabs", files.cad, files.activeCad),
       describe("Mesh (post-processing) tabs", files.mesh, files.activeMesh),
     ].filter((p): p is string => !!p);

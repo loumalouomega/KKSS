@@ -12,6 +12,7 @@ import { t, translate } from "../../shared/i18n";
 import { WorkflowForm, type WorkflowField } from "./workflowForm";
 import { HOME_BUTTONS } from "./homeConfig";
 import { homeAvailability, REASON_TEXT } from "./availability";
+import { WIZARD_FAMILIES, checklistRows, examplesFor, type NextStepPayload, type StepCommand } from "./wizard";
 import { convergencePlots } from "../../shared/convergencePlots";
 import { TOOLBAR_ICONS } from "../shell/shellIcons";
 import type { HomeToWebview, ProjectRootInfo, RecentEntry, RecoveryInfo } from "../../main/ipc";
@@ -446,6 +447,69 @@ for (const [id, tool] of [["study-compare-variants", "variants_compare"], ["stud
   });
 }
 
+// ---- New Simulation wizard (roadmap item 9) ---------------------------------
+// Step 1 picks a physics family, step 2 an example of it (or the user's own
+// geometry); main extracts/picks, creates the study and answers `wizardDone`.
+// The checklist below is rendered from the `nextStep` push main sends with every
+// workflow state, so it follows the study as the user works.
+document.getElementById("study-wizard")!.addEventListener("click", () => {
+  const families = WIZARD_FAMILIES.map(f => translate(f.label));
+  form.open(translate("New simulation"), [
+    { name: "family", label: translate("What do you want to simulate?"), choices: families, value: families[0] },
+  ], ({ family }) => {
+    const chosen = WIZARD_FAMILIES[families.indexOf(family)];
+    if (!chosen) throw new Error(translate("Choose a physics family."));
+    const examples = examplesFor(chosen.id);
+    const own = translate("Use my own geometry");
+    const labels = examples.map(e => translate(e.label));
+    form.complete();
+    form.open(translate("Start from"), [
+      { name: "start", label: translate("Start from an example case or your own geometry:"), choices: [...labels, own], value: labels[0] ?? own },
+    ], ({ start }) => {
+      const example = examples[labels.indexOf(start)];
+      workflowPending = true; form.setBusy(true); workflowError.hidden = true;
+      api.post(example ? { type: "wizardStart", kind: "example", id: example.id } : { type: "wizardStart", kind: "own" });
+    });
+  });
+});
+
+const checklistSection = document.getElementById("study-checklist") as HTMLElement;
+const checklistList = document.getElementById("study-checklist-list") as HTMLOListElement;
+const COMMAND_BUTTON: Partial<Record<StepCommand, string>> = {
+  "relink-source": "study-relink-source", "attach-mesh": "study-attach-mesh", "plan-run": "study-plan-run", "review-run": "study-review-run",
+};
+const COMMAND_STAGE: Partial<Record<StepCommand, "geometry" | "mesh" | "case">> = {
+  "open-geometry": "geometry", "open-mesh": "mesh", "open-case": "case",
+};
+function runStepCommand(studyId: string, command: StepCommand): void {
+  const stage = COMMAND_STAGE[command];
+  if (stage) { workflowCall("study_open", { studyId, stage }); return; }
+  // Everything else is an existing Home button (and so keeps its own availability rules).
+  const button = document.getElementById(COMMAND_BUTTON[command] ?? "") as HTMLButtonElement | null;
+  if (button && !button.disabled) button.click();
+}
+function renderChecklist(value: unknown): void {
+  checklistList.replaceChildren();
+  const payload = value as NextStepPayload | null;
+  checklistSection.hidden = !payload || !Array.isArray(payload.steps);
+  if (!payload || !Array.isArray(payload.steps)) return;
+  for (const row of checklistRows(payload)) {
+    const item = document.createElement("li");
+    item.className = `checklist-row${row.isNext ? " is-next" : ""}`;
+    const text = document.createElement("span"); text.className = "checklist-text";
+    const label = document.createElement("span"); label.className = "checklist-label"; label.textContent = translate(row.label);
+    const state = document.createElement("span"); state.className = "checklist-state";
+    state.textContent = [translate(row.stateLabel), row.why ? translate(row.why) : undefined].filter(Boolean).join(" \u00b7 ");
+    text.append(label, state);
+    const open = document.createElement("button"); open.type = "button"; open.className = "btn-link";
+    open.textContent = translate(row.button); open.disabled = !row.enabled;
+    if (row.why) { open.title = translate(row.why); }
+    open.addEventListener("click", () => runStepCommand(payload.studyId, row.command));
+    item.append(text, open);
+    checklistList.append(item);
+  }
+}
+
 function renderWorkflow(raw: unknown): void {
   workflow.hidden = false;
   if (!raw || typeof raw !== "object") { studyPickerLabel.hidden = true; selectedStudy = undefined; activeStates = {}; refreshAvailability(); return; }
@@ -551,6 +615,8 @@ api.onMessage((raw) => {
   if (message?.type === "recovery") renderRecovery(message.entries);
   else if (message?.type === "projectRoot") renderProjectRoot(message);
   else if (message?.type === "workflowState") renderWorkflow(message.value);
+  else if (message?.type === "nextStep") renderChecklist(message.value);
+  else if (message?.type === "wizardDone") { workflowPending = false; form.complete(); }
   else if (message?.type === "environmentReport") {
     const report = message.value as {
       manual?: { available: boolean; executable?: string; version?: string; kratosVersion?: string; reason?: string; capabilities?: { threads: boolean; mpi: boolean; mpiReason?: string; mpiLauncher?: string }; applications?: { name: string; available: boolean; reason?: string }[] };

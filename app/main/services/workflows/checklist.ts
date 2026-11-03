@@ -31,3 +31,9 @@ export function buildChecklist(r: Record<string, StepState>): { steps: Checklist
   return { steps, ...(next ? { next } : {}) };
 }
 export { STAGES };
+
+/** What the chat's context suffix carries: the study and its single next action. */
+export interface NextStepContext { studyId: string; name: string; step: ChecklistStep['id']; tool?: string }
+export function nextStepContext(c: { studyId: string; name: string; next?: ChecklistStep }): NextStepContext | undefined {
+  return c.next ? { studyId: c.studyId, name: c.name, step: c.next.id, ...(c.next.tool ? { tool: c.next.tool } : {}) } : undefined;
+}

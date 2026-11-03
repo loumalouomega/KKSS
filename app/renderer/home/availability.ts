@@ -45,6 +45,7 @@ export function homeAvailability(s: HomeAvailabilityState): HomeAvailability {
   const meshReady = s.states.mesh === "ready";
 
   out["study-create"] = s.hasProjectFolder ? undefined : "noProjectFolder";
+  out["study-wizard"] = s.hasProjectFolder ? undefined : "noProjectFolder";
   out["study-duplicate"] = study(undefined);
   out["study-plan-run"] = study(runtime);
   out["study-plan-sweep"] = study(runtime);

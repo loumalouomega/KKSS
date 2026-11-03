@@ -36,6 +36,7 @@
         <button id="workflow-check" class="btn-link" type="button" data-i18n="Check environment">Check environment</button>
       </div>
       <div class="workflow-actions">
+        <button id="study-wizard" class="btn-link" type="button" data-i18n="New simulation">New simulation</button>
         <button id="study-create" class="btn-link" type="button" data-i18n="New study">New study</button>
         <button id="study-duplicate" class="btn-link" type="button" disabled data-i18n="Duplicate">Duplicate</button>
         <button id="study-plan-run" class="btn-link" type="button" disabled data-i18n="Plan run">Plan run</button>
@@ -47,6 +48,10 @@
         <select id="study-picker"></select>
       </label>
       <div id="study-readiness" aria-live="polite"></div>
+      <section id="study-checklist" class="card" aria-labelledby="study-checklist-title" hidden>
+        <h3 id="study-checklist-title" data-i18n="Next steps">Next steps</h3>
+        <ol id="study-checklist-list"></ol>
+      </section>
       <div class="workflow-actions">
         <button id="queue-resume" class="btn-link" type="button" disabled data-i18n="Resume queue">Resume queue</button>
         <button id="queue-pause" class="btn-link" type="button" disabled data-i18n="Pause queue">Pause queue</button>
