@@ -383,18 +383,19 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 | Server | Tools | Read | Write | Path-scoped |
 | --- | --- | --- | --- | --- |
-| `app` | 41 | 16 | 25 | 0 |
+| `app` | 42 | 17 | 25 | 0 |
 | `cad` | 89 | 46 | 43 | 39 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
 | `mesh` | 60 | 22 | 38 | 31 |
 | `pdf` | 12 | 12 | 0 | 0 |
 
-<details><summary><code>app</code> (41)</summary>
+<details><summary><code>app</code> (42)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
 | `app__check_simulation_environment` | read | — |
+| `app__goal_seek_iterates` | read | — |
 | `app__goal_seek_next` | read | — |
 | `app__project_pack` | write | — |
 | `app__project_unpack` | write | — |

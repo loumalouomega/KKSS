@@ -66,6 +66,7 @@ export function homeAvailability(s: HomeAvailabilityState): HomeAvailability {
   out["study-region-refs"] = study(!s.states.mesh || s.states.mesh === "missing" ? "meshNotReady" : undefined);
   out["study-region-rename"] = study(!s.states.case || s.states.case === "missing" ? "caseNotReady" : undefined);
   out["study-evaluate-quantity"] = study(run());
+  out["study-goal-seek"] = study(run());
   out["study-refinement"] = study(run());
   out["study-export-review"] = study(run());
   out["study-compare-variants"] = study(undefined);

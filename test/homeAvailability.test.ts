@@ -23,6 +23,7 @@ describe("home availability reasons", () => {
     expect(a["study-rebuild-stale"]).toBe("noStudy");
     expect(a["study-plan-run"]).toBe("noStudy");
     expect(a["study-evaluate-quantity"]).toBe("noStudy");
+    expect(a["study-goal-seek"]).toBe("noStudy");
     expect(a["study-create"]).toBeUndefined();
   });
   it("names the runtime for planning and resume, and not before the report arrives", () => {
@@ -32,6 +33,7 @@ describe("home availability reasons", () => {
   });
   it("needs a run for quantity evaluation and two for comparison", () => {
     expect(homeAvailability(mk({ hasSelectedRun: false, selectedRunHasResult: false }))["study-evaluate-quantity"]).toBe("noRun");
+    expect(homeAvailability(mk({ hasSelectedRun: false, selectedRunHasResult: false }))["study-goal-seek"]).toBe("noRun");
     expect(homeAvailability(mk({ runCount: 1 }))["study-compare-runs"]).toBe("needsTwoRuns");
     expect(homeAvailability(mk({ selectedRunHasResult: false }))["study-open-results"]).toBe("noResults");
   });

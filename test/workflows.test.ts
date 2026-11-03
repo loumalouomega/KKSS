@@ -1062,3 +1062,34 @@ describe('shared workflow tools', () => {
     await expect(invoke('run_quantity_reevaluate', { studyId: study.id, runId: 'run-a' })).rejects.toThrow(/earlier run/);
   });
 });
+
+describe('goal-seek iterates', () => {
+  it('walks the variant group, keeps missing quantities null and makes goal_seek_next stop', async () => {
+    type Iterate = { x: number; y: number | null; state: string };
+    const root = await temp(), geometry = path.join(root, 'beam.step'); await fs.writeFile(geometry, 'geometry');
+    const resultFile = path.join(root, '.kkss', 'runs', 'run-p', 'result.vtu'); await fs.mkdir(path.dirname(resultFile), { recursive: true }); await fs.writeFile(resultFile, '<VTKFile>p</VTKFile>');
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined });
+    const store = service.store(), source = reference(root, geometry, await fileRevision(geometry));
+    const parent: Study = { ...makeStudy(), source, caseSettings: { load: 1 }, runs: [] };
+    const failed = duplicateStudy(parent, 'failed', true, { load: 2 }), missing = duplicateStudy(parent, 'missing', true, { load: 3 });
+    const mk = (study: Study, id: string, state: Run['state']): Run => ({ id, studyId: study.id, sourceRevision: source.revision, meshRevision: 'm', settings: study.caseSettings, directory: `.kkss/runs/${id}`, state, startedAt: 1, finishedAt: 2, artifacts: [] });
+    const pr = mk(parent, 'run-p', 'succeeded');
+    const ref = reference(root, resultFile, await fileRevision(resultFile));
+    pr.artifacts.push({ role: 'result', ownerId: pr.id, reference: ref });
+    pr.evidence = { quantities: [{ field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', region: 'global', time: 1, reduction: 'max', unit: 'm', value: 0.5, runId: pr.id, source: ref }] } as Evidence;
+    parent.runs.push(pr); failed.runs.push(mk(failed, 'run-f', 'failed')); missing.runs.push(mk(missing, 'run-m', 'succeeded'));
+    await store.update(p => { p.studies.push(parent, failed, missing); });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const q = { parameterPath: 'load', field: 'DISPLACEMENT', kind: 'Nodal', component: 'magnitude', region: 'global', reduction: 'max', unit: 'm' };
+    const out = await invoke('goal_seek_iterates', { studyId: failed.id, ...q }) as { start: number | null; iterates: Iterate[] };
+    expect(out.start).toBe(2);
+    expect(out.iterates).toEqual([{ x: 1, y: 0.5, state: 'succeeded' }, { x: 2, y: null, state: 'failed' }, { x: 3, y: null, state: 'succeeded' }]);
+    expect((await invoke('goal_seek_iterates', { studyId: parent.id, ...q, unit: 'cm' }) as { iterates: Iterate[] }).iterates[0].y).toBeNull();
+    expect((await invoke('goal_seek_iterates', { studyId: parent.id, ...q, parameterPath: 'nope' }) as { start: number | null }).start).toBeNull();
+    const spec = { target: 1, relTolerance: 0.01, lower: 0, upper: 10, maxStep: 5, initialStep: 1, maxSolves: 5 };
+    expect(await invoke('goal_seek_next', { ...spec, start: out.start, iterates: out.iterates })).toMatchObject({ kind: 'stopped' });
+    expect(await invoke('goal_seek_next', { ...spec, start: 2, iterates: [] })).toEqual({ kind: 'next', x: 2 });
+  });
+});

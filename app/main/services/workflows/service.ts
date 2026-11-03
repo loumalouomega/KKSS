@@ -1513,12 +1513,45 @@ export class WorkflowService {
       tool('project_pack', 'Pack the project (.kkss/project.json plus every project-contained source, mesh, case input and, with includeRuns, run files) into one archive with SHA-256 hashes. External references are listed, never packed.', { outputPath: str, includeRuns: { type: 'boolean' } }, ['outputPath'], args => this.projectPack(args)),
       tool('project_unpack', 'Unpack a project archive into an empty destination folder after verifying every hash. Damaged or missing members are reported; nothing existing is overwritten and external references missing on this machine are returned as unresolvedExternal (studyId, role, path); a missing study source is repointed with app__study_relink_source once the unpacked folder is the selected project.', { archivePath: str, destination: str }, ['archivePath', 'destination'], args => this.projectUnpack(args)),
       tool('goal_seek_next', 'Read-only, stateless goal-seek step. Give the target, relTolerance, lower/upper bounds, maxStep, initialStep, maxSolves and the iterates solved so far ({x, y, state}; take y from app__variants_compare parameterTables, null if missing). Returns reached, next (the value to run next as a one-value app__queue_parameter_sweep_preview), stopped (an iterate failed, was uncertain or had no value) or notReached. It never solves anything and never interpolates an answer.',
-        { target: { type: 'number' }, relTolerance: { type: 'number' }, lower: { type: 'number' }, upper: { type: 'number' }, maxStep: { type: 'number' }, initialStep: { type: 'number' }, maxSolves: { type: 'integer' },
+        { target: { type: 'number' }, relTolerance: { type: 'number' }, lower: { type: 'number' }, upper: { type: 'number' }, maxStep: { type: 'number' }, initialStep: { type: 'number' }, maxSolves: { type: 'integer' }, start: { type: 'number' },
           iterates: { type: 'array', items: { type: 'object', properties: { x: { type: 'number' }, y: { type: ['number', 'null'] }, state: { enum: ['succeeded', 'failed', 'uncertain', 'cancelled'] } }, required: ['x', 'y', 'state'], additionalProperties: false } } },
         ['target', 'relTolerance', 'lower', 'upper', 'maxStep', 'initialStep', 'maxSolves', 'iterates'], async args => {
           const { iterates, ...spec } = args as unknown as SeekSpec & { iterates: Iterate[] };
           if (!Array.isArray(iterates)) throw new Error('iterates must be an array.');
           return nextIterate(iterates, spec);
+        }),
+      tool('goal_seek_iterates', 'Read-only: the goal-seek iterates already solved in a study\'s variant group (parent plus children), in creation order. For each study: x is the number at the dotted parameterPath of its caseSettings, y the value of the saved quantity matching the exact definition (field, kind, component, region, reduction, unit and, when given, time) on its latest run, only while that quantity\'s result revision is current; y is null when absent, never 0 or inferred. start is the selected study\'s current parameter value or null. Feed iterates and start to app__goal_seek_next. Writes nothing.',
+        { studyId: str, parameterPath: str, field: str, kind: { enum: ['Nodal', 'Elemental', 'Conditional'] }, component: str, region: str, reduction: str, unit: str, time: { type: 'number' } },
+        ['studyId', 'parameterPath', 'field', 'kind', 'component', 'region', 'reduction', 'unit'], async args => {
+          const store = this.store(), project = await store.read(); if (!project) throw new Error('No project.');
+          const selected = this.study(project, text(args, 'studyId')), parent = selected.parentId ? project.studies.find(s => s.id === selected.parentId) : selected;
+          if (!parent) throw new Error('The parent study is missing; relink the variant group first.');
+          const dotted = text(args, 'parameterPath');
+          const numberAt = (study: Study): number | null => {
+            let current: unknown = study.caseSettings;
+            for (const part of dotted.split('.')) {
+              if (!current || typeof current !== 'object' || Array.isArray(current) || !Object.prototype.hasOwnProperty.call(current, part)) return null;
+              current = (current as Record<string, unknown>)[part];
+            }
+            return typeof current === 'number' && Number.isFinite(current) ? current : null;
+          };
+          const wantTime = typeof args.time === 'number' ? args.time : undefined;
+          const iterates: { x: number; y: number | null; state: Iterate['state'] }[] = [];
+          const skipped: string[] = [];
+          for (const study of [parent, ...project.studies.filter(s => s.parentId === parent.id)]) {
+            const x = numberAt(study), run = study.runs[study.runs.length - 1];
+            if (x === null || !run) { skipped.push(study.name); continue; }
+            let y: number | null = null;
+            try {
+              const quantities = (await this.buildRunReview(study.id, run.id)).review.evidence.quantities ?? [];
+              const match = quantities.find(q => q.field === args.field && q.kind === args.kind && q.component === args.component && q.region === args.region
+                && q.reduction === args.reduction && q.unit === args.unit && (wantTime === undefined || q.time === wantTime));
+              y = match && match.value !== null && Number.isFinite(match.value) ? match.value : null;
+            } catch { y = null; }
+            const state: Iterate['state'] = run.state === 'succeeded' ? 'succeeded' : run.state === 'failed' ? 'failed' : run.state === 'cancelled' ? 'cancelled' : 'uncertain';
+            iterates.push({ x, y, state });
+          }
+          return { start: numberAt(selected), iterates, ...(skipped.length ? { skipped } : {}) };
         }),
       tool('study_next_step', 'Read-only: the geometry → mesh → case → run → review checklist of a study with each step done / todo / redo / blocked and the single next action (with the tool that performs it, where one exists). Derived from the recorded revisions; it computes and runs nothing.', { studyId: str }, ['studyId'], async args => {
         const store = this.store(), project = await store.read();

@@ -232,7 +232,7 @@ describe("the table itself", () => {
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(316);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(317);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
@@ -245,7 +245,7 @@ describe("the table itself", () => {
     }
     expect(mesh).toHaveLength(60);
     expect(meta).toHaveLength(4);
-    expect(app).toHaveLength(41);
+    expect(app).toHaveLength(42);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
     expect(kratos).toHaveLength(110);
     const pdf = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("pdf__"));

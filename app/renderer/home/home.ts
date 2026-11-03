@@ -157,7 +157,7 @@ const rebuildStaleButton = document.getElementById("study-rebuild-stale") as HTM
 const planSweepButton = document.getElementById("study-plan-sweep") as HTMLButtonElement;
 const planGeometrySweepButton = document.getElementById("study-plan-geometry-sweep") as HTMLButtonElement;
 let workflowSnapshot: { project?: { studies?: { id: string; handoff?: { units?: { length?: string | null } } }[]; queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; queuePlanRevision?: string } | undefined;
-let workflowAction: "queue-preview" | "queue-enqueue" | "queue-resume" | "region-refs" | "region-preview" | undefined;
+let workflowAction: "queue-preview" | "queue-enqueue" | "queue-resume" | "region-refs" | "region-preview" | "goal-seek-iterates" | "goal-seek-next" | undefined;
 let manualRuntimeAvailable: boolean | undefined;
 let selectedStudy: { id: string; name: string } | undefined;
 let selectedRunId: string | undefined;
@@ -212,6 +212,7 @@ function workflowCall(tool: string, args: Record<string, unknown>): void {
   if (workflowPending) return;
   workflowAction = ["queue_plan_preview", "queue_parameter_sweep_preview", "queue_geometry_sweep_preview", "queue_retry_variant_preview"].includes(tool) ? "queue-preview"
     : tool === "queue_enqueue" ? "queue-enqueue" : tool === "queue_resume" ? "queue-resume"
+    : tool === "goal_seek_iterates" ? "goal-seek-iterates" : tool === "goal_seek_next" ? "goal-seek-next"
     : tool === "study_region_references" ? "region-refs" : tool === "study_region_rename" && args.apply !== true ? "region-preview" : undefined;
   workflowPending = true; form.setBusy(true);
   workflowError.hidden = true;
@@ -401,6 +402,44 @@ document.getElementById("study-evaluate-quantity")!.addEventListener("click", ()
     workflowCall("run_quantity_evaluate", { studyId: study.id, runId, ...values, ...(timeStep !== undefined ? { timeStep } : {}), ...(resultPath ? { resultPath } : {}) });
   });
 });
+// Goal seek: gather the solved iterates (read-only), ask for the next value
+// (read-only), then hand a one-value sweep to the usual preview -> enqueue ->
+// start confirmations. Nothing here starts a solve.
+interface GoalSeekRequest { studyId: string; path: string; quantity: Record<string, unknown>; spec: Record<string, number> }
+let goalSeek: GoalSeekRequest | undefined;
+document.getElementById("study-goal-seek")!.addEventListener("click", () => {
+  const study = selectedStudy; if (!study) return;
+  form.open(t("Goal seek"), [
+    { name: "path", label: t("Case-settings parameter (dotted path):"), value: "values.problem.timeStep" },
+    { name: "target", label: t("Target value of the quantity") },
+    { name: "relTolerance", label: t("Relative tolerance"), value: "0.01" },
+    { name: "lower", label: t("Lower bound of the parameter") },
+    { name: "upper", label: t("Upper bound of the parameter") },
+    { name: "maxStep", label: t("Maximum step") },
+    { name: "initialStep", label: t("Initial step") },
+    { name: "maxSolves", label: t("Maximum solves"), value: "6" },
+    { name: "field", label: t("Result field"), value: "DISPLACEMENT" },
+    { name: "kind", label: t("Field location"), choices: ["Nodal", "Elemental", "Conditional"], value: "Nodal" },
+    { name: "component", label: t("Component"), choices: ["scalar", "x", "y", "z", "magnitude"], value: "magnitude" },
+    { name: "reduction", label: t("Reduction"), choices: ["min", "max", "minAbs", "maxAbs", "mean", "std", "median", "sum", "count", "q1", "q3", "iqr"], value: "max" },
+    { name: "unit", label: t("Unit") },
+    { name: "time", label: t("Time (optional)"), optional: true },
+    { name: "region", label: t("Region or SubModelPart path"), value: "global" },
+  ], values => {
+    const num = (name: string): number => {
+      const n = Number(values[name]);
+      if (!Number.isFinite(n)) throw new Error(t("Enter a finite number for {0}.", {0: name}));
+      return n;
+    };
+    const spec = { target: num("target"), relTolerance: num("relTolerance"), lower: num("lower"), upper: num("upper"), maxStep: num("maxStep"), initialStep: num("initialStep"), maxSolves: num("maxSolves") };
+    if (!Number.isSafeInteger(spec.maxSolves) || spec.maxSolves < 2) throw new Error(t("Enter at least two solves."));
+    const time = values.time ? Number(values.time) : undefined;
+    if (time !== undefined && !Number.isFinite(time)) throw new Error(t("Enter a finite number for {0}.", {0: "time"}));
+    const quantity = { field: values.field, kind: values.kind, component: values.component, region: values.region, reduction: values.reduction, unit: values.unit, ...(time !== undefined ? { time } : {}) };
+    goalSeek = { studyId: study.id, path: values.path, quantity, spec };
+    workflowCall("goal_seek_iterates", { studyId: study.id, parameterPath: values.path, ...quantity });
+  });
+});
 for (const [id, tool] of [["study-compare-variants", "variants_compare"], ["study-export-comparison", "variants_compare_export"]] as const) {
   (document.getElementById(id) as HTMLButtonElement).addEventListener("click", () => {
     if (selectedStudy) workflowCall(tool, { studyId: selectedStudy.id });
@@ -552,6 +591,25 @@ api.onMessage((raw) => {
     if (Array.isArray(samples) && samples.every(s => s && typeof s === "object" && typeof s.iteration === "number" &&
       (s.converged === null || typeof s.converged === "boolean"))) {
       plots.innerHTML = convergencePlots(samples);
+    }
+    if (workflowAction === "goal-seek-iterates" && value && typeof value === "object" && goalSeek) {
+      const found = value as { start?: number | null; iterates?: unknown[] };
+      workflowCall("goal_seek_next", { ...goalSeek.spec, ...(typeof found.start === "number" ? { start: found.start } : {}), iterates: found.iterates ?? [] });
+      return;
+    }
+    if (workflowAction === "goal-seek-next" && value && typeof value === "object" && goalSeek) {
+      workflowAction = undefined;
+      const request = goalSeek; goalSeek = undefined;
+      const decision = value as { kind?: string; x?: number; y?: number; reason?: string };
+      const review = document.getElementById("run-review") as HTMLElement;
+      if (decision.kind === "reached") review.textContent = t("Goal reached: {0} = {1} gives {2}.", {0: request.path, 1: String(decision.x), 2: String(decision.y)});
+      else if (decision.kind === "stopped") review.textContent = t("Goal seek stopped: {0}", {0: decision.reason ?? ""});
+      else if (decision.kind === "notReached") review.textContent = t("Goal not reached: {0}", {0: decision.reason ?? ""});
+      else if (decision.kind === "next" && typeof decision.x === "number") {
+        review.textContent = t("Goal seek suggests {0} = {1}. Review the one-value sweep and confirm to queue it.", {0: request.path, 1: String(decision.x)});
+        workflowCall("queue_parameter_sweep_preview", { studyId: request.studyId, reuseMesh: meshReady(request.studyId), mode: "grid", parameters: [{ path: request.path, values: [decision.x] }] });
+      } else review.textContent = JSON.stringify(value, null, 2);
+      return;
     }
     if (workflowAction === "region-refs" && value && typeof value === "object") {
       workflowAction = undefined;

@@ -26,4 +26,10 @@ describe("goal-seek", () => {
     expect(d).toEqual({ kind: "next", x: 52 });
     expect(() => nextIterate([], { ...spec, lower: 5, upper: 5 })).toThrow();
   });
+  it("starts at the clamped start value when given, else the midpoint", () => {
+    expect(nextIterate([], spec)).toEqual({ kind: "next", x: 50 });
+    expect(nextIterate([], { ...spec, start: 30 })).toEqual({ kind: "next", x: 30 });
+    expect(nextIterate([], { ...spec, start: 500 })).toEqual({ kind: "next", x: 100 });
+    expect(() => nextIterate([], { ...spec, start: Number.NaN })).toThrow();
+  });
 });
