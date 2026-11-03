@@ -9,6 +9,7 @@ import { stateStore } from "./stateStore";
 import { registry, effective } from "./settings/registry";
 import { hasSecret } from "./chat/secrets";
 import { KRATOS_MCP_VERSION } from "./chat/kratosMcpVersion";
+import { eventLog } from "./eventLog";
 import { buildBundle, redactPaths, redactSettings, textFile, zipStore } from "./diagnosticsCore";
 
 /** Everything the bundle holds is built here; nothing is sent anywhere. */
@@ -31,6 +32,8 @@ export async function exportDiagnostics(extra: { statuses?: () => unknown; runFi
       textFile("versions.json", json(versions)),
       textFile("settings.json", json(settings)),
       textFile("mcp-servers.json", json(extra.statuses?.() ?? null)),
+      textFile("events.json", json(eventLog.events())),
+      textFile("main-log-tail.txt", redactPaths(eventLog.tail().join("\n") + "\n", r)),
     ];
     for (const f of (await extra.runFiles?.().catch(() => [])) ?? []) files.push(textFile(f.name, redactPaths(f.text, r)));
     await writeFileAtomic(dest, Buffer.from(zipStore(buildBundle(files, new Date().toISOString()))));

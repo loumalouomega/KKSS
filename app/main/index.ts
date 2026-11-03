@@ -11,6 +11,7 @@ import { startHeadlessControl, prepareHeadlessShutdown } from "./services/headle
 import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
 import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash, ViewRef } from "./windows";
+import { eventLog, installConsoleCapture } from "./services/eventLog";
 import { UnresponsiveGuard, type UnresponsiveAnswer } from "./unresponsiveGuard";
 import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
@@ -107,6 +108,7 @@ managedConfig(); // Validate operator configuration before opening any documents
  */
 const gotInstanceLock =
   process.env.KKSS_ALLOW_MULTIPLE_INSTANCES === "1" || app.requestSingleInstanceLock();
+installConsoleCapture();
 configureChildEnv(app.isPackaged);
 if (!gotInstanceLock) {
   // Lands in the e2e harness's captured output, so this failure diagnoses itself.
@@ -484,10 +486,12 @@ async function promptUnresponsive(ref: ViewRef, info: { attempt: number; signal:
     cancelId: 0,
     signal: info.signal,
   });
+  eventLog.event("unresponsive-answer", viewKey(ref), response === 1 ? "reload" : "wait");
   return response === 1 ? "reload" : "wait";
 }
 
 function onViewCrash(crash: ViewCrash): void {
+  eventLog.event("crash", viewKey(crash), crash.reason);
   if (quitting || !main) return;
   const key = viewKey(crash);
   const now = Date.now();
@@ -1428,8 +1432,8 @@ app.whenReady().then(() => {
   recovery = new RecoveryService(path.join(app.getPath("userData"), "recovery"));
   main = createMainWindow(__dirname, stateStore.get<number>(UI_ZOOM_KEY, DEFAULT_ZOOM) ?? DEFAULT_ZOOM, {
     onViewCrash,
-    onViewUnresponsive: (ref) => { if (!quitting) unresponsiveGuard.unresponsive(viewKey(ref), ref); },
-    onViewResponsive: (ref) => unresponsiveGuard.responsive(viewKey(ref)),
+    onViewUnresponsive: (ref) => { eventLog.event("unresponsive", viewKey(ref)); if (!quitting) unresponsiveGuard.unresponsive(viewKey(ref), ref); },
+    onViewResponsive: (ref) => { eventLog.event("responsive", viewKey(ref)); unresponsiveGuard.responsive(viewKey(ref)); },
   });
   main.win.setBackgroundColor(windowBackground());
   configureNotifications(sendShell);
