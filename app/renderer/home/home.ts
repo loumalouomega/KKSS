@@ -11,6 +11,7 @@ import { t, translate } from "../../shared/i18n";
  */
 import { WorkflowForm, type WorkflowField } from "./workflowForm";
 import { HOME_BUTTONS } from "./homeConfig";
+import { homeAvailability, REASON_TEXT } from "./availability";
 import { convergencePlots } from "../../shared/convergencePlots";
 import { TOOLBAR_ICONS } from "../shell/shellIcons";
 import type { HomeToWebview, ProjectRootInfo, RecentEntry, RecoveryInfo } from "../../main/ipc";
@@ -160,6 +161,41 @@ let workflowAction: "queue-preview" | "queue-enqueue" | "queue-resume" | "region
 let manualRuntimeAvailable: boolean | undefined;
 let selectedStudy: { id: string; name: string } | undefined;
 let selectedRunId: string | undefined;
+let activeStates: Record<string, string | undefined> = {};
+let activeRunCount = 0;
+let selectedRunHasResult = false;
+
+/**
+ * One call decides `disabled` for every study/queue button and states why in
+ * `title` + `aria-description` (a disabled button is not focusable, so the
+ * title is the sighted tooltip and the description covers AT that reads it).
+ */
+function refreshAvailability(): void {
+  const queue = workflowSnapshot?.project?.queue;
+  const result = homeAvailability({
+    hasProjectFolder: !!projectRootPath.title,
+    hasStudy: !!selectedStudy,
+    manualRuntimeAvailable,
+    states: activeStates,
+    hasSelectedRun: !!selectedRunId,
+    selectedRunHasResult,
+    runCount: activeRunCount,
+    queue: { paused: !!queue?.paused, taskStates: (queue?.tasks ?? []).map(task => task.state) },
+  });
+  for (const [id, reason] of Object.entries(result)) {
+    const button = document.getElementById(id) as HTMLButtonElement | null;
+    if (!button) continue;
+    button.disabled = !!reason;
+    if (reason) {
+      const text = translate(REASON_TEXT[reason]);
+      button.title = text;
+      button.setAttribute("aria-description", text);
+    } else {
+      button.removeAttribute("title");
+      button.removeAttribute("aria-description");
+    }
+  }
+}
 
 const form = new WorkflowForm(workflow, () => projectRootPath.title);
 let workflowPending = false;
@@ -260,7 +296,7 @@ studyPicker.addEventListener("change", () => {
   selectedStudy = studyPicker.selectedOptions[0]
     ? { id: studyPicker.value, name: studyPicker.selectedOptions[0].textContent ?? "Study" }
     : undefined;
-  duplicateButton.disabled = !selectedStudy;
+  refreshAvailability();
   if (selectedStudy) workflowCall("study_select", { studyId: selectedStudy.id });
 });
 for (const [id, stage] of [["study-open-geometry", "geometry"], ["study-open-mesh", "mesh"], ["study-open-case", "case"], ["study-open-results", "results"]] as const) {
@@ -373,7 +409,7 @@ for (const [id, tool] of [["study-compare-variants", "variants_compare"], ["stud
 
 function renderWorkflow(raw: unknown): void {
   workflow.hidden = false;
-  if (!raw || typeof raw !== "object") { studyPickerLabel.hidden = true; duplicateButton.disabled = true; return; }
+  if (!raw || typeof raw !== "object") { studyPickerLabel.hidden = true; selectedStudy = undefined; activeStates = {}; refreshAvailability(); return; }
   const value = raw as { project?: { studies?: { id: string; name: string; parentId?: string; handoff?: { units?: { length?: string | null } }; runs?: { id: string; state?: string; artifacts: { role: string }[] }[] }[]; activeStudyId?: string; activeRunId?: string; queue?: { paused: boolean; tasks: { id: string; studyId: string; kind: string; state: string; runId: string }[] } }; readiness?: Record<string, Record<string, string>>; queuePlanRevision?: string; environment?: { manual?: { available: boolean }; requirementsComplete?: boolean } };
   manualRuntimeAvailable = value.environment ? !!value.environment.manual?.available && value.environment.requirementsComplete !== false : undefined;
   workflowSnapshot = value;
@@ -381,7 +417,6 @@ function renderWorkflow(raw: unknown): void {
   const studies = hasProject ? value.project?.studies ?? [] : [];
   // A selected project folder is enough to create the first optional study;
   // the project.json file is initialized by the service on that first write.
-  (document.getElementById("study-create") as HTMLButtonElement).disabled = !projectRootPath.title;
   studyPicker.replaceChildren();
   for (const study of studies) {
     const option = document.createElement("option");
@@ -395,29 +430,11 @@ function renderWorkflow(raw: unknown): void {
   if (active) {
     studyPicker.value = active.id;
     selectedStudy = active;
-    duplicateButton.disabled = false;
-    planRunButton.disabled = manualRuntimeAvailable === false; rebuildStaleButton.disabled = false;
-    planGeometrySweepButton.disabled = planSweepButton.disabled = manualRuntimeAvailable === false;
-    const states = value.readiness?.[active.id] ?? {};
+    activeStates = value.readiness?.[active.id] ?? {};
     selectedRunId = value.project?.activeRunId ?? active.runs?.[Math.max(0, (active.runs?.length ?? 0) - 1)]?.id;
-    (document.getElementById("study-open-geometry") as HTMLButtonElement).disabled = states.geometry !== "ready";
-    (document.getElementById("study-open-mesh") as HTMLButtonElement).disabled = states.mesh !== "ready";
-    (document.getElementById("study-open-case") as HTMLButtonElement).disabled = states.mesh !== "ready";
-    (document.getElementById("study-open-results") as HTMLButtonElement).disabled = !active.runs?.some(r => r.id === selectedRunId && r.artifacts.some(a => a.role === "result"));
-    (document.getElementById("study-attach-mesh") as HTMLButtonElement).disabled = false;
-    (document.getElementById("study-relink-source") as HTMLButtonElement).disabled = false;
-    (document.getElementById("study-copy-source") as HTMLButtonElement).disabled = false;
-    (document.getElementById("study-set-case") as HTMLButtonElement).disabled = states.mesh !== "ready";
-    (document.getElementById("study-import-run") as HTMLButtonElement).disabled = !states.mesh || states.mesh !== "ready";
-    (document.getElementById("study-review-run") as HTMLButtonElement).disabled = !selectedRunId;
-    (document.getElementById("study-compare-runs") as HTMLButtonElement).disabled = !selectedRunId || (active.runs?.length ?? 0) < 2;
-    (document.getElementById("study-region-refs") as HTMLButtonElement).disabled = states.mesh === "missing" || !states.mesh;
-    (document.getElementById("study-region-rename") as HTMLButtonElement).disabled = states.case === "missing" || !states.case;
-    (document.getElementById("study-evaluate-quantity") as HTMLButtonElement).disabled = !selectedRunId;
-    (document.getElementById("study-refinement") as HTMLButtonElement).disabled = !selectedRunId;
-    (document.getElementById("study-export-review") as HTMLButtonElement).disabled = !selectedRunId;
-    (document.getElementById("study-compare-variants") as HTMLButtonElement).disabled = false;
-    (document.getElementById("study-export-comparison") as HTMLButtonElement).disabled = false;
+    activeRunCount = active.runs?.length ?? 0;
+    selectedRunHasResult = !!active.runs?.some(r => r.id === selectedRunId && r.artifacts.some(a => a.role === "result"));
+    const states = activeStates;
     studyReadiness.textContent = ["geometry", "mesh", "case", "run", "results"]
       .map(step => `${translate(step)}: ${translate(states[step] ?? "missing")}`).join(" · ");
     const parentId = active.parentId ?? active.id;
@@ -461,9 +478,8 @@ function renderWorkflow(raw: unknown): void {
       row.append(actions); variantContainer.append(row);
     }
   } else {
-    selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; rebuildStaleButton.disabled = true; planSweepButton.disabled = true; planGeometrySweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
-    for (const id of ["study-open-geometry", "study-open-mesh", "study-open-case", "study-open-results"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
-    for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-compare-runs", "study-region-refs", "study-region-rename", "study-evaluate-quantity", "study-refinement", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
+    selectedStudy = undefined; selectedRunId = undefined; activeStates = {}; activeRunCount = 0; selectedRunHasResult = false;
+    studyReadiness.textContent = t("No studies yet.");
   }
   const queue = value.project?.queue;
   const tasks = queue?.tasks ?? [];
@@ -471,9 +487,7 @@ function renderWorkflow(raw: unknown): void {
   queueStatus.textContent = tasks.length
     ? t("Queue {0}: {1}", {0: queue?.paused ? t("paused") : t("running"), 1: tasks.map(task => `${translate(task.kind)} ${translate(task.state)}`).join(" · ")})
     : t("Queue empty.");
-  (document.getElementById("queue-resume") as HTMLButtonElement).disabled = !queue?.paused || tasks.length === 0 || manualRuntimeAvailable === false;
-  (document.getElementById("queue-pause") as HTMLButtonElement).disabled = !!queue?.paused || tasks.length === 0;
-  (document.getElementById("queue-cancel") as HTMLButtonElement).disabled = tasks.length === 0 || (!activeQueueTasks.length && !tasks.some(task => ["waiting", "held"].includes(task.state)));
+  refreshAvailability();
 }
 
 document
@@ -489,7 +503,7 @@ function renderProjectRoot(info: ProjectRootInfo): void {
   projectRootPath.textContent = info.display ?? "";
   projectRootPath.title = info.path ?? "";
   projectRootSection.hidden = !info.path;
-  (document.getElementById("study-create") as HTMLButtonElement).disabled = !info.path;
+  refreshAvailability();
 }
 
 api.onMessage((raw) => {
@@ -527,10 +541,7 @@ api.onMessage((raw) => {
       report.manual?.capabilities?.mpi === true ? t("MPI available via {0}: set MPI Ranks in Settings → Kratos to run guided solves on several ranks of this node.", {0: report.manual.capabilities.mpiLauncher}) : undefined,
     ].filter(Boolean).join("\n");
     (document.getElementById("environment-actions") as HTMLElement).hidden = !!report.tools?.available;
-    planRunButton.disabled = !selectedStudy || manualRuntimeAvailable === false; rebuildStaleButton.disabled = !selectedStudy;
-    planGeometrySweepButton.disabled = planSweepButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
-    const queue = workflowSnapshot?.project?.queue;
-    (document.getElementById("queue-resume") as HTMLButtonElement).disabled = !queue?.paused || !queue.tasks.length || manualRuntimeAvailable === false;
+    refreshAvailability();
   }
   else if (message?.type === "workflowResult") {
     workflowPending = false; form.complete();

@@ -105,8 +105,8 @@ async function attempt(c) {
     await app.evaluate(({ Menu }, isMesh) => {
       const find = (label, menu = Menu.getApplicationMenu()) => {
         for (const item of menu.items) {
-          // Disabled mode-gated items carry a reason suffix (menuAvailability.ts); match the base label.
-          if (item.label.replace(/ \((?:Post-Processing only|open a mesh first)\)$/u, "") === label) return item;
+          // Disabled items carry a reason suffix (menuAvailability.ts), so match the prefix.
+          if (item.label === label || item.label.startsWith(`${label} (`)) return item;
           if (item.submenu) {
             const found = find(label, item.submenu);
             if (found) return found;
@@ -131,14 +131,34 @@ async function attempt(c) {
           throw new Error(`3D Renderer default is "${options[0].label}" (checked ${options[0].checked})`);
         }
       };
+      // Acceptance sweep (roadmap item 10): every DISABLED item must say why —
+      // a trailing "(reason)" / "— reason" annotation, or an `info:` status row.
+      // Static, no clicking. Mirrors unexplainedDisabledItems() in
+      // app/main/services/menuAvailability.ts (unit-tested there).
+      const explained = [/\([^)]+\)\s*$/, /\s\u2014\s.+$/];
+      const unexplained = (items, trail = []) => items.flatMap((item) => {
+        if (item.type === "separator") return [];
+        const label = (item.label ?? "").replace(/&/g, "");
+        const here = [...trail, label || item.role || "?"];
+        const bad = item.enabled === false && !String(item.id ?? "").startsWith("info:") && !explained.some((re) => re.test(label))
+          ? [here.join(" > ")] : [];
+        return [...bad, ...(item.submenu ? unexplained(item.submenu.items, here) : [])];
+      });
+      const sweep = (where) => {
+        const bad = unexplained(Menu.getApplicationMenu().items);
+        if (bad.length) throw new Error(`Disabled menu items with no reason (${where}): ${bad.join("; ")}`);
+      };
+      sweep("initial");
       check(isMesh);
       checkRenderer(isMesh);
       find("Pre-Processing (CAD)").click();
       check(false);
       checkRenderer(false);
+      sweep("CAD mode");
       find("Post-Processing (Mesh)").click();
       check(true);
       checkRenderer(true);
+      sweep("mesh mode");
     }, c.windowUrl === "/renderer/mesh/");
 
     // Settings ▸ UI Theme reaches every view live: the viewers only follow it
