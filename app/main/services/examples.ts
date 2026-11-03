@@ -7,30 +7,28 @@ import { planExample, isExampleId, EXAMPLES } from "./examplesCore";
 import { toast } from "./notifications";
 
 /**
- * Help ▸ Examples ▸ <case>: unpacks the shipped tutorial case into a folder the
- * user picks and opens its starting document (the CAD geometry, else the mesh)
- * through the one `openFile` path. Solver output is not shipped, so there are
- * no results to open. The zips live in `out/examples/` (esbuild.mjs).
+ * Unpacks the shipped tutorial case into a folder the user picks (overwrite
+ * confirmed) and returns the absolute path of its starting document (the CAD
+ * geometry, else the mesh) WITHOUT opening it — Help ▸ Examples opens it, the
+ * New Simulation wizard hands it to `study_create`. `undefined` when cancelled
+ * or failed (a toast has already said why). The zips live in `out/examples/`
+ * (esbuild.mjs).
  */
-export async function openExample(
-  id: string,
-  outDir: string,
-  open: (fsPath: string) => Promise<unknown>,
-): Promise<void> {
-  if (!isExampleId(id)) return;
+export async function extractExample(id: string, outDir: string): Promise<string | undefined> {
+  if (!isExampleId(id)) return undefined;
   const label = t(EXAMPLES.find((e) => e.id === id)!.label);
   try {
     const zipPath = path.join(outDir, "examples", `${id}.zip`);
     if (!fs.existsSync(zipPath)) {
       toast("error", t("The example archive is missing from this build."));
-      return;
+      return undefined;
     }
     const picked = await showOpenDialog({
       title: t("Choose a folder for the example"),
       openLabel: t("Extract here"),
       canSelectFolders: true,
     });
-    if (!picked?.[0]) return;
+    if (!picked?.[0]) return undefined;
 
     const plan = planExample(id, new Uint8Array(fs.readFileSync(zipPath)));
     const root = path.resolve(picked[0]);
@@ -44,7 +42,7 @@ export async function openExample(
         message: t("{0} already exists in that folder.", { 0: id }),
         detail: t("Files with the same names are overwritten; other files are kept."),
       });
-      if (response !== 0) return;
+      if (response !== 0) return undefined;
     }
     for (const file of plan.files) {
       const dest = path.resolve(root, file.rel);
@@ -53,7 +51,23 @@ export async function openExample(
       fs.writeFileSync(dest, file.data);
     }
     toast("info", t("{0} extracted to {1}", { 0: label, 1: target }));
-    await open(path.join(root, plan.entry));
+    return path.join(root, plan.entry);
+  } catch (err) {
+    toast("error", t("Could not open the example: {0}", { 0: (err as Error).message }));
+    return undefined;
+  }
+}
+
+/** Help ▸ Examples ▸ <case>: extract, then open the starting document. */
+export async function openExample(
+  id: string,
+  outDir: string,
+  open: (fsPath: string) => Promise<unknown>,
+): Promise<void> {
+  const entry = await extractExample(id, outDir);
+  if (!entry) return;
+  try {
+    await open(entry);
   } catch (err) {
     toast("error", t("Could not open the example: {0}", { 0: (err as Error).message }));
   }

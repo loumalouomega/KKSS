@@ -383,18 +383,19 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 | Server | Tools | Read | Write | Path-scoped |
 | --- | --- | --- | --- | --- |
-| `app` | 40 | 16 | 24 | 0 |
+| `app` | 42 | 17 | 25 | 0 |
 | `cad` | 89 | 46 | 43 | 39 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
 | `mesh` | 60 | 22 | 38 | 31 |
 | `pdf` | 12 | 12 | 0 | 0 |
 
-<details><summary><code>app</code> (40)</summary>
+<details><summary><code>app</code> (42)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
 | `app__check_simulation_environment` | read | — |
+| `app__goal_seek_iterates` | read | — |
 | `app__goal_seek_next` | read | — |
 | `app__project_pack` | write | — |
 | `app__project_unpack` | write | — |
@@ -412,6 +413,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `app__queue_variants_preview` | read | — |
 | `app__run_compare` | read | — |
 | `app__run_quantity_evaluate` | write | — |
+| `app__run_quantity_reevaluate` | write | — |
 | `app__run_refinement_set` | write | — |
 | `app__run_review` | read | — |
 | `app__run_review_export` | write | — |

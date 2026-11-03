@@ -7,9 +7,9 @@ import { constants as fsConstants } from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { writeFileAtomic } from '../atomicWrite';
-import { buildChecklist } from './checklist';
+import { buildChecklist, type ChecklistStep } from './checklist';
 import { nextIterate, type SeekSpec, type Iterate } from './goalSeek';
-import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, safeRelative } from './projectArchive';
+import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readZip, unresolvedExternal, safeRelative } from './projectArchive';
 import type { AppTool } from '../chat/appTools';
 import { checkEnvironment, checkRemoteEnvironment, resolveThreads, type EnvironmentReport } from './environment';
 import { ProjectStore, staleQuantities, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
@@ -214,6 +214,15 @@ export class WorkflowService {
     this.queueContext = project?.queue.tasks.filter(t => ['dispatching', 'running', 'uncertain'].includes(t.state)).map(t => ({ id: t.id, studyId: t.studyId, runId: t.runId, kind: t.kind, state: t.state })) ?? [];
     return { project: project ?? null, queuePlanRevision: project ? planRevision(project.queue.tasks) : undefined,
       readiness: Object.fromEntries(await Promise.all((project?.studies ?? []).map(async s => [s.id, await readiness(store.root, s)]))), environment: this.report?.value };
+  }
+  /** The active study's checklist (the `study_next_step` shape), or null with no project/study. Read-only. */
+  async activeNextStep(): Promise<{ studyId: string; name: string; readiness: Record<string, string>; steps: ChecklistStep[]; next?: ChecklistStep } | null> {
+    if (!this.deps.root()) return null;
+    const store = this.store(), project = await store.read();
+    const study = project?.studies.find(s => s.id === project.activeStudyId);
+    if (!project || !study) return null;
+    const state = await readiness(store.root, study);
+    return { studyId: study.id, name: study.name, readiness: state, ...buildChecklist(state) };
   }
   private startQueuePolling(): void {
     if (this.queueTimer) return;
@@ -1230,16 +1239,18 @@ export class WorkflowService {
   async projectUnpack(args: Record<string, unknown>): Promise<unknown> {
     const archive = path.resolve(text(args, 'archivePath')), dest = path.resolve(text(args, 'destination'));
     const exists = (rel: string) => { try { return !!fsSync.statSync(path.join(dest, rel)); } catch { return false; } };
-    const plan = planUnpack(readStoreZip(new Uint8Array(await fs.readFile(archive))), exists);
-    if (plan.conflicts.length) return { unpacked: false, reason: 'Destination already holds files from this archive; choose an empty folder.', conflicts: plan.conflicts.slice(0, 50), problems: plan.problems };
+    const zip = readZip(new Uint8Array(await fs.readFile(archive)));
+    const plan = planUnpack(zip.members, exists);
+    if (plan.conflicts.length) return { unpacked: false, reason: 'Destination already holds files from this archive; choose an empty folder.', conflicts: plan.conflicts.slice(0, 50), problems: plan.problems, unsafeMembers: zip.unsafeMembers };
     for (const f of plan.files) {
       const target = path.resolve(dest, f.path);
       if (!target.startsWith(dest + path.sep)) throw new Error(`Unsafe path: ${f.path}`);
       await fs.mkdir(path.dirname(target), { recursive: true });
       await writeFileAtomic(target, f.data);
     }
-    const unresolved = plan.manifest.external.map(e => ({ ...e, exists: fsSync.existsSync(e.path) }));
-    return { unpacked: true, destination: dest, files: plan.files.length, problems: plan.problems, externalReferences: unresolved };
+    const unresolvedExternalRefs = unresolvedExternal(plan.manifest, p => fsSync.existsSync(p));
+    const externalReferences = plan.manifest.external.map(e => ({ ...e, exists: fsSync.existsSync(e.path) }));
+    return { unpacked: true, destination: dest, files: plan.files.length, problems: plan.problems, unsafeMembers: zip.unsafeMembers, externalReferences, unresolvedExternal: unresolvedExternalRefs };
   }
 
   /** Receipt, environment report and solver-log tails of the selected run, for the diagnostics bundle. Text only, capped. */
@@ -1372,7 +1383,29 @@ export class WorkflowService {
         timeStep: { type: 'integer' }, time: { type: 'number' },
         reduction: { enum: ['min', 'max', 'minAbs', 'maxAbs', 'mean', 'std', 'median', 'sum', 'count', 'q1', 'q3', 'iqr'] }, unit: str,
       }, ['studyId', 'runId', 'field', 'kind', 'component', 'reduction', 'unit'], args => this.evaluateRunQuantity(args)),
-      tool('run_review_export', 'Export a selected run review as JSON and self-contained offline HTML.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => {
+      tool('run_quantity_reevaluate', 'Replay the saved quantity definitions of an earlier run (fromRunId, default: the study\'s previous run) on the target run\'s current attached result. Each definition is evaluated through the same revision-checked path as app__run_quantity_evaluate; one failure never stops the others and no value is copied or interpolated between runs.', { studyId: str, runId: str, fromRunId: str }, ['studyId', 'runId'], async args => {
+        const store = this.store(), project = await store.read();
+        if (!project) throw new Error('No project.');
+        const study = this.study(project, text(args, 'studyId'));
+        const target = study.runs.find(r => r.id === text(args, 'runId'));
+        if (!target) throw new Error('Run does not belong to this study.');
+        const index = study.runs.indexOf(target);
+        const from = typeof args.fromRunId === 'string' && args.fromRunId ? study.runs.find(r => r.id === args.fromRunId) : study.runs[index - 1];
+        if (!from) throw new Error('There is no earlier run to take quantity definitions from.');
+        if (from.id === target.id) throw new Error('Choose a different source run.');
+        const definitions = from.evidence?.quantities ?? [];
+        if (!definitions.length) return { evaluated: 0, failed: 0, outcomes: [], note: 'The source run has no saved quantities.' };
+        const outcomes: { field: string; region: string; time: number; ok: boolean; value?: number | null; reason?: string }[] = [];
+        for (const q of definitions) {
+          try {
+            const result = await this.evaluateRunQuantity({ studyId: study.id, runId: target.id, field: q.field, kind: q.kind, component: q.component, region: q.region, reduction: q.reduction, unit: q.unit, time: q.time });
+            outcomes.push({ field: q.field, region: q.region, time: q.time, ok: true, value: result.quantity.value });
+          } catch (error) { outcomes.push({ field: q.field, region: q.region, time: q.time, ok: false, reason: error instanceof Error ? error.message : String(error) }); }
+        }
+        const failed = outcomes.filter(o => !o.ok).length;
+        return { fromRunId: from.id, runId: target.id, evaluated: outcomes.length - failed, failed, outcomes };
+      }),
+      tool('run_review_export','Export a selected run review as JSON and self-contained offline HTML.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => {
         const { store, run, review } = await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'));
         const directory = path.join(store.root, '.kkss', 'reviews');
         const jsonFile = path.join(directory, `${run.id}.json`), htmlFile = path.join(directory, `${run.id}.html`);
@@ -1487,14 +1520,47 @@ export class WorkflowService {
         return { jsonFile, htmlFile, findings: comparison.findings };
       }),
       tool('project_pack', 'Pack the project (.kkss/project.json plus every project-contained source, mesh, case input and, with includeRuns, run files) into one archive with SHA-256 hashes. External references are listed, never packed.', { outputPath: str, includeRuns: { type: 'boolean' } }, ['outputPath'], args => this.projectPack(args)),
-      tool('project_unpack', 'Unpack a project archive into an empty destination folder after verifying every hash. Damaged or missing members are reported; nothing existing is overwritten and external references are listed for relinking.', { archivePath: str, destination: str }, ['archivePath', 'destination'], args => this.projectUnpack(args)),
+      tool('project_unpack', 'Unpack a project archive into an empty destination folder after verifying every hash. Damaged or missing members are reported; nothing existing is overwritten and external references missing on this machine are returned as unresolvedExternal (studyId, role, path); a missing study source is repointed with app__study_relink_source once the unpacked folder is the selected project.', { archivePath: str, destination: str }, ['archivePath', 'destination'], args => this.projectUnpack(args)),
       tool('goal_seek_next', 'Read-only, stateless goal-seek step. Give the target, relTolerance, lower/upper bounds, maxStep, initialStep, maxSolves and the iterates solved so far ({x, y, state}; take y from app__variants_compare parameterTables, null if missing). Returns reached, next (the value to run next as a one-value app__queue_parameter_sweep_preview), stopped (an iterate failed, was uncertain or had no value) or notReached. It never solves anything and never interpolates an answer.',
-        { target: { type: 'number' }, relTolerance: { type: 'number' }, lower: { type: 'number' }, upper: { type: 'number' }, maxStep: { type: 'number' }, initialStep: { type: 'number' }, maxSolves: { type: 'integer' },
+        { target: { type: 'number' }, relTolerance: { type: 'number' }, lower: { type: 'number' }, upper: { type: 'number' }, maxStep: { type: 'number' }, initialStep: { type: 'number' }, maxSolves: { type: 'integer' }, start: { type: 'number' },
           iterates: { type: 'array', items: { type: 'object', properties: { x: { type: 'number' }, y: { type: ['number', 'null'] }, state: { enum: ['succeeded', 'failed', 'uncertain', 'cancelled'] } }, required: ['x', 'y', 'state'], additionalProperties: false } } },
         ['target', 'relTolerance', 'lower', 'upper', 'maxStep', 'initialStep', 'maxSolves', 'iterates'], async args => {
           const { iterates, ...spec } = args as unknown as SeekSpec & { iterates: Iterate[] };
           if (!Array.isArray(iterates)) throw new Error('iterates must be an array.');
           return nextIterate(iterates, spec);
+        }),
+      tool('goal_seek_iterates', 'Read-only: the goal-seek iterates already solved in a study\'s variant group (parent plus children), in creation order. For each study: x is the number at the dotted parameterPath of its caseSettings, y the value of the saved quantity matching the exact definition (field, kind, component, region, reduction, unit and, when given, time) on its latest run, only while that quantity\'s result revision is current; y is null when absent, never 0 or inferred. start is the selected study\'s current parameter value or null. Feed iterates and start to app__goal_seek_next. Writes nothing.',
+        { studyId: str, parameterPath: str, field: str, kind: { enum: ['Nodal', 'Elemental', 'Conditional'] }, component: str, region: str, reduction: str, unit: str, time: { type: 'number' } },
+        ['studyId', 'parameterPath', 'field', 'kind', 'component', 'region', 'reduction', 'unit'], async args => {
+          const store = this.store(), project = await store.read(); if (!project) throw new Error('No project.');
+          const selected = this.study(project, text(args, 'studyId')), parent = selected.parentId ? project.studies.find(s => s.id === selected.parentId) : selected;
+          if (!parent) throw new Error('The parent study is missing; relink the variant group first.');
+          const dotted = text(args, 'parameterPath');
+          const numberAt = (study: Study): number | null => {
+            let current: unknown = study.caseSettings;
+            for (const part of dotted.split('.')) {
+              if (!current || typeof current !== 'object' || Array.isArray(current) || !Object.prototype.hasOwnProperty.call(current, part)) return null;
+              current = (current as Record<string, unknown>)[part];
+            }
+            return typeof current === 'number' && Number.isFinite(current) ? current : null;
+          };
+          const wantTime = typeof args.time === 'number' ? args.time : undefined;
+          const iterates: { x: number; y: number | null; state: Iterate['state'] }[] = [];
+          const skipped: string[] = [];
+          for (const study of [parent, ...project.studies.filter(s => s.parentId === parent.id)]) {
+            const x = numberAt(study), run = study.runs[study.runs.length - 1];
+            if (x === null || !run) { skipped.push(study.name); continue; }
+            let y: number | null = null;
+            try {
+              const quantities = (await this.buildRunReview(study.id, run.id)).review.evidence.quantities ?? [];
+              const match = quantities.find(q => q.field === args.field && q.kind === args.kind && q.component === args.component && q.region === args.region
+                && q.reduction === args.reduction && q.unit === args.unit && (wantTime === undefined || q.time === wantTime));
+              y = match && match.value !== null && Number.isFinite(match.value) ? match.value : null;
+            } catch { y = null; }
+            const state: Iterate['state'] = run.state === 'succeeded' ? 'succeeded' : run.state === 'failed' ? 'failed' : run.state === 'cancelled' ? 'cancelled' : 'uncertain';
+            iterates.push({ x, y, state });
+          }
+          return { start: numberAt(selected), iterates, ...(skipped.length ? { skipped } : {}) };
         }),
       tool('study_next_step', 'Read-only: the geometry → mesh → case → run → review checklist of a study with each step done / todo / redo / blocked and the single next action (with the tool that performs it, where one exists). Derived from the recorded revisions; it computes and runs nothing.', { studyId: str }, ['studyId'], async args => {
         const store = this.store(), project = await store.read();

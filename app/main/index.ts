@@ -1,6 +1,6 @@
 import { documentReplacementQueue } from "./services/documentReplacement";
 import { configureLocale } from "./services/locale";
-import { t } from "../shared/i18n";
+import { t, translate } from "../shared/i18n";
 import { beginOpen, configurePerformance } from "./services/performance";
 /** KKSS Electron main entry. */
 import { app, clipboard, dialog, ipcMain, Menu, shell } from "electron";
@@ -11,6 +11,7 @@ import { startHeadlessControl, prepareHeadlessShutdown } from "./services/headle
 import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
 import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash, ViewRef } from "./windows";
+import { eventLog, installConsoleCapture } from "./services/eventLog";
 import { UnresponsiveGuard, type UnresponsiveAnswer } from "./unresponsiveGuard";
 import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
@@ -23,7 +24,8 @@ import { modeForFile, modeForViewType, unsupportedSuffix } from "./router";
 import { DOCS_URL } from "./urls";
 import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsupportedLaunchFiles } from "./launch";
 import { showOpenDialog } from "./services/dialogs";
-import { openExample } from "./services/examples";
+import { openExample, extractExample } from "./services/examples";
+import { nextStepContext, type NextStepContext } from "./services/workflows/checklist";
 import { exportDiagnostics } from "./services/diagnostics";
 import { exportProjectArchive, importProjectArchive } from "./services/projectArchiveUi";
 import { helpPath, type HelpContext } from "./services/helpMap";
@@ -107,6 +109,7 @@ managedConfig(); // Validate operator configuration before opening any documents
  */
 const gotInstanceLock =
   process.env.KKSS_ALLOW_MULTIPLE_INSTANCES === "1" || app.requestSingleInstanceLock();
+installConsoleCapture();
 configureChildEnv(app.isPackaged);
 if (!gotInstanceLock) {
   // Lands in the e2e harness's captured output, so this failure diagnoses itself.
@@ -214,9 +217,43 @@ function sendHome(message: HomeToWebview): void {
   main.home.webContents.send("home:toWebview", message);
 }
 
+/** The active study's next checklist step for the chat's (synchronous) context suffix; refreshed with every workflow push. */
+let activeNextStep: NextStepContext | undefined;
+
 async function pushWorkflows(): Promise<void> {
   try { sendHome({ type: "workflowState", value: await workflows?.snapshot() }); }
   catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
+  try {
+    const checklist = (await workflows?.activeNextStep()) ?? null;
+    activeNextStep = checklist ? nextStepContext(checklist) : undefined;
+    sendHome({ type: "nextStep", value: checklist });
+  } catch { activeNextStep = undefined; }
+}
+
+/**
+ * New Simulation wizard: put the geometry in place (an example is extracted into
+ * a folder the user picks; "own" is a file picker), create a study on it through
+ * the same `app__study_create` Home's New study uses (project-relative reference
+ * rules live in the service), and report back. Opens nothing and records no recents.
+ */
+async function wizardStart(kind: "example" | "own", id: string | undefined): Promise<void> {
+  try {
+    let source: string | undefined;
+    if (kind === "example") {
+      if (typeof id !== "string") return void sendHome({ type: "wizardDone" });
+      source = await extractExample(id, __dirname);
+    } else {
+      source = (await showOpenDialog({ title: translate("Choose the geometry for the new simulation"), openLabel: translate("Use this geometry") }))?.[0];
+    }
+    if (!source) return void sendHome({ type: "wizardDone" });
+    const result = await callAppTool("app__study_create", { source, name: path.basename(source, path.extname(source)) });
+    const value = result.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+    if (result.isError) { sendHome({ type: "workflowError", message: value }); return; }
+    let studyId: string | undefined;
+    try { studyId = (JSON.parse(value) as { id?: string }).id; } catch { /* the push below still shows the new study */ }
+    await pushWorkflows();
+    sendHome({ type: "wizardDone", studyId });
+  } catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
 }
 
 async function checkSimulationEnvironment(): Promise<void> {
@@ -435,6 +472,31 @@ function viewKey(ref: ViewRef): string {
   return ref.kind === "tab" ? `tab:${ref.mode}:${ref.tabId}` : ref.kind;
 }
 
+/** A **Show** button for a view-related toast: focuses the tab (or screen) the toast is about.
+ *  Undefined when there is nothing to focus (the tab is gone, or the view has no screen of its own). */
+function showViewAction(ref: ViewRef): ToastAction | undefined {
+  if (ref.kind === "tab") {
+    const { mode, tabId } = ref;
+    if (!mode || !tabId) return undefined;
+    const exists = (mode === "cad" ? cadHosts : meshHosts).has(tabId);
+    if (!exists) return undefined;
+    return {
+      label: translate("Show"),
+      run: () => {
+        // The tab may have been closed while the toast was up.
+        if (!main || !(mode === "cad" ? cadHosts : meshHosts).has(tabId)) return;
+        main.setActiveTab(mode, tabId);
+        setScreen(mode);
+      },
+    };
+  }
+  if (ref.kind === "home" || ref.kind === "editor") {
+    const screen = ref.kind;
+    return { label: translate("Show"), run: () => { if (main) setScreen(screen); } };
+  }
+  return undefined;
+}
+
 function viewLabel(ref: ViewRef): string {
   return ref.kind === "tab" ? (ref.mode === "cad" ? "CAD viewer" : "Mesh viewer") : `${ref.kind} view`;
 }
@@ -484,10 +546,12 @@ async function promptUnresponsive(ref: ViewRef, info: { attempt: number; signal:
     cancelId: 0,
     signal: info.signal,
   });
+  eventLog.event("unresponsive-answer", viewKey(ref), response === 1 ? "reload" : "wait");
   return response === 1 ? "reload" : "wait";
 }
 
 function onViewCrash(crash: ViewCrash): void {
+  eventLog.event("crash", viewKey(crash), crash.reason);
   if (quitting || !main) return;
   const key = viewKey(crash);
   const now = Date.now();
@@ -497,7 +561,7 @@ function onViewCrash(crash: ViewCrash): void {
 
   const label = crash.kind === "tab" ? (crash.mode === "cad" ? "CAD viewer" : "Mesh viewer") : `${crash.kind} view`;
   if (count > MAX_VIEW_RECOVERIES) {
-    toast("error", t("The {0} keeps crashing ({1}). Your files on disk are untouched.", {0: label, 1: crash.reason}));
+    toast("error", t("The {0} keeps crashing ({1}). Your files on disk are untouched.", {0: label, 1: crash.reason}), showViewAction(crash));
     return;
   }
   recoverView(crash, label);
@@ -518,10 +582,10 @@ function recoverView(crash: ViewCrash, label: string, userInitiated = false): vo
       host.openPath(file);
       toast("warning", userInitiated
         ? t("{0} reloaded — {1}.", {0: label, 1: path.basename(file)})
-        : t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}));
+        : t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}), showViewAction(crash));
     } else {
       main.reloadView(crash);
-      toast("warning", userInitiated ? t("{0} reloaded.", {0: label}) : t("{0} crashed — reloaded.", {0: label}));
+      toast("warning", userInitiated ? t("{0} reloaded.", {0: label}) : t("{0} crashed — reloaded.", {0: label}), showViewAction(crash));
     }
     return;
   }
@@ -1428,8 +1492,8 @@ app.whenReady().then(() => {
   recovery = new RecoveryService(path.join(app.getPath("userData"), "recovery"));
   main = createMainWindow(__dirname, stateStore.get<number>(UI_ZOOM_KEY, DEFAULT_ZOOM) ?? DEFAULT_ZOOM, {
     onViewCrash,
-    onViewUnresponsive: (ref) => { if (!quitting) unresponsiveGuard.unresponsive(viewKey(ref), ref); },
-    onViewResponsive: (ref) => unresponsiveGuard.responsive(viewKey(ref)),
+    onViewUnresponsive: (ref) => { eventLog.event("unresponsive", viewKey(ref)); if (!quitting) unresponsiveGuard.unresponsive(viewKey(ref), ref); },
+    onViewResponsive: (ref) => { eventLog.event("responsive", viewKey(ref)); unresponsiveGuard.responsive(viewKey(ref)); },
   });
   main.win.setBackgroundColor(windowBackground());
   configureNotifications(sendShell);
@@ -1662,6 +1726,7 @@ app.whenReady().then(() => {
     projectRoot: () => projectRoot.explicit(),
     currentFiles: () => ({
       workflowContext: workflows?.context(),
+      nextStep: activeNextStep,
       cad: [...cadHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
       mesh: [...meshHosts.values()].map((h) => h.currentFile).filter((f): f is string => !!f),
       activeCad: activeCadHost()?.currentFile,
@@ -1885,6 +1950,10 @@ app.whenReady().then(() => {
         }
         void pushWorkflows();
       }).catch(error => sendHome({ type: "workflowError", message: String(error) }));
+      return;
+    }
+    if (msg.type === "wizardStart") {
+      if (msg.kind === "example" || msg.kind === "own") void wizardStart(msg.kind, msg.id);
       return;
     }
     if (msg.type === "retrySimulationTools") {

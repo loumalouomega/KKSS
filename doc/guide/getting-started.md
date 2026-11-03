@@ -92,6 +92,9 @@ Set **Settings → Kratos → Solver threads** to a positive OpenMP allocation, 
 | **Region references**, **Rename region** | Lists the SubModelPart regions the study's case settings point at and whether the attached MDPA mesh still has each (a re-attach reports this too); **Rename region** previews, then moves those references on confirmation. Matching is **by name only** — a lost region may be a rename or a deletion, and KKSS never guesses. Other mesh formats are not compared. | `app__study_region_references`, `app__study_region_rename` |
 | **Compare variants**, **Export comparison** | Parent/variant comparison; offline export For a sweep it also tabulates the swept parameters against each compatible saved quantity (a parameter or value a row lacks stays *missing*, never zero) and plots the value against a numeric swept parameter in the export. | `app__variants_compare`, `app__variants_compare_export` |
 | **Evaluate quantity**, **Refinement metadata** | Saves a revision-bound quantity; records the sizing assumptions of a run | `app__run_quantity_evaluate`, `app__run_refinement_set` |
+| **Rebuild stale** | Previews only what is out of date (mesh export, case generation, solve); if only saved quantities are stale, offers to replay the previous run's definitions on the selected run | `app__queue_plan_preview` (`staleOnly`), `app__run_quantity_reevaluate` |
+| **Goal seek** | Finds a case-parameter value that brings a saved quantity to a target: gathers the solved iterates of the study group, asks for the next value, and opens the usual one-value sweep confirmation (never starts a run by itself) | `app__goal_seek_iterates`, `app__goal_seek_next` |
+| **New simulation** | Wizard: physics family → example case or your own geometry → study created, then a **Next steps** checklist whose buttons open the right screen | `app__study_create`, `app__study_next_step` |
 
 **Sharing a project.** **File ▸ Export Project Archive…** writes `.kkss/project.json` plus every project-contained source, mesh and case input (optionally the run files too) into one archive with a SHA-256 manifest; **Import Project Archive…** unpacks it into a folder you pick. Import verifies every hash, lists damaged or missing files instead of failing whole, refuses traversal and absolute paths, never overwrites existing files, and reports external references that need relinking. The assistant has the same operations as `app__project_pack` / `app__project_unpack`. Archives are store-only zips KKSS wrote itself.
 
@@ -387,6 +390,7 @@ Opening a very large mesh can freeze a viewer for a while — that is normal, an
 | — | **File ▸ Open Recent** reopens one of the last ten files, in the mode it was opened in |
 | — | **File ▸ New Blank Model…** creates an empty `.brep` to build from scratch (Pre-Processing) |
 | `F1` | Open the manual at the section for the focused screen (Home, editor, CAD, Post-Processing, chat) |
+| Settings ▸ **Help** | Each Settings category heading has a **Help** button that opens its manual section; disabled Home buttons and menu items state why in their label or tooltip |
 | `Ctrl+W` | Close the focused tab |
 | `Ctrl+S` | Save (CAD: flush sidecars, then write unbaked edits into the STEP/IGES/BREP/STL/OBJ/PLY source · Mesh: overwrite the source file) |
 | `Ctrl+Shift+S` | Save As |

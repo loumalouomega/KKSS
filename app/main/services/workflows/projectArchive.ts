@@ -1,7 +1,8 @@
 // Single-file project archive (roadmap item 7). Pure: bytes in, bytes/plans out.
 // Layout: manifest.json + files/<project-relative path>. The zip is store-only,
-// so the reader needs no inflate and refuses compressed members it cannot trust.
+// but the reader also accepts deflate members (third-party zips) under hard size caps.
 import { createHash } from 'node:crypto';
+import { inflateSync } from 'fflate';
 import type { Project, Reference } from './contracts';
 import { crc32, zipStore, textFile, type DiagnosticFile } from '../diagnosticsCore';
 
@@ -59,27 +60,81 @@ export function buildArchive(project: Project, files: { path: string; data: Uint
   return zipStore([textFile('manifest.json', JSON.stringify(manifest, null, 2)), ...entries]);
 }
 
-/** Read a store-only zip. Throws on compressed members, bad CRCs and unsafe names. */
-export function readStoreZip(bytes: Uint8Array): Map<string, Uint8Array> {
+export interface ZipLimits { maxMembers: number; maxTotalBytes: number }
+export const DEFAULT_ZIP_LIMITS: ZipLimits = { maxMembers: 20_000, maxTotalBytes: 2 * 1024 ** 3 };
+
+export interface ZipRead {
+  members: Map<string, Uint8Array>;
+  /** Members whose names are traversal, absolute or drive-letter paths; never extracted. */
+  unsafeMembers: string[];
+}
+
+/**
+ * Read a zip (stored or deflate). Declared sizes are summed and capped BEFORE anything is
+ * inflated, and each inflate is bounded to its declared size, so a lying header cannot
+ * expand past the cap. Throws on other methods, encryption, zip64, bad CRCs and cap breaches.
+ */
+export function readZip(bytes: Uint8Array, limits: ZipLimits = DEFAULT_ZIP_LIMITS): ZipRead {
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let end = -1;
   for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 65535); i--) if (v.getUint32(i, true) === 0x06054b50) { end = i; break; }
   if (end < 0) throw new Error('Not a project archive (no zip directory).');
   const count = v.getUint16(end + 10, true);
+  if (count > limits.maxMembers) throw new Error(`Archive holds more than ${limits.maxMembers} members.`);
   let at = v.getUint32(end + 16, true);
-  const out = new Map<string, Uint8Array>();
+  interface Entry { name: string; method: number; crc: number; csize: number; size: number; local: number }
+  const entries: Entry[] = [];
+  let declared = 0;
   for (let n = 0; n < count; n++) {
-    if (v.getUint32(at, true) !== 0x02014b50) throw new Error('Damaged archive directory.');
-    const method = v.getUint16(at + 10, true), crc = v.getUint32(at + 16, true), size = v.getUint32(at + 24, true);
+    if (at + 46 > bytes.length || v.getUint32(at, true) !== 0x02014b50) throw new Error('Damaged archive directory.');
+    const flags = v.getUint16(at + 8, true), method = v.getUint16(at + 10, true), crc = v.getUint32(at + 16, true);
+    const csize = v.getUint32(at + 20, true), size = v.getUint32(at + 24, true);
     const nameLen = v.getUint16(at + 28, true), extra = v.getUint16(at + 30, true), comment = v.getUint16(at + 32, true), local = v.getUint32(at + 42, true);
     const name = new TextDecoder().decode(bytes.subarray(at + 46, at + 46 + nameLen));
     at += 46 + nameLen + extra + comment;
     if (name.endsWith('/')) continue;
-    if (method !== 0) throw new Error(`Archive member ${name} is compressed; only KKSS-written archives are supported.`);
-    const lname = v.getUint16(local + 26, true), lextra = v.getUint16(local + 28, true);
-    const data = bytes.subarray(local + 30 + lname + lextra, local + 30 + lname + lextra + size);
-    if (data.length !== size || crc32(data) !== crc) throw new Error(`Archive member ${name} is damaged.`);
-    out.set(name, data);
+    if (flags & 1) throw new Error(`Archive member ${name} is encrypted.`);
+    if (csize === 0xffffffff || size === 0xffffffff || local === 0xffffffff) throw new Error('Zip64 archives are not supported.');
+    if (method !== 0 && method !== 8) throw new Error(`Archive member ${name} uses unsupported compression method ${method}.`);
+    declared += size;
+    if (declared > limits.maxTotalBytes) throw new Error('Archive expands beyond the size limit.');
+    entries.push({ name, method, crc, csize, size, local });
+  }
+  const members = new Map<string, Uint8Array>(), unsafeMembers: string[] = [];
+  for (const e of entries) {
+    if (e.name !== 'manifest.json' && !(e.name.startsWith('files/') && safeRelative(e.name.slice(6)))) { unsafeMembers.push(e.name); continue; }
+    if (e.local + 30 > bytes.length || v.getUint32(e.local, true) !== 0x04034b50) throw new Error(`Archive member ${e.name} is damaged.`);
+    const lname = v.getUint16(e.local + 26, true), lextra = v.getUint16(e.local + 28, true), start = e.local + 30 + lname + lextra;
+    const raw = bytes.subarray(start, start + e.csize);
+    if (raw.length !== e.csize) throw new Error(`Archive member ${e.name} is damaged.`);
+    let data: Uint8Array;
+    if (e.method === 0) data = raw;
+    else {
+      try { data = inflateSync(raw, { out: new Uint8Array(e.size) }); } catch { throw new Error(`Archive member ${e.name} is damaged.`); }
+    }
+    if (data.length !== e.size || crc32(data) !== e.crc) throw new Error(`Archive member ${e.name} is damaged.`);
+    members.set(e.name, data);
+  }
+  return { members, unsafeMembers };
+}
+
+/** Back-compat wrapper returning only the safe members. */
+export const readStoreZip = (bytes: Uint8Array): Map<string, Uint8Array> => readZip(bytes).members;
+
+export interface UnresolvedExternal {
+  path: string; owner: string; studyId: string; role: string;
+  /** Source references can be repointed with app__study_relink_source; other roles are listed only. */
+  relink: 'app__study_relink_source' | null;
+}
+
+/** External references not present on this machine, split into study and role. Pure; `exists` is injected. */
+export function unresolvedExternal(manifest: ArchiveManifest, exists: (absPath: string) => boolean): UnresolvedExternal[] {
+  const out: UnresolvedExternal[] = [];
+  for (const e of Array.isArray(manifest.external) ? manifest.external : []) {
+    if (typeof e?.path !== 'string' || typeof e.owner !== 'string' || exists(e.path)) continue;
+    const i = e.owner.indexOf(':');
+    const studyId = i < 0 ? e.owner : e.owner.slice(0, i), role = i < 0 ? '' : e.owner.slice(i + 1);
+    out.push({ path: e.path, owner: e.owner, studyId, role, relink: role === 'source' ? 'app__study_relink_source' : null });
   }
   return out;
 }

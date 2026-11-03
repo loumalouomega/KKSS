@@ -17,7 +17,7 @@ import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
 import { showLicense } from "./services/license";
 import { showManual } from "./services/manual";
-import { needsMeshDocument, postProcessingOnly, UNAVAILABLE_SUFFIX, type AvailabilityContext, type UnavailableKey } from "./services/menuAvailability";
+import { clearProjectRoot, INFO_ID_PREFIX, managedSetting, needsClientId, needsConnection, needsMeshDocument, needsRemoteHost, postProcessingOnly, UNAVAILABLE_SUFFIX, type AvailabilityContext, type UnavailableKey } from "./services/menuAvailability";
 import { EXAMPLES } from "./services/examplesCore";
 import { showChangelog } from "./services/whatsNew";
 import { stateStore } from "./services/stateStore";
@@ -142,6 +142,8 @@ export interface MenuDeps {
   };
 }
 
+const withReason = (label: string, reason: UnavailableKey | undefined) => (reason ? label + translate(UNAVAILABLE_SUFFIX[reason]) : label);
+
 /**
  * A registry enum as a radio submenu — the quick toggles kept in the native
  * menu read the same entry the Settings page renders, so the two cannot drift
@@ -158,6 +160,8 @@ function enumRadio(
   id: string,
   opts: {
     enabled?: boolean;
+    /** Reason the whole radio is unavailable in this mode (suffixes the label). */
+    modeReason?: UnavailableKey;
     disabledValue?: (value: string | number) => boolean;
     unavailableNote?: string;
   } = {}
@@ -167,8 +171,8 @@ function enumRadio(
   const managed = stateStore.isManaged(key);
   const current = effective(entry, stateStore.get(key));
   return {
-    label: entry.label + (managed ? t(" (set by the environment)") : ""),
-    enabled: !managed && opts.enabled !== false,
+    label: withReason(entry.label, managedSetting(managed) ?? opts.modeReason),
+    enabled: !managed && opts.enabled !== false && !opts.modeReason,
     submenu: (entry.enum ?? []).map((value, i) => {
       const unavailable = opts.disabledValue?.(value) ?? false;
       return {
@@ -251,6 +255,7 @@ function cloudAccountsSubmenu(deps: MenuDeps): Electron.MenuItemConstructorOptio
             : status.hasClientId
               ? t("Not connected")
               : t("Client ID not set"),
+          id: `${INFO_ID_PREFIX}cloud-${status.id}`,
           enabled: false,
         },
         { type: "separator" },
@@ -267,13 +272,13 @@ function cloudAccountsSubmenu(deps: MenuDeps): Electron.MenuItemConstructorOptio
         },
         { type: "separator" },
         {
-          label: status.connected ? t("Reconnect…") : t("Connect…"),
-          enabled: status.hasClientId,
+          label: withReason(status.connected ? t("Reconnect…") : t("Connect…"), needsClientId(status.hasClientId)),
+          enabled: !needsClientId(status.hasClientId),
           click: () => deps.cloud.connect(status.id),
         },
         {
-          label: t("Disconnect…"),
-          enabled: status.connected,
+          label: withReason(t("Disconnect…"), needsConnection(status.connected)),
+          enabled: !needsConnection(status.connected),
           click: () => deps.cloud.disconnect(status.id),
         },
       ],
@@ -326,7 +331,6 @@ export function installMenu(deps: MenuDeps): void {
   const { main, activeCadHost, activeMeshHost, editor } = deps;
   const inCad = () => main.mode() === "cad";
   const avail = (): AvailabilityContext => ({ mode: main.mode(), screen: main.screen(), hasMeshFile: !!activeMeshHost()?.currentFile });
-  const withReason = (label: string, reason: UnavailableKey | undefined) => (reason ? label + t(UNAVAILABLE_SUFFIX[reason]) : label);
   const inEditor = () => main.screen() === "editor";
   /** The WebContentsView for whichever tab is focused in the active mode
    *  screen (devtools toggle only — everything else goes through the hosts). */
@@ -356,7 +360,7 @@ export function installMenu(deps: MenuDeps): void {
    */
   const recentFilesSubmenu = (): Electron.MenuItemConstructorOptions[] => {
     const entries = deps.recentFiles.list();
-    if (entries.length === 0) return [{ label: t("No Recent Files"), enabled: false }];
+    if (entries.length === 0) return [{ label: t("No Recent Files"), id: `${INFO_ID_PREFIX}no-recent`, enabled: false }];
     return [
       ...entries.map((entry) => ({
         label: recentLabel(entry.path),
@@ -388,10 +392,10 @@ export function installMenu(deps: MenuDeps): void {
           click: () => deps.projectRoot.choose(),
         },
         {
-          label: t("Clear Project Root") + (stateStore.isManaged("projectRoot") ? t(" (set by the environment)") : ""),
+          label: withReason(t("Clear Project Root"), clearProjectRoot(deps.projectRoot.isSet(), stateStore.isManaged("projectRoot"))),
           // Stays available for a stored-but-missing root (deleted or unmounted),
           // which `current()` hides but the user still needs to be able to drop.
-          enabled: deps.projectRoot.isSet() && !stateStore.isManaged("projectRoot"),
+          enabled: !clearProjectRoot(deps.projectRoot.isSet(), stateStore.isManaged("projectRoot")),
           click: () => deps.projectRoot.clear(),
         },
         { label: t("Export Project Archive…"), click: () => deps.exportProjectArchive() },
@@ -667,8 +671,8 @@ export function installMenu(deps: MenuDeps): void {
           click: () => deps.toggleTerminal(),
         },
         {
-          label: t("New Remote Shell…"),
-          enabled: deps.cloud.remoteHosts().length > 0,
+          label: withReason(t("New Remote Shell…"), needsRemoteHost(deps.cloud.remoteHosts().length)),
+          enabled: !needsRemoteHost(deps.cloud.remoteHosts().length),
           submenu: deps.cloud
             .remoteHosts()
             .map((host) => ({ label: host, click: () => deps.cloud.openRemoteShell(host) })),
@@ -691,7 +695,7 @@ export function installMenu(deps: MenuDeps): void {
         // without the runtime says so on the item instead of letting the user
         // pick it and meet a fallback note in the viewport.
         enumRadio("kratos.preview.renderer", {
-          enabled: !inCad(),
+          modeReason: postProcessingOnly(avail()),
           disabledValue: (value) => value === "vtkwasm" && !deps.meshRendererRuntime(),
           unavailableNote: t(" — unavailable in this build"),
         }),
@@ -795,8 +799,8 @@ export function installMenu(deps: MenuDeps): void {
                   await dialog.showMessageBox({ type: "info", title: setup.label, message: detail, detail: t("Sign in in a terminal using: {0}\nKKSS uses the official tool’s account. It never falls back to an API key.", {0: setup.command}) });
                 } },
                 { label: t("Installation and sign-in instructions…"), click: () => { void shell.openExternal(setup.url); } },
-                { label: t("Model…"), enabled: !stateStore.isManaged(modelKey), click: () => void promptValue(modelKey, t("{0} model (empty uses runtime default)", {0: setup.label}), "") },
-                { label: t("Executable path…"), enabled: !stateStore.isManaged(executableKey), click: () => void promptValue(executableKey, t("Absolute executable path (empty uses automatic detection)"), "") },
+                { label: withReason(t("Model…"), managedSetting(stateStore.isManaged(modelKey))), enabled: !stateStore.isManaged(modelKey), click: () => void promptValue(modelKey, t("{0} model (empty uses runtime default)", {0: setup.label}), "") },
+                { label: withReason(t("Executable path…"), managedSetting(stateStore.isManaged(executableKey))), enabled: !stateStore.isManaged(executableKey), click: () => void promptValue(executableKey, t("Absolute executable path (empty uses automatic detection)"), "") },
               ] };
             }),
             { type: "separator" as const },

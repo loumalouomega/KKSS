@@ -36,9 +36,11 @@
         <button id="workflow-check" class="btn-link" type="button" data-i18n="Check environment">Check environment</button>
       </div>
       <div class="workflow-actions">
+        <button id="study-wizard" class="btn-link" type="button" data-i18n="New simulation">New simulation</button>
         <button id="study-create" class="btn-link" type="button" data-i18n="New study">New study</button>
         <button id="study-duplicate" class="btn-link" type="button" disabled data-i18n="Duplicate">Duplicate</button>
         <button id="study-plan-run" class="btn-link" type="button" disabled data-i18n="Plan run">Plan run</button>
+        <button id="study-rebuild-stale" class="btn-link" type="button" disabled data-i18n="Rebuild stale">Rebuild stale</button>
         <button id="study-plan-sweep" class="btn-link" type="button" disabled data-i18n="Plan sweep">Plan sweep</button>
         <button id="study-plan-geometry-sweep" class="btn-link" type="button" disabled data-i18n="Plan geometry sweep">Plan geometry sweep</button>
       </div>
@@ -46,6 +48,10 @@
         <select id="study-picker"></select>
       </label>
       <div id="study-readiness" aria-live="polite"></div>
+      <section id="study-checklist" class="card" aria-labelledby="study-checklist-title" hidden>
+        <h3 id="study-checklist-title" data-i18n="Next steps">Next steps</h3>
+        <ol id="study-checklist-list"></ol>
+      </section>
       <div class="workflow-actions">
         <button id="queue-resume" class="btn-link" type="button" disabled data-i18n="Resume queue">Resume queue</button>
         <button id="queue-pause" class="btn-link" type="button" disabled data-i18n="Pause queue">Pause queue</button>
@@ -62,6 +68,7 @@
       <div class="workflow-actions">
         <button id="study-refinement" class="btn-link" type="button" disabled data-i18n="Refinement metadata">Refinement metadata</button>
         <button id="study-evaluate-quantity" class="btn-link" type="button" disabled data-i18n="Evaluate quantity">Evaluate quantity</button>
+        <button id="study-goal-seek" class="btn-link" type="button" disabled data-i18n="Goal seek">Goal seek</button>
         <button id="study-review-run" class="btn-link" type="button" disabled data-i18n="Review run">Review run</button>
         <button id="study-region-refs" class="btn-link" type="button" disabled data-i18n="Region references">Region references</button>
         <button id="study-region-rename" class="btn-link" type="button" disabled data-i18n="Rename region">Rename region</button>

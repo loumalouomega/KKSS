@@ -580,6 +580,26 @@ describe("workspace context suffix", () => {
     expect(text).toContain("/tmp/other.stp");
   });
 
+  it("carries the active study's next step in the suffix, never the system prompt", async () => {
+    const withStep = makeService(() => ({
+      cad: [], mesh: [],
+      nextStep: { studyId: "s1", name: "Beam", step: "mesh", tool: "app__study_attach_mesh" },
+    }));
+    withStep.post({ type: "send", text: "hello" });
+    await settle();
+    const text = suffixOf(withStep.provider);
+    expect(text).toContain("Active study next step:");
+    expect(text).toContain('"studyId":"s1"');
+    expect(text).toContain('"step":"mesh"');
+    expect(text).toContain('"tool":"app__study_attach_mesh"');
+    const without = makeService();
+    without.post({ type: "send", text: "hello" });
+    await settle();
+    expect(suffixOf(without.provider)).not.toContain("Active study next step");
+    expect(withStep.provider.requests[0].system).toBe(without.provider.requests[0].system);
+    expect(withStep.provider.requests[0].system).not.toContain("s1");
+  });
+
   it("marks a cloud-backed path and warns that it is not stable", async () => {
     const staged = "/home/u/.config/kkss/cloud-cache/dropbox/ab/bull.stp";
     const { provider, post } = makeService(() => ({

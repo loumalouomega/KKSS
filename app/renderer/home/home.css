@@ -270,3 +270,12 @@ body {
 .recovery-detail { font-size: var(--ui-fs-sm); color: var(--vscode-descriptionForeground); overflow-wrap: anywhere; }
 .recovery-warn { font-size: var(--ui-fs-sm); color: var(--vscode-editorWarning-foreground, var(--vscode-errorForeground)); }
 .recovery-actions { display: flex; flex-wrap: wrap; gap: var(--ui-s-2); }
+
+/* New Simulation wizard checklist */
+#study-checklist { margin: var(--ui-s-3) 0; padding: var(--ui-s-3); }
+#study-checklist h3 { margin: 0 0 var(--ui-s-2); }
+#study-checklist-list { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--ui-s-2); }
+.checklist-row { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-s-3); }
+.checklist-text { min-width: 0; display: flex; flex-direction: column; gap: var(--ui-s-1); overflow-wrap: anywhere; }
+.checklist-state { color: var(--vscode-descriptionForeground); font-size: var(--ui-fs-sm); }
+.checklist-row.is-next .checklist-label { font-weight: 600; }

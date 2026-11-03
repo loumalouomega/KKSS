@@ -92,6 +92,8 @@ body {
   margin: var(--ui-s-5) 0 var(--ui-s-2);
 }
 
+.category > .eyebrow > .btn { margin-left: auto; }
+
 .row {
   max-width: 760px;
   padding: var(--ui-s-3) var(--ui-s-4);

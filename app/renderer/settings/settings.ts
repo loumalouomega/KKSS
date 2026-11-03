@@ -418,6 +418,10 @@ function render(categories: readonly SettingCategory[]): void {
     const section = el("div", "category");
     const heading = el("h2", "eyebrow");
     heading.innerHTML = `${glyph(CATEGORY_GLYPHS[category], "sm")}<span>${translate(category)}</span>`;
+    const help = button(translate("Help"), "btn btn-secondary btn-sm");
+    help.setAttribute("aria-label", `${translate("Help")}: ${translate(category)}`);
+    help.addEventListener("click", () => post({ type: "help", category }));
+    heading.append(help);
     section.append(heading);
     for (const entry of inCategory) {
       const row = buildRow(entry);
