@@ -1205,7 +1205,7 @@ resubmitted automatically.
   what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 316-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
+  `test/chatToolPolicy.test.ts` pins the exact 317-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1640,8 +1640,8 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 41 app-owned
-workflow tools; 316 policy rows with the PDF reader server's twelve).
+discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 42 app-owned
+workflow tools; 317 policy rows with the PDF reader server's twelve).
 
 **The cad 3.33.0 → 3.34.0 + mesh 5.28.0 → 5.29.0 jump (meshio++ 18.0.0, three CAD surface analyses, `mesh_intersections`, region selection, wall thickness, polyhedral dual/MMG/Hessian derives; KKSS 2.27.0) needed four policy rows, one prompt sentence and tests — no host code.**
 
@@ -2558,9 +2558,9 @@ check GPL/AGPL compatibility first (same rule as cad's CLAUDE.md).
 
 `app__queue_plan_preview` takes `staleOnly`: reuse of the mesh is derived from `readiness()` (geometry/mesh not `ready` ⇒ rebuild the mesh) and an already-current study answers `nothingToDo`; it is still an ordinary preview the user enqueues.
 
-`workflows/goalSeek.ts` is the pure goal-seek core behind the read-only, stateless `app__goal_seek_next`: secant steps only on a finite positive slope, clipped, bounded, solve-capped; any non-succeeded or valueless iterate ends the loop (`stopped`), and no answer is ever interpolated between runs.
+`workflows/goalSeek.ts` is the pure goal-seek core behind the read-only, stateless `app__goal_seek_next`: secant steps only on a finite positive slope, clipped, bounded, solve-capped; any non-succeeded or valueless iterate ends the loop (`stopped`), and no answer is ever interpolated between runs. `SeekSpec.start` seeds the first iterate (clamped to the bounds); the read-only `app__goal_seek_iterates` walks the parent study plus its variants in creation order, reads the number at the dotted `caseSettings` path and the saved quantity whose definition matches exactly and whose result revision is current on the latest run (a missing quantity is `y: null`, never 0, and makes `goal_seek_next` stop; studies with no value or no run are listed as `skipped`), and returns the parameter's current value as `start`. Home's **Goal seek** chains the two; a `next` result opens the usual one-value `queue_parameter_sweep_preview` confirmation, so the user still approves enqueue and start — it never auto-starts.
 
-`workflows/checklist.ts` (pure) turns `readiness()` into the study checklist behind the read-only `app__study_next_step`: ordered steps, everything after an unmet step is `blocked`, an uncertain run reads `redo` with an inspect-first message, and nothing is computed or started.
+`workflows/checklist.ts` (pure) turns `readiness()` into the study checklist behind the read-only `app__study_next_step`: ordered steps, everything after an unmet step is `blocked`, an uncertain run reads `redo` with an inspect-first message, and nothing is computed or started. Home's **New simulation** wizard (`app/renderer/home/wizard.ts`, pure, mirrors `EXAMPLES` ids/labels with a family table pinned by `test/wizard.test.ts`) picks a physics family, then an example or the user's own geometry; main (`wizardStart`) extracts the example through `services/examples.ts`'s `extractExample()` (returns the entry path, opens nothing, records no recents) and creates the study with `app__study_create`. `pushWorkflows()` also pushes `WorkflowService.activeNextStep()` to Home (the **Next steps** list, blocked steps disabled with their `why`) and caches `nextStepContext()` for the chat's synchronous `currentFiles().nextStep`; the suffix line stays out of `SYSTEM_PROMPT`.
 
 ## Project archive
 
