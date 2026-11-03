@@ -23,6 +23,8 @@ import { showOpenDialog } from "../dialogs";
 import { setUpdateChannel } from "../updates";
 import { confirmApprovalOff } from "../../menu";
 import { CATEGORIES, effective, entryById, normalize, registry, toStored, type SettingEntry } from "./registry";
+import { SETTINGS_CATEGORY_HELP, settingsHelpPath } from "../helpMap";
+import { showManual } from "../manual";
 import { kratosInstallProblem } from "./kratosEnv";
 import type { CloudStatus } from "../cloud/cloudService";
 import type { ProviderId } from "../cloud/cloudCore";
@@ -208,6 +210,11 @@ export function configureSettings(dir: string, d: SettingsDeps): void {
     if (msg.type === "settingsReady") {
       send({ type: "schema", categories: CATEGORIES, entries: registry() });
       sendRows();
+      return;
+    }
+    if (msg.type === "help") {
+      // Only a known category maps to a page; anything else is ignored.
+      if (Object.prototype.hasOwnProperty.call(SETTINGS_CATEGORY_HELP, msg.category)) showManual(settingsHelpPath(msg.category as keyof typeof SETTINGS_CATEGORY_HELP));
       return;
     }
     const entry = entryById(msg.id);

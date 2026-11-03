@@ -1,6 +1,6 @@
 import { documentReplacementQueue } from "./services/documentReplacement";
 import { configureLocale } from "./services/locale";
-import { t } from "../shared/i18n";
+import { t, translate } from "../shared/i18n";
 import { beginOpen, configurePerformance } from "./services/performance";
 /** KKSS Electron main entry. */
 import { app, clipboard, dialog, ipcMain, Menu, shell } from "electron";
@@ -437,6 +437,31 @@ function viewKey(ref: ViewRef): string {
   return ref.kind === "tab" ? `tab:${ref.mode}:${ref.tabId}` : ref.kind;
 }
 
+/** A **Show** button for a view-related toast: focuses the tab (or screen) the toast is about.
+ *  Undefined when there is nothing to focus (the tab is gone, or the view has no screen of its own). */
+function showViewAction(ref: ViewRef): ToastAction | undefined {
+  if (ref.kind === "tab") {
+    const { mode, tabId } = ref;
+    if (!mode || !tabId) return undefined;
+    const exists = (mode === "cad" ? cadHosts : meshHosts).has(tabId);
+    if (!exists) return undefined;
+    return {
+      label: translate("Show"),
+      run: () => {
+        // The tab may have been closed while the toast was up.
+        if (!main || !(mode === "cad" ? cadHosts : meshHosts).has(tabId)) return;
+        main.setActiveTab(mode, tabId);
+        setScreen(mode);
+      },
+    };
+  }
+  if (ref.kind === "home" || ref.kind === "editor") {
+    const screen = ref.kind;
+    return { label: translate("Show"), run: () => { if (main) setScreen(screen); } };
+  }
+  return undefined;
+}
+
 function viewLabel(ref: ViewRef): string {
   return ref.kind === "tab" ? (ref.mode === "cad" ? "CAD viewer" : "Mesh viewer") : `${ref.kind} view`;
 }
@@ -501,7 +526,7 @@ function onViewCrash(crash: ViewCrash): void {
 
   const label = crash.kind === "tab" ? (crash.mode === "cad" ? "CAD viewer" : "Mesh viewer") : `${crash.kind} view`;
   if (count > MAX_VIEW_RECOVERIES) {
-    toast("error", t("The {0} keeps crashing ({1}). Your files on disk are untouched.", {0: label, 1: crash.reason}));
+    toast("error", t("The {0} keeps crashing ({1}). Your files on disk are untouched.", {0: label, 1: crash.reason}), showViewAction(crash));
     return;
   }
   recoverView(crash, label);
@@ -522,10 +547,10 @@ function recoverView(crash: ViewCrash, label: string, userInitiated = false): vo
       host.openPath(file);
       toast("warning", userInitiated
         ? t("{0} reloaded — {1}.", {0: label, 1: path.basename(file)})
-        : t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}));
+        : t("{0} crashed — reloaded {1}.", {0: label, 1: path.basename(file)}), showViewAction(crash));
     } else {
       main.reloadView(crash);
-      toast("warning", userInitiated ? t("{0} reloaded.", {0: label}) : t("{0} crashed — reloaded.", {0: label}));
+      toast("warning", userInitiated ? t("{0} reloaded.", {0: label}) : t("{0} crashed — reloaded.", {0: label}), showViewAction(crash));
     }
     return;
   }

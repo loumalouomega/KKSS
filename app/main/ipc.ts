@@ -716,4 +716,5 @@ export type SettingsToHost =
   | { type: "set"; id: string; value: unknown }
   | { type: "reset"; id: string }
   | { type: "browse"; id: string }
-  | { type: "action"; id: string; action: string };
+  | { type: "action"; id: string; action: string }
+  | { type: "help"; category: string };
