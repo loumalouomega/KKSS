@@ -1020,5 +1020,21 @@
   "The queue is not paused.": "La cola no está en pausa.",
   "The queue is already paused.": "La cola ya está en pausa.",
   "No active or waiting task to cancel.": "No hay tareas activas o en espera que cancelar.",
-  "Show": "Mostrar"
+  "Show": "Mostrar",
+  "Goal seek": "Búsqueda de objetivo",
+  "Case-settings parameter (dotted path):": "Parámetro de los ajustes del caso (ruta con puntos):",
+  "Target value of the quantity": "Valor objetivo de la magnitud",
+  "Relative tolerance": "Tolerancia relativa",
+  "Lower bound of the parameter": "Límite inferior del parámetro",
+  "Upper bound of the parameter": "Límite superior del parámetro",
+  "Maximum step": "Paso máximo",
+  "Initial step": "Paso inicial",
+  "Maximum solves": "Máximo de resoluciones",
+  "Time (optional)": "Tiempo (opcional)",
+  "Enter a finite number for {0}.": "Introduzca un número finito para {0}.",
+  "Enter at least two solves.": "Introduzca al menos dos resoluciones.",
+  "Goal reached: {0} = {1} gives {2}.": "Objetivo alcanzado: {0} = {1} da {2}.",
+  "Goal seek stopped: {0}": "Búsqueda de objetivo detenida: {0}",
+  "Goal not reached: {0}": "Objetivo no alcanzado: {0}",
+  "Goal seek suggests {0} = {1}. Review the one-value sweep and confirm to queue it.": "La búsqueda de objetivo sugiere {0} = {1}. Revise el barrido de un valor y confirme para ponerlo en cola."
 }

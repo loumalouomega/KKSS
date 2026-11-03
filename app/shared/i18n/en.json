@@ -1020,5 +1020,21 @@
   "The queue is not paused.": "The queue is not paused.",
   "The queue is already paused.": "The queue is already paused.",
   "No active or waiting task to cancel.": "No active or waiting task to cancel.",
-  "Show": "Show"
+  "Show": "Show",
+  "Goal seek": "Goal seek",
+  "Case-settings parameter (dotted path):": "Case-settings parameter (dotted path):",
+  "Target value of the quantity": "Target value of the quantity",
+  "Relative tolerance": "Relative tolerance",
+  "Lower bound of the parameter": "Lower bound of the parameter",
+  "Upper bound of the parameter": "Upper bound of the parameter",
+  "Maximum step": "Maximum step",
+  "Initial step": "Initial step",
+  "Maximum solves": "Maximum solves",
+  "Time (optional)": "Time (optional)",
+  "Enter a finite number for {0}.": "Enter a finite number for {0}.",
+  "Enter at least two solves.": "Enter at least two solves.",
+  "Goal reached: {0} = {1} gives {2}.": "Goal reached: {0} = {1} gives {2}.",
+  "Goal seek stopped: {0}": "Goal seek stopped: {0}",
+  "Goal not reached: {0}": "Goal not reached: {0}",
+  "Goal seek suggests {0} = {1}. Review the one-value sweep and confirm to queue it.": "Goal seek suggests {0} = {1}. Review the one-value sweep and confirm to queue it."
 }
