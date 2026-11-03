@@ -1003,5 +1003,22 @@
   "Everything is current; nothing to rebuild.": "Todo está al día; no hay nada que reconstruir.",
   "Results are current, but {0} saved quantity(ies) were evaluated on a changed result.": "Los resultados están al día, pero {0} magnitud(es) guardada(s) se evaluaron sobre un resultado modificado.",
   "Re-evaluate quantities": "Reevaluar magnitudes",
-  "Replay the saved quantities of the previous run on the selected run's current result?": "¿Repetir las magnitudes guardadas de la ejecución anterior sobre el resultado actual de la ejecución seleccionada?"
+  "Replay the saved quantities of the previous run on the selected run's current result?": "¿Repetir las magnitudes guardadas de la ejecución anterior sobre el resultado actual de la ejecución seleccionada?",
+  " (no SSH hosts configured)": " (no hay hosts SSH configurados)",
+  " (set the Client ID first)": " (configura primero el ID de cliente)",
+  " (no project folder set)": " (no hay carpeta de proyecto)",
+  "Choose a project folder first.": "Elige primero una carpeta de proyecto.",
+  "Select or create a study first.": "Selecciona o crea primero un estudio.",
+  "The Kratos runtime is unavailable; see the runtime report.": "El entorno de Kratos no está disponible; consulta el informe del entorno.",
+  "This study has no ready geometry.": "Este estudio no tiene geometría lista.",
+  "This study has no ready mesh.": "Este estudio no tiene malla lista.",
+  "This study has no case snapshot.": "Este estudio no tiene instantánea del caso.",
+  "Select a run first.": "Selecciona primero una ejecución.",
+  "The selected run has no result files.": "La ejecución seleccionada no tiene archivos de resultados.",
+  "Comparing needs at least two runs.": "Comparar requiere al menos dos ejecuciones.",
+  "The queue is empty.": "La cola está vacía.",
+  "The queue is not paused.": "La cola no está en pausa.",
+  "The queue is already paused.": "La cola ya está en pausa.",
+  "No active or waiting task to cancel.": "No hay tareas activas o en espera que cancelar.",
+  "Show": "Mostrar"
 }

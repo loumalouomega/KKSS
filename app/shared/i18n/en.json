@@ -1003,5 +1003,22 @@
   "Everything is current; nothing to rebuild.": "Everything is current; nothing to rebuild.",
   "Results are current, but {0} saved quantity(ies) were evaluated on a changed result.": "Results are current, but {0} saved quantity(ies) were evaluated on a changed result.",
   "Re-evaluate quantities": "Re-evaluate quantities",
-  "Replay the saved quantities of the previous run on the selected run's current result?": "Replay the saved quantities of the previous run on the selected run's current result?"
+  "Replay the saved quantities of the previous run on the selected run's current result?": "Replay the saved quantities of the previous run on the selected run's current result?",
+  " (no SSH hosts configured)": " (no SSH hosts configured)",
+  " (set the Client ID first)": " (set the Client ID first)",
+  " (no project folder set)": " (no project folder set)",
+  "Choose a project folder first.": "Choose a project folder first.",
+  "Select or create a study first.": "Select or create a study first.",
+  "The Kratos runtime is unavailable; see the runtime report.": "The Kratos runtime is unavailable; see the runtime report.",
+  "This study has no ready geometry.": "This study has no ready geometry.",
+  "This study has no ready mesh.": "This study has no ready mesh.",
+  "This study has no case snapshot.": "This study has no case snapshot.",
+  "Select a run first.": "Select a run first.",
+  "The selected run has no result files.": "The selected run has no result files.",
+  "Comparing needs at least two runs.": "Comparing needs at least two runs.",
+  "The queue is empty.": "The queue is empty.",
+  "The queue is not paused.": "The queue is not paused.",
+  "The queue is already paused.": "The queue is already paused.",
+  "No active or waiting task to cancel.": "No active or waiting task to cancel.",
+  "Show": "Show"
 }
