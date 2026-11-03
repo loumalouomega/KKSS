@@ -152,6 +152,7 @@ const environmentReport = document.getElementById("environment-report") as HTMLE
 const queueStatus = document.getElementById("queue-status") as HTMLElement;
 const duplicateButton = document.getElementById("study-duplicate") as HTMLButtonElement;
 const planRunButton = document.getElementById("study-plan-run") as HTMLButtonElement;
+const rebuildStaleButton = document.getElementById("study-rebuild-stale") as HTMLButtonElement;
 const planSweepButton = document.getElementById("study-plan-sweep") as HTMLButtonElement;
 const planGeometrySweepButton = document.getElementById("study-plan-geometry-sweep") as HTMLButtonElement;
 let workflowSnapshot: { project?: { studies?: { id: string; handoff?: { units?: { length?: string | null } } }[]; queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; queuePlanRevision?: string } | undefined;
@@ -200,6 +201,9 @@ planRunButton.addEventListener("click", () => {
   form.open(t("Plan run"), meshFields(meshReady(study.id)), values => {
     workflowCall("queue_plan_preview", { studyId: study.id, reuseMesh: reuseMesh(values) });
   });
+});
+rebuildStaleButton.addEventListener("click", () => {
+  if (selectedStudy) workflowCall("queue_plan_preview", { studyId: selectedStudy.id, staleOnly: true });
 });
 /** "All combinations" or "Paired lists" → the tools' mode argument. */
 const sweepModes = (): readonly string[] => [t("All combinations"), t("Paired lists")];
@@ -392,7 +396,7 @@ function renderWorkflow(raw: unknown): void {
     studyPicker.value = active.id;
     selectedStudy = active;
     duplicateButton.disabled = false;
-    planRunButton.disabled = manualRuntimeAvailable === false;
+    planRunButton.disabled = manualRuntimeAvailable === false; rebuildStaleButton.disabled = false;
     planGeometrySweepButton.disabled = planSweepButton.disabled = manualRuntimeAvailable === false;
     const states = value.readiness?.[active.id] ?? {};
     selectedRunId = value.project?.activeRunId ?? active.runs?.[Math.max(0, (active.runs?.length ?? 0) - 1)]?.id;
@@ -457,7 +461,7 @@ function renderWorkflow(raw: unknown): void {
       row.append(actions); variantContainer.append(row);
     }
   } else {
-    selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; planSweepButton.disabled = true; planGeometrySweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
+    selectedStudy = undefined; selectedRunId = undefined; duplicateButton.disabled = true; planRunButton.disabled = true; rebuildStaleButton.disabled = true; planSweepButton.disabled = true; planGeometrySweepButton.disabled = true; studyReadiness.textContent = t("No studies yet.");
     for (const id of ["study-open-geometry", "study-open-mesh", "study-open-case", "study-open-results"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
     for (const id of ["study-relink-source", "study-copy-source", "study-attach-mesh", "study-set-case", "study-import-run", "study-review-run", "study-compare-runs", "study-region-refs", "study-region-rename", "study-evaluate-quantity", "study-refinement", "study-export-review", "study-compare-variants", "study-export-comparison"]) (document.getElementById(id) as HTMLButtonElement).disabled = true;
   }
@@ -523,7 +527,7 @@ api.onMessage((raw) => {
       report.manual?.capabilities?.mpi === true ? t("MPI available via {0}: set MPI Ranks in Settings → Kratos to run guided solves on several ranks of this node.", {0: report.manual.capabilities.mpiLauncher}) : undefined,
     ].filter(Boolean).join("\n");
     (document.getElementById("environment-actions") as HTMLElement).hidden = !!report.tools?.available;
-    planRunButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
+    planRunButton.disabled = !selectedStudy || manualRuntimeAvailable === false; rebuildStaleButton.disabled = !selectedStudy;
     planGeometrySweepButton.disabled = planSweepButton.disabled = !selectedStudy || manualRuntimeAvailable === false;
     const queue = workflowSnapshot?.project?.queue;
     (document.getElementById("queue-resume") as HTMLButtonElement).disabled = !queue?.paused || !queue.tasks.length || manualRuntimeAvailable === false;
@@ -565,8 +569,15 @@ api.onMessage((raw) => {
       return;
     }
     if (workflowAction === "queue-preview" && value && typeof value === "object") {
-      const preview = value as { previewId?: string; summary?: string[]; tasks?: { kind: string; id: string; runId: string }[]; runId?: string };
+      const preview = value as { previewId?: string; summary?: string[]; tasks?: { kind: string; id: string; runId: string }[]; runId?: string; nothingToDo?: boolean; nothingToRebuild?: boolean; reevaluate?: unknown[] };
       workflowAction = undefined;
+      if (preview.nothingToDo || preview.nothingToRebuild) {
+        const study = selectedStudy, runId = selectedRunId;
+        const count = preview.reevaluate?.length ?? 0;
+        (document.getElementById("run-review") as HTMLElement).textContent = preview.nothingToDo ? t("Everything is current; nothing to rebuild.") : t("Results are current, but {0} saved quantity(ies) were evaluated on a changed result.", {0: String(count)});
+        if (preview.nothingToRebuild && study && runId) confirmAction(t("Re-evaluate quantities"), t("Replay the saved quantities of the previous run on the selected run's current result?"), () => workflowCall("run_quantity_reevaluate", { studyId: study.id, runId }));
+        return;
+      }
       const summary = preview.summary?.join("\n") ?? JSON.stringify(value, null, 2);
       if (preview.previewId) confirmAction(t("Persist paused plan"), t("Queue preview\n\n{0}\n\nPersist this paused plan?", {0: summary}), () => {
         workflowCall("queue_enqueue", { previewId: preview.previewId });

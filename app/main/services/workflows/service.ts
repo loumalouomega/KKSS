@@ -1372,7 +1372,29 @@ export class WorkflowService {
         timeStep: { type: 'integer' }, time: { type: 'number' },
         reduction: { enum: ['min', 'max', 'minAbs', 'maxAbs', 'mean', 'std', 'median', 'sum', 'count', 'q1', 'q3', 'iqr'] }, unit: str,
       }, ['studyId', 'runId', 'field', 'kind', 'component', 'reduction', 'unit'], args => this.evaluateRunQuantity(args)),
-      tool('run_review_export', 'Export a selected run review as JSON and self-contained offline HTML.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => {
+      tool('run_quantity_reevaluate', 'Replay the saved quantity definitions of an earlier run (fromRunId, default: the study\'s previous run) on the target run\'s current attached result. Each definition is evaluated through the same revision-checked path as app__run_quantity_evaluate; one failure never stops the others and no value is copied or interpolated between runs.', { studyId: str, runId: str, fromRunId: str }, ['studyId', 'runId'], async args => {
+        const store = this.store(), project = await store.read();
+        if (!project) throw new Error('No project.');
+        const study = this.study(project, text(args, 'studyId'));
+        const target = study.runs.find(r => r.id === text(args, 'runId'));
+        if (!target) throw new Error('Run does not belong to this study.');
+        const index = study.runs.indexOf(target);
+        const from = typeof args.fromRunId === 'string' && args.fromRunId ? study.runs.find(r => r.id === args.fromRunId) : study.runs[index - 1];
+        if (!from) throw new Error('There is no earlier run to take quantity definitions from.');
+        if (from.id === target.id) throw new Error('Choose a different source run.');
+        const definitions = from.evidence?.quantities ?? [];
+        if (!definitions.length) return { evaluated: 0, failed: 0, outcomes: [], note: 'The source run has no saved quantities.' };
+        const outcomes: { field: string; region: string; time: number; ok: boolean; value?: number | null; reason?: string }[] = [];
+        for (const q of definitions) {
+          try {
+            const result = await this.evaluateRunQuantity({ studyId: study.id, runId: target.id, field: q.field, kind: q.kind, component: q.component, region: q.region, reduction: q.reduction, unit: q.unit, time: q.time });
+            outcomes.push({ field: q.field, region: q.region, time: q.time, ok: true, value: result.quantity.value });
+          } catch (error) { outcomes.push({ field: q.field, region: q.region, time: q.time, ok: false, reason: error instanceof Error ? error.message : String(error) }); }
+        }
+        const failed = outcomes.filter(o => !o.ok).length;
+        return { fromRunId: from.id, runId: target.id, evaluated: outcomes.length - failed, failed, outcomes };
+      }),
+      tool('run_review_export','Export a selected run review as JSON and self-contained offline HTML.', { studyId: str, runId: str }, ['studyId', 'runId'], async args => {
         const { store, run, review } = await this.buildRunReview(text(args, 'studyId'), text(args, 'runId'));
         const directory = path.join(store.root, '.kkss', 'reviews');
         const jsonFile = path.join(directory, `${run.id}.json`), htmlFile = path.join(directory, `${run.id}.html`);

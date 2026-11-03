@@ -998,5 +998,10 @@
   "Choose an empty folder to unpack into": "Elija una carpeta vacía donde desempaquetar",
   "Unpack here": "Desempaquetar aquí",
   "Nothing was unpacked.": "No se desempaquetó nada.",
-  "Unpacked {0} files; {1} damaged or missing, {2} external references need relinking.": "Se desempaquetaron {0} archivos; {1} dañados o ausentes, {2} referencias externas por reenlazar."
+  "Unpacked {0} files; {1} damaged or missing, {2} external references need relinking.": "Se desempaquetaron {0} archivos; {1} dañados o ausentes, {2} referencias externas por reenlazar.",
+  "Rebuild stale": "Reconstruir obsoletos",
+  "Everything is current; nothing to rebuild.": "Todo está al día; no hay nada que reconstruir.",
+  "Results are current, but {0} saved quantity(ies) were evaluated on a changed result.": "Los resultados están al día, pero {0} magnitud(es) guardada(s) se evaluaron sobre un resultado modificado.",
+  "Re-evaluate quantities": "Reevaluar magnitudes",
+  "Replay the saved quantities of the previous run on the selected run's current result?": "¿Repetir las magnitudes guardadas de la ejecución anterior sobre el resultado actual de la ejecución seleccionada?"
 }

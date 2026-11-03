@@ -1035,4 +1035,30 @@ describe('shared workflow tools', () => {
     expect(stale.evidence.quantities).toEqual([]);
     expect(stale.evidence.findings.some(finding => finding.message.includes('older result revision'))).toBe(true);
   });
+  it('replays saved quantity definitions on a later run and reports per-definition failures', async () => {
+    const root = await temp(), geometry = path.join(root, 'beam.step'); await fs.writeFile(geometry, 'geometry');
+    const files: Record<string, string> = {};
+    for (const id of ['run-a', 'run-b']) { files[id] = path.join(root, '.kkss', 'runs', id, 'result.vtu'); await fs.mkdir(path.dirname(files[id]), { recursive: true }); await fs.writeFile(files[id], `<VTKFile>${id}</VTKFile>`); }
+    const service = new WorkflowService({ root: () => root, activeMesh: () => undefined,
+      runtime: { discover: async () => ({ command: 'uvx', args: [] }) }, environment: () => ({ python: 'python', env: {} }),
+      open: async () => undefined, changed: () => undefined,
+      callMcpTool: async (_name, args) => {
+        const a = args as Record<string, unknown>;
+        if (a.field === 'BAD') throw new Error('no such field');
+        return { structuredContent: { version: 1, runId: a.runId, source: { path: a.path, revision: `sha256:${await fileRevision(String(a.path))}` },
+          evaluation: { time: a.time }, quantity: { field: a.field, kind: a.kind, component: a.component, region: a.region, time: a.time, reduction: a.reduction, unit: a.unit, value: 1, runId: a.runId } } };
+      } });
+    const store = service.store(), study: Study = { ...makeStudy(), source: reference(root, geometry, await fileRevision(geometry)), runs: [] };
+    const mk = async (id: string): Promise<Run> => ({ id, studyId: study.id, sourceRevision: study.source.revision, meshRevision: 'm', settings: study.caseSettings, directory: `.kkss/runs/${id}`, state: 'succeeded', startedAt: 1, finishedAt: 2,
+      artifacts: [{ role: 'result', ownerId: id, reference: reference(root, files[id], await fileRevision(files[id])) }] });
+    const a = await mk('run-a'), b = await mk('run-b');
+    const q = (field: string) => ({ field, kind: 'Nodal' as const, component: 'magnitude', region: 'global', time: 0.5, reduction: 'max', unit: 'm', value: 2, runId: 'run-a', source: a.artifacts[0].reference });
+    a.evidence = { ...(a.evidence ?? {} as Evidence), quantities: [q('DISPLACEMENT'), q('BAD')] } as Evidence;
+    study.runs.push(a, b);
+    await store.update(p => { p.studies.push(study); });
+    const invoke = async (name: string, args: Record<string, unknown>) => service.tools().find(t => t.name === `app__${name}`)!.invoke(args);
+    const out = await invoke('run_quantity_reevaluate', { studyId: study.id, runId: 'run-b' }) as { evaluated: number; failed: number; outcomes: { ok: boolean }[] };
+    expect(out).toMatchObject({ evaluated: 1, failed: 1 });
+    await expect(invoke('run_quantity_reevaluate', { studyId: study.id, runId: 'run-a' })).rejects.toThrow(/earlier run/);
+  });
 });

@@ -203,6 +203,7 @@ definitions with compatible units and preserves missing values as null. The
 read-only mesh evaluator is
 `mesh__case_evaluate_quantity`; its app-owned persistence wrapper is
 `app__run_quantity_evaluate` and follows normal write approval.
+`app__run_quantity_reevaluate` replays an earlier run's saved quantity definitions (by physical `time`) through the same evaluator on a run with a current result; each definition succeeds or fails alone, nothing is copied between runs. Home's **Rebuild stale** button previews `staleOnly` and, when only quantities are stale, offers the replay.
 
 `workflows/mpiReceipt.ts` is the pure MPI receipt contract (rank-set slots, plan-frozen args, per-rank pid markers, `uncertain` on a dead launcher, a short *succeeded* rank set or a dead rank under a live launcher) and `workflows/mpiRunner.ts` is the single-node runner built on it: one class for this machine (`runLocalSh`) and the ssh host, selected by `WorkflowService.solveRunner` for a solve frozen with `mpiRanks` (`kratos.mpiRanks`, 0 = off). `mpiCase.ts` rewrites only the uploaded `ProjectParameters.json` (`parallel_type: "MPI"`) and refuses a serial-only linear solver instead of swapping it. `EnvironmentReport.mpi` is `true` only when the probe saw a launcher, a POSIX shell and all three MPI modules. Verified with stand-in launchers (including a killed rank); no live MPI-enabled Kratos run exists yet, and multi-node is out of scope.
 
@@ -1204,7 +1205,7 @@ resubmitted automatically.
   what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 315-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
+  `test/chatToolPolicy.test.ts` pins the exact 316-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1639,8 +1640,8 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 40 app-owned
-workflow tools; 315 policy rows with the PDF reader server's twelve).
+discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 41 app-owned
+workflow tools; 316 policy rows with the PDF reader server's twelve).
 
 **The cad 3.33.0 → 3.34.0 + mesh 5.28.0 → 5.29.0 jump (meshio++ 18.0.0, three CAD surface analyses, `mesh_intersections`, region selection, wall thickness, polyhedral dual/MMG/Hessian derives; KKSS 2.27.0) needed four policy rows, one prompt sentence and tests — no host code.**
 
