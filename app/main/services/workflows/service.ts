@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { writeFileAtomic } from '../atomicWrite';
 import { buildChecklist } from './checklist';
 import { nextIterate, type SeekSpec, type Iterate } from './goalSeek';
-import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, safeRelative } from './projectArchive';
+import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readZip, unresolvedExternal, safeRelative } from './projectArchive';
 import type { AppTool } from '../chat/appTools';
 import { checkEnvironment, checkRemoteEnvironment, resolveThreads, type EnvironmentReport } from './environment';
 import { ProjectStore, staleQuantities, fileRevision, fingerprint, readiness, reference, resolveReference, duplicateStudy, previewVariants } from './project';
@@ -1230,16 +1230,18 @@ export class WorkflowService {
   async projectUnpack(args: Record<string, unknown>): Promise<unknown> {
     const archive = path.resolve(text(args, 'archivePath')), dest = path.resolve(text(args, 'destination'));
     const exists = (rel: string) => { try { return !!fsSync.statSync(path.join(dest, rel)); } catch { return false; } };
-    const plan = planUnpack(readStoreZip(new Uint8Array(await fs.readFile(archive))), exists);
-    if (plan.conflicts.length) return { unpacked: false, reason: 'Destination already holds files from this archive; choose an empty folder.', conflicts: plan.conflicts.slice(0, 50), problems: plan.problems };
+    const zip = readZip(new Uint8Array(await fs.readFile(archive)));
+    const plan = planUnpack(zip.members, exists);
+    if (plan.conflicts.length) return { unpacked: false, reason: 'Destination already holds files from this archive; choose an empty folder.', conflicts: plan.conflicts.slice(0, 50), problems: plan.problems, unsafeMembers: zip.unsafeMembers };
     for (const f of plan.files) {
       const target = path.resolve(dest, f.path);
       if (!target.startsWith(dest + path.sep)) throw new Error(`Unsafe path: ${f.path}`);
       await fs.mkdir(path.dirname(target), { recursive: true });
       await writeFileAtomic(target, f.data);
     }
-    const unresolved = plan.manifest.external.map(e => ({ ...e, exists: fsSync.existsSync(e.path) }));
-    return { unpacked: true, destination: dest, files: plan.files.length, problems: plan.problems, externalReferences: unresolved };
+    const unresolvedExternalRefs = unresolvedExternal(plan.manifest, p => fsSync.existsSync(p));
+    const externalReferences = plan.manifest.external.map(e => ({ ...e, exists: fsSync.existsSync(e.path) }));
+    return { unpacked: true, destination: dest, files: plan.files.length, problems: plan.problems, unsafeMembers: zip.unsafeMembers, externalReferences, unresolvedExternal: unresolvedExternalRefs };
   }
 
   /** Receipt, environment report and solver-log tails of the selected run, for the diagnostics bundle. Text only, capped. */
@@ -1509,7 +1511,7 @@ export class WorkflowService {
         return { jsonFile, htmlFile, findings: comparison.findings };
       }),
       tool('project_pack', 'Pack the project (.kkss/project.json plus every project-contained source, mesh, case input and, with includeRuns, run files) into one archive with SHA-256 hashes. External references are listed, never packed.', { outputPath: str, includeRuns: { type: 'boolean' } }, ['outputPath'], args => this.projectPack(args)),
-      tool('project_unpack', 'Unpack a project archive into an empty destination folder after verifying every hash. Damaged or missing members are reported; nothing existing is overwritten and external references are listed for relinking.', { archivePath: str, destination: str }, ['archivePath', 'destination'], args => this.projectUnpack(args)),
+      tool('project_unpack', 'Unpack a project archive into an empty destination folder after verifying every hash. Damaged or missing members are reported; nothing existing is overwritten and external references missing on this machine are returned as unresolvedExternal (studyId, role, path); a missing study source is repointed with app__study_relink_source once the unpacked folder is the selected project.', { archivePath: str, destination: str }, ['archivePath', 'destination'], args => this.projectUnpack(args)),
       tool('goal_seek_next', 'Read-only, stateless goal-seek step. Give the target, relTolerance, lower/upper bounds, maxStep, initialStep, maxSolves and the iterates solved so far ({x, y, state}; take y from app__variants_compare parameterTables, null if missing). Returns reached, next (the value to run next as a one-value app__queue_parameter_sweep_preview), stopped (an iterate failed, was uncertain or had no value) or notReached. It never solves anything and never interpolates an answer.',
         { target: { type: 'number' }, relTolerance: { type: 'number' }, lower: { type: 'number' }, upper: { type: 'number' }, maxStep: { type: 'number' }, initialStep: { type: 'number' }, maxSolves: { type: 'integer' },
           iterates: { type: 'array', items: { type: 'object', properties: { x: { type: 'number' }, y: { type: ['number', 'null'] }, state: { enum: ['succeeded', 'failed', 'uncertain', 'cancelled'] } }, required: ['x', 'y', 'state'], additionalProperties: false } } },
