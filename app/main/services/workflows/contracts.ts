@@ -3,7 +3,7 @@ import type { Refinement } from './refinement';
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Reference = { kind: 'project' | 'external'; path: string; revision: string };
 export interface Artifact { role: string; reference: Reference; ownerId: string }
-export interface Finding { severity: 'error' | 'warning' | 'unavailable'; message: string; target?: string }
+export interface Finding { severity: 'error' | 'warning' | 'unavailable'; message: string; /** `mesh`, `case` or `results`: the `study_open` stage the Home Show action opens. */ target?: string }
 export interface Handoff {
   version: 1; exportId: string; source: Reference; replayRevision: string;
   units: { length: string | null; scale: number }; options: Json; engine: string;

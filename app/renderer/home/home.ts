@@ -10,6 +10,7 @@ import { t, translate } from "../../shared/i18n";
  * bundle with no node:path.
  */
 import { WorkflowForm, type WorkflowField } from "./workflowForm";
+import { findingRows, showArgs } from "./findings";
 import { HOME_BUTTONS } from "./homeConfig";
 import { homeAvailability, REASON_TEXT } from "./availability";
 import { WIZARD_FAMILIES, checklistRows, examplesFor, type NextStepPayload, type StepCommand } from "./wizard";
@@ -158,7 +159,7 @@ const rebuildStaleButton = document.getElementById("study-rebuild-stale") as HTM
 const planSweepButton = document.getElementById("study-plan-sweep") as HTMLButtonElement;
 const planGeometrySweepButton = document.getElementById("study-plan-geometry-sweep") as HTMLButtonElement;
 let workflowSnapshot: { project?: { studies?: { id: string; handoff?: { units?: { length?: string | null } } }[]; queue?: { paused: boolean; tasks: { id: string; kind: string; state: string; runId: string }[] } }; queuePlanRevision?: string } | undefined;
-let workflowAction: "queue-preview" | "queue-enqueue" | "queue-resume" | "region-refs" | "region-preview" | "goal-seek-iterates" | "goal-seek-next" | undefined;
+let workflowAction: "show-finding" | "queue-preview" | "queue-enqueue" | "queue-resume" | "region-refs" | "region-preview" | "goal-seek-iterates" | "goal-seek-next" | undefined;
 let manualRuntimeAvailable: boolean | undefined;
 let selectedStudy: { id: string; name: string } | undefined;
 let selectedRunId: string | undefined;
@@ -209,9 +210,34 @@ function meshReady(id: string): boolean {
 }
 function confirmAction(title: string, detail: string, accept: () => void): void { form.open(title, [], accept, detail); }
 
-function workflowCall(tool: string, args: Record<string, unknown>): void {
+/** Fills the findings list under a run review; each row with a target gets a Show action. */
+function renderFindings(value: unknown): void {
+  const list = document.getElementById("run-review-findings") as HTMLElement;
+  list.replaceChildren();
+  const rows = findingRows(value);
+  list.hidden = !rows?.length;
+  for (const row of rows ?? []) {
+    const item = document.createElement("li");
+    item.className = `finding finding-${row.severity}`;
+    const text = document.createElement("span");
+    text.textContent = `${row.severity === "warning" || row.severity === "error" ? "⚠ " : "ⓘ "}${row.message}`;
+    item.append(text);
+    const args = showArgs(row, selectedStudy?.id, selectedRunId);
+    if (args) {
+      const show = document.createElement("button");
+      show.type = "button";
+      show.className = "btn-link";
+      show.textContent = t("Show");
+      show.addEventListener("click", () => workflowCall("study_open", args, true));
+      item.append(show);
+    }
+    list.append(item);
+  }
+}
+
+function workflowCall(tool: string, args: Record<string, unknown>, keepReview = false): void {
   if (workflowPending) return;
-  workflowAction = ["queue_plan_preview", "queue_parameter_sweep_preview", "queue_geometry_sweep_preview", "queue_retry_variant_preview"].includes(tool) ? "queue-preview"
+  workflowAction = keepReview ? "show-finding" : ["queue_plan_preview", "queue_parameter_sweep_preview", "queue_geometry_sweep_preview", "queue_retry_variant_preview"].includes(tool) ? "queue-preview"
     : tool === "queue_enqueue" ? "queue-enqueue" : tool === "queue_resume" ? "queue-resume"
     : tool === "goal_seek_iterates" ? "goal-seek-iterates" : tool === "goal_seek_next" ? "goal-seek-next"
     : tool === "study_region_references" ? "region-refs" : tool === "study_region_rename" && args.apply !== true ? "region-preview" : undefined;
@@ -320,6 +346,7 @@ document.getElementById("study-copy-source")!.addEventListener("click", () => {
 });
 document.getElementById("environment-retry")!.addEventListener("click", () => api.post({ type: "retrySimulationTools", install: false }));
 document.getElementById("environment-install")!.addEventListener("click", () => api.post({ type: "retrySimulationTools", install: true }));
+document.getElementById("environment-install-solver")!.addEventListener("click", () => api.post({ type: "installKratosSolver" }));
 document.getElementById("study-set-case")!.addEventListener("click", () => {
   const study = selectedStudy; if (!study) return;
   form.open(t("Set case snapshot"), [{ name: "settings", label: t("Case state JSON (the mesh viewer writes this beside the mesh):"), multiline: true }], values => {
@@ -646,13 +673,18 @@ api.onMessage((raw) => {
       report.manual?.capabilities?.mpi === true ? t("MPI available via {0}: set MPI Ranks in Settings → Kratos to run guided solves on several ranks of this node.", {0: report.manual.capabilities.mpiLauncher}) : undefined,
     ].filter(Boolean).join("\n");
     (document.getElementById("environment-actions") as HTMLElement).hidden = !!report.tools?.available;
+    // The managed solver runtime is local: offered only while this machine's manual runtime is unusable.
+    (document.getElementById("environment-solver-actions") as HTMLElement).hidden = !!report.manual?.available || !!report.host;
     refreshAvailability();
   }
   else if (message?.type === "workflowResult") {
     workflowPending = false; form.complete();
     const value = message.value;
+    // Show on a finding opens a viewer; the review it came from stays on screen.
+    if (workflowAction === "show-finding") { workflowAction = undefined; return; }
     const plots = document.getElementById("run-review-plots")!;
     plots.replaceChildren();
+    renderFindings(value);
     const samples = value && typeof value === "object" ? (value as { evidence?: { convergence?: { samples?: unknown } } }).evidence?.convergence?.samples : undefined;
     if (Array.isArray(samples) && samples.every(s => s && typeof s === "object" && typeof s.iteration === "number" &&
       (s.converged === null || typeof s.converged === "boolean"))) {

@@ -84,6 +84,10 @@ await scenario('home-workflows', async c => {
   const saved = project().studies[0].runs[0];
   assert.ok(saved.evidence, 'quantity evaluation persists evidence');
   assert.match(await home.locator('#run-review').textContent(), /"value": 4/);
+  // Review findings render as a list; those with a target carry a Show action (it opens the study stage in its viewer).
+  await home.locator('#study-review-run:enabled').click();
+  await until(async () => (await home.locator('#run-review-findings li').count()) > 0, 'review findings listed');
+  assert.ok((await home.locator('#run-review-findings li button', { hasText: 'Show' }).count()) > 0, 'a finding offers Show');
   // Region carry-over: a re-exported mesh renamed a region; the report says so and the rename is explicit.
   const regionMesh = path.join(c.dir, 'regions.mdpa');
   fs.writeFileSync(regionMesh, 'Begin Nodes\n1 0 0 0\nEnd Nodes\nBegin SubModelPart Inflow\nEnd SubModelPart\n');

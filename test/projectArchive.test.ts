@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deflateSync } from "fflate";
-import { buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, readZip, safeRelative, unresolvedExternal } from "../app/main/services/workflows/projectArchive";
+import { relinkPlan, buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, readZip, safeRelative, unresolvedExternal } from "../app/main/services/workflows/projectArchive";
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const ref = (path: string, kind = "project") => ({ kind, path, revision: "r" }) as any;
@@ -83,6 +83,17 @@ describe("project archive", () => {
     const z = zip([{ name: "files/../evil", data: enc("x") }, { name: "/abs", data: enc("x") }, { name: "files/ok.txt", data: enc("ok") }]);
     const r = readZip(z);
     expect([...r.members.keys()]).toEqual(["files/ok.txt"]); expect(r.unsafeMembers).toEqual(["files/../evil", "/abs"]);
+  });
+  it("offers a relink once per study and only for source references", () => {
+    const u: any[] = [
+      { path: "/gone/a.stp", owner: "s1:source", studyId: "s1", role: "source", relink: "app__study_relink_source" },
+      { path: "/gone/b.stp", owner: "s1:source", studyId: "s1", role: "source", relink: "app__study_relink_source" },
+      { path: "/gone/m.mdpa", owner: "s1:mesh", studyId: "s1", role: "mesh", relink: null },
+      { path: "/gone/c.stp", owner: "s2:source", studyId: "s2", role: "source", relink: "app__study_relink_source" }];
+    const r = relinkPlan(u);
+    expect(r.relinkable.map((x) => x.studyId)).toEqual(["s1", "s2"]);
+    expect(r.listedOnly).toBe(2);
+    expect(relinkPlan([])).toEqual({ relinkable: [], listedOnly: 0 });
   });
   it("lists unresolved external references by study and role", () => {
     const m: any = { external: [{ owner: "s1:source", path: "/gone/a.stp" }, { owner: "s1:mesh", path: "/here/m.mdpa" }, { owner: "s2:r1:result", path: "/gone/o.vtk" }] };

@@ -4,7 +4,7 @@ Symptom → likely causes → what to do. For what is *not supported*, see [Know
 
 ## Generate is refused, or Run is disabled
 
-- The environment check failed: open Home ▸ **Check environment**. A missing interpreter or Kratos application disables the Problemtype Run action and guided launches; fix **Settings ▸ Kratos ▸ Python Path** and check again.
+- The environment check failed: open Home ▸ **Check environment**. A missing interpreter or Kratos application disables the Problemtype Run action and guided launches; fix **Settings ▸ Kratos ▸ Python Path** and check again, or use Home's **Install Kratos solver…** to let KKSS build a verified runtime of its own.
 - Required fields of the problemtype are empty: the refusal lists them.
 
 ## A run reads *uncertain*

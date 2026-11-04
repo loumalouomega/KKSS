@@ -66,21 +66,23 @@ export interface ReviewEvidenceExtras {
   meshQualityUnavailableReason?: string;
   preparation?: Evidence['preparation'];
 }
+/** Where a finding's Show action goes: `study_open` stages. Absent means nothing to open. */
+export type FindingTarget = 'mesh' | 'case' | 'results';
 export function buildEvidence(run: Run, meshText?: string, convergenceText?: string, savedQuantities: Quantity[] = [], staleQuantityCount = 0, extras: ReviewEvidenceExtras = {}): Evidence {
   const findings: Finding[] = [];
-  if (!meshText && !extras.meshCounts) findings.push({ severity: 'unavailable', message: extras.meshStatisticsUnavailableReason ?? 'Mesh statistics are unavailable for this format or artifact.' });
-  if (extras.meshQuality === undefined) findings.push({ severity: 'unavailable', message: `Mesh-quality metrics are unavailable: ${extras.meshQualityUnavailableReason ?? 'no verified report was collected.'}` });
+  if (!meshText && !extras.meshCounts) findings.push({ severity: 'unavailable', message: extras.meshStatisticsUnavailableReason ?? 'Mesh statistics are unavailable for this format or artifact.', target: 'mesh' });
+  if (extras.meshQuality === undefined) findings.push({ severity: 'unavailable', message: `Mesh-quality metrics are unavailable: ${extras.meshQualityUnavailableReason ?? 'no verified report was collected.'}`, target: 'mesh' });
   if (extras.meshQuality && typeof extras.meshQuality === 'object' && !Array.isArray(extras.meshQuality) && extras.meshQuality.overallOk === false) {
-    findings.push({ severity: 'warning', message: 'The mesh-quality report contains failing metrics; inspect the embedded metric bands and bad-entity counts.' });
+    findings.push({ severity: 'warning', message: 'The mesh-quality report contains failing metrics; inspect the embedded metric bands and bad-entity counts.', target: 'mesh' });
   }
   if (!extras.preparation || extras.preparation.state !== 'complete') {
     const state = extras.preparation?.state ?? 'unavailable';
-    findings.push({ severity: 'unavailable', message: `Preparation provenance is ${state}; inspect the revision-checked input list for missing or changed files.` });
+    findings.push({ severity: 'unavailable', message: `Preparation provenance is ${state}; inspect the revision-checked input list for missing or changed files.`, target: 'case' });
   }
-  if (extras.preparation?.reportUnavailableReason) findings.push({ severity: 'unavailable', message: extras.preparation.reportUnavailableReason });
-  if (!run.artifacts.some(artifact => artifact.role === 'result' && artifact.ownerId === run.id)) findings.push({ severity: 'unavailable', message: 'No result file with a bounded content revision is attached to this run.' });
-  for (const message of run.outputFindings ?? run.receipt?.outputFindings ?? []) findings.push({ severity: 'unavailable', message });
-  if (run.receipt?.message) findings.push({ severity: 'unavailable', message: run.receipt.message });
+  if (extras.preparation?.reportUnavailableReason) findings.push({ severity: 'unavailable', message: extras.preparation.reportUnavailableReason, target: 'case' });
+  if (!run.artifacts.some(artifact => artifact.role === 'result' && artifact.ownerId === run.id)) findings.push({ severity: 'unavailable', message: 'No result file with a bounded content revision is attached to this run.', target: 'case' });
+  for (const message of run.outputFindings ?? run.receipt?.outputFindings ?? []) findings.push({ severity: 'unavailable', message, target: 'case' });
+  if (run.receipt?.message) findings.push({ severity: 'unavailable', message: run.receipt.message, target: 'case' });
   const problemtype = run.settings && typeof run.settings === 'object' && !Array.isArray(run.settings) ? String(run.settings.problemtypeId ?? 'structural') : 'structural';
   const adapter = CONVERGENCE_ADAPTERS[problemtype];
   const monitor = convergenceText === undefined || !adapter ? undefined : parseStructuralConvergence(convergenceText, adapter);
@@ -90,19 +92,19 @@ export function buildEvidence(run: Run, meshText?: string, convergenceText?: str
   } else if (!monitor) {
     findings.push({ severity: 'unavailable', message: 'No versioned solver monitor is attached; process completion does not establish convergence.' });
   } else if (monitor.invalid || monitor.samples.length === 0) {
-    findings.push({ severity: 'unavailable', message: `Solver convergence monitor is truncated, unsupported or empty (${monitor.invalid} invalid record(s)).` });
+    findings.push({ severity: 'unavailable', message: `Solver convergence monitor is truncated, unsupported or empty (${monitor.invalid} invalid record(s)).`, target: 'results' });
     convergence = { adapter: `${adapter}/v${monitor.version ?? 'unknown'}`, state: 'unavailable', samples: monitor.samples };
   } else {
     const anyDiverged = monitor.samples.some(sample => sample.converged === false);
     const state = anyDiverged ? 'diverged' : run.state === 'succeeded' && monitor.completed && monitor.samples.every(sample => sample.converged === true) ? 'converged' : 'unavailable';
     convergence = { adapter: `${adapter}/v${monitor.version}`, state, samples: monitor.samples };
-    if (state === 'unavailable') findings.push({ severity: 'unavailable', message: 'The monitor does not establish numerical convergence of every step; linear solves, unpublished criteria and incomplete runs remain unavailable.' });
-    if (anyDiverged) findings.push({ severity: 'warning', message: 'The solver monitor recorded a solve step that did not converge.' });
+    if (state === 'unavailable') findings.push({ severity: 'unavailable', message: 'The monitor does not establish numerical convergence of every step; linear solves, unpublished criteria and incomplete runs remain unavailable.', target: 'results' });
+    if (anyDiverged) findings.push({ severity: 'warning', message: 'The solver monitor recorded a solve step that did not converge.', target: 'results' });
   }
-  if (monitor?.samples.some(sample => sample.residual === undefined)) findings.push({ severity: 'unavailable', message: 'Residual magnitudes are unavailable for some recorded steps; solve-step outcomes are separate evidence.' });
+  if (monitor?.samples.some(sample => sample.residual === undefined)) findings.push({ severity: 'unavailable', message: 'Residual magnitudes are unavailable for some recorded steps; solve-step outcomes are separate evidence.', target: 'results' });
   const quantities = savedQuantities.filter(quantity => quantity.runId === run.id && run.artifacts.some(artifact => artifact.role === 'result' && artifact.ownerId === run.id && artifact.reference.kind === quantity.source.kind && artifact.reference.path === quantity.source.path && artifact.reference.revision === quantity.source.revision));
-  if (!quantities.length) findings.push({ severity: 'unavailable', message: 'No current scalar quantity evaluation is saved for this run.' });
-  if (staleQuantityCount) findings.push({ severity: 'unavailable', message: `${staleQuantityCount} saved quantity evaluation(s) refer to an older result revision and are omitted.` });
+  if (!quantities.length) findings.push({ severity: 'unavailable', message: 'No current scalar quantity evaluation is saved for this run.', target: 'results' });
+  if (staleQuantityCount) findings.push({ severity: 'unavailable', message: `${staleQuantityCount} saved quantity evaluation(s) refer to an older result revision and are omitted.`, target: 'results' });
   return {
     version: 1, runId: run.id, findings,
     mesh: { ...(meshText ? mdpaCounts(meshText) : extras.meshCounts ?? {}), ...(extras.meshQuality !== undefined ? { quality: extras.meshQuality } : {}) },

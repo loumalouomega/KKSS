@@ -17,6 +17,7 @@
  *   env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots
  *   npm run docs:screenshots -- --mesh-only  # mesh viewer/panels/timeline only
  *   npm run docs:screenshots -- --cad-only   # CAD viewer/panels/menus only
+ *   npm run docs:screenshots -- --study-only # the study panel only
  *   npm run docs:screenshots -- --animations-only  # timeline GIFs for the fluid, FSI and CoSimulation tutorials only
  */
 import { spawnSync } from "node:child_process";
@@ -606,6 +607,13 @@ if (process.argv.includes("--cad-only")) {
   console.log("done");
   process.exit(0);
 }
+if (process.argv.includes("--study-only")) {
+  const shot = spawnSync(process.execPath, [path.join(root, "tools/e2e/study-panel.mjs")], {
+    stdio: "inherit", env: { ...process.env, KKSS_STUDY_SHOT: path.join(OUT, "study-panel.png") },
+  });
+  cleanupDirs();
+  process.exit(shot.status ?? 1);
+}
 if (process.argv.includes("--optimization-run-only")) {
   try { await optimizationRunScenario(OUT); }
   finally { cleanupDirs(); }
@@ -632,6 +640,10 @@ if (!meshOnly) {
   await sessionHomeWorkflow();
   await kratosStartupScenario(path.join(OUT, "chat-kratos-setup.png"));
   await jobsScenario(path.join(OUT, "kratos-jobs.png"));
+  const studyShot = spawnSync(process.execPath, [path.join(root, "tools/e2e/study-panel.mjs")], {
+    stdio: "inherit", env: { ...process.env, KKSS_STUDY_SHOT: path.join(OUT, "study-panel.png") },
+  });
+  if (studyShot.status !== 0) throw new Error("study panel capture failed");
   // The assistant's MCP manager, captured from the acceptance scenario itself.
   const mcpShot = spawnSync(process.execPath, [path.join(root, "tools/e2e/chat-mcp-manager.mjs")], {
     stdio: "inherit", env: { ...process.env, KKSS_MCP_SHOT: path.join(OUT, "chat-mcp-manager.png") },

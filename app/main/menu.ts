@@ -61,6 +61,7 @@ export interface MenuDeps {
   toggleTerminal(): void;
   toggleChat(): void;
   toggleJobs(): void;
+  toggleStudy(): void;
   /** Interface-scale controls (see index.ts) — step through the shell's zoom presets. */
   zoom: {
     stepIn(): void;
@@ -684,6 +685,7 @@ export function installMenu(deps: MenuDeps): void {
         },
         { type: "separator" },
         { label: t("Toggle Jobs"), click: () => deps.toggleJobs() },
+        { label: t("Toggle Study Panel"), accelerator: "CmdOrCtrl+Shift+Y", click: () => deps.toggleStudy() },
         { label: t("Reset Camera"), click: () => activeMeshHost()?.postToActive({ type: "resetCamera" }) },
         { label: t("Toggle Node IDs"), click: () => activeMeshHost()?.postToActive({ type: "toggleNodeIds" }) },
         // mesh 4.8.0's `kratos.preview.renderer`, as the quick radio its other

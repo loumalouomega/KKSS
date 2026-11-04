@@ -1,0 +1,57 @@
+/*
+ * Study panel. Header, icon buttons and the focus ring come from
+ * ../theme/kkss-ui.css; this file holds layout and the chain rows only.
+ */
+* { box-sizing: border-box; }
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+  background: var(--vscode-sideBar-background);
+}
+
+main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--ui-s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s-4);
+}
+
+.section-header { flex: none; flex-wrap: wrap; }
+.section-header h1 { margin: 0; font-size: inherit; }
+
+.hint, #empty {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: var(--ui-fs-md);
+}
+
+.study { display: flex; flex-direction: column; gap: var(--ui-s-2); }
+.study-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ui-s-3);
+}
+.study-name { margin: 0; font-size: inherit; font-weight: 600; }
+.study[data-active="true"] .study-name::before { content: "▸ "; }
+.study .parent { color: var(--vscode-descriptionForeground); font-size: var(--ui-fs-sm); }
+.next { margin: 0; color: var(--vscode-descriptionForeground); font-size: var(--ui-fs-md); }
+
+.stages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ui-s-1); }
+.stage { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-s-3); }
+.stage-label { display: flex; gap: var(--ui-s-2); align-items: baseline; }
+.state { font-size: var(--ui-fs-sm); color: var(--vscode-descriptionForeground); }
+.state[data-state="ready"], .state[data-state="succeeded"] { color: var(--vscode-testing-iconPassed); }
+.state[data-state="stale"], .state[data-state="uncertain"] { color: var(--vscode-editorWarning-foreground); }
+.state[data-state="failed"], .state[data-state="cancelled"] { color: var(--vscode-errorForeground); }
+
+.runs { list-style: none; margin: 0; padding-left: var(--ui-s-4); display: flex; flex-direction: column; gap: var(--ui-s-1); }
+.run { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-s-3); }
+.run[data-active="true"] .run-id { font-weight: 600; }
+
+.btn-link:disabled { opacity: 0.45; cursor: default; }

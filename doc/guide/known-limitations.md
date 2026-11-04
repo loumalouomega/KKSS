@@ -20,7 +20,8 @@ What KKSS does not do, or does only partly. Each entry names the reason and, whe
 
 - **Remote (SSH) flows are verified from a Linux client against a loopback host only.** Windows and macOS clients, and a non-loopback host, are untested. Passwords and passphrases are never prompted (`BatchMode=yes`): use keys or an agent.
 - **Unsigned macOS builds** fall back to the releases page for updates; deb and rpm installs do too.
-- **The Kratos runtime installer is verified live on Linux only**; Windows and macOS have mocked coverage.
+- **The Kratos runtime installer is verified live on Linux only**; Windows and macOS have mocked coverage. The same applies to **Install Kratos solver…**: only x86-64 Linux installs from the hash lock, other platforms install the same pinned versions without hash verification.
+- **Headless study runs (`kkss --headless study run`) cover local solves only.** Solves on an ssh host are a GUI-session feature, and the run needs a plan you already persisted in KKSS — it never creates one.
 - **The Docker image is a single-viewer streamed desktop**; hardware rendering and TigerVNC resize still need native runners.
 
 See also [Troubleshooting](/guide/troubleshooting).

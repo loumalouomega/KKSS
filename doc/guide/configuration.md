@@ -212,6 +212,34 @@ Note that the user-data dir is **not** inside your project folder, so syncing a 
 
 `kkss <file>` opens the given model on startup in the mode the file's extension implies. Several files may be given (`kkss a.step b.mdpa`); each opens in its own tab in the mode its extension implies, and duplicates are opened once. A relative path is resolved against the directory you ran the command from, including when the file is forwarded to an already-running KKSS. `kkss://open?file=<path>` links open the same way.
 
+### Headless study runs
+
+`kkss --headless study run <project> [options]` runs a study's **already-persisted** queue plan without a window and prints one JSON report on stdout (the plan is the one you previewed and enqueued in KKSS, so this suits CI and batch use). It resumes exactly the plan revision stored in `<project>/.kkss/project.json` — it never previews, enqueues or edits anything, and `--plan <revision>` must equal the stored revision or nothing starts. It waits until every task is terminal, then builds each solve's run review for its findings and convergence state.
+
+| Option | Meaning |
+| --- | --- |
+| `--study <id>` | Wait for and report only that study's tasks (the plan resumes as a whole) |
+| `--plan <revision>` | Refuse unless this is the persisted plan revision |
+| `--timeout <seconds>` | Wall-clock limit (default 24 h). On expiry the queue is paused and running tasks are cancelled |
+| `--settings <state.json>` | Read the Kratos interpreter, install path, extra environment, thread and rank settings from a saved `state.json` (read only) — the plan froze them, and a different runtime is refused with the queue's usual message |
+| `--python <path>` | Override the interpreter |
+| `--output <file>` | Also write the report here |
+| `--no-review` | Skip the run reviews |
+| `--require-converged` | Fail unless every run's review establishes convergence |
+| `--user-data-dir <dir>` | The Electron profile; without it a throwaway one is used |
+
+It takes no single-instance lock and writes no `state.json`, so it can run beside a live KKSS; use a project folder that session is not also running. Only the CAD and mesh tool servers start. Solves on an ssh host (**Settings ▸ Remote**) are not supported headless.
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Every task `succeeded` — this is not numerical convergence; read each run's `convergence` |
+| `1` | A task failed, was cancelled, blocked or refused by validation |
+| `2` | A task ended `uncertain` (never retried automatically) |
+| `3` | Bad usage, or the folder holds no KKSS project |
+| `4` | No persisted plan, a `--plan` mismatch, or the queue refused the plan |
+| `5` | Timed out |
+| `6` | Succeeded, but `--require-converged` was not met |
+
 ## Settings reference
 
 Generated from `app/main/services/settings/registry.ts`; do not edit between the markers (`UPDATE_DOCS_REFERENCE=1 npm test -- docsReference` rewrites it, and CI fails when it drifts). Secrets are stored encrypted and never shown.

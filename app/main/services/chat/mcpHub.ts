@@ -20,7 +20,11 @@ export class McpHub {
   private lastStatuses: ChatServerStatus[] = [];
   private readonly listeners = new Set<StatusListener>();
 
-  constructor(private readonly outDir: string, private readonly userServers?: UserServerStore) {
+  /**
+   * `only` restricts the built-in servers that start (the headless study runner needs cad and mesh,
+   * not the uv-launched Kratos and PDF servers, which would reach for the network).
+   */
+  constructor(private readonly outDir: string, private readonly userServers?: UserServerStore, private readonly only?: readonly string[]) {
     // Edits, enable/disable, trust and project-root changes all land here; before
     // the first use there is nothing to reconcile (ensureStarted reads the store).
     userServers?.onChange(() => void this.mgr?.setUserServers(userServers.specs()));
@@ -35,7 +39,7 @@ export class McpHub {
     // connections. Deferring `start()` — even by a microtask, as an awaited
     // `setUserServers()` did — leaves that map empty and the call answers
     // "not connected" for a server that is about to be ready.
-    this.mgr = new McpManager([...buildServerSpecs(this.outDir), ...(this.userServers?.specs() ?? [])], (statuses) => {
+    this.mgr = new McpManager([...buildServerSpecs(this.outDir).filter((s) => !this.only || this.only.includes(s.key)), ...(this.userServers?.specs() ?? [])], (statuses) => {
       this.lastStatuses = statuses;
       for (const listener of this.listeners) listener(statuses);
     }, new KratosRuntime(app.getPath("userData")), kratosEnvDelta, kratosRemoteHost);
@@ -79,4 +83,32 @@ export class McpHub {
     await this.mgr?.dispose();
     this.mgr = null;
   }
+}
+
+/**
+ * Resolves when every named server is ready; rejects as soon as one is unavailable or after `timeoutMs`.
+ * Used before a queue starts tasks that go through the CAD and mesh servers.
+ */
+export function waitForServers(
+  hub: Pick<McpHub, "ensureStarted" | "statuses" | "onStatus" | "offStatus">,
+  keys: readonly string[],
+  timeoutMs = 60_000,
+): Promise<void> {
+  hub.ensureStarted();
+  return new Promise<void>((resolve, reject) => {
+    const listener = (statuses: ChatServerStatus[]): void => {
+      const required = statuses.filter((s) => keys.includes(s.key));
+      const down = required.filter((s) => s.state === "unavailable");
+      if (down.length) finish(new Error(down.map((s) => `${s.name}: ${s.error ?? "unavailable"}`).join("; ")));
+      else if (required.length === keys.length && required.every((s) => s.state === "ready")) finish();
+    };
+    const timer = setTimeout(() => finish(new Error(`${keys.map((k) => k.toUpperCase()).join(" and ")} tool servers did not become ready within ${Math.round(timeoutMs / 1000)} seconds.`)), timeoutMs);
+    const finish = (error?: Error): void => {
+      clearTimeout(timer);
+      hub.offStatus(listener);
+      if (error) reject(error); else resolve();
+    };
+    hub.onStatus(listener);
+    listener(hub.statuses());
+  });
 }
