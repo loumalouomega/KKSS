@@ -54,6 +54,7 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
     expect(tools.find(t => t.name === 'mesh_pack_series')?.inputSchema.properties).toHaveProperty('provenance');
     expect(tools.find(t => t.name === 'mesh_info')?.inputSchema.properties).toHaveProperty('fields');
     expect(tools.find(t => t.name === 'mesh_convert')?.inputSchema.properties).toHaveProperty('fields');
+    expect(tools.find(t => t.name === 'mesh_field_integrate')?.inputSchema.properties).toHaveProperty('revolveAbout');
     const source = path.join(dir, 'square.mdpa');
     fs.writeFileSync(source, fixture);
     // mesh 5.29.0 (meshio++ 18): read-only self-intersection report. The

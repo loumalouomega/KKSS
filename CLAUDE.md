@@ -326,7 +326,7 @@ resubmitted automatically.
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
   `@meshioplusplus/wasm` package (**18.0.0**, the version both submodules lock
-  and the one KKSS stages; cad 3.34.0 and mesh 5.29.0 declare `18.0.0`/`^18.0.0`,
+  and the one KKSS stages; cad 3.34.0 and mesh 5.30.0 declare `18.0.0`/`^18.0.0`,
   so the pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
   rather than by the pins agreeing — re-run both after either bump, and prefer
   re-aligning CAD over letting the skew grow;
@@ -1642,6 +1642,8 @@ release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
 discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 42 app-owned
 workflow tools; 317 policy rows with the PDF reader server's twelve).
+
+**The mesh 5.29.0 → 5.30.0 bump (live saved monitors, Inspect Evaluation table, revolved `mesh_field_integrate`, hex20/quad8/wedge15 contours; KKSS 2.28.0; cad stays 3.34.0) needed no host code.** `RunManager` (shared, constructed in `index.ts`) now refreshes a live run's Monitors through a 2 s `MonitorRefreshThrottle` driven by its existing file watcher, using only `AbortController` — no new shim surface. No new tool names (315 policy rows unchanged), setting, worker, `globalState` key or markup; `test/meshMcpRuntime.test.ts` pins the new `revolveAbout` schema property and the prompt names it.
 
 **The cad 3.33.0 → 3.34.0 + mesh 5.28.0 → 5.29.0 jump (meshio++ 18.0.0, three CAD surface analyses, `mesh_intersections`, region selection, wall thickness, polyhedral dual/MMG/Hessian derives; KKSS 2.27.0) needed four policy rows, one prompt sentence and tests — no host code.**
 

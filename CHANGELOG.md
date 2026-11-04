@@ -5,6 +5,10 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.28.0] - 2026-11-04
+
+- feat: **Mesh Preview 5.30.0** (CAD-Preview stays 3.34.0). Saved monitors now follow a running case — the Kratos Runs row refreshes from the frames written so far and is re-evaluated when the run ends. Inspect gains an **Evaluation table** (a frame-labelled row per pick, with Copy, Export CSV and Clear), contours and isosurfaces follow 20-node hexahedra, 8-node quads and 15-node wedges, and `mesh_field_integrate` accepts an explicit `revolveAbout` for axisymmetric r-z meshes. No new assistant tools (315 policy rows); the assistant prompt names the new option.
+
 ## [2.27.1] - 2026-11-02
 
 - Test-only fix for CI: the chat test that checks the saved transcript now waits for the file to be written instead of a fixed tick count, so slower runners no longer fail it. No app changes since 2.27.0.
@@ -382,6 +386,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.28.0]: https://github.com/loumalouomega/KKSS/compare/v2.27.1...v2.28.0
 [2.27.1]: https://github.com/loumalouomega/KKSS/compare/v2.27.0...v2.27.1
 [2.27.0]: https://github.com/loumalouomega/KKSS/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/loumalouomega/KKSS/compare/v2.25.0...v2.26.0
