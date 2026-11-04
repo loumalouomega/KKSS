@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src kkss:; script-src kkss:" />
+  <link href="../theme/vscode-vars.css" rel="stylesheet" />
+  <link href="../theme/kkss-ui.css" rel="stylesheet" />
+  <link href="./study.css" rel="stylesheet" />
+  <title data-i18n="Studies">Studies</title>
+</head>
+<body>
+  <header class="section-header">
+    <span class="panel-icon" id="study-icon"></span>
+    <h1 class="title" data-i18n="Studies">Studies</h1>
+    <button id="hide" class="icon-btn" title="Close Study panel (Esc)" data-i18n-title="Close Study panel (Esc)" aria-label="Close Study panel" data-i18n-aria-label="Close Study panel"></button>
+  </header>
+  <main>
+    <p class="hint" data-i18n="Each study's geometry → mesh → case → run → results chain. Open a stage to show it in its viewer.">Each study's geometry → mesh → case → run → results chain. Open a stage to show it in its viewer.</p>
+    <p id="empty" hidden></p>
+    <div id="studies" role="region" aria-label="Study chains" data-i18n-aria-label="Study chains"></div>
+  </main>
+  <script src="./study.js"></script>
+</body>
+</html>

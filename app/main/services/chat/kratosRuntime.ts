@@ -123,6 +123,16 @@ export class KratosRuntime {
     throw new RuntimeFailure("missing-runtime", "uv is not installed or is not on PATH. Install uv for KKSS to enable Kratos tools.");
   }
 
+  /** A `uv` executable for creating environments: the app-local one, else `uv` on PATH. `uvx` alone cannot. */
+  async findUv(signal: AbortSignal): Promise<string | undefined> {
+    const exe = this.platform === "win32" ? ".exe" : "";
+    for (const command of [path.join(this.directory, `uv${exe}`), `uv${exe}`]) {
+      signal.throwIfAborted();
+      try { await this.probe(command, signal); return command; } catch { signal.throwIfAborted(); }
+    }
+    return undefined;
+  }
+
   async install(signal: AbortSignal): Promise<void> {
     const parent = path.dirname(this.directory);
     await fs.mkdir(parent, { recursive: true });

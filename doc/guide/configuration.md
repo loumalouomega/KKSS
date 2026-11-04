@@ -212,6 +212,34 @@ Note that the user-data dir is **not** inside your project folder, so syncing a 
 
 `kkss <file>` opens the given model on startup in the mode the file's extension implies. Several files may be given (`kkss a.step b.mdpa`); each opens in its own tab in the mode its extension implies, and duplicates are opened once. A relative path is resolved against the directory you ran the command from, including when the file is forwarded to an already-running KKSS. `kkss://open?file=<path>` links open the same way.
 
+### Headless study runs
+
+`kkss --headless study run <project> [options]` runs a study's **already-persisted** queue plan without a window and prints one JSON report on stdout (the plan is the one you previewed and enqueued in KKSS, so this suits CI and batch use). It resumes exactly the plan revision stored in `<project>/.kkss/project.json` — it never previews, enqueues or edits anything, and `--plan <revision>` must equal the stored revision or nothing starts. It waits until every task is terminal, then builds each solve's run review for its findings and convergence state.
+
+| Option | Meaning |
+| --- | --- |
+| `--study <id>` | Wait for and report only that study's tasks (the plan resumes as a whole) |
+| `--plan <revision>` | Refuse unless this is the persisted plan revision |
+| `--timeout <seconds>` | Wall-clock limit (default 24 h). On expiry the queue is paused and running tasks are cancelled |
+| `--settings <state.json>` | Read the Kratos interpreter, install path, extra environment, thread and rank settings from a saved `state.json` (read only) — the plan froze them, and a different runtime is refused with the queue's usual message |
+| `--python <path>` | Override the interpreter |
+| `--output <file>` | Also write the report here |
+| `--no-review` | Skip the run reviews |
+| `--require-converged` | Fail unless every run's review establishes convergence |
+| `--user-data-dir <dir>` | The Electron profile; without it a throwaway one is used |
+
+It takes no single-instance lock and writes no `state.json`, so it can run beside a live KKSS; use a project folder that session is not also running. Only the CAD and mesh tool servers start. Solves on an ssh host (**Settings ▸ Remote**) are not supported headless.
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Every task `succeeded` — this is not numerical convergence; read each run's `convergence` |
+| `1` | A task failed, was cancelled, blocked or refused by validation |
+| `2` | A task ended `uncertain` (never retried automatically) |
+| `3` | Bad usage, or the folder holds no KKSS project |
+| `4` | No persisted plan, a `--plan` mismatch, or the queue refused the plan |
+| `5` | Timed out |
+| `6` | Succeeded, but `--require-converged` was not met |
+
 ## Settings reference
 
 Generated from `app/main/services/settings/registry.ts`; do not edit between the markers (`UPDATE_DOCS_REFERENCE=1 npm test -- docsReference` rewrites it, and CI fails when it drifts). Secrets are stored encrypted and never shown.
@@ -246,6 +274,7 @@ Generated from `app/main/services/settings/registry.ts`; do not edit between the
 | Up Axis | `cadPreview.upAxis` | one of `y`, `z` | `y` | nextOpen | `cadUpAxis` |
 | Show Grid & Axes on Open | `cadPreview.showGridAndAxesOnOpen` | boolean | `true` | nextOpen | `cadShowGridAndAxesOnOpen` |
 | Default Mesh Size | `cadPreview.defaultMeshSizePreset` | one of `coarse`, `medium`, `fine` | `medium` | nextOpen | `cadDefaultMeshSizePreset` |
+| Single-Key Commands | `cadPreview.singleKeyCommands` | boolean | `false` | nextOpen | `cadSingleKeyCommands` |
 | Tessellation Quality | `cadPreview.tessellationQuality` | one of `draft`, `standard`, `fine` | `standard` | nextRun | `cadTessellationQuality` |
 | OpenSCAD Binary | `cadPreview.openscadBinary` | path | `openscad` | nextOpen | `cadOpenscadBinary` |
 | OpenSCAD Backend | `cadPreview.openscadBackend` | one of `auto`, `cgal`, `manifold` | `auto` | nextOpen | `cadOpenscadBackend` |
@@ -384,10 +413,10 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | Server | Tools | Read | Write | Path-scoped |
 | --- | --- | --- | --- | --- |
 | `app` | 42 | 17 | 25 | 0 |
-| `cad` | 89 | 46 | 43 | 39 |
+| `cad` | 93 | 47 | 46 | 42 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
-| `mesh` | 60 | 22 | 38 | 31 |
+| `mesh` | 61 | 22 | 39 | 32 |
 | `pdf` | 12 | 12 | 0 | 0 |
 
 <details><summary><code>app</code> (42)</summary>
@@ -439,11 +468,12 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>cad</code> (89)</summary>
+<details><summary><code>cad</code> (93)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
 | `cad__analyze_passages` | read | — |
+| `cad__analyze_surface_geometry` | read | — |
 | `cad__apply_edit_ops` | write | paths: `path` |
 | `cad__apply_mesh_preset` | write | paths: `path`, `libraryPath` |
 | `cad__assign_layer` | write | paths: `path` |
@@ -503,11 +533,13 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__measure_exact` | read | — |
 | `cad__measure_mesh_deviation` | write | paths: `path`, `deviationMeshPath` |
 | `cad__measure_mesh_thickness` | read | — |
+| `cad__mesh_adjacency` | write | paths: `path`, `outputPath` |
 | `cad__mesh_cad_surface` | write | paths: `path`, `outputPath` |
 | `cad__pin_annotation` | write | paths: `path` |
 | `cad__project_to_cad` | write | paths: `path`, `cadPath`, `outputPath` |
 | `cad__promote_mesh_to_brep` | write | paths: `path`, `outputPath` |
 | `cad__recognize_primitives` | read | — |
+| `cad__register_meshes` | write | paths: `path`, `targetPath`, `outputPath` |
 | `cad__remesh_mesh` | write | paths: `path`, `outputPath` |
 | `cad__remove_edit_op` | write | paths: `path` |
 | `cad__render_ops_prefix` | read | — |
@@ -525,6 +557,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__search_standard_parts` | read | — |
 | `cad__segment_mesh_surface` | read | — |
 | `cad__select_mesh_region` | read | — |
+| `cad__set_configuration` | write | paths: `path` |
 | `cad__set_layer` | write | paths: `path` |
 | `cad__set_mesh_options` | write | paths: `path` |
 | `cad__set_part` | write | paths: `path` |
@@ -663,7 +696,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>mesh</code> (60)</summary>
+<details><summary><code>mesh</code> (61)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
@@ -701,6 +734,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `mesh__mesh_find_entity` | read | — |
 | `mesh__mesh_fit_primitives` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_flow_balance` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_graph` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_info` | read | — |
 | `mesh__mesh_intersections` | read | — |
 | `mesh__mesh_pack_series` | write | paths: `path`, `outputPath` |

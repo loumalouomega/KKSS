@@ -267,6 +267,9 @@ api.onMessage((raw) => {
 renderMode();
 
 
+const studyBtn = byId<HTMLButtonElement>("study-btn");
+studyBtn.innerHTML = withLabel(glyph("listTree"), t("Study"));
+studyBtn.addEventListener("click", () => api.post({ type: "toggleStudy" }));
 const jobsBtn = byId<HTMLButtonElement>("jobs-btn");
 const jobsIcon = glyph("listChecks");
 jobsBtn.innerHTML = withLabel(jobsIcon, t("Jobs"));
@@ -287,6 +290,7 @@ api.onMessage((raw) => {
   if (msg.type !== "panels") return;
   terminalBtn.setAttribute("aria-pressed", String(msg.terminal));
   chatBtn.setAttribute("aria-pressed", String(msg.chat));
+  studyBtn.setAttribute("aria-pressed", String(msg.study));
 });
 
 api.post({ type: "shellReady" });

@@ -5,6 +5,19 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.29.0] - 2026-11-04
+
+- feat: **CAD-Preview 3.36.0 and Mesh Preview 5.31.0** (meshio++ 18.1.0 on both sides). CAD gains a ribbon command strip, Ctrl+K command search with opt-in single-key commands (new **Single-Key Commands** setting), Configurations (design table), a Parameters table with CSV/JSON import and export, named materials and an f(s) Curve form. Configurations are now preserved by every sidecar save. Eleven new Mesh Ops operations and three assistant tools (`analyze_surface_geometry`, `mesh_adjacency`, `register_meshes`) arrive with meshio++ 18.1.0; mesh adds seven in-place forms (untangle, morph, rigid ICP, geodesic distance, surface eigenmodes, cylindrical/spherical components, MMG metric), five derived-mesh kinds, `mesh_graph`, compressed `.gz`/`.zip` input and recorded length units. The new tools are approval-gated except the read-only analysis (322 policy rows). The theme guard now defines the quick-input and suggest-widget variables the command palette uses.
+- feat: **Study panel.** A **Study** toolbar button, **View ▸ Toggle Study Panel** and `Ctrl+Shift+Y` open a right-hand panel (shared with Chat and Jobs) that shows each study's geometry → mesh → case → run → results chain with its readiness and next step, and opens any stage in its viewer.
+- feat: **Install Kratos solver…** on Home builds a private, verified Kratos runtime with `uv` from the same pinned requirements the `-kratos` image uses, and sets **Settings ▸ Kratos ▸ Python Interpreter** only after every application imports. Nothing on your PATH changes; a failed install is removed. Hash-verified on x86-64 Linux, unhashed pins elsewhere (verified on Linux only).
+- feat: **`kkss --headless study run <project>`** resumes a study's already-persisted queue plan without a window and prints a JSON report; exit codes say failed, uncertain, refused, timed out or (with `--require-converged`) not converged. It never creates a plan and writes no `state.json`.
+- feat: **Fit to CAD…** (CAD) and the **`.step` export / Export Optimized Geometry as CAD** (mesh) can **refine the patches before fitting**, which is what a rough or organic skin needs: on the 22k-triangle hook a Structural Optimization run ends with, the faceted area fell from 94.7 % to 41.9 % (analytic faces and B-splines for the rest) in about three minutes. The kernel defaults stay first in both picks; the freeform modes are MCP-only (8–12× slower, larger deviation). CAD's `fit_mesh_to_cad` gains `refineTolerance`, and the assistant's prompt and tool descriptions give the same advice.
+- feat: review findings listed on Home carry a **Show** action that opens the mesh, case or results they refer to, and **Import Project Archive…** now offers to relink each study's missing geometry file.
+
+## [2.28.0] - 2026-11-04
+
+- feat: **Mesh Preview 5.30.0** (CAD-Preview stays 3.34.0). Saved monitors now follow a running case — the Kratos Runs row refreshes from the frames written so far and is re-evaluated when the run ends. Inspect gains an **Evaluation table** (a frame-labelled row per pick, with Copy, Export CSV and Clear), contours and isosurfaces follow 20-node hexahedra, 8-node quads and 15-node wedges, and `mesh_field_integrate` accepts an explicit `revolveAbout` for axisymmetric r-z meshes. No new assistant tools (315 policy rows); the assistant prompt names the new option.
+
 ## [2.27.1] - 2026-11-02
 
 - Test-only fix for CI: the chat test that checks the saved transcript now waits for the file to be written instead of a fixed tick count, so slower runners no longer fail it. No app changes since 2.27.0.
@@ -382,6 +395,8 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.29.0]: https://github.com/loumalouomega/KKSS/compare/v2.28.0...v2.29.0
+[2.28.0]: https://github.com/loumalouomega/KKSS/compare/v2.27.1...v2.28.0
 [2.27.1]: https://github.com/loumalouomega/KKSS/compare/v2.27.0...v2.27.1
 [2.27.0]: https://github.com/loumalouomega/KKSS/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/loumalouomega/KKSS/compare/v2.25.0...v2.26.0

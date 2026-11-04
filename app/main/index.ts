@@ -6,6 +6,7 @@ import { beginOpen, configurePerformance } from "./services/performance";
 import { app, clipboard, dialog, ipcMain, Menu, shell } from "electron";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
+import { tmpdir } from "node:os";
 import { managedConfig } from "./services/managedConfig";
 import { startHeadlessControl, prepareHeadlessShutdown } from "./services/headless";
 import { randomUUID } from "node:crypto";
@@ -41,7 +42,10 @@ import { TerminalService } from "./services/terminal";
 import { EditorService } from "./services/editor";
 import { ChatService } from "./services/chat/chatService";
 import { JobsService } from "./services/jobs";
-import { McpHub } from "./services/chat/mcpHub";
+import { StudyPanelService } from "./services/studyPanel";
+import { SolverRuntimeInstaller } from "./services/workflows/solverRuntime";
+import { buildStudyPanel } from "./services/studyPanelCore";
+import { McpHub, waitForServers } from "./services/chat/mcpHub";
 import { UserServerStore } from "./services/chat/userServerStore";
 import { AssistantDefsStore } from "./services/chat/assistantDefsStore";
 import { HookEngine } from "./services/chat/hooksStore";
@@ -86,6 +90,8 @@ import { RecoveryService } from "./services/recovery";
 import { classifyRestore } from "./services/recoveryCore";
 import type { ListedRecovery } from "./services/recoveryCore";
 import { configureChildEnv, externalProcessEnv } from "./services/childEnv";
+import { parseHeadlessCli } from "./headless/studyRunCore";
+import { runHeadlessStudyCli } from "./headless/studyRunCli";
 
 // Must happen before app is ready.
 registerSchemes();
@@ -107,8 +113,19 @@ managedConfig(); // Validate operator configuration before opening any documents
  * Lifecycle acceptance opts back into the real lock in an isolated profile.
  * Every harness profile is separate from the developer's ~/.config/kkss.
  */
-const gotInstanceLock =
-  process.env.KKSS_ALLOW_MULTIPLE_INSTANCES === "1" || app.requestSingleInstanceLock();
+/**
+ * `kkss --headless study run …` is a command, not a session: it builds no window,
+ * takes no instance lock (it must not forward to or fight a running app) and, with
+ * no `--user-data-dir` of its own, uses a throwaway profile so it can never touch the
+ * live `state.json`. See headless/studyRunCore.ts.
+ */
+const headlessCli = parseHeadlessCli(process.argv);
+if (headlessCli && !app.commandLine.hasSwitch("user-data-dir")) {
+  app.setPath("userData", fsSync.mkdtempSync(path.join(tmpdir(), "kkss-headless-")));
+}
+const gotInstanceLock = headlessCli
+  ? true
+  : process.env.KKSS_ALLOW_MULTIPLE_INSTANCES === "1" || app.requestSingleInstanceLock();
 installConsoleCapture();
 configureChildEnv(app.isPackaged);
 if (!gotInstanceLock) {
@@ -191,6 +208,7 @@ let userServers: UserServerStore | null = null;
 let assistantDefs: AssistantDefsStore | null = null;
 let hookEngine: HookEngine | null = null;
 let jobs: JobsService | null = null;
+let studyPanel: StudyPanelService | null = null;
 let workflows: WorkflowService | undefined;
 let metaServer: MetaMcpServer | null = null;
 let cloud: CloudService | null = null;
@@ -221,13 +239,17 @@ function sendHome(message: HomeToWebview): void {
 let activeNextStep: NextStepContext | undefined;
 
 async function pushWorkflows(): Promise<void> {
-  try { sendHome({ type: "workflowState", value: await workflows?.snapshot() }); }
+  let snapshot: unknown;
+  try { snapshot = await workflows?.snapshot(); sendHome({ type: "workflowState", value: snapshot }); }
   catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
+  let checklist: Awaited<ReturnType<NonNullable<typeof workflows>["activeNextStep"]>> = null;
   try {
-    const checklist = (await workflows?.activeNextStep()) ?? null;
+    checklist = (await workflows?.activeNextStep()) ?? null;
     activeNextStep = checklist ? nextStepContext(checklist) : undefined;
     sendHome({ type: "nextStep", value: checklist });
   } catch { activeNextStep = undefined; }
+  // The study panel mirrors the same snapshot, so a reopened panel is never stale.
+  studyPanel?.update(buildStudyPanel(snapshot, checklist));
 }
 
 /**
@@ -265,6 +287,55 @@ async function checkSimulationEnvironment(): Promise<void> {
   }
   catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
   finally { sendHome({ type: "workflowBusy", busy: false }); }
+}
+
+/**
+ * Home ▸ Install Kratos solver…: a user-initiated, confirmed install of the
+ * pinned solver runtime (services/workflows/solverRuntime.ts). It touches no
+ * PATH or profile, and sets `kratos.pythonPath` only after the install verified —
+ * and only with the user's say-so when that setting already holds another value.
+ */
+let solverInstall: AbortController | undefined;
+async function installKratosSolver(): Promise<void> {
+  if (solverInstall) { toast("info", t("The Kratos solver install is already running.")); return; }
+  const confirm = await dialog.showMessageBox({
+    type: "question",
+    buttons: [t("Install"), t("Cancel")],
+    defaultId: 0,
+    cancelId: 1,
+    message: t("Install the Kratos solver for KKSS?"),
+    detail: t("KKSS will download Kratos {0} and its applications into a private folder inside its own data directory ({1}). Nothing on your PATH or in your shell profile changes and no administrator rights are used. This needs the uv tool and a network connection, and can take several minutes.", { 0: "10.4.3", 1: path.join(app.getPath("userData"), "runtimes") }),
+  });
+  if (confirm.response !== 0) return;
+  const abort = new AbortController();
+  solverInstall = abort;
+  const progress = progressToast(t("Installing the Kratos solver…"), true);
+  progress.onCancel(() => abort.abort());
+  try {
+    const uv = await new KratosRuntime(app.getPath("userData")).findUv(abort.signal);
+    if (!uv) throw new Error(t("uv is not installed. Use Install uv for KKSS in the environment report first."));
+    const installer = new SolverRuntimeInstaller(app.getPath("userData"), path.join(__dirname, "kratos"));
+    const result = await installer.install(uv, abort.signal);
+    const current = stateStore.get<string>("kratos.pythonPath", "");
+    let adopt = true;
+    if (current && current !== result.python) {
+      adopt = (await dialog.showMessageBox({
+        type: "question", buttons: [t("Use the new runtime"), t("Keep my interpreter")], defaultId: 0, cancelId: 1,
+        message: t("Point Kratos Python Interpreter at the new runtime?"),
+        detail: t("Settings ▸ Kratos ▸ Python Interpreter currently holds {0}. The new runtime is at {1}.", { 0: current, 1: result.python }),
+      })).response === 0;
+    }
+    if (adopt) await stateStore.update("kratos.pythonPath", result.python);
+    toast("info", adopt
+      ? t("Kratos solver ready at {0}. {1}", { 0: result.directory, 1: result.note })
+      : t("Kratos solver installed at {0}; your interpreter setting was left as it was.", { 0: result.directory }));
+    await checkSimulationEnvironment();
+  } catch (error) {
+    toast(abort.signal.aborted ? "info" : "error", abort.signal.aborted ? t("Kratos solver install cancelled.") : (error as Error).message);
+  } finally {
+    progress.done();
+    solverInstall = undefined;
+  }
 }
 
 /** Pushes the recents list to the home screen. Label and folder are formatted
@@ -612,6 +683,9 @@ function recoverView(crash: ViewCrash, label: string, userInitiated = false): vo
       break;
     case "jobs":
       toast("info", t("Jobs panel reloaded — simulations are still tracked."));
+      break;
+    case "study":
+      toast("info", t("Study panel reloaded."));
       break;
     case "chat":
       toast("info", t("Chat panel reloaded — the conversation is intact."));
@@ -1365,7 +1439,7 @@ async function restoreCloudTabs(tabs: PendingCloudTab<CloudRef>[]): Promise<void
 /** Tells the shell which panels are showing, so the toolbar toggles read as pressed. */
 function pushPanels(): void {
   if (!main) return;
-  sendShell({ type: "panels", terminal: main.terminalVisible(), chat: main.chatVisible() });
+  sendShell({ type: "panels", terminal: main.terminalVisible(), chat: main.chatVisible(), study: main.studyVisible() });
 }
 
 /** Shows/hides the shared terminal panel, attaching the pty session on first use. */
@@ -1393,6 +1467,18 @@ function toggleChat(): void {
   jobs?.setVisible(main.jobsVisible());
   pushPanels();
   if (visible) chat.ensureStarted();
+  saveSessionSoon();
+}
+
+/** Shows/hides the study panel. Like Jobs it shares the right-hand slot with Chat, so opening it closes them. */
+function toggleStudy(): void {
+  if (!main || !studyPanel) return;
+  if (main.screen() === "home" && !main.studyVisible()) setScreen(main.mode());
+  const { view, visible } = main.toggleStudy();
+  studyPanel.attach(view.webContents);
+  jobs?.setVisible(main.jobsVisible());
+  if (visible) void pushWorkflows(); // the view may be new: hand it the current chain
+  pushPanels();
   saveSessionSoon();
 }
 
@@ -1479,7 +1565,7 @@ function openSettings(): void {
 app.whenReady().then(() => {
   // The lock loser is on its way out (app.quit() before ready does not
   // reliably suppress this handler) — it must not build a second app.
-  if (!gotInstanceLock) return;
+  if (!gotInstanceLock || headlessCli) return;
   installProtocolHandlers(__dirname);
   configurePicker(__dirname);
   configureAbout(__dirname);
@@ -1622,23 +1708,8 @@ app.whenReady().then(() => {
     remote: () => { const host = kratosRemoteHost(); return host ? { host, ssh: spawnSsh } : undefined; },
     toolReady: (key) => mcpHub?.statuses().some(status => status.key === key && status.state === "ready") ?? false,
     prepareQueue: async () => {
-      const hub = mcpHub;
-      if (!hub) throw new Error("MCP manager is unavailable.");
-      hub.ensureStarted();
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => finish(new Error("CAD and mesh tool servers did not become ready within 60 seconds.")), 60_000);
-        const listener = (statuses: import("./ipc").ChatServerStatus[]) => {
-          const required = statuses.filter(status => status.key === "cad" || status.key === "mesh");
-          if (required.some(status => status.state === "unavailable")) finish(new Error(required.filter(status => status.state === "unavailable").map(status => `${status.name}: ${status.error ?? "unavailable"}`).join("\n")));
-          else if (required.length === 2 && required.every(status => status.state === "ready")) finish();
-        };
-        const finish = (error?: Error) => {
-          clearTimeout(timeout); hub.offStatus(listener);
-          if (error) reject(error); else resolve();
-        };
-        hub.onStatus(listener);
-        listener(hub.statuses());
-      });
+      if (!mcpHub) throw new Error("MCP manager is unavailable.");
+      await waitForServers(mcpHub, ["cad", "mesh"]);
     },
   });
   // User- and project-configured MCP servers (the sidebar's manager). The
@@ -1677,6 +1748,18 @@ app.whenReady().then(() => {
     // be able to read the host's variables by running a command.
     baseEnv: () => getDefaultEnvironment(),
     log: (message) => console.warn("[hooks]", message),
+  });
+  studyPanel = new StudyPanelService({
+    hide: () => { if (main?.studyVisible()) toggleStudy(); },
+    select: async (studyId, runId) => {
+      const r = await callAppTool("app__study_select", { studyId, ...(runId ? { runId } : {}) });
+      if (r.isError) throw new Error(r.content.map((b) => (b.type === "text" ? b.text : "")).join(" "));
+    },
+    open: async (studyId, stage, runId) => {
+      const r = await callAppTool("app__study_open", { studyId, stage, ...(runId ? { runId } : {}) });
+      if (r.isError) throw new Error(r.content.map((b) => (b.type === "text" ? b.text : "")).join(" "));
+    },
+    fail: (message) => toast("error", message),
   });
   jobs = new JobsService({
     hub: mcpHub,
@@ -1758,6 +1841,7 @@ app.whenReady().then(() => {
     toggleTerminal,
     toggleChat,
     toggleJobs,
+    toggleStudy,
     zoom: {
       stepIn: () => stepUiZoom(1),
       stepOut: () => stepUiZoom(-1),
@@ -1801,7 +1885,7 @@ app.whenReady().then(() => {
     meshRendererRuntime: () => rendererAssetsPresent(__dirname),
     exportDiagnostics: () => void exportDiagnostics({ statuses: () => mcpHub?.statuses?.(), runFiles: () => workflows?.runDiagnostics() ?? Promise.resolve([]) }),
     exportProjectArchive: () => void exportProjectArchive(workflows),
-    importProjectArchive: () => void importProjectArchive(workflows),
+    importProjectArchive: () => void importProjectArchive(workflows, projectRoot),
     contextHelp: () => {
       const screen = main!.screen();
       const ctx: HelpContext = screen === "cad" || screen === "mesh" || screen === "home" || screen === "editor" ? screen
@@ -1956,6 +2040,7 @@ app.whenReady().then(() => {
       if (msg.kind === "example" || msg.kind === "own") void wizardStart(msg.kind, msg.id);
       return;
     }
+    if (msg.type === "installKratosSolver") { void installKratosSolver(); return; }
     if (msg.type === "retrySimulationTools") {
       void mcpHub?.retryKratos(msg.install).catch((error) => sendHome({ type: "workflowError", message: String(error) }));
       return;
@@ -2028,6 +2113,9 @@ app.whenReady().then(() => {
         break;
       case "toggleJobs":
         if (_event.sender === main.shell.webContents) toggleJobs();
+        break;
+      case "toggleStudy":
+        if (_event.sender === main.shell.webContents) toggleStudy();
         break;
       case "toggleChat":
         toggleChat();
@@ -2202,6 +2290,7 @@ app.on("will-quit", () => {
   cloud?.flushSync();
   void metaServer?.dispose();
   jobs?.dispose();
+  studyPanel?.dispose();
   void mcpHub?.dispose();
   flowgraph?.dispose();
   // Stops live solves (or detaches them, per kratos.run.stopOnWindowClose) so
@@ -2218,3 +2307,12 @@ app.on("window-all-closed", () => {
 });
 
 app.on("quit", () => { if (headlessExitCode) process.exitCode = headlessExitCode; });
+
+// `kkss --headless study run`: run once, print the JSON report, exit with its code.
+if (headlessCli) {
+  void app.whenReady().then(async () => {
+    if (!headlessCli.ok) { console.error(headlessCli.error); app.exit(3); return; }
+    const code = await runHeadlessStudyCli(headlessCli.options, __dirname);
+    app.exit(code);
+  });
+}

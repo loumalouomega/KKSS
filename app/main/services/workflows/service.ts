@@ -1235,6 +1235,17 @@ export class WorkflowService {
     return { archive: out, files: files.length, bytes: total, includesRuns: includeRuns, external, missing };
   }
 
+  /** The one relink code path: `app__study_relink_source` and the archive-import prompt both call it. */
+  async relinkSource(studyId: string, sourcePath: string): Promise<unknown> {
+    const file = path.resolve(sourcePath), revision = await fileRevision(file);
+    return this.change((project, current) => {
+      const study = this.study(project, studyId);
+      study.source = reference(current.root, file, revision);
+      project.activeStudyId = study.id; delete project.activeRunId;
+      return { studyId: study.id, source: study.source, readiness: undefined };
+    });
+  }
+
   /** Unpack into a new folder; damaged or missing members are listed, never silently skipped, and nothing existing is overwritten. */
   async projectUnpack(args: Record<string, unknown>): Promise<unknown> {
     const archive = path.resolve(text(args, 'archivePath')), dest = path.resolve(text(args, 'destination'));
@@ -1320,15 +1331,7 @@ export class WorkflowService {
       tool('study_attach_mesh', 'Attach an existing exported mesh to a study and record its content revision. Imports a neighboring case setup when present.', { studyId: str, meshPath: str }, ['studyId', 'meshPath'], args => this.attachMesh(args)),
       tool('study_region_references', 'Read-only: list the SubModelPart regions a study\'s case settings reference (assignments, materials, collections) and whether the attached MDPA mesh still has each one. Matching is by name only; a suggested rename is a hint, not a fact.', { studyId: str }, ['studyId'], args => this.regionReferences(args)),
       tool('study_region_rename', 'Move case-setting references from one region path to another (children follow). Without apply=true this only previews. Applying needs expectedSettingsRevision from app__study_region_references and edits the study\'s recorded case settings only.', { studyId: str, renames: { type: 'array', items: { type: 'object', properties: { from: str, to: str }, required: ['from', 'to'] } }, apply: { type: 'boolean' }, expectedSettingsRevision: str }, ['studyId', 'renames'], args => this.renameRegions(args)),
-      tool('study_relink_source', 'Explicitly relink a study to a geometry file after verifying it exists. Existing mesh and run artifacts are retained and become stale when their source revision differs.', { studyId: str, sourcePath: str }, ['studyId', 'sourcePath'], async args => {
-        const file = path.resolve(text(args, 'sourcePath')), revision = await fileRevision(file);
-        return this.change((project, current) => {
-          const study = this.study(project, text(args, 'studyId'));
-          study.source = reference(current.root, file, revision);
-          project.activeStudyId = study.id; delete project.activeRunId;
-          return { studyId: study.id, source: study.source, readiness: undefined };
-        });
-      }),
+      tool('study_relink_source', 'Explicitly relink a study to a geometry file after verifying it exists. Existing mesh and run artifacts are retained and become stale when their source revision differs.', { studyId: str, sourcePath: str }, ['studyId', 'sourcePath'], args => this.relinkSource(text(args, 'studyId'), text(args, 'sourcePath'))),
       tool('study_copy_source_into_project', 'Copy the currently referenced geometry into .kkss/sources without changing the source file, then switch this study to the project-local copy.', { studyId: str }, ['studyId'], async args => {
         const store = this.store(), project = await store.read(); if (!project) throw new Error('No project.');
         const study = this.study(project, text(args, 'studyId')), sourcePath = resolveReference(store.root, study.source);

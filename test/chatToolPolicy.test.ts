@@ -227,23 +227,27 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 89 cad + 60 mesh tools + 4 in-process mcp__ tools + 39 app__ tools (38 workflow + skill_load)
+    // 93 cad + 61 mesh tools + 4 in-process mcp__ tools + 39 app__ tools (38 workflow + skill_load)
     // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(317);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(322);
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
-    expect(cad).toHaveLength(89);
+    expect(cad).toHaveLength(93);
     expect(TOOL_ACCESS.cad__mesh_cad_surface).toBe("write");
     // cad 3.34.0 / mesh 5.29.0 surface analyses are facts-only reads.
     for (const n of ["cad__find_mesh_intersections", "cad__measure_mesh_thickness", "cad__select_mesh_region", "mesh__mesh_intersections"]) {
       expect(TOOL_ACCESS[n as keyof typeof TOOL_ACCESS]).toBe("read");
     }
-    expect(mesh).toHaveLength(60);
+    expect(mesh).toHaveLength(61);
+    expect(TOOL_ACCESS.cad__analyze_surface_geometry).toBe("read");
+    for (const n of ["cad__set_configuration", "cad__mesh_adjacency", "cad__register_meshes", "mesh__mesh_graph"]) {
+      expect(TOOL_ACCESS[n as keyof typeof TOOL_ACCESS]).toBe("write");
+    }
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(42);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
@@ -455,10 +459,12 @@ describe("the table itself", () => {
       "cad__job_cancel",
       "cad__load_preprocess",
       "cad__measure_mesh_deviation",
+      "cad__mesh_adjacency",
       "cad__mesh_cad_surface",
       "cad__pin_annotation",
       "cad__project_to_cad",
       "cad__promote_mesh_to_brep",
+      "cad__register_meshes",
       "cad__remesh_mesh",
       "cad__remove_edit_op",
       "cad__repair_mesh",
@@ -469,6 +475,7 @@ describe("the table itself", () => {
       "cad__save_parametric_script",
       "cad__save_preprocess",
       "cad__save_sheet_template",
+      "cad__set_configuration",
       "cad__set_layer",
       "cad__set_mesh_options",
       "cad__set_part",
@@ -498,6 +505,7 @@ describe("the table itself", () => {
       "mesh__mesh_field_series",
       "mesh__mesh_fit_primitives",
       "mesh__mesh_flow_balance",
+      "mesh__mesh_graph",
       "mesh__mesh_pack_series",
       "mesh__mesh_periodic",
       "mesh__mesh_probe",

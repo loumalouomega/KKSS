@@ -25,7 +25,7 @@ Open `large-sphere.stl` in CAD mode — the file routes to the 🔷 Pre-Processi
 
 ## 2. Fit to CAD
 
-Click **Fit to CAD…**, pick where the STEP goes, and wait a few seconds. The status line carries the fit's own report:
+Click **Fit to CAD…**, choose how hard to try (**Kernel defaults** is right for a mesh tessellated from CAD such as this sphere; **Refine the patches first** is for a rough or organic skin — an optimizer's output, a scan — where the defaults leave almost everything faceted, and takes minutes on a large mesh), pick where the STEP goes, and wait a few seconds. The status line carries the fit's own report:
 
 > Fitted to CAD: 1 faces (0 plane, 0 cylinder, 1 sphere, 0 cone, 0 torus), volume ratio 1.0002, max deviation 2.96e-01
 

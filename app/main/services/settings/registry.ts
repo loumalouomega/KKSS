@@ -298,6 +298,17 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       description: t("FE mesh element-size preset seeded for models with no saved .mesh.json sidecar."),
     },
     {
+      id: "cadPreview.singleKeyCommands",
+      label: t("Single-Key Commands"),
+      category: "CAD Viewer",
+      type: "boolean",
+      storeKey: "cadSingleKeyCommands",
+      default: false,
+      applies: "nextOpen",
+      vscode: { section: "cadPreview", key: "singleKeyCommands" },
+      description: t("Single-letter command keys in the viewer: E Extrude, R Revolve, F Fillet, C Chamfer, H Hole, M Move, S Shell, P Linear Pattern, Q Measure, and Shift+R to repeat the last command. Off by default; they never fire in a text field. Ctrl+K opens the command search regardless."),
+    },
+    {
       id: "cadPreview.tessellationQuality",
       label: t("Tessellation Quality"),
       category: "CAD Viewer",

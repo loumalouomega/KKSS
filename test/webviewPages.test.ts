@@ -57,6 +57,11 @@ describe.skipIf(!built)("generated webview pages", () => {
     // cad 3.24.0's Mesh Health ▸ Merge facets checkbox: promote posts
     // mergeFacets, so a stale page would silently drop the flag.
     expect(html).toContain('id="mesh-health-merge"');
+    // cad 3.35.0's ribbon command strip and the collapsible op grid toggle: the
+    // ribbon script builds into these containers by id.
+    for (const anchor of ['id="ribbon"', 'id="ribbon-tabs"', 'id="ribbon-groups"', 'id="ribbon-more"', 'id="edits-grid-toggle"']) {
+      expect(html).toContain(anchor);
+    }
   });
 
   it("carries the mesh provider skeleton", () => {
@@ -91,6 +96,10 @@ describe.skipIf(!built)("generated webview pages", () => {
     // mesh 5.29.0's Mesh Modification forms (Select region, Wall thickness) and
     // the optimizeVolume objective/ring fields arrive with the imported sidebar
     // fragment; webview/meshMod.ts binds each by id.
+    // mesh 5.31.0's seven meshio++ 18.1 forms ride the same fragment.
+    for (const anchor of ['id="untangle-form"', 'id="morph-form"', 'id="registerRigid-form"', 'id="geodesicDistance-form"', 'id="prepareMetric-form"']) {
+      expect(html).toContain(anchor);
+    }
     for (const anchor of ['id="selreg-form"', 'id="thick-form"', 'data-op="selectRegion"', 'data-op="thickness"', 'id="ov-ring"']) {
       expect(html).toContain(anchor);
     }

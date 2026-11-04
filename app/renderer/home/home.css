@@ -279,3 +279,7 @@ body {
 .checklist-text { min-width: 0; display: flex; flex-direction: column; gap: var(--ui-s-1); overflow-wrap: anywhere; }
 .checklist-state { color: var(--vscode-descriptionForeground); font-size: var(--ui-fs-sm); }
 .checklist-row.is-next .checklist-label { font-weight: 600; }
+
+.review-findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ui-s-2); }
+.review-findings .finding { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ui-s-3); }
+.review-findings .finding-warning, .review-findings .finding-error { color: var(--vscode-editorWarning-foreground); }

@@ -37,6 +37,8 @@ export const channels = {
   editorToWebview: "editor:toWebview",
   jobsToHost: "jobs:toHost",
   jobsToWebview: "jobs:toWebview",
+  studyToHost: "study:toHost",
+  studyToWebview: "study:toWebview",
   chatToHost: "chat:toHost",
   chatToWebview: "chat:toWebview",
 } as const;
@@ -579,6 +581,7 @@ export type HomeToHost =
   | { type: "homeReady" }
   | { type: "checkEnvironment" }
   | { type: "retrySimulationTools"; install: boolean }
+  | { type: "installKratosSolver" }
   | { type: "workflow"; tool: string; args: Record<string, unknown> }
   | { type: "wizardStart"; kind: "example" | "own"; id?: string }
   | { type: "action"; action: HomeAction }
@@ -620,6 +623,7 @@ export type ShellToHost =
   | { type: "toggleTerminal" }
   | { type: "toggleChat" }
   | { type: "toggleJobs" }
+  | { type: "toggleStudy" }
   | { type: "editCurrentFile" }
   | { type: "openFile" }
   | { type: "setZoom"; factor: number }
@@ -649,7 +653,7 @@ export type ShellToWebview =
   | { type: "jobs"; active: number; visible: boolean; stale: boolean }
   /** Which toggleable side/bottom panels are showing — the toolbar buttons'
    *  pressed state. Jobs has its own message above because it also carries a count. */
-  | { type: "panels"; terminal: boolean; chat: boolean }
+  | { type: "panels"; terminal: boolean; chat: boolean; study: boolean }
   | { type: "screen"; screen: Screen }
   /** Editor-only — cad/mesh report their per-tab titles via `tabs` instead. */
   | { type: "title"; view: "editor"; fileName: string | null; dirty?: boolean }
@@ -685,6 +689,38 @@ export interface JobsSnapshot {
   cancelling: string[];
   cancelErrors: Record<string, string>;
 }
+// ---- Study panel (services/studyPanel.ts) -----------------------------------
+
+/** One stage of a study's geometry → mesh → case → run → results chain. */
+export interface StudyStageInfo {
+  id: "geometry" | "mesh" | "case" | "run" | "results";
+  /** `ready`/`stale`/`missing` for the file stages; the latest run's state for `run`. */
+  state: string;
+  /** Whether the stage has something to open in a viewer. */
+  canOpen: boolean;
+}
+export interface StudyRunInfo { id: string; state: string; active: boolean; hasResult: boolean }
+export interface StudyChainInfo {
+  id: string;
+  name: string;
+  parentId?: string;
+  active: boolean;
+  stages: StudyStageInfo[];
+  runs: StudyRunInfo[];
+}
+/** What the panel shows; derived from the workflow snapshot by `buildStudyPanel`. */
+export interface StudyPanelState {
+  type: "state";
+  hasProject: boolean;
+  studies: StudyChainInfo[];
+  /** The `study_next_step` action for the active study, as plain text. */
+  next?: { studyId: string; step: string; action: string };
+}
+export type StudyToHost =
+  | { type: "studyReady" | "hide" }
+  | { type: "select"; studyId: string; runId?: string }
+  | { type: "open"; studyId: string; stage: "geometry" | "mesh" | "case" | "results"; runId?: string };
+
 export type JobsToHost =
   | { type: "jobsReady" | "refresh" | "hide" | "retryKratos" | "installKratosRuntime" }
   | { type: "select" | "cancel"; jobId: string };

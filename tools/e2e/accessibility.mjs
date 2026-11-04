@@ -98,6 +98,14 @@ for (const language of ['en', 'es']) await scenario(`accessibility-${language}`,
   await focusKey('Shift+F6', /\/shell\//, 'editor to shell');
   await shell.locator('#chat-btn').press('Enter');
   await until(async () => /\/shell\//.test(await focusedView() ?? ''), 'chat restores shell');
+  // The study panel sits between Chat and Jobs in the Tab order; it also closes on Escape.
+  for (let i = 0; i < 16 && await shell.evaluate(() => document.activeElement?.id) !== 'study-btn'; i++) await shell.keyboard.press('Tab');
+  assert.equal(await shell.evaluate(() => document.activeElement?.id), 'study-btn');
+  await shell.locator('#study-btn').press('Enter');
+  const study = await c.page(app, 'study');
+  await until(async () => /\/study\//.test(await focusedView() ?? ''), 'study focus');
+  await scan(study, 'study');
+  await focusKey('Escape', /\/shell\//, 'study restores shell');
   // Jobs has a toolbar route. Reach it with the shell's Tab order.
 
   for (let i = 0; i < 16 && await shell.evaluate(() => document.activeElement?.id) !== 'jobs-btn'; i++) await shell.keyboard.press('Tab');

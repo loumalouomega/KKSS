@@ -41,7 +41,7 @@ export interface Tab {
 }
 
 /** Which of the window's views a crash report is about. */
-export type ViewKind = "shell" | "home" | "editor" | "terminal" | "chat" | "jobs" | "tab";
+export type ViewKind = "shell" | "home" | "editor" | "terminal" | "chat" | "jobs" | "study" | "tab";
 
 /** Identifies a view to the crash handler. `mode`/`tabId` are set for "tab". */
 export interface ViewRef {
@@ -91,6 +91,8 @@ export interface MainWindow {
   toggleTerminal: () => { view: WebContentsView; visible: boolean };
   jobsVisible: () => boolean;
   toggleJobs: () => { view: WebContentsView; visible: boolean };
+  studyVisible: () => boolean;
+  toggleStudy: () => { view: WebContentsView; visible: boolean };
   chatVisible: () => boolean;
   /** Shows/hides the chat sidebar, creating its view on first use. */
   toggleChat: () => { view: WebContentsView; visible: boolean };
@@ -176,6 +178,8 @@ export function createMainWindow(
   let chatShown = false;
   let jobs: WebContentsView | null = null;
   let jobsShown = false;
+  let study: WebContentsView | null = null;
+  let studyShown = false;
   // setZoomFactor scales each view's *content* but not its bounds, so the fixed
   // chrome (shell bar, tab strip, terminal, chat) must scale in lockstep or it
   // would clip.
@@ -191,7 +195,7 @@ export function createMainWindow(
       currentScreen === "cad" || currentScreen === "mesh" ? Math.round(TAB_STRIP_HEIGHT * currentZoom) : 0;
     const chromeH = shellH + tabsH;
     shell.setBounds({ x: 0, y: 0, width, height: chromeH });
-    const sidebar = chatShown || jobsShown ? Math.min(Math.round(CHAT_WIDTH * currentZoom), Math.floor(width / 2)) : 0;
+    const sidebar = chatShown || jobsShown || studyShown ? Math.min(Math.round(CHAT_WIDTH * currentZoom), Math.floor(width / 2)) : 0;
     const bodyWidth = Math.max(0, width - sidebar);
     const panel = terminalShown ? Math.round(TERMINAL_HEIGHT * currentZoom) : 0;
     const body = { x: 0, y: chromeH, width: bodyWidth, height: Math.max(0, height - chromeH - panel) };
@@ -205,6 +209,7 @@ export function createMainWindow(
     terminal?.setBounds({ x: 0, y: Math.max(chromeH, height - panel), width: bodyWidth, height: panel });
     chat?.setBounds({ x: bodyWidth, y: chromeH, width: sidebar, height: Math.max(0, height - chromeH) });
     jobs?.setBounds({ x: bodyWidth, y: chromeH, width: sidebar, height: Math.max(0, height - chromeH) });
+    study?.setBounds({ x: bodyWidth, y: chromeH, width: sidebar, height: Math.max(0, height - chromeH) });
     home.setBounds({ x: 0, y: 0, width: bodyWidth, height });
   };
   win.on("resize", layout);
@@ -232,7 +237,7 @@ export function createMainWindow(
   const regions = (): WebContentsView[] => {
     if (currentScreen === "home") return [home];
     const content = currentScreen === "editor" ? editor : tabs[currentMode].find(t => t.id === activeTab[currentMode])?.view;
-    return [shell, content, terminalShown ? terminal : null, chatShown ? chat : jobsShown ? jobs : null]
+    return [shell, content, terminalShown ? terminal : null, chatShown ? chat : jobsShown ? jobs : studyShown ? study : null]
       .filter((v): v is WebContentsView => !!v && !v.webContents.isDestroyed());
   };
   const focused = () => regions().find(v => v.webContents.isFocused());
@@ -388,7 +393,7 @@ export function createMainWindow(
       void chat.webContents.loadURL("kkss://app/renderer/chat/index.html");
     }
     chatShown = !chatShown;
-    if (chatShown) { jobsShown = false; jobs?.setVisible(false); }
+    if (chatShown) { jobsShown = false; jobs?.setVisible(false); studyShown = false; study?.setVisible(false); }
     chat.setVisible(chatShown);
     layout();
     panelFocus(chat, chatShown, origin);
@@ -407,11 +412,31 @@ export function createMainWindow(
       void jobs.webContents.loadURL("kkss://app/renderer/jobs/index.html");
     }
     jobsShown = !jobsShown;
-    if (jobsShown) { chatShown = false; chat?.setVisible(false); }
+    if (jobsShown) { chatShown = false; chat?.setVisible(false); studyShown = false; study?.setVisible(false); }
     jobs.setVisible(jobsShown);
     layout();
     panelFocus(jobs, jobsShown, origin);
     return { view: jobs, visible: jobsShown };
+  };
+
+  const toggleStudy = () => {
+    const origin = focused();
+    if (!study) {
+      study = new WebContentsView({ webPreferences: {
+        preload: path.join(outDir, "preload", "studyPreload.js"),
+        contextIsolation: true, nodeIntegration: false, sandbox: false,
+      } });
+      win.contentView.addChildView(study);
+      win.contentView.addChildView(home); // keep the home screen topmost
+      wireView(study, { kind: "study" });
+      void study.webContents.loadURL("kkss://app/renderer/study/index.html");
+    }
+    studyShown = !studyShown;
+    if (studyShown) { chatShown = false; chat?.setVisible(false); jobsShown = false; jobs?.setVisible(false); }
+    study.setVisible(studyShown);
+    layout();
+    panelFocus(study, studyShown, origin);
+    return { view: study, visible: studyShown };
   };
 
   const setScreen = (screen: Screen) => {
@@ -434,7 +459,7 @@ export function createMainWindow(
         ? mode && tabId
           ? findTab(mode, tabId)?.view
           : undefined
-        : { shell, home, editor, terminal, chat, jobs }[kind];
+        : { shell, home, editor, terminal, chat, jobs, study }[kind];
     if (view && !view.webContents.isDestroyed()) view.webContents.reload();
   };
 
@@ -449,6 +474,7 @@ export function createMainWindow(
       terminal,
       chat,
       jobs,
+      study,
     ];
     for (const v of live) if (v) v.webContents.setZoomFactor(currentZoom);
     layout();
@@ -476,6 +502,8 @@ export function createMainWindow(
     toggleTerminal,
     jobsVisible: () => jobsShown,
     toggleJobs,
+    studyVisible: () => studyShown,
+    toggleStudy,
     chatVisible: () => chatShown,
     toggleChat,
     reloadView,

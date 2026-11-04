@@ -259,6 +259,7 @@ const preloadConfig = {
     "app/preload/editorPreload.ts",
     "app/preload/chatPreload.ts",
     "app/preload/jobsPreload.ts",
+    "app/preload/studyPreload.ts",
     "app/preload/settingsPreload.ts",
   ],
   bundle: true,
@@ -284,6 +285,7 @@ const shellRendererConfig = {
     "app/renderer/editor/editor.ts",
     "app/renderer/chat/chat.ts",
     "app/renderer/jobs/jobs.ts",
+    "app/renderer/study/study.ts",
     "app/renderer/settings/settings.ts",
   ],
   bundle: true,
@@ -320,6 +322,11 @@ function exampleCopies() {
 async function copyArtifacts() {
   const copies = [
     ...exampleCopies(),
+    // The pinned requirements and hash lock the `-kratos` image installs; the
+    // app-managed solver runtime (services/workflows/solverRuntime.ts) reads them
+    // from out/kratos/ so the app and the image cannot drift.
+    ["docker/kratos/requirements.in", out("kratos/requirements.in")],
+    ["docker/kratos/requirements.lock", out("kratos/requirements.lock")],
     // Submodule webview bundles + styles, untouched.
     ["cad/media/viewer.js", out("renderer/cad/viewer.js")],
     ["cad/media/viewer.css", out("renderer/cad/viewer.css")],
@@ -440,6 +447,8 @@ async function copyArtifacts() {
     ["app/renderer/editor/editor.css", out("renderer/editor/editor.css")],
     ["app/renderer/jobs/index.html", out("renderer/jobs/index.html")],
     ["app/renderer/jobs/jobs.css", out("renderer/jobs/jobs.css")],
+    ["app/renderer/study/index.html", out("renderer/study/index.html")],
+    ["app/renderer/study/study.css", out("renderer/study/study.css")],
     ["app/renderer/chat/index.html", out("renderer/chat/index.html")],
     ["app/renderer/settings/index.html", out("renderer/settings/index.html")],
     ["app/renderer/settings/settings.css", out("renderer/settings/settings.css")],

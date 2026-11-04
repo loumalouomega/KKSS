@@ -127,6 +127,19 @@ export interface UnresolvedExternal {
   relink: 'app__study_relink_source' | null;
 }
 
+/**
+ * The references the import prompt can repoint: one entry per study whose source is gone.
+ * Mesh, handoff and run-artifact references have no relink tool, so they are counted, never offered.
+ */
+export function relinkPlan(unresolved: UnresolvedExternal[]): { relinkable: UnresolvedExternal[]; listedOnly: number } {
+  const seen = new Set<string>(), relinkable: UnresolvedExternal[] = [];
+  for (const u of unresolved) {
+    if (u.relink === null || seen.has(u.studyId)) continue;
+    seen.add(u.studyId); relinkable.push(u);
+  }
+  return { relinkable, listedOnly: unresolved.length - relinkable.length };
+}
+
 /** External references not present on this machine, split into study and role. Pure; `exists` is injected. */
 export function unresolvedExternal(manifest: ArchiveManifest, exists: (absPath: string) => boolean): UnresolvedExternal[] {
   const out: UnresolvedExternal[] = [];

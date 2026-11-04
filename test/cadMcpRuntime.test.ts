@@ -91,6 +91,18 @@ describe.skipIf(!fs.existsSync(server))("bundled CAD MCP runtime", () => {
       // A box around everything selects every triangle of the skin.
       expect(facts(region).selection.numSelected).toBe(facts(inter).numTriangles);
 
+      // cad 3.36.0 (meshio++ 18.1): graph facts over the same skin, the ICP
+      // registration of a mesh onto itself (identity, RMS ~0) and a design-table
+      // configuration through the revision-guarded edit path.
+      const adjacency = await client.callTool({ name: "mesh_adjacency", arguments: { path: faceMesh } });
+      expect(adjacency.isError, JSON.stringify(adjacency.content)).not.toBe(true);
+      expect(facts(adjacency).supported).not.toBe(false);
+      const registered = await client.callTool({ name: "register_meshes", arguments: { path: surface, targetPath: surface } });
+      expect(registered.isError, JSON.stringify(registered.content)).not.toBe(true);
+      expect(facts(registered).rms).toBeLessThan(1e-6);
+      const geodesic = await client.callTool({ name: "analyze_surface_geometry", arguments: { path: surface, kind: "eigenmodes", numModes: 2 } });
+      expect(geodesic.isError, JSON.stringify(geodesic.content)).not.toBe(true);
+
       const mesh = path.join(dir, "model.mdpa");
       fs.writeFileSync(mesh, "Begin Nodes\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\nEnd Nodes\nBegin Elements Element3D4N\n1 0 1 2 3 4\nEnd Elements\n");
       const loaded = await client.callTool({ name: "load_model", arguments: { path: mesh } });

@@ -88,8 +88,12 @@
         </div>
       </details>
       <div id="run-review-plots"></div>
+      <ul id="run-review-findings" class="review-findings" aria-label="Review findings" hidden></ul>
       <div id="run-review" aria-live="polite"></div>
       <div id="environment-report" aria-live="polite"></div>
+      <div id="environment-solver-actions" class="workflow-actions" hidden>
+        <button id="environment-install-solver" class="btn-link" type="button" data-i18n="Install Kratos solver…">Install Kratos solver…</button>
+      </div>
       <div id="environment-actions" class="workflow-actions" hidden>
         <button id="environment-retry" class="btn-link" type="button" data-i18n="Retry assistant runtime">Retry assistant runtime</button>
         <button id="environment-install" class="btn-link" type="button" data-i18n="Install uv for KKSS">Install uv for KKSS</button>

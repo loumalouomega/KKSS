@@ -192,6 +192,7 @@ import {
   type SaveOutcome,
 } from "./cadSaveInPlace";
 import { normalizeViewerDefaults } from "../../cad/src/viewerDefaults";
+import { effectiveVariables, validateConfigurationState, type Configuration, type ConfigurationState } from "../../cad/src/configurations";
 import { validateEditOp, type EditOp } from "../../cad/src/editOps";
 import { resolvePlaneRefs } from "../../cad/src/planeRefs";
 import { emitPrimitiveOps } from "../../cad/src/primitiveEmit";
@@ -250,6 +251,7 @@ import { toKkssUrl, allowRoot } from "./protocol";
 import { projectRoot } from "./services/projectRoot";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
 import { showQuickPick, showInputBox } from "./services/quickPick";
+import { FIT_TO_CAD_LEVELS } from "../../cad/src/fitToCadLevels";
 import { stateStore } from "./services/stateStore";
 import { entryForVscode } from "./services/settings/registry";
 import { writeFileAtomic } from "./services/atomicWrite";
@@ -278,6 +280,7 @@ export const CAD_DEFAULT_KEYS = {
   meshSizePreset: cadKey("defaultMeshSizePreset"),
   showGridAndAxes: cadKey("showGridAndAxesOnOpen"),
   upAxis: cadKey("upAxis"),
+  singleKeyCommands: cadKey("singleKeyCommands"),
   tessellationQuality: cadKey("tessellationQuality"),
   openscadBinary: cadKey("openscadBinary"),
   openscadBackend: cadKey("openscadBackend"),
@@ -381,16 +384,27 @@ const readEdits = async (modelPath: string): Promise<ParsedEdits> => {
     return { ops: [], variables: [], bakedThrough: 0 };
   }
 };
-const writeEdits = (
+/**
+ * cad 3.35.0 stores Configurations (design table) in the same sidecar. Omitted
+ * `configState` keeps whatever is already on disk — the extension's own
+ * `editsStore.writeEdits` rule — so a caller that predates them never drops them.
+ */
+const writeEdits = async (
   modelPath: string,
   ops: EditOp[],
   variables: ParamVariable[],
-  bakedThrough = 0
-): Promise<void> =>
-  writeFileAtomic(
+  bakedThrough = 0,
+  configState?: Partial<ConfigurationState>
+): Promise<void> => {
+  if (configState === undefined) {
+    const existing = await readEdits(modelPath);
+    configState = { configurations: existing.configurations, activeConfiguration: existing.activeConfiguration };
+  }
+  await writeFileAtomic(
     `${modelPath}${CAD_SIDECAR.edits}`,
-    serializeEditsJson(path.basename(modelPath), ops, variables, bakedThrough)
+    serializeEditsJson(path.basename(modelPath), ops, variables, bakedThrough, configState)
   );
+};
 
 const readAnnotations = async (modelPath: string): Promise<Annotation[]> => {
   try {
@@ -584,6 +598,13 @@ export class CadHost {
   private currentPlanes: ConstructionPlane[] = [];
   private currentEdits: EditOp[] = [];
   private currentVariables: ParamVariable[] = [];
+  /** Design table: named variable-override sets + the applied one. Resolution
+   *  happens in the webview; the host only carries and persists them. */
+  private currentConfigurations: Configuration[] = [];
+  private currentActiveConfiguration: string | null = null;
+  private configState(): ConfigurationState {
+    return { configurations: this.currentConfigurations, activeConfiguration: this.currentActiveConfiguration };
+  }
   /** ops[0..bakedThrough) are already baked into the CAD source file itself
    *  (by `cad__save_model` or another process) — only the tail is ever
    *  replayed against the loaded body. Read from the sidecar and advanced by
@@ -686,7 +707,7 @@ export class CadHost {
       deleteFile: (name) => fs.rm(sibling(name), { force: true }),
       readEdits: () => readEdits(docPath),
       writeEdits: (ops, variables, bakedThrough) =>
-        writeEdits(docPath, ops, variables, bakedThrough),
+        writeEdits(docPath, ops, variables, bakedThrough, this.configState()),
       askUnrecognised: async (info) => {
         // The same two answers the provider's showWarningMessage offers. The
         // restore option exists only when that backup genuinely is this
@@ -820,6 +841,8 @@ export class CadHost {
       type: "edits",
       ops: this.currentEdits,
       variables: this.currentVariables,
+      configurations: this.currentConfigurations,
+      activeConfiguration: this.currentActiveConfiguration,
       bakedThrough: this.currentBakedThrough,
     });
     this.syncDocumentInfo();
@@ -860,7 +883,7 @@ export class CadHost {
         writeParts(this.doc.path, this.currentParts),
         writeLayers(this.doc.path, this.currentLayers, this.currentLayersNextId),
         writePlanes(this.doc.path, this.currentPlanes),
-        writeEdits(this.doc.path, this.currentEdits, this.currentVariables, this.currentBakedThrough),
+        writeEdits(this.doc.path, this.currentEdits, this.currentVariables, this.currentBakedThrough, this.configState()),
         writeAnnotations(this.doc.path, this.currentAnnotations),
         ...(this.currentViewState ? [writeViewState(this.doc.path, this.currentViewState)] : []),
         ...(this.currentMeshOptions
@@ -917,6 +940,8 @@ export class CadHost {
         const settled = await readEdits(doc.path);
         this.currentEdits = resolvePlaneRefs(settled.ops, this.currentPlanes).ops;
         this.currentVariables = settled.variables;
+        this.currentConfigurations = settled.configurations ?? [];
+        this.currentActiveConfiguration = settled.activeConfiguration ?? null;
         this.currentBakedThrough = settled.bakedThrough;
         this.postEdits();
         if (recovered.sourceChanged) this.loadModel();
@@ -1027,7 +1052,7 @@ export class CadHost {
     const before = this.currentBakedThrough;
     this.currentBakedThrough = next;
     try {
-      await writeEdits(doc.path, this.currentEdits, this.currentVariables, next);
+      await writeEdits(doc.path, this.currentEdits, this.currentVariables, next, this.configState());
     } catch (err) {
       this.currentBakedThrough = before;
       throw err;
@@ -1106,6 +1131,8 @@ export class CadHost {
     this.pending.clear();
     this.currentEdits = [];
     this.currentVariables = [];
+    this.currentConfigurations = [];
+    this.currentActiveConfiguration = null;
     this.currentBakedThrough = 0;
     this.currentParts = [];
     this.currentLayers = [];
@@ -1315,6 +1342,8 @@ export class CadHost {
       ]);
       this.currentEdits = resolvePlaneRefs(parsed.ops, planesInitial).ops;
       this.currentVariables = parsed.variables;
+      this.currentConfigurations = parsed.configurations ?? [];
+      this.currentActiveConfiguration = parsed.activeConfiguration ?? null;
       this.currentBakedThrough = parsed.bakedThrough;
       this.currentPlanes = planesInitial;
       this.currentLayers = layersInitial.layers;
@@ -1450,10 +1479,24 @@ export class CadHost {
       return;
     }
 
+    if (msg.type === "exportVariables") {
+      // Parameters table export: the webview serialised it; the host only
+      // prompts for a path and writes (provider.ts parity, same 1 MB cap).
+      const ext = msg.format === "json" ? "json" : "csv";
+      const text = typeof msg.text === "string" ? msg.text.slice(0, 1_000_000) : "";
+      await this.promptSaveAndWrite(doc.path, ext, ext.toUpperCase(), async () => Buffer.from(text, "utf8"));
+      return;
+    }
+
     if (msg.type === "editsChanged") {
       const previousOps = this.currentEdits;
       this.currentEdits = msg.ops;
       this.currentVariables = msg.variables;
+      if (msg.configurations !== undefined) {
+        const cfg = validateConfigurationState(msg.configurations, msg.activeConfiguration);
+        this.currentConfigurations = cfg.configurations;
+        this.currentActiveConfiguration = cfg.activeConfiguration;
+      }
       // On EVERY edit, not only when dirty: undoing back to the save point
       // empties the tail, which must clear the chip's dot (provider L1656).
       this.syncDocumentInfo();
@@ -1463,7 +1506,8 @@ export class CadHost {
           doc.path,
           this.currentEdits,
           this.currentVariables,
-          this.currentBakedThrough
+          this.currentBakedThrough,
+          this.configState()
         ).then(undefined, (err) =>
           this.post({ type: "error", message: `Could not save edits: ${(err as Error).message}` })
         );
@@ -2802,7 +2846,7 @@ export class CadHost {
         const entry = merged[msg.name];
         if (!entry) throw new Error(`No saved macro named "${msg.name}".`);
         const { script, unknownNames } = mergeScriptOverrides(entry.script, msg.parameters);
-        const { values } = evaluateVariables(this.currentVariables);
+        const { values } = evaluateVariables(effectiveVariables(this.currentVariables, this.configState()).variables);
         const compiled = compileParametricScript(script, values);
         if (compiled.ops.length === 0) {
           throw new Error(compiled.issues[0] ?? `"${msg.name}" compiled to no ops.`);
@@ -3567,6 +3611,7 @@ export class CadHost {
         meshSizePreset: stateStore.get(CAD_DEFAULT_KEYS.meshSizePreset),
         showGridAndAxes: stateStore.get(CAD_DEFAULT_KEYS.showGridAndAxes),
         upAxis: stateStore.get(CAD_DEFAULT_KEYS.upAxis),
+        singleKeyCommands: stateStore.get(CAD_DEFAULT_KEYS.singleKeyCommands),
       }),
     });
   }
@@ -3933,7 +3978,10 @@ export class CadHost {
       }
       if (contents.edits !== undefined) {
         const parsed = parseEditsJson(contents.edits);
-        await writeEdits(destPath, parsed.ops, parsed.variables, parsed.bakedThrough);
+        await writeEdits(destPath, parsed.ops, parsed.variables, parsed.bakedThrough, {
+          configurations: parsed.configurations,
+          activeConfiguration: parsed.activeConfiguration,
+        });
       }
       if (contents.meshOptions !== undefined) {
         const options = parseMeshJson(contents.meshOptions);
@@ -4418,6 +4466,16 @@ export class CadHost {
     }
     const meshFormat = doc.route.format as MeshParseFormat;
 
+    // cad 3.37's fit level: the defaults leave a rough or organic skin mostly faceted,
+    // refining the patches first is the measured fix. A dismissed pick writes nothing
+    // (provider.handleFitMeshToCad asks before the save dialog too).
+    const picked = (await showQuickPick(
+      FIT_TO_CAD_LEVELS.map((l) => ({ label: l.label, detail: l.detail })),
+      { title: "Fit to CAD", placeHolder: "How should the surface patches be fitted?" },
+    )) as { label: string } | undefined;
+    const level = FIT_TO_CAD_LEVELS.find((l) => l.label === picked?.label);
+    if (!level) return;
+
     const baseName = path.basename(doc.path).replace(/\.[^.]+$/, "");
     const savePath = await showSaveDialog({
       defaultPath: path.join(path.dirname(doc.path), `${baseName}.step`),
@@ -4430,7 +4488,7 @@ export class CadHost {
       const result = await cadCompute.fitMeshToCad(
         sourceBytes,
         meshFormat,
-        {},
+        { ...level.options },
         await this.gltfBuffers(meshFormat, sourceBytes)
       );
       await fs.writeFile(savePath, result.stepBytes);
