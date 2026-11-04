@@ -5,6 +5,10 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.29.0] - 2026-11-04
+
+- feat: **CAD-Preview 3.36.0 and Mesh Preview 5.31.0** (meshio++ 18.1.0 on both sides). CAD gains a ribbon command strip, Ctrl+K command search with opt-in single-key commands (new **Single-Key Commands** setting), Configurations (design table), a Parameters table with CSV/JSON import and export, named materials and an f(s) Curve form. Configurations are now preserved by every sidecar save. Eleven new Mesh Ops operations and three assistant tools (`analyze_surface_geometry`, `mesh_adjacency`, `register_meshes`) arrive with meshio++ 18.1.0; mesh adds seven in-place forms (untangle, morph, rigid ICP, geodesic distance, surface eigenmodes, cylindrical/spherical components, MMG metric), five derived-mesh kinds, `mesh_graph`, compressed `.gz`/`.zip` input and recorded length units. The new tools are approval-gated except the read-only analysis (322 policy rows). The theme guard now defines the quick-input and suggest-widget variables the command palette uses.
+
 ## [2.28.0] - 2026-11-04
 
 - feat: **Mesh Preview 5.30.0** (CAD-Preview stays 3.34.0). Saved monitors now follow a running case — the Kratos Runs row refreshes from the frames written so far and is re-evaluated when the run ends. Inspect gains an **Evaluation table** (a frame-labelled row per pick, with Copy, Export CSV and Clear), contours and isosurfaces follow 20-node hexahedra, 8-node quads and 15-node wedges, and `mesh_field_integrate` accepts an explicit `revolveAbout` for axisymmetric r-z meshes. No new assistant tools (315 policy rows); the assistant prompt names the new option.
@@ -386,6 +390,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.29.0]: https://github.com/loumalouomega/KKSS/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/loumalouomega/KKSS/compare/v2.27.1...v2.28.0
 [2.27.1]: https://github.com/loumalouomega/KKSS/compare/v2.27.0...v2.27.1
 [2.27.0]: https://github.com/loumalouomega/KKSS/compare/v2.26.0...v2.27.0

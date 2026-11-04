@@ -325,8 +325,8 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**18.0.0**, the version both submodules lock
-  and the one KKSS stages; cad 3.34.0 and mesh 5.30.0 declare `18.0.0`/`^18.0.0`,
+  `@meshioplusplus/wasm` package (**18.1.0**, the version both submodules lock
+  and the one KKSS stages; cad 3.36.0 and mesh 5.31.0 declare `18.1.0`/`^18.1.0`,
   so the pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
   rather than by the pins agreeing — re-run both after either bump, and prefer
   re-aligning CAD over letting the skew grow;
@@ -1642,6 +1642,15 @@ release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
 discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 42 app-owned
 workflow tools; 317 policy rows with the PDF reader server's twelve).
+
+**The cad 3.34.0 → 3.36.0 + mesh 5.30.0 → 5.31.0 jump (meshio++ 18.1.0, ribbon + command search, Configurations, Parameters table, eleven Mesh Ops/`transform_mesh` operations, seven mesh forms, `mesh_graph`; KKSS 2.29.0) needed one data-integrity port, one export handler, one setting, six policy rows, six theme variables and tests.**
+
+- **cad: Configurations must be threaded through every `writeEdits`.** cad 3.35.0 stores named variable-override sets (`configurations`, `activeConfiguration`) in `<model>.edits.json`. KKSS's local `writeEdits` in `cadHost.ts` predates them, and `serializeEditsJson` would have written an empty set on every autosave — silently erasing a design table another process (or the webview) created. `CadHost` now carries `currentConfigurations`/`currentActiveConfiguration` (hydrated at open and after recovery, posted with `edits`, validated from `editsChanged` through `validateConfigurationState`, reset in `disposeSession`, copied by the preprocess import) and passes `configState()` at every write site; macro run resolves variables through `effectiveVariables`. A caller that omits the argument keeps what is on disk — the extension's own `editsStore.writeEdits` rule. Resolution itself is webview-side, so ops are never rewritten.
+- **cad: `exportVariables`** (Parameters table CSV/JSON export) is a webview-serialised string the host only writes: `promptSaveAndWrite`, 1 MB cap, as `provider.ts` does.
+- **cad: `cadPreview.singleKeyCommands`** is a registry row (`cadSingleKeyCommands`, `nextOpen`), `CAD_DEFAULT_KEYS` entry and `sendViewerDefaults` field. The ribbon, Ctrl+K command search, two-tone icons, Parameters table, `f(s) Curve` form and named materials are webview-only (ribbon tab/compact and the Edits grid toggle ride the existing view sidecar, default-omitted).
+- **Theme guard:** the command palette uses `--vscode-quickInput-*` and `--vscode-editorSuggestWidget-*`; all four theme blocks define them.
+- **mesh: no host code.** The seven 18.1 forms arrive through `SIDEBAR_HTML` (`meshio181Forms.ts`), so `meshBody()` needs no edit (anchors in `webviewPages.test.ts`); compressed input, length units and the new derive kinds run in the reused providers/workers. No setting, `globalState` key or `vscode.*` API.
+- **Policy: 93 CAD + 61 mesh + 4 mcp + 42 app + 110 kratos + 12 pdf = 322.** `cad__set_configuration` (write, scoped `path`), `cad__mesh_adjacency` (write, `path`/`outputPath`), `cad__register_meshes` (write, `path`/`targetPath`/`outputPath`), `mesh__mesh_graph` (write, `path`/`outputPath`) and `cad__analyze_surface_geometry` (read). The runtime tests call `mesh_adjacency`, `register_meshes`, `analyze_surface_geometry` and `mesh_graph` against the one staged 18.1.0 tree.
 
 **The mesh 5.29.0 → 5.30.0 bump (live saved monitors, Inspect Evaluation table, revolved `mesh_field_integrate`, hex20/quad8/wedge15 contours; KKSS 2.28.0; cad stays 3.34.0) needed no host code.** `RunManager` (shared, constructed in `index.ts`) now refreshes a live run's Monitors through a 2 s `MonitorRefreshThrottle` driven by its existing file watcher, using only `AbortController` — no new shim surface. No new tool names (315 policy rows unchanged), setting, worker, `globalState` key or markup; `test/meshMcpRuntime.test.ts` pins the new `revolveAbout` schema property and the prompt names it.
 

@@ -308,6 +308,8 @@
   "Up Axis": "Eje vertical",
   "Y up": "Y vertical",
   "Z up": "Z vertical",
+  "Single-Key Commands": "Comandos de una tecla",
+  "Single-letter command keys in the viewer: E Extrude, R Revolve, F Fillet, C Chamfer, H Hole, M Move, S Shell, P Linear Pattern, Q Measure, and Shift+R to repeat the last command. Off by default; they never fire in a text field. Ctrl+K opens the command search regardless.": "Teclas de una letra para comandos en el visor: E Extruir, R Revolución, F Redondeo, C Chaflán, H Agujero, M Mover, S Vaciado, P Patrón lineal, Q Medir y Mayús+R para repetir el último comando. Desactivado por defecto; nunca actúan en un campo de texto. Ctrl+K abre la búsqueda de comandos en cualquier caso.",
   "Default up-axis orientation for newly opened models.": "Orientación vertical predeterminada de los modelos recién abiertos.",
   "Show Grid & Axes on Open": "Mostrar cuadrícula y ejes al abrir",
   "Show the ground grid and axes helper when a model is opened.": "Mostrar la cuadrícula del suelo y los ejes al abrir un modelo.",

@@ -64,6 +64,12 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
     const intersections = await call('mesh_intersections', { path: source });
     expect(JSON.stringify(intersections)).toMatch(/clean/);
     expect(JSON.stringify(intersections)).not.toMatch(/"clean":false/);
+    // mesh 5.31.0 (meshio++ 18.1): the connectivity graph, and a METIS file.
+    expect(tools.find(t => t.name === 'mesh_graph')?.inputSchema.properties).toHaveProperty('outputPath');
+    const graphFile = path.join(dir, 'square.graph');
+    const graph = await call('mesh_graph', { path: source, outputPath: graphFile });
+    expect(JSON.stringify(graph)).toMatch(/bandwidth/i);
+    expect(fs.existsSync(graphFile)).toBe(true);
     const capabilities = await call('mesh_capabilities');
     expect(JSON.stringify(capabilities)).toContain('vtk');
     expect(capabilities.exportFidelity.version).toBe(2);

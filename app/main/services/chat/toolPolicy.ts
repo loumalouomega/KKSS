@@ -232,6 +232,14 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__find_mesh_intersections: "read",
   cad__measure_mesh_thickness: "read",
   cad__select_mesh_region: "read",
+  // cad 3.35.0/3.36.0 (meshio++ 18.1): configurations are a revision-guarded
+  // edit of the edits sidecar; the geodesic/UV/eigenmode analysis writes
+  // nothing; the graph tool and ICP registration write a file only when an
+  // outputPath is given, which is what makes them `write`.
+  cad__set_configuration: "write",
+  cad__analyze_surface_geometry: "read",
+  cad__mesh_adjacency: "write",
+  cad__register_meshes: "write",
   cad__iga_sample: "read",
   cad__iga_refine: "write",
   cad__iga_evaluate: "read",
@@ -331,6 +339,8 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // facts and ids only, no output path (mesh_derive findIntersections is the
   // writing twin and is already `write`).
   mesh__mesh_intersections: "read",
+  // mesh 5.31.0: the connectivity graph; optional METIS/Scotch file => write.
+  mesh__mesh_graph: "write",
   mesh__mesh_compare: "write",
   mesh__mesh_derive: "write",
   mesh__mesh_size: "read",

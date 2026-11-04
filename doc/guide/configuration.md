@@ -246,6 +246,7 @@ Generated from `app/main/services/settings/registry.ts`; do not edit between the
 | Up Axis | `cadPreview.upAxis` | one of `y`, `z` | `y` | nextOpen | `cadUpAxis` |
 | Show Grid & Axes on Open | `cadPreview.showGridAndAxesOnOpen` | boolean | `true` | nextOpen | `cadShowGridAndAxesOnOpen` |
 | Default Mesh Size | `cadPreview.defaultMeshSizePreset` | one of `coarse`, `medium`, `fine` | `medium` | nextOpen | `cadDefaultMeshSizePreset` |
+| Single-Key Commands | `cadPreview.singleKeyCommands` | boolean | `false` | nextOpen | `cadSingleKeyCommands` |
 | Tessellation Quality | `cadPreview.tessellationQuality` | one of `draft`, `standard`, `fine` | `standard` | nextRun | `cadTessellationQuality` |
 | OpenSCAD Binary | `cadPreview.openscadBinary` | path | `openscad` | nextOpen | `cadOpenscadBinary` |
 | OpenSCAD Backend | `cadPreview.openscadBackend` | one of `auto`, `cgal`, `manifold` | `auto` | nextOpen | `cadOpenscadBackend` |
@@ -384,10 +385,10 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | Server | Tools | Read | Write | Path-scoped |
 | --- | --- | --- | --- | --- |
 | `app` | 42 | 17 | 25 | 0 |
-| `cad` | 89 | 46 | 43 | 39 |
+| `cad` | 93 | 47 | 46 | 42 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
-| `mesh` | 60 | 22 | 38 | 31 |
+| `mesh` | 61 | 22 | 39 | 32 |
 | `pdf` | 12 | 12 | 0 | 0 |
 
 <details><summary><code>app</code> (42)</summary>
@@ -439,11 +440,12 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>cad</code> (89)</summary>
+<details><summary><code>cad</code> (93)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
 | `cad__analyze_passages` | read | — |
+| `cad__analyze_surface_geometry` | read | — |
 | `cad__apply_edit_ops` | write | paths: `path` |
 | `cad__apply_mesh_preset` | write | paths: `path`, `libraryPath` |
 | `cad__assign_layer` | write | paths: `path` |
@@ -503,11 +505,13 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__measure_exact` | read | — |
 | `cad__measure_mesh_deviation` | write | paths: `path`, `deviationMeshPath` |
 | `cad__measure_mesh_thickness` | read | — |
+| `cad__mesh_adjacency` | write | paths: `path`, `outputPath` |
 | `cad__mesh_cad_surface` | write | paths: `path`, `outputPath` |
 | `cad__pin_annotation` | write | paths: `path` |
 | `cad__project_to_cad` | write | paths: `path`, `cadPath`, `outputPath` |
 | `cad__promote_mesh_to_brep` | write | paths: `path`, `outputPath` |
 | `cad__recognize_primitives` | read | — |
+| `cad__register_meshes` | write | paths: `path`, `targetPath`, `outputPath` |
 | `cad__remesh_mesh` | write | paths: `path`, `outputPath` |
 | `cad__remove_edit_op` | write | paths: `path` |
 | `cad__render_ops_prefix` | read | — |
@@ -525,6 +529,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__search_standard_parts` | read | — |
 | `cad__segment_mesh_surface` | read | — |
 | `cad__select_mesh_region` | read | — |
+| `cad__set_configuration` | write | paths: `path` |
 | `cad__set_layer` | write | paths: `path` |
 | `cad__set_mesh_options` | write | paths: `path` |
 | `cad__set_part` | write | paths: `path` |
@@ -663,7 +668,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>mesh</code> (60)</summary>
+<details><summary><code>mesh</code> (61)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
@@ -701,6 +706,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `mesh__mesh_find_entity` | read | — |
 | `mesh__mesh_fit_primitives` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_flow_balance` | write | paths: `path`, `outputPath` |
+| `mesh__mesh_graph` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_info` | read | — |
 | `mesh__mesh_intersections` | read | — |
 | `mesh__mesh_pack_series` | write | paths: `path`, `outputPath` |

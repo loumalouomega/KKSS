@@ -308,6 +308,8 @@
   "Up Axis": "Up Axis",
   "Y up": "Y up",
   "Z up": "Z up",
+  "Single-Key Commands": "Single-Key Commands",
+  "Single-letter command keys in the viewer: E Extrude, R Revolve, F Fillet, C Chamfer, H Hole, M Move, S Shell, P Linear Pattern, Q Measure, and Shift+R to repeat the last command. Off by default; they never fire in a text field. Ctrl+K opens the command search regardless.": "Single-letter command keys in the viewer: E Extrude, R Revolve, F Fillet, C Chamfer, H Hole, M Move, S Shell, P Linear Pattern, Q Measure, and Shift+R to repeat the last command. Off by default; they never fire in a text field. Ctrl+K opens the command search regardless.",
   "Default up-axis orientation for newly opened models.": "Default up-axis orientation for newly opened models.",
   "Show Grid & Axes on Open": "Show Grid & Axes on Open",
   "Show the ground grid and axes helper when a model is opened.": "Show the ground grid and axes helper when a model is opened.",
