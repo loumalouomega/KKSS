@@ -251,6 +251,7 @@ import { toKkssUrl, allowRoot } from "./protocol";
 import { projectRoot } from "./services/projectRoot";
 import { showOpenDialog, showSaveDialog } from "./services/dialogs";
 import { showQuickPick, showInputBox } from "./services/quickPick";
+import { FIT_TO_CAD_LEVELS } from "../../cad/src/fitToCadLevels";
 import { stateStore } from "./services/stateStore";
 import { entryForVscode } from "./services/settings/registry";
 import { writeFileAtomic } from "./services/atomicWrite";
@@ -4465,6 +4466,16 @@ export class CadHost {
     }
     const meshFormat = doc.route.format as MeshParseFormat;
 
+    // cad 3.37's fit level: the defaults leave a rough or organic skin mostly faceted,
+    // refining the patches first is the measured fix. A dismissed pick writes nothing
+    // (provider.handleFitMeshToCad asks before the save dialog too).
+    const picked = (await showQuickPick(
+      FIT_TO_CAD_LEVELS.map((l) => ({ label: l.label, detail: l.detail })),
+      { title: "Fit to CAD", placeHolder: "How should the surface patches be fitted?" },
+    )) as { label: string } | undefined;
+    const level = FIT_TO_CAD_LEVELS.find((l) => l.label === picked?.label);
+    if (!level) return;
+
     const baseName = path.basename(doc.path).replace(/\.[^.]+$/, "");
     const savePath = await showSaveDialog({
       defaultPath: path.join(path.dirname(doc.path), `${baseName}.step`),
@@ -4477,7 +4488,7 @@ export class CadHost {
       const result = await cadCompute.fitMeshToCad(
         sourceBytes,
         meshFormat,
-        {},
+        { ...level.options },
         await this.gltfBuffers(meshFormat, sourceBytes)
       );
       await fs.writeFile(savePath, result.stepBytes);

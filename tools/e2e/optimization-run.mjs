@@ -327,6 +327,8 @@ export async function optimizationRunScenario(out) {
     // vertex morphing moved the nodes, so the frame IS the optimized geometry).
     // Same staged case, no re-solve; the built mesh MCP server does the work.
     {
+      // The refined fit of the 22k-face skin takes minutes, well past the harness default.
+      process.env.KKSS_MCP_TIMEOUT_MS ||= "900000";
       const { servers } = await import("../tutorials/mcp.mjs");
       const mcp = await servers();
       try {
@@ -335,6 +337,16 @@ export async function optimizationRunScenario(out) {
           meshPath: path.join(stage, "hook.mdpa"),
           mode: "shape",
           outputPath,
+          // The optimizer's skin is rough, and the kernel's default segmentation leaves ~95% of it as
+          // facets. Refining the patches (meshio++ 17.11.0 `refineSegmentation`) at a tolerance just
+          // above that roughness recovers planes, cylinders, cones, tori and B-splines for the rest
+          // (measured on this hook: 94.7% -> ~42% faceted area, ~3 min). `KKSS_OPT_FIT_MODE` adds
+          // meshio++'s `freeformMode` (adaptive/network/auto: slower still, worse deviation).
+          fitCad: {
+            refineSegmentation: true,
+            refineTolerance: 2e-3,
+            ...(process.env.KKSS_OPT_FIT_MODE ? { freeformMode: process.env.KKSS_OPT_FIT_MODE } : {}),
+          },
         });
         assert.ok(fs.existsSync(outputPath), "the optimized STEP was written");
         const { frame, frameStep, companions, notes } = exported;

@@ -24,7 +24,7 @@ export async function servers() {
   return {
     async call(name, args) {
       const [server, tool] = name.split('__');
-      const result = await clients[server].callTool({ name: tool, arguments: args }, undefined, { timeout: 240_000 });
+      const result = await clients[server].callTool({ name: tool, arguments: args }, undefined, { timeout: Number(process.env.KKSS_MCP_TIMEOUT_MS) || 240_000 });
       const text = (result.content ?? []).filter(c => c.type === 'text').map(c => c.text).join('\n');
       if (result.isError) throw new Error(`${name}: ${text}`);
       return result.structuredContent ?? JSON.parse(text);
