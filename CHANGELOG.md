@@ -5,6 +5,10 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.32.0] - 2026-11-05
+
+- chore: update **CAD-Preview to 3.38.0** and **mesh to 5.33.0** (meshio++ stays 18.3.0). CAD: a configuration can suppress operations (replay skips them under that configuration; Save refuses while the active configuration suppresses an unsaved op), **File ▸ Report Issue…** / ⚠ row / kernel-crash **Report issue…** open a redacted draft for review before anything is sent, a *Touchpad* navigation preset, history-row hover tint, collapsible operation forms, a centre-of-mass marker, and a fix that kept rule-defined Parts' new faces after an edit. Mesh: Mirror re-winds quadratic cells and mirrors SubModelParts with a plane picker, contour level labels, crack-free hex/wedge isosurfaces, Nodal revolved integrals, and wavelength advice in `case_validate`. The assistant knows the new `set_configuration` and `case_validate` parameters.
+
 ## [2.31.0] - 2026-11-05
 
 - feat: **bottom Output panel.** The terminal panel gains **Messages**, **Progress** and **Log** tabs and a memory footer (application and system RAM), and the Terminal tab now supports **several terminals** at once, VS Code style (a session list, `+`, kill, per-terminal restart; **View ▸ New Remote Shell…** opens a new terminal). Messages timestamps and filters what the app did (files opened, meshes generated, queue and solver outcomes, every notification); Progress lists CAD jobs, installs, downloads, queue tasks, Kratos jobs and assistant turns with elapsed time and Cancel where the work can stop; Log keeps console warnings/errors and solver output. New settings **Show Memory Usage** and **Open Messages on Errors**, and a read-only `app__messages_tail` assistant tool (325 policy rows).
@@ -403,6 +407,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.32.0]: https://github.com/loumalouomega/KKSS/compare/v2.31.0...v2.32.0
 [2.31.0]: https://github.com/loumalouomega/KKSS/compare/v2.30.0...v2.31.0
 [2.30.0]: https://github.com/loumalouomega/KKSS/compare/v2.29.0...v2.30.0
 [2.29.0]: https://github.com/loumalouomega/KKSS/compare/v2.28.0...v2.29.0

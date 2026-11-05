@@ -274,7 +274,7 @@ Generated from `app/main/services/settings/registry.ts`; do not edit between the
 | Up Axis | `cadPreview.upAxis` | one of `y`, `z` | `y` | nextOpen | `cadUpAxis` |
 | Show Grid & Axes on Open | `cadPreview.showGridAndAxesOnOpen` | boolean | `true` | nextOpen | `cadShowGridAndAxesOnOpen` |
 | Default Mesh Size | `cadPreview.defaultMeshSizePreset` | one of `coarse`, `medium`, `fine` | `medium` | nextOpen | `cadDefaultMeshSizePreset` |
-| Navigation Preset | `cadPreview.navigationPreset` | one of `default`, `fusion` | `default` | nextOpen | `cadNavigationPreset` |
+| Navigation Preset | `cadPreview.navigationPreset` | one of `default`, `fusion`, `touchpad` | `default` | nextOpen | `cadNavigationPreset` |
 | Single-Key Commands | `cadPreview.singleKeyCommands` | boolean | `false` | nextOpen | `cadSingleKeyCommands` |
 | Tessellation Quality | `cadPreview.tessellationQuality` | one of `draft`, `standard`, `fine` | `standard` | nextRun | `cadTessellationQuality` |
 | OpenSCAD Binary | `cadPreview.openscadBinary` | path | `openscad` | nextOpen | `cadOpenscadBinary` |

@@ -311,7 +311,6 @@
   "Navigation Preset": "Navigation Preset",
   "Default": "Default",
   "Fusion": "Fusion",
-  "How the mouse buttons navigate the 3D view. Default: left-drag orbits, middle-drag zooms, right-drag pans. Fusion: middle-drag pans, Shift+middle-drag orbits, the left button stays free for selection. The wheel always zooms.": "How the mouse buttons navigate the 3D view. Default: left-drag orbits, middle-drag zooms, right-drag pans. Fusion: middle-drag pans, Shift+middle-drag orbits, the left button stays free for selection. The wheel always zooms.",
   "Single-Key Commands": "Single-Key Commands",
   "Single-letter command keys in the viewer: E Extrude, R Revolve, F Fillet, C Chamfer, H Hole, M Move, S Shell, P Linear Pattern, Q Measure, and Shift+R to repeat the last command. Off by default; they never fire in a text field. Ctrl+K opens the command search regardless.": "Single-letter command keys in the viewer: E Extrude, R Revolve, F Fillet, C Chamfer, H Hole, M Move, S Shell, P Linear Pattern, Q Measure, and Shift+R to repeat the last command. Off by default; they never fire in a text field. Ctrl+K opens the command search regardless.",
   "Default up-axis orientation for newly opened models.": "Default up-axis orientation for newly opened models.",
@@ -1139,5 +1138,7 @@
   "Output panel": "Output panel",
   "Hide panel (Ctrl+`) — the shells keep running": "Hide panel (Ctrl+`) — the shells keep running",
   "Terminals": "Terminals",
-  "Opened {0}": "Opened {0}"
+  "Opened {0}": "Opened {0}",
+  "How the mouse and trackpad navigate the 3D view. Default: left-drag orbits, middle-drag zooms, right-drag pans. Fusion: middle-drag pans, Shift+middle-drag orbits, the left button stays free for selection. Touchpad: left-drag orbits, a two-finger scroll pans, a pinch zooms (a physical mouse wheel pans too). Otherwise the wheel zooms.": "How the mouse and trackpad navigate the 3D view. Default: left-drag orbits, middle-drag zooms, right-drag pans. Fusion: middle-drag pans, Shift+middle-drag orbits, the left button stays free for selection. Touchpad: left-drag orbits, a two-finger scroll pans, a pinch zooms (a physical mouse wheel pans too). Otherwise the wheel zooms.",
+  "Touchpad": "Touchpad"
 }

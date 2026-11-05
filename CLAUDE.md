@@ -1674,6 +1674,13 @@ release maintenance**; repeat it for every bump, including live MCP tool
 discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 42 app-owned
 workflow tools; 317 policy rows with the PDF reader server's twelve).
 
+**The cad 3.37.0 → 3.38.0 + mesh 5.32.0 → 5.33.0 jump (configuration op suppression, Report Issue, touchpad preset, mirror plane picker, Nodal revolved integrals, wavelength advice; KKSS 2.32.0) needed one correctness port, one handler, one setting value and prompt text — no new tool names (325 policy rows).**
+
+- **cad: suppression is an overlay, threaded through every replay like `bakedThrough`.** `CadHost.effectiveEdits()` = `applySuppression(currentEdits, activeConfiguration)`; every `replayTail(...)` consumer uses it, while the sidecar write, the `edits` post and the rebind diff keep `currentEdits` (the user's ● toggle stays independent). `runSave` refuses via `configSuppressionSaveRefusal()` before any bake — baking would drop the op from every configuration. A missed replay site silently shows unsuppressed geometry.
+- **cad: `rebindPartsOnChange` order flipped** (rebind, then `resolvePartSelectors`) to match the provider; the old order dropped a rule-defined Part's new-state faces.
+- **cad: `reportIssueRequest`** → `CadHost.reportIssue` (modal review, `shell.openExternal` only on click; no model bytes). `cad-preview.openSample` and the walkthrough stay unported (Help ▸ Examples covers samples).
+- **Setting:** `cadPreview.navigationPreset` gains `touchpad`. mesh: no host code (`meshBody()` imports the mirror-plane fragment; `case_validate`/`mesh_field_integrate` params are server-side).
+
 **The cad 3.36.0 → 3.37.0 + mesh 5.31.0 → 5.32.0 jump (meshio++ 18.1.0 → 18.3.0, navigation presets, history suppress/rename, `diagnostics_report`, cut cells, ALE panel, mirror/revolve/sector views; KKSS 2.30.0) needed one setting, two policy rows and prompt text — no host port.**
 
 - **Setting:** `cadPreview.navigationPreset` (`default|fusion`, `nextOpen`) is a registry row plus a `CAD_DEFAULT_KEYS` entry sent by `sendViewerDefaults()`; the rest of the CAD changes are webview-side. `rebindPartsOnChange` already compares JSON, so a suppressed/renamed op rebinds correctly through the existing `editsChanged` path.
