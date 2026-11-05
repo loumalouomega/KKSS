@@ -329,6 +329,8 @@ Generated from `app/main/services/settings/registry.ts`; do not edit between the
 | Font Size | `terminal.fontSize` | number | `13` | live | `terminal.fontSize` |
 | Font Family | `terminal.fontFamily` | string | empty | live | `terminal.fontFamily` |
 | Scrollback Lines | `terminal.scrollback` | number | `5000` | live | `terminal.scrollback` |
+| Show Memory Usage | `output.showMemory` | boolean | `true` | live | `output.showMemory` |
+| Open Messages on Errors | `output.autoReveal` | boolean | `false` | live | `output.autoReveal` |
 | Cursor Style | `terminal.cursorStyle` | one of `block`, `underline`, `bar` | `block` | live | `terminal.cursorStyle` |
 | Cursor Blink | `terminal.cursorBlink` | boolean | `true` | live | `terminal.cursorBlink` |
 
@@ -413,20 +415,21 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 | Server | Tools | Read | Write | Path-scoped |
 | --- | --- | --- | --- | --- |
-| `app` | 42 | 17 | 25 | 0 |
+| `app` | 43 | 18 | 25 | 0 |
 | `cad` | 95 | 48 | 47 | 43 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
 | `mesh` | 61 | 22 | 39 | 32 |
 | `pdf` | 12 | 12 | 0 | 0 |
 
-<details><summary><code>app</code> (42)</summary>
+<details><summary><code>app</code> (43)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
 | `app__check_simulation_environment` | read | — |
 | `app__goal_seek_iterates` | read | — |
 | `app__goal_seek_next` | read | — |
+| `app__messages_tail` | read | — |
 | `app__project_pack` | write | — |
 | `app__project_unpack` | write | — |
 | `app__queue_cancel` | write | — |

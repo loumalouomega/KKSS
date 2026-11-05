@@ -154,7 +154,29 @@ After an update, the next launch automatically pops up a **What's New** window l
 
 ## Embedded terminal
 
-The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**) opens a shell panel below the viewer — handy for launching Kratos runs (`python MainKratos.py`) while watching the model. The session starts in the current file's directory, runs PowerShell on Windows and your `$SHELL` on macOS/Linux (changeable under **Settings ▸ Terminal Shell**), keeps running while hidden (hide it with the **Hide** button in the panel's corner, the toolbar button, or ``Ctrl+` ``), and offers a restart when the shell exits. The panel is shared by both modes; its height is fixed in this version.
+The **Terminal** toolbar button (or ``Ctrl+` `` / **View ▸ Toggle Terminal**) opens the **bottom panel** below the viewer. It has four tabs — **Terminal**, **Messages**, **Progress** and **Log** — and a footer with the memory in use. The panel is shared by both modes and its height is fixed in this version; hide it with the **Hide** button in its corner, the toolbar button, or ``Ctrl+` ``. Everything in it keeps running while hidden.
+
+### Terminals
+
+![The Terminal tab with two shells](/screenshots/output-terminal.png)
+
+The Terminal tab is handy for launching Kratos runs (`python MainKratos.py`) while watching the model. You can have **several terminals** at once, as in VS Code: **+** opens another, the trash button (or the ✕ on its row) kills the selected one, and once there are two or more a list appears on the right to switch between them (arrow keys move through the list, `Delete` kills the focused one). Each terminal is its own shell with its own history; a hidden terminal keeps running. A new terminal starts in the current file's directory, runs PowerShell on Windows and your `$SHELL` on macOS/Linux (changeable under **Settings ▸ Terminal Shell**), and offers a restart (press Enter) when its shell exits. **View ▸ New Remote Shell…** opens `ssh -t <host>` in a *new* terminal and leaves the others alone. Up to eight terminals can be open at once.
+
+### Messages, Progress and Log
+
+![The Messages tab](/screenshots/output-messages.png)
+
+**Messages** is the application's own running commentary, timestamped and tagged with where it came from (`CAD`, `MESH`, `APP`, `SOLVER`, `QUEUE`, `MCP`…): files opened, meshes generated, solver and queue outcomes, server start-ups and every notification that flashed in the corner. Filter by level (information, warnings, errors), **Copy** the list as plain text, or **Clear** it. The Messages tab shows a red count when errors arrived while you were looking elsewhere; **Settings ▸ Terminal ▸ Open Messages on Errors** can also bring the panel up on its own.
+
+![The Progress tab with two running jobs](/screenshots/output-progress.png)
+
+**Progress** lists everything long-running: CAD meshing, remeshing and exports, viewer operations that report progress (MMG, streamlines, series scans), installs and downloads, queue tasks, Kratos jobs and the assistant's turns. Each row has a bar (indeterminate when the work cannot say how far along it is), the elapsed time and — where the work can be stopped — a **Cancel** button; the count on the tab is the number running. Finished rows stay until you press **Clear finished**.
+
+**Log** keeps the raw output: warnings and errors from the application's own console and the captured output of solver runs started from the viewer.
+
+The **footer** shows the application's memory (every process it runs: windows, the geometry and mesh workers, the assistant's tool servers) and the system's memory in use and in total. It updates every two seconds while the panel is showing, and can be switched off with **Settings ▸ Terminal ▸ Show Memory Usage**. These panels are in-memory only: they are empty after a restart, and nothing in them is sent anywhere.
+
+The assistant can read the same Messages, Log and Progress tabs (`app__messages_tail`, read-only), so you can ask it what a run reported.
 
 ## AI assistant
 
@@ -359,7 +381,7 @@ The **Edit** toolbar button opens the file currently loaded in the active mode (
 | **Mesh Viewer** | Large-mesh summary threshold, the **Timeline Frame Cache** (memory for recently viewed time-series frames), the **3D Renderer** (vtk.js, or the experimental VTK-wasm backend), the **Plot Extraction Cache** (a bounded on-disk cache so plots reopen after a restart without re-extracting), **Mesh Export Provenance**, and where the Flowgraph editor opens (below or beside the 3D view). |
 | **Kratos** | The Python interpreter, the compiled Kratos install and the extra environment variables used when a problemtype case is **Run**. A folder that does not look like a Kratos install is flagged. The same category holds **Solver Threads** (`0` = Auto), **Isolate Runs** and the **Runs Folder** for per-run workspaces, the problemtype, material-library and batch-recipe folders scanned under the project folder, whether solvers are stopped when KKSS quits, and a **Check simulation environment** action that reports on Home. The install path and environment also reach the assistant's Kratos tools; **Restart with current environment** applies a change without restarting KKSS. |
 | **Text Editor** | Font size and family, tab size, word wrap, line numbers. All apply immediately. |
-| **Terminal** | Shell (applies to the next session), font size and family, scrollback, cursor style and blink. |
+| **Terminal** | Shell (applies to the next terminal), font size and family, scrollback, cursor style and blink, the memory readout in the bottom panel's footer, and whether an error opens the Messages tab. |
 | **LLM Assistant** | Provider, **Tool Approval**, **MCP Servers** (opens the sidebar's manager for your own tool servers), **Standing Instructions & Skills** and the folder holding them, **Lifecycle Hooks**, API keys, models, the OpenAI-compatible base URL, the Codex / Claude Code model and executable, and the optional context-window and price rows for models KKSS has no reviewed figures for. Keys are write-only: the page shows whether one is stored, never the key itself. |
 | **MCP Server** | Enable the localhost endpoint, its port, which tools a client may call, and copying or regenerating the token (see *AI assistant ▸ Use your own MCP client* above). |
 | **Cloud Accounts** | Per provider: client ID, client secret, and connect / disconnect. Also the cache size limit, and clearing the cache. |
@@ -405,7 +427,7 @@ Opening a very large mesh can freeze a viewer for a while — that is normal, an
 | `Ctrl+Alt+P` | Screenshot the current view to PNG |
 | `Ctrl+0` | Back to the home screen (main menu) |
 | `Ctrl+1` / `Ctrl+2` | Switch to Pre-Processing / Post-Processing |
-| ``Ctrl+` `` | Toggle the embedded terminal |
+| ``Ctrl+` `` | Toggle the bottom panel (Terminal, Messages, Progress, Log) |
 | `Ctrl+Shift+L` | Toggle the AI chat sidebar |
 | `Ctrl+,` | Open the Settings page |
 | `Ctrl +` / `Ctrl -` / `Ctrl+Shift+0` | Interface scale: step up, step down, reset to 100 % (**View ▸ Zoom In / Zoom Out / Reset Zoom**) |

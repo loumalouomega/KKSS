@@ -24,7 +24,7 @@ Remote documents share the cloud staging cache and its size limit (**Settings �
 
 ## A shell on the remote host
 
-**View ▸ New Remote Shell…** lists your hosts and starts `ssh -t <host>` in the terminal panel, replacing the running shell. Only that one shell is remote: restarting it afterwards starts your local shell again.
+**View ▸ New Remote Shell…** lists your hosts and opens `ssh -t <host>` in a new terminal of the bottom panel and leaves your other terminals alone. Only that terminal is remote: restarting it after it exits starts your local shell again.
 
 ## Run the Kratos tools remotely
 

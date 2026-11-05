@@ -19,6 +19,7 @@
  */
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
+import { logMessage, progress as outputProgress } from "../outputBus";
 import { createCodexAgent } from "./agents/codex";
 import { createClaudeAgent } from "./agents/claude";
 import type { AgentSession, ToolOutcome } from "./agents/types";
@@ -363,7 +364,7 @@ mesh_field_integrate gives cell-measure-weighted totals and means per region, me
 signed section flux and pressure drops, including allSteps scans and optional pressureDensity/pressureReference \
 for explicit kinematic-pressure-to-Pa reporting (mass-flux density is never reused implicitly), \
 mesh_curvature reports surface curvature and its Gauss–Bonnet check, \
-set_configuration stores or activates a named design-table configuration (sparse variable overrides, applied before resolve so stored ops never change), and export/mesh/mass tools take a configuration name without changing the stored one (batch_export can write one file per configuration); meshio++ 18.1 adds the transform_mesh operations untangle, morph, registerRigid, geodesicDistance, laplacianEigenmodes, convertCoordinates and prepareMetric (also in the mesh viewer's Mesh Modification forms), the mesh_derive kinds convexHull, delaunay2d, reconstructSurface, estimateNormals and parameterize, and the facts tools analyze_surface_geometry (geodesic distance, UV-atlas quality, Laplace-Beltrami eigenvalues), mesh_adjacency / mesh_graph (graph degree and bandwidth, optionally a METIS .graph or Scotch .grf file) and register_meshes (rigid ICP; the matrix and RMS are facts, not a verdict that the shapes match), while headless readers open .gz and single-file .zip meshes and report a file's stated length unit; mesh_recover_flux recovers a per-area traction/flux field from nodal reactions on a SubModelPart, mesh_ale_quality checks a moving mesh frame by frame against its first frame, mesh_fit_primitives names the planes, spheres, cylinders, cones and tori of a surface mesh, mesh_intersections (and cad find_mesh_intersections) reports where a surface meets itself or a second surface, measure_mesh_thickness / the mesh thickness op measure wall thickness or clearance by ray casting (a ray that reaches nothing is a gap, never zero), select_mesh_region / the selectRegion op pick cells or points by box, plane, sphere, component or a seed-grown patch, and transform_mesh/mesh_derive gained tetToPoly, polyToTet, optimizeVolume (objective worst|energy), adapt, discretizeLevelset and metricFromHessian; case_run_quantity tabulates one saved monitor across isolated runs (axisymmetric meshes take revolveAbout in the measure, integral and flow-balance tools, always named explicitly and never inferred; CAD Parts may be defined by a plane, box or surface-type rule that is re-evaluated after every edit). set_edit_op_state suppresses or renames one history op (never one inside the baked prefix; remove_edit_op refuses to orphan dependents) and diagnostics_report returns a redacted issue draft as text without sending or opening anything; get_state shows each op's suppressed flag and label. mesh_info and mesh_convert take cadRead (deflection, angularDeflection, heal, sewTolerance) for STEP/IGES reads, and CAD's iga tools take it too (full meshio++ artifact only); mesh_derive adds cutLevelSet and cutQuadrature (exact level-set cuts and quadrature points, full artifact) and its slice takes parts; case_run_quantity takes plotParameter to plot a quantity against a case parameter, case_compare takes quantity, and problemtype_describe reports fieldUnits, \
+set_configuration stores or activates a named design-table configuration (sparse variable overrides, applied before resolve so stored ops never change), and export/mesh/mass tools take a configuration name without changing the stored one (batch_export can write one file per configuration); meshio++ 18.1 adds the transform_mesh operations untangle, morph, registerRigid, geodesicDistance, laplacianEigenmodes, convertCoordinates and prepareMetric (also in the mesh viewer's Mesh Modification forms), the mesh_derive kinds convexHull, delaunay2d, reconstructSurface, estimateNormals and parameterize, and the facts tools analyze_surface_geometry (geodesic distance, UV-atlas quality, Laplace-Beltrami eigenvalues), mesh_adjacency / mesh_graph (graph degree and bandwidth, optionally a METIS .graph or Scotch .grf file) and register_meshes (rigid ICP; the matrix and RMS are facts, not a verdict that the shapes match), while headless readers open .gz and single-file .zip meshes and report a file's stated length unit; mesh_recover_flux recovers a per-area traction/flux field from nodal reactions on a SubModelPart, mesh_ale_quality checks a moving mesh frame by frame against its first frame, mesh_fit_primitives names the planes, spheres, cylinders, cones and tori of a surface mesh, mesh_intersections (and cad find_mesh_intersections) reports where a surface meets itself or a second surface, measure_mesh_thickness / the mesh thickness op measure wall thickness or clearance by ray casting (a ray that reaches nothing is a gap, never zero), select_mesh_region / the selectRegion op pick cells or points by box, plane, sphere, component or a seed-grown patch, and transform_mesh/mesh_derive gained tetToPoly, polyToTet, optimizeVolume (objective worst|energy), adapt, discretizeLevelset and metricFromHessian; case_run_quantity tabulates one saved monitor across isolated runs (axisymmetric meshes take revolveAbout in the measure, integral and flow-balance tools, always named explicitly and never inferred; CAD Parts may be defined by a plane, box or surface-type rule that is re-evaluated after every edit). set_edit_op_state suppresses or renames one history op (never one inside the baked prefix; remove_edit_op refuses to orphan dependents) and diagnostics_report returns a redacted issue draft as text without sending or opening anything; get_state shows each op's suppressed flag and label. app__messages_tail reads the application's Output panel (Messages, Log or Progress) when you need to know what a run reported or whether something is still running. mesh_info and mesh_convert take cadRead (deflection, angularDeflection, heal, sewTolerance) for STEP/IGES reads, and CAD's iga tools take it too (full meshio++ artifact only); mesh_derive adds cutLevelSet and cutQuadrature (exact level-set cuts and quadrature points, full artifact) and its slice takes parts; case_run_quantity takes plotParameter to plot a quantity against a case parameter, case_compare takes quantity, and problemtype_describe reports fieldUnits, \
 mesh_compare reports structural and field differences, mesh_derive writes slices, isosurfaces, threshold regions, decimated surfaces, \
 sample grids or streamlines (its igaRefine/igaSample kinds run the IGA kernel on the NURBS side channel a read of a .cad.json, .step/.igs file or MFEM NURBS .mesh keeps on the model — refine h/p-refines exactly, sample tessellates to Lagrange cells; any applied edit drops the channel, and derived results never carry it; its generate, octreeMesh, octree and cadSurface kinds build primitive, octree-volume and B-rep-surface meshes with meshio++ 17.13, and mesh_transform gained segment and refinePatches ops), \
 and mesh_split / mesh_batch_transform write per-part or batch outputs. \
@@ -553,6 +554,8 @@ export class ChatService {
   /** The conversation on screen. Created or restored lazily — see ensureActive. */
   private active: LiveConversation | null = null;
   private busy = false;
+  /** Last seen state per MCP server, so only transitions are reported. */
+  private serverStates = new Map<string, string>();
   /** A UserPromptSubmit hook is running. `run()` is synchronous up to `busy = true`,
    *  so awaiting a hook before it would let a second send through the busy guard. */
   private promptHooking = false;
@@ -713,6 +716,15 @@ export class ChatService {
     // The hub owns the servers' lifecycle (disposed in index.ts on will-quit);
     // we only mirror their status into the sidebar and abort the loop on quit.
     this.deps.hub.onStatus((servers) => {
+      // Server up/down transitions are worth a line in the Output panel's Messages.
+      for (const server of servers) {
+        const before = this.serverStates.get(server.key);
+        if (before !== server.state) {
+          this.serverStates.set(server.key, server.state);
+          if (server.state === "ready") logMessage("info", "mcp", `${server.name} ready`);
+          else if (server.state === "unavailable") logMessage("warn", "mcp", `${server.name} unavailable${server.error ? `: ${server.error}` : ""}`);
+        }
+      }
       this.send({ type: "servers", servers });
       this.sendMcpManager();
     });
@@ -1561,6 +1573,8 @@ export class ChatService {
     this.abort = new AbortController();
     const signal = this.abort.signal;
     let outcome: "done" | "error" | "stopped" = "done";
+    // The Output panel's Progress tab lists the running turn and can stop it.
+    const tracked = outputProgress.begin({ source: "chat", label: "Assistant", cancel: () => this.abort?.abort() });
 
     // The context suffix rides on a copy of the transcript so it never
     // accumulates in the stored history.
@@ -1691,6 +1705,7 @@ export class ChatService {
         this.pushError(convo, error instanceof Error ? error.message : String(error), "other");
       }
     } finally {
+      outputProgress.finish(tracked, outcome === "stopped" ? "cancelled" : outcome === "error" ? "failed" : "done");
       this.abort = null;
       this.busy = false;
       this.sendTo(convo, { type: "busy", busy: false });

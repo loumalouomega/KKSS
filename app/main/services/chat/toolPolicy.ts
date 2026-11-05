@@ -134,6 +134,8 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // selecting, navigating, creating, and duplicating alter user-visible state.
   app__check_simulation_environment: "read",
   app__skill_load: "read",
+  // The Output panel's Messages/Log/Progress tabs, read-only (outputTools.ts).
+  app__messages_tail: "read",
   app__study_list: "read",
   app__study_open: "write",
   app__study_attach_mesh: "write",

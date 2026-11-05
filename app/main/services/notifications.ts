@@ -1,4 +1,5 @@
 import { t } from "../../shared/i18n";
+import { logMessage, progress } from "./outputBus";
 /**
  * Toast + cancellable-progress notifications, rendered by the shell toolbar
  * renderer. Replaces vscode.window.show*Message (non-blocking form) and
@@ -32,6 +33,9 @@ export interface ToastAction {
 }
 
 export function toast(kind: "info" | "warning" | "error", text: string, action?: ToastAction): void {
+  // Every toast also lands in the Output panel's Messages tab, so what flashed
+  // past in the corner can be read back.
+  logMessage(kind === "warning" ? "warn" : kind, "app", text);
   const id = nextId++;
   if (!action) {
     sendShell({ type: "toast", id, kind, text });
@@ -66,10 +70,22 @@ export function progressToast(text: string, cancellable: boolean): ProgressToast
   if (cancellable) {
     buttonWaiters.set(id, () => cancelCb?.());
   }
+  // The Progress tab mirrors every progress toast (installs, downloads,
+  // withProgress from the viewers) and can cancel the cancellable ones too.
+  let cancelled = false;
+  const tracked = progress.begin({
+    source: "app",
+    label: text,
+    cancel: cancellable ? () => { cancelled = true; cancelCb?.(); } : undefined,
+  });
   return {
-    report: (t: string) => sendShell({ type: "toastUpdate", id, text: t }),
+    report: (t: string) => {
+      if (t) progress.update(tracked, { label: t });
+      sendShell({ type: "toastUpdate", id, text: t });
+    },
     done: () => {
       buttonWaiters.delete(id);
+      progress.finish(tracked, cancelled ? "cancelled" : "done");
       sendShell({ type: "toastUpdate", id, done: true });
     },
     onCancel: (cb: () => void) => {

@@ -11,6 +11,7 @@ import { Worker } from "node:worker_threads";
 import * as path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
+import { progress } from "./services/outputBus";
 import type * as occt from "../../cad/src/occtService";
 import type * as gmsh from "../../cad/src/gmshService";
 import type * as massProps from "../../cad/src/massProperties";
@@ -155,7 +156,7 @@ function call<T>(method: string, args: unknown[]): Promise<T> {
   });
 }
 
-export async function runOwnedJob<T>(identity: { ownerId: string; requestId: string; jobId?: string }, action: () => Promise<T>): Promise<T> {
+export async function runOwnedJob<T>(identity: { ownerId: string; requestId: string; jobId?: string; /** What the Progress tab calls it (default: "CAD job"). */ label?: string }, action: () => Promise<T>): Promise<T> {
   if (!identity.ownerId.trim() || !identity.requestId.trim()) throw new Error("Owned CAD jobs require stable ownerId and requestId values.");
   const key = `${identity.ownerId}\0${identity.requestId}`;
   if (jobs.has(key)) throw new Error(`CAD job ${identity.requestId} was already registered for this owner.`);
@@ -166,16 +167,25 @@ export async function runOwnedJob<T>(identity: { ownerId: string; requestId: str
     if (!first || ["queued", "running", "cancelling"].includes(first[1].state)) break;
     jobs.delete(first[0]);
   }
+  // Owned CAD jobs (meshing, remesh, export, bake…) appear on the Output panel's
+  // Progress tab, cancellable through the same owner-scoped cancel.
+  const tracked = progress.begin({
+    source: "cad",
+    label: `${identity.label ?? "CAD job"} · ${path.basename(identity.ownerId)}`,
+    cancel: () => { cancelOwnedJob(identity.ownerId, identity.requestId); },
+  });
   return jobStorage.run({ key, record }, async () => {
     try {
       const value = await action();
       if (["cancelling", "cancelled"].includes(record.state)) throw new Error(`CAD job ${record.requestId} was cancelled by owner ${record.ownerId}.`);
       record.state = "succeeded"; record.finishedAt = Date.now();
+      progress.finish(tracked, "done");
       return value;
     } catch (error) {
       record.state = ["cancelling", "cancelled"].includes(record.state) ? "cancelled" : "failed";
       record.finishedAt = Date.now();
       record.message = error instanceof Error ? error.message : String(error);
+      progress.finish(tracked, record.state === "cancelled" ? "cancelled" : "failed", record.message);
       throw error;
     }
   });
