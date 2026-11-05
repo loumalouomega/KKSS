@@ -249,9 +249,15 @@ try {
       if (solveFailed) throw solveFailed;
       const verification = await exec(python, [path.join(root, 'tools/tutorials/verify.py'), c.id, dir], { maxBuffer: 1024 * 1024 });
       const report = JSON.parse(verification.stdout);
+      // Opt-in (the scheduled verification workflow sets it): prove each single-physics check fails on deliberately wrong data.
+      // A control that is not detected, or trips a different check, fails the case.
+      let controls;
+      if (process.env.KKSS_VERIFY_CONTROLS === '1' && ['structural', 'thermal', 'potential-flow', 'shallow-water', 'fluid'].includes(c.id)) {
+        controls = [JSON.parse((await exec(python, [path.join(root, 'tools/tutorials/verify.py'), '--controls', c.id, dir], { maxBuffer: 1024 * 1024 })).stdout)];
+      }
       const inputs = {};
       for (const name of await fs.readdir(dir)) if (/\.(mdpa|json|py|stp|brep|svg)$/.test(name) && !name.includes('preparation') && name !== 'recipe.json') inputs[name] = createHash('sha256').update(await fs.readFile(path.join(dir, name))).digest('hex');
-      await fs.writeFile(path.join(dir, 'verification.json'), JSON.stringify({ ...report, inputs }, null, 2) + '\n');
+      await fs.writeFile(path.join(dir, 'verification.json'), JSON.stringify({ ...report, ...(controls ? { controls } : {}), inputs }, null, 2) + '\n');
       console.log(`${c.id}: ${JSON.stringify(report.checks)}`);
     } catch (e) {
       failed = true;

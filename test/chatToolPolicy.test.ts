@@ -232,7 +232,7 @@ describe("the table itself", () => {
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(325);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(326);
     expect(TOOL_ACCESS.cad__diagnostics_report).toBe("read");
     expect(TOOL_ACCESS.cad__set_edit_op_state).toBe("write");
     expect(TOOL_ACCESS.app__messages_tail).toBe("read");
@@ -252,7 +252,7 @@ describe("the table itself", () => {
       expect(TOOL_ACCESS[n as keyof typeof TOOL_ACCESS]).toBe("write");
     }
     expect(meta).toHaveLength(4);
-    expect(app).toHaveLength(43);
+    expect(app).toHaveLength(44);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
     expect(kratos).toHaveLength(110);
     const pdf = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("pdf__"));
@@ -434,6 +434,7 @@ describe("the table itself", () => {
       "app__study_import_run",
       "app__study_open",
       "app__study_region_rename",
+      "app__study_relink_reference",
       "app__study_relink_source",
       "app__study_select",
       "app__study_set_settings",

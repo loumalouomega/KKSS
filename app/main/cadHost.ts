@@ -84,11 +84,13 @@ import { finishOpen } from "./services/performance";
  * another writer made) — it is only ever set by the edits watcher, which KKSS
  * does not have, and the field is optional for exactly that reason.
  */
-import { dialog, ipcMain, WebContentsView } from "electron";
+import { app, dialog, ipcMain, shell, WebContentsView } from "electron";
+import { buildIssueDraft, issueUrl } from "../../cad/src/issueDraft";
 import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
 import { toast } from "./services/notifications";
 import * as path from "node:path";
+import * as os from "node:os";
 import { t } from "../shared/i18n";
 import {
   routeFile,
@@ -192,7 +194,7 @@ import {
   type SaveOutcome,
 } from "./cadSaveInPlace";
 import { normalizeViewerDefaults } from "../../cad/src/viewerDefaults";
-import { effectiveVariables, validateConfigurationState, type Configuration, type ConfigurationState } from "../../cad/src/configurations";
+import { applySuppression, effectiveVariables, findConfiguration, validateConfigurationState, type Configuration, type ConfigurationState } from "../../cad/src/configurations";
 import { validateEditOp, type EditOp } from "../../cad/src/editOps";
 import { resolvePlaneRefs } from "../../cad/src/planeRefs";
 import { emitPrimitiveOps } from "../../cad/src/primitiveEmit";
@@ -607,6 +609,55 @@ export class CadHost {
   private configState(): ConfigurationState {
     return { configurations: this.currentConfigurations, activeConfiguration: this.currentActiveConfiguration };
   }
+  /** The ops every replay consumes: `currentEdits` with the ACTIVE configuration's suppressed indices overlaid (clones
+   *  carrying `suppressed: true`). `currentEdits` itself — persisted, posted back and rebound — is never touched, so the
+   *  user's own suppress toggle stays independent of the configuration's (cad 3.38.0, provider.effectiveEdits). */
+  private effectiveEdits(): EditOp[] {
+    return applySuppression(this.currentEdits, findConfiguration(this.configState(), this.currentActiveConfiguration));
+  }
+  /** Saving bakes the replayed tail into the source and moves the watermark past every op, so a tail op the active
+   *  configuration suppresses would vanish from every configuration. Returns the refusal text, or null. */
+  private configSuppressionSaveRefusal(): string | null {
+    const active = findConfiguration(this.configState(), this.currentActiveConfiguration);
+    const hit = (active?.suppressed ?? []).filter((i) => i >= this.currentBakedThrough && i < this.currentEdits.length);
+    return hit.length === 0
+      ? null
+      : `configuration "${active!.name}" suppresses unsaved op(s) ${hit.join(", ")}; saving would bake that suppression into the file for every configuration. Switch to Base (or unsuppress them) first.`;
+  }
+  /**
+   * File ▸ Report Issue… / a ⚠ row / a kernel-crash button (cad 3.38.0, provider.reportIssue). Builds a
+   * redacted draft (no model bytes), shows it in a modal for review and — only on an explicit click —
+   * hands the prefilled `issues/new` URL to the OS browser. Nothing is sent automatically.
+   */
+  private async reportIssue(modelPath: string, error?: string, opIndex?: number): Promise<void> {
+    try {
+      const outcomes = this.lastOpOutcomes;
+      const failed = opIndex !== undefined
+        ? outcomes.find((o) => o.index === opIndex)
+        : outcomes.find((o) => !o.applied && !o.suppressed);
+      const draft = buildIssueDraft({
+        modelPath,
+        op: failed ? this.currentEdits[failed.index] : undefined,
+        outcome: failed,
+        error,
+        env: { extensionVersion: `KKSS ${app.getVersion()}`, vscodeVersion: `Electron ${process.versions.electron}`, platform: `${process.platform} ${process.arch}`, kernels: {} },
+        scrub: [os.homedir(), path.dirname(modelPath)],
+      });
+      const { response } = await dialog.showMessageBox({
+        type: "question",
+        buttons: ["Open on GitHub", "Cancel"],
+        defaultId: 1,
+        cancelId: 1,
+        message: draft.title,
+        detail: `${draft.body.slice(0, 3000)}\n\nReview the draft. Nothing is sent until you open it on GitHub.`,
+      });
+      if (response === 0) await shell.openExternal(issueUrl("https://github.com/loumalouomega/CAD-Preview", draft));
+    } catch (err) {
+      this.post({ type: "error", message: `Could not prepare the issue draft: ${(err as Error).message}` });
+    }
+  }
+  /** Outcomes of the last geometry post (full-history rows) — what Report Issue names. */
+  private lastOpOutcomes: import("../../cad/src/editOps").OpOutcome[] = [];
   /** ops[0..bakedThrough) are already baked into the CAD source file itself
    *  (by `cad__save_model` or another process) — only the tail is ever
    *  replayed against the loaded body. Read from the sidecar and advanced by
@@ -934,6 +985,12 @@ export class CadHost {
     await this.flushSidecars();
     if (!this.isDocumentDirty()) return true;
 
+    const suppressionRefusal = this.configSuppressionSaveRefusal();
+    if (suppressionRefusal) {
+      this.post({ type: "error", message: `Save in place refused: ${suppressionRefusal}` });
+      return false;
+    }
+
     // Settle a transaction a previous run (or `cad__save_model`) left in flight
     // BEFORE opening a new one, so two saves can never stack their markers. A
     // `finish` moves the watermark and a `restore` rewrote the source, so the
@@ -1185,7 +1242,7 @@ export class CadHost {
         // cad 2.5.0: a profile op may be authored on a named plane and carry
         // no center/normal/up of its own — resolve against the current planes
         // before every replay, or the kernel skips it (provider.loadModel).
-        resolvePlaneRefs(replayTail(this.currentEdits, this.currentBakedThrough), this.currentPlanes).ops,
+        resolvePlaneRefs(replayTail(this.effectiveEdits(), this.currentBakedThrough), this.currentPlanes).ops,
         autoFit
       ).then((csgColors) => this.autoCreateCsgColorParts(csgColors));
     }
@@ -1208,7 +1265,7 @@ export class CadHost {
     const doc = this.doc;
     if (!groups || groups.length === 0 || !doc) return;
     try {
-      if (replayTail(this.currentEdits, this.currentBakedThrough).length > 0) return;
+      if (replayTail(this.effectiveEdits(), this.currentBakedThrough).length > 0) return;
       if (this.currentParts.length > 0 || (await readParts(doc.path)).length > 0) return;
       const parts = buildPartsFromCsgColors(groups);
       if (parts.length === 0) return;
@@ -1247,25 +1304,10 @@ export class CadHost {
       for (const w of scadWarnings) this.post({ type: "status", text: w });
       const bytes = src.bytes;
       const format = src.format as OcctSourceFormat;
-      // Stored selectors resolve FIRST (authoritative — a query that hits is
-      // exact by construction) and the heuristic rebind runs on the result, so
-      // a query-covered part is never also geometrically remapped underneath
-      // its own resolution (provider.rebindPartsOnChange, cad 1.9.0).
-      const selected = await cadCompute.resolvePartSelectors(
-        this.runtimePath,
-        bytes,
-        format,
-        newTail,
-        this.currentParts
-      );
-      if (epoch !== this.epoch) return;
-      // The provider gates on reference identity; a structured clone across the
-      // worker RPC is always a fresh array, so compare by value instead (the
-      // same reason the rebind below gates on `stats`).
-      const selectorsChangedIds =
-        JSON.stringify(selected.parts) !== JSON.stringify(this.currentParts);
-      if (selectorsChangedIds) this.currentParts = selected.parts;
-      for (const warning of selected.warnings) this.post({ type: "status", text: warning });
+      // Rebind FIRST (cad 3.38.0): the geometric pass maps the stored pre-op ids onto the new
+      // state; stored selectors then re-resolve against it, so their new-state ids are never
+      // seen by the rebind (a rule's freshly added face would read as an unknown pre-op id and
+      // be dropped).
       const result = await cadCompute.rebindPartsAcrossOps(
         this.runtimePath,
         bytes,
@@ -1291,6 +1333,19 @@ export class CadHost {
       if (partsChanged) this.currentParts = result.parts;
       if (annotationsChanged) this.currentAnnotations = result.annotations;
       if (layersChanged) this.currentLayers = result.layers;
+      const selected = await cadCompute.resolvePartSelectors(
+        this.runtimePath,
+        bytes,
+        format,
+        newTail,
+        this.currentParts
+      );
+      if (epoch !== this.epoch) return;
+      // Reference identity can't survive the worker RPC — compare by value.
+      const selectorsChangedIds =
+        JSON.stringify(selected.parts) !== JSON.stringify(this.currentParts);
+      if (selectorsChangedIds) this.currentParts = selected.parts;
+      for (const warning of selected.warnings) this.post({ type: "status", text: warning });
       if (partsChanged || selectorsChangedIds) {
         await writeParts(doc.path, this.currentParts);
         this.post({ type: "parts", parts: this.currentParts });
@@ -1581,7 +1636,7 @@ export class CadHost {
             kind: "brep",
             bytes: src.bytes,
             format: src.format as OcctSourceFormat,
-            ops: replayTail(this.currentEdits, this.currentBakedThrough),
+            ops: replayTail(this.effectiveEdits(), this.currentBakedThrough),
           };
         } else if (input.kind === "stl") {
           reference = { kind: "stl", stlBytes: input.stlBytes };
@@ -1997,7 +2052,7 @@ export class CadHost {
           this.runtimePath,
           bytes,
           src.format as OcctSourceFormat,
-          replayTail(this.currentEdits, this.currentBakedThrough),
+          replayTail(this.effectiveEdits(), this.currentBakedThrough),
           msg.entityId
         );
         this.post({ type: "massPropertiesResult", requestId: msg.requestId, properties });
@@ -2019,7 +2074,7 @@ export class CadHost {
           this.runtimePath,
           source.bytes,
           source.format as Extract<CadFormat, "step" | "iges" | "brep" | "csg">,
-          replayTail(this.currentEdits, this.currentBakedThrough)
+          replayTail(this.effectiveEdits(), this.currentBakedThrough)
         );
         this.post({ type: "holeTableResult", requestId: msg.requestId, rows: result.rows, warnings: [...sourceWarnings, ...result.warnings] });
       } catch (err) {
@@ -2043,7 +2098,7 @@ export class CadHost {
           this.runtimePath,
           bytes,
           src.format as OcctSourceFormat,
-          replayTail(this.currentEdits, this.currentBakedThrough),
+          replayTail(this.effectiveEdits(), this.currentBakedThrough),
           msg.kind,
           msg.entityIdA,
           msg.entityIdB
@@ -2123,7 +2178,7 @@ export class CadHost {
           this.runtimePath,
           bytes,
           src.format as OcctSourceFormat,
-          replayTail(this.currentEdits, this.currentBakedThrough),
+          replayTail(this.effectiveEdits(), this.currentBakedThrough),
           msg.entityId
         );
         this.post({ type: "entityFactsResult", requestId: msg.requestId, facts });
@@ -2182,7 +2237,7 @@ export class CadHost {
           this.runtimePath,
           src.bytes,
           src.format as OcctSourceFormat,
-          replayTail(this.currentEdits, this.currentBakedThrough),
+          replayTail(this.effectiveEdits(), this.currentBakedThrough),
           idsA,
           idsB,
           ...(msg.minClearance !== undefined ? [msg.minClearance] : [])
@@ -2232,7 +2287,7 @@ export class CadHost {
           this.runtimePath,
           src.bytes,
           src.format as OcctSourceFormat,
-          replayTail(this.currentEdits, this.currentBakedThrough),
+          replayTail(this.effectiveEdits(), this.currentBakedThrough),
           usable.map((p) => p.volumes),
           // cad 2.5.0's bounded run: pairs past the budget come back as
           // `unchecked` placeholders (still one row per pair, so the count
@@ -2299,7 +2354,7 @@ export class CadHost {
           this.runtimePath,
           src.bytes,
           src.format as OcctSourceFormat,
-          replayTail(this.currentEdits, this.currentBakedThrough),
+          replayTail(this.effectiveEdits(), this.currentBakedThrough),
           parts
         );
         this.post({
@@ -2328,7 +2383,7 @@ export class CadHost {
           this.runtimePath,
           src.bytes,
           src.format as OcctSourceFormat,
-          replayTail(this.currentEdits, this.currentBakedThrough)
+          replayTail(this.effectiveEdits(), this.currentBakedThrough)
         );
         this.post({ type: "primitiveRecognizeResult", requestId: msg.requestId, report });
       } catch (err) {
@@ -2353,7 +2408,7 @@ export class CadHost {
           this.runtimePath,
           src.bytes,
           src.format as OcctSourceFormat,
-          replayTail(this.currentEdits, this.currentBakedThrough)
+          replayTail(this.effectiveEdits(), this.currentBakedThrough)
         );
         if (epoch !== this.epoch) return;
         for (const warning of scadWarnings) this.post({ type: "status", text: warning });
@@ -2393,7 +2448,7 @@ export class CadHost {
           this.runtimePath,
           src.bytes,
           src.format as OcctSourceFormat,
-          replayTail(this.currentEdits, this.currentBakedThrough),
+          replayTail(this.effectiveEdits(), this.currentBakedThrough),
           { targetCells: msg.targetCells, sizeMax, parts: this.currentParts }
         );
         if (epoch !== this.epoch) return;
@@ -2427,7 +2482,7 @@ export class CadHost {
         // kernel only ever sees the replay tail, so it needs a tail-relative
         // index — and an op inside the baked prefix can't be re-synthesized
         // without rewriting the source file, since the kernel never replays it.
-        const tailEdits = replayTail(this.currentEdits, this.currentBakedThrough);
+        const tailEdits = replayTail(this.effectiveEdits(), this.currentBakedThrough);
         const replayOp = msg.op - this.currentBakedThrough;
         if (!Number.isInteger(replayOp) || replayOp < 0 || replayOp >= tailEdits.length) {
           throw new Error(
@@ -2626,7 +2681,7 @@ export class CadHost {
             name = path.basename(doc.path);
             format = doc.route.format;
             companions = await this.resolveMeshioCompanions(doc.path, format, bytes);
-            if (replayTail(this.currentEdits, this.currentBakedThrough).length) {
+            if (replayTail(this.effectiveEdits(), this.currentBakedThrough).length) {
               warnings.push(
                 "File mode remeshes the original FE mesh; display edits are not baked in. Use generated mode for edited geometry."
               );
@@ -2769,6 +2824,11 @@ export class CadHost {
       return;
     }
 
+    if (msg.type === "reportIssueRequest") {
+      void this.reportIssue(doc.path, msg.error, msg.opIndex);
+      return;
+    }
+
     if (
       msg.type === "exportSvgRequest" ||
       msg.type === "exportDxfRequest" ||
@@ -2799,7 +2859,7 @@ export class CadHost {
         const planes = await readPlanes(doc.path).catch(() => [] as ConstructionPlane[]);
         const resolvedDraft = resolvePlaneRefs([clean], planes).ops[0] ?? clean;
         const resolvedOps = resolvePlaneRefs(
-          replayTail(this.currentEdits, this.currentBakedThrough),
+          replayTail(this.effectiveEdits(), this.currentBakedThrough),
           planes
         ).ops;
         const result = await cadCompute.loadBRepCachedInWorker(
@@ -3045,7 +3105,7 @@ export class CadHost {
             kind: "brep",
             bytes: src.bytes,
             format: src.format as OcctSourceFormat,
-            ops: replayTail(this.currentEdits, this.currentBakedThrough),
+            ops: replayTail(this.effectiveEdits(), this.currentBakedThrough),
           };
         } else {
           if (DISPLAY_ONLY_MESH_FORMATS.has(doc.route.format)) {
@@ -3096,7 +3156,7 @@ export class CadHost {
             kind: "brep",
             bytes: src.bytes,
             format: src.format as OcctSourceFormat,
-            ops: replayTail(this.currentEdits, this.currentBakedThrough),
+            ops: replayTail(this.effectiveEdits(), this.currentBakedThrough),
           };
         } else {
           if (DISPLAY_ONLY_MESH_FORMATS.has(doc.route.format)) {
@@ -3397,6 +3457,7 @@ export class CadHost {
         this.currentBakedThrough,
         this.currentEdits.slice(0, this.currentBakedThrough).map((o) => o.op)
       );
+      this.lastOpOutcomes = rebased.opOutcomes;
       this.post({
         type: "geometry",
         autoFit,
@@ -3652,7 +3713,7 @@ export class CadHost {
         sourceBytes,
         src.format as OcctSourceFormat,
         "step",
-        replayTail(this.currentEdits, this.currentBakedThrough),
+        replayTail(this.effectiveEdits(), this.currentBakedThrough),
         unit,
         false
       );
@@ -3661,7 +3722,7 @@ export class CadHost {
     if (!doc.route) return undefined;
     const warnings: string[] = [];
     const input = await resolveCadMeshInput(doc.path, doc.route,
-      replayTail(this.currentEdits, this.currentBakedThrough), stl, unit, cadCompute, warnings);
+      replayTail(this.effectiveEdits(), this.currentBakedThrough), stl, unit, cadCompute, warnings);
     for (const text of warnings) this.post({ type: "status", text });
     return input;
   }
@@ -3721,7 +3782,7 @@ export class CadHost {
             sourceBytes,
             src.format as OcctSourceFormat,
             targetFormat as Extract<CadFormat, "step" | "iges" | "brep">,
-            replayTail(this.currentEdits, this.currentBakedThrough),
+            replayTail(this.effectiveEdits(), this.currentBakedThrough),
             unit
           );
         }
@@ -3858,7 +3919,7 @@ export class CadHost {
         this.runtimePath,
         src.bytes,
         src.format as OcctSourceFormat,
-        replayTail(this.currentEdits, this.currentBakedThrough),
+        replayTail(this.effectiveEdits(), this.currentBakedThrough),
         this.currentParts
       );
       if (epoch !== this.epoch) return; // document changed while resolving
@@ -4123,7 +4184,7 @@ export class CadHost {
                 kind: "brep",
                 bytes,
                 format: src.format as OcctSourceFormat,
-                ops: replayTail(this.currentEdits, this.currentBakedThrough),
+                ops: replayTail(this.effectiveEdits(), this.currentBakedThrough),
               }
             : route.format === "gltf"
               ? {
@@ -4221,7 +4282,7 @@ export class CadHost {
                 kind: "brep",
                 bytes,
                 format: src.format as OcctSourceFormat,
-                ops: replayTail(this.currentEdits, this.currentBakedThrough),
+                ops: replayTail(this.effectiveEdits(), this.currentBakedThrough),
               }
             : route.format === "gltf"
               ? { kind: "gltf", bytes, externalBuffers: await this.gltfBuffers("gltf", bytes) }
@@ -4559,7 +4620,7 @@ export class CadHost {
           this.runtimePath,
           src.bytes,
           src.format as OcctSourceFormat,
-          replayTail(this.currentEdits, this.currentBakedThrough)
+          replayTail(this.effectiveEdits(), this.currentBakedThrough)
         );
         const emission = emitPrimitiveOps(report, {
           existingVariableNames: this.currentVariables.map((v) => v.name),
@@ -4602,7 +4663,7 @@ export class CadHost {
         this.runtimePath,
         src.bytes,
         src.format as OcctSourceFormat,
-        replayTail(this.currentEdits, this.currentBakedThrough)
+        replayTail(this.effectiveEdits(), this.currentBakedThrough)
       );
       const emission = emitPrimitiveOps(report, {
         existingVariableNames: this.currentVariables.map((v) => v.name),

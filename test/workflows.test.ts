@@ -917,6 +917,17 @@ describe('shared workflow tools', () => {
     let current = (await service.store().read())!.studies[0];
     expect(current.source.path).toBe(replacement);
     expect((await readiness(root, current)).mesh).toBe('stale');
+    // Relocation: the mesh moved with identical bytes is accepted; different bytes are refused and nothing changes.
+    const moved = path.join(externalDir, 'moved.mdpa'), other = path.join(externalDir, 'other.mdpa');
+    await fs.copyFile(mesh, moved); await fs.writeFile(other, 'Begin Nodes\nEnd Nodes\n# changed\n');
+    const refused = await invoke('study_relink_reference', { studyId: study.id, role: 'mesh', path: other }) as { relinked: boolean; expectedRevision?: string };
+    expect(refused.relinked).toBe(false); expect(refused.expectedRevision).toMatch(/^[a-f0-9]{64}$/);
+    expect((await service.store().read())!.studies[0].mesh!.path).toBe('beam.mdpa');
+    const relocated = await invoke('study_relink_reference', { studyId: study.id, role: 'mesh', path: moved }) as { relinked: boolean };
+    expect(relocated.relinked).toBe(true);
+    expect((await service.store().read())!.studies[0].mesh).toMatchObject({ kind: 'external', path: moved });
+    await expect(invoke('study_relink_reference', { studyId: study.id, role: 'source', path: moved })).rejects.toThrow(/study_relink_source/);
+    await expect(invoke('study_relink_reference', { studyId: study.id, role: 'handoff', path: moved })).rejects.toThrow(/no handoff/);
     const copied = await invoke('study_copy_source_into_project', { studyId: study.id }) as { source: { kind: string; path: string } };
     expect(copied.source.kind).toBe('project');
     expect(await fs.readFile(replacement, 'utf8')).toBe('replacement');

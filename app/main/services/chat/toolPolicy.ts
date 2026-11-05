@@ -144,6 +144,7 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   app__study_copy_source_into_project: "write",
   app__study_import_run: "write",
   app__study_relink_source: "write",
+  app__study_relink_reference: "write",
   app__study_import_handoff: "write",
   app__variants_create: "write",
   app__variants_compare_export: "write",

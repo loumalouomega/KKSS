@@ -26,14 +26,16 @@ const launchedPids = new WeakMap();
  */
 /**
  * @param {string|undefined} file  Document to open on launch.
- * @param {{extraArgs?: string[], timeout?: number, userDataDir?: string, env?: Record<string, string|undefined>, restore?: boolean, singleInstance?: boolean}} opts
+ * @param {{extraArgs?: string[], timeout?: number, userDataDir?: string, env?: Record<string, string|undefined>, restore?: boolean, singleInstance?: boolean, executablePath?: string}} opts
+ *   `executablePath` launches a PACKAGED app binary instead of the dev layout (tools/e2e/packaged.mjs): no `.` argument, since a
+ *   packaged binary finds its own app, and the binary's directory as cwd.
  *   `userDataDir` isolates the run from the developer's real ~/.config/kkss.
  *   Callers that render persisted state (the docs screenshots now show the
  *   recent-files list) must pass one, or a committed PNG would capture whoever
  *   regenerated it; every caller passing one also keeps e2e runs from writing
  *   to the real profile at all.
  */
-export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDataDir, env = {}, restore = false, singleInstance = false } = {}) {
+export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDataDir, env = {}, restore = false, singleInstance = false, executablePath } = {}) {
   // The UI theme defaults to "Follow system", so an isolated profile would
   // render in whatever theme the generating machine (or a headless Xvfb)
   // reports — seed Dark+ so committed screenshots stay reproducible. Seeded
@@ -46,9 +48,9 @@ export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDa
     }
   }
   const app = await _electron.launch({
-    executablePath: electronPath,
+    executablePath: executablePath ?? electronPath,
     args: [
-      ".",
+      ...(executablePath ? [] : ["."]),
       "--no-sandbox",
       "--enable-unsafe-swiftshader",
       "--disable-gpu-sandbox",
@@ -58,7 +60,7 @@ export async function launchApp(file, { extraArgs = [], timeout = 60_000, userDa
       ...extraArgs,
       ...(file ? [file] : []),
     ],
-    cwd: root,
+    cwd: executablePath ? path.dirname(executablePath) : root,
     // KKSS_ALLOW_MULTIPLE_INSTANCES: the harness relaunches the app many times
     // and SIGKILLs the tree between runs (killTree below), so a lock left over
     // from a killed run would make every later launch quit on startup.
