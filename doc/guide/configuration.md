@@ -274,6 +274,7 @@ Generated from `app/main/services/settings/registry.ts`; do not edit between the
 | Up Axis | `cadPreview.upAxis` | one of `y`, `z` | `y` | nextOpen | `cadUpAxis` |
 | Show Grid & Axes on Open | `cadPreview.showGridAndAxesOnOpen` | boolean | `true` | nextOpen | `cadShowGridAndAxesOnOpen` |
 | Default Mesh Size | `cadPreview.defaultMeshSizePreset` | one of `coarse`, `medium`, `fine` | `medium` | nextOpen | `cadDefaultMeshSizePreset` |
+| Navigation Preset | `cadPreview.navigationPreset` | one of `default`, `fusion` | `default` | nextOpen | `cadNavigationPreset` |
 | Single-Key Commands | `cadPreview.singleKeyCommands` | boolean | `false` | nextOpen | `cadSingleKeyCommands` |
 | Tessellation Quality | `cadPreview.tessellationQuality` | one of `draft`, `standard`, `fine` | `standard` | nextRun | `cadTessellationQuality` |
 | OpenSCAD Binary | `cadPreview.openscadBinary` | path | `openscad` | nextOpen | `cadOpenscadBinary` |
@@ -413,7 +414,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | Server | Tools | Read | Write | Path-scoped |
 | --- | --- | --- | --- | --- |
 | `app` | 42 | 17 | 25 | 0 |
-| `cad` | 93 | 47 | 46 | 42 |
+| `cad` | 95 | 48 | 47 | 43 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
 | `mesh` | 61 | 22 | 39 | 32 |
@@ -468,7 +469,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>cad</code> (93)</summary>
+<details><summary><code>cad</code> (95)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
@@ -493,6 +494,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__convert_scad` | write | paths: `path`, `outputPath`, `libraryPaths` |
 | `cad__decompose_to_primitives` | write | paths: `path`, `outputPath`, `saveScript.libraryPath` |
 | `cad__describe_capabilities` | read | — |
+| `cad__diagnostics_report` | read | — |
 | `cad__download_standard_part` | write | paths: `outputPath` |
 | `cad__estimate_mesh_budget` | read | — |
 | `cad__export_brep` | write | paths: `path`, `outputPath` |
@@ -558,6 +560,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__segment_mesh_surface` | read | — |
 | `cad__select_mesh_region` | read | — |
 | `cad__set_configuration` | write | paths: `path` |
+| `cad__set_edit_op_state` | write | paths: `path` |
 | `cad__set_layer` | write | paths: `path` |
 | `cad__set_mesh_options` | write | paths: `path` |
 | `cad__set_part` | write | paths: `path` |

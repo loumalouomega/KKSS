@@ -281,6 +281,7 @@ export const CAD_DEFAULT_KEYS = {
   showGridAndAxes: cadKey("showGridAndAxesOnOpen"),
   upAxis: cadKey("upAxis"),
   singleKeyCommands: cadKey("singleKeyCommands"),
+  navigationPreset: cadKey("navigationPreset"),
   tessellationQuality: cadKey("tessellationQuality"),
   openscadBinary: cadKey("openscadBinary"),
   openscadBackend: cadKey("openscadBackend"),
@@ -3612,6 +3613,7 @@ export class CadHost {
         showGridAndAxes: stateStore.get(CAD_DEFAULT_KEYS.showGridAndAxes),
         upAxis: stateStore.get(CAD_DEFAULT_KEYS.upAxis),
         singleKeyCommands: stateStore.get(CAD_DEFAULT_KEYS.singleKeyCommands),
+        navigationPreset: stateStore.get(CAD_DEFAULT_KEYS.navigationPreset),
       }),
     });
   }

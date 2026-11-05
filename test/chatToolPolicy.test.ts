@@ -227,17 +227,19 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 93 cad + 61 mesh tools + 4 in-process mcp__ tools + 39 app__ tools (38 workflow + skill_load)
+    // 95 cad + 61 mesh tools + 4 in-process mcp__ tools + 42 app__ tools
     // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(322);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(324);
+    expect(TOOL_ACCESS.cad__diagnostics_report).toBe("read");
+    expect(TOOL_ACCESS.cad__set_edit_op_state).toBe("write");
     const cad = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("cad__"));
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
-    expect(cad).toHaveLength(93);
+    expect(cad).toHaveLength(95);
     expect(TOOL_ACCESS.cad__mesh_cad_surface).toBe("write");
     // cad 3.34.0 / mesh 5.29.0 surface analyses are facts-only reads.
     for (const n of ["cad__find_mesh_intersections", "cad__measure_mesh_thickness", "cad__select_mesh_region", "mesh__mesh_intersections"]) {
@@ -476,6 +478,7 @@ describe("the table itself", () => {
       "cad__save_preprocess",
       "cad__save_sheet_template",
       "cad__set_configuration",
+      "cad__set_edit_op_state",
       "cad__set_layer",
       "cad__set_mesh_options",
       "cad__set_part",

@@ -96,6 +96,11 @@ describe.skipIf(!built)("generated webview pages", () => {
     // mesh 5.29.0's Mesh Modification forms (Select region, Wall thickness) and
     // the optimizeVolume objective/ring fields arrive with the imported sidebar
     // fragment; webview/meshMod.ts binds each by id.
+    // mesh 5.32.0's ALE quality panel and mirror/revolve/sector view modes are
+    // menu buttons with no native-menu fallback.
+    for (const action of ["aleQuality", "mirror", "revolve", "sector"]) {
+      expect(html).toContain(`data-action="${action}"`);
+    }
     // mesh 5.31.0's seven meshio++ 18.1 forms ride the same fragment.
     for (const anchor of ['id="untangle-form"', 'id="morph-form"', 'id="registerRigid-form"', 'id="geodesicDistance-form"', 'id="prepareMetric-form"']) {
       expect(html).toContain(anchor);

@@ -91,6 +91,13 @@ describe.skipIf(!fs.existsSync(server))("bundled CAD MCP runtime", () => {
       // A box around everything selects every triangle of the skin.
       expect(facts(region).selection.numSelected).toBe(facts(inter).numTriangles);
 
+      // cad 3.37.0 (meshio++ 18.3): the history and issue-draft tools exist, and
+      // the iga_* tools take the STEP/IGES `cadRead` controls.
+      const listed = (await client.listTools()).tools;
+      expect(listed.find((t) => t.name === "set_edit_op_state")?.inputSchema.properties).toHaveProperty("suppressed");
+      expect(listed.find((t) => t.name === "diagnostics_report")?.inputSchema.properties).toHaveProperty("opIndex");
+      expect(listed.find((t) => t.name === "iga_refine")?.inputSchema.properties).toHaveProperty("cadRead");
+
       // cad 3.36.0 (meshio++ 18.1): graph facts over the same skin, the ICP
       // registration of a mesh onto itself (identity, RMS ~0) and a design-table
       // configuration through the revision-guarded edit path.

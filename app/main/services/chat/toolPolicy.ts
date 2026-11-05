@@ -238,6 +238,10 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // outputPath is given, which is what makes them `write`.
   cad__set_configuration: "write",
   cad__analyze_surface_geometry: "read",
+  // cad 3.37.0: a redacted issue draft as text (nothing written or opened);
+  // set_edit_op_state suppresses/renames one op by rewriting the edits sidecar.
+  cad__diagnostics_report: "read",
+  cad__set_edit_op_state: "write",
   cad__mesh_adjacency: "write",
   cad__register_meshes: "write",
   cad__iga_sample: "read",
