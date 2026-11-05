@@ -1,5 +1,7 @@
 /** App-wide observer of server-owned jobs. It never owns solver processes. */
+import * as path from "node:path";
 import { ipcMain, type WebContents, type IpcMainEvent } from "electron";
+import { progress } from "./outputBus";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { ChatServerStatus, JobsSnapshot, KratosJob } from "../ipc";
 import type { McpHub } from "./chat/mcpHub";
@@ -134,7 +136,23 @@ export class JobsService {
   private update(job: KratosJob): void {
     const old = this.jobs.get(job.job_id);
     this.jobs.set(job.job_id, job);
+    this.mirrorProgress(job);
     if (old && activeJob(old) && ["succeeded", "failed"].includes(job.state)) this.deps.notify(job);
+  }
+  /** Active Kratos jobs also appear on the Output panel's Progress tab (cancel = the user's own job_cancel). */
+  private mirrorProgress(job: KratosJob): void {
+    const key = `kratos-job:${job.job_id}`;
+    if (activeJob(job)) {
+      const step = job.progress?.current_step;
+      progress.begin({
+        source: "solver",
+        key,
+        label: `${path.basename(job.case_dir)}${step !== undefined ? ` · step ${step}` : ""}`,
+        cancel: () => { void this.cancel(job.job_id); },
+      });
+    } else {
+      progress.finishKey(key, job.state === "succeeded" ? "done" : job.state === "cancelled" ? "cancelled" : "failed");
+    }
   }
   refresh(forceLogs = true): Promise<void> {
     if (this.disposed) return Promise.resolve();

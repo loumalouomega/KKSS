@@ -16,6 +16,7 @@
  * Run (after a full `npm run build` at least once):
  *   env -u ELECTRON_RUN_AS_NODE xvfb-run -a npm run docs:screenshots
  *   npm run docs:screenshots -- --mesh-only  # mesh viewer/panels/timeline only
+ *   npm run docs:screenshots -- --output-only # the bottom Output panel (terminals, Messages, Progress)
  *   npm run docs:screenshots -- --cad-only   # CAD viewer/panels/menus only
  *   npm run docs:screenshots -- --study-only # the study panel only
  *   npm run docs:screenshots -- --animations-only  # timeline GIFs for the fluid, FSI and CoSimulation tutorials only
@@ -607,6 +608,13 @@ if (process.argv.includes("--cad-only")) {
   console.log("done");
   process.exit(0);
 }
+if (process.argv.includes("--output-only")) {
+  const shot = spawnSync(process.execPath, [path.join(root, "tools/e2e/output-panel.mjs")], {
+    stdio: "inherit", env: { ...process.env, KKSS_OUTPUT_SHOT_DIR: OUT },
+  });
+  cleanupDirs();
+  process.exit(shot.status ?? 1);
+}
 if (process.argv.includes("--study-only")) {
   const shot = spawnSync(process.execPath, [path.join(root, "tools/e2e/study-panel.mjs")], {
     stdio: "inherit", env: { ...process.env, KKSS_STUDY_SHOT: path.join(OUT, "study-panel.png") },
@@ -644,6 +652,11 @@ if (!meshOnly) {
     stdio: "inherit", env: { ...process.env, KKSS_STUDY_SHOT: path.join(OUT, "study-panel.png") },
   });
   if (studyShot.status !== 0) throw new Error("study panel capture failed");
+  // The bottom Output panel (terminals, Messages, Progress), captured from its own acceptance scenario.
+  const outputShot = spawnSync(process.execPath, [path.join(root, "tools/e2e/output-panel.mjs")], {
+    stdio: "inherit", env: { ...process.env, KKSS_OUTPUT_SHOT_DIR: OUT },
+  });
+  if (outputShot.status !== 0) throw new Error("Output panel capture failed");
   // The assistant's MCP manager, captured from the acceptance scenario itself.
   const mcpShot = spawnSync(process.execPath, [path.join(root, "tools/e2e/chat-mcp-manager.mjs")], {
     stdio: "inherit", env: { ...process.env, KKSS_MCP_SHOT: path.join(OUT, "chat-mcp-manager.png") },

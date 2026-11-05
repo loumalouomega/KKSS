@@ -325,8 +325,8 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**18.1.0**, the version both submodules lock
-  and the one KKSS stages; cad 3.36.0 and mesh 5.31.0 declare `18.1.0`/`^18.1.0`,
+  `@meshioplusplus/wasm` package (**18.3.0**, the version both submodules lock
+  and the one KKSS stages; cad 3.37.0 and mesh 5.32.0 declare `18.3.0`/`^18.3.0`,
   so the pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
   rather than by the pins agreeing — re-run both after either bump, and prefer
   re-aligning CAD over letting the skew grow;
@@ -717,6 +717,28 @@ resubmitted automatically.
   no exception guard, so quit must observe a live shell's exit before `will-quit`:
   `before-quit` awaits `TerminalService.shutdown()` (bounded SIGHUP → SIGKILL in
   `services/terminalShutdown.ts`), and the exit listener must never throw.
+- **The bottom panel is one view with four tabs, and the terminals in it are many.**
+  `services/terminal.ts` holds a `Map<id, Session>` (cap `MAX_TERMINALS` = 8): every
+  `term:*` message carries the session id, scrollback is kept per session
+  (`MAX_SCROLLBACK_CHARS`) so a reloaded panel (`termReady`) is answered with the live
+  list and **never respawns a shell**, and quit must end **all** of them — `shutdown()`
+  runs `endShell` on every session concurrently (plus any shell mid-close, tracked in
+  `closing`), `hasLiveShell()` is "any", and `onExit` still never throws. A closed
+  session is dropped from the map *before* its exit lands, so the exit notice is
+  skipped for it, but quit still waits for it. `View ▸ New Remote Shell…` opens a NEW
+  terminal; it no longer replaces the running one. The Messages / Progress / Log tabs
+  and the memory footer are plain DOM in the same `terminal` view (so hiding a tab never
+  restarts a pty); their data is `services/outputCore.ts` (pure: `EntryLog`,
+  `ProgressRegistry`, `sampleMemory`) behind the Electron-free `outputBus.ts` singletons,
+  streamed by `outputPanel.ts` over `out:toHost`/`out:toWebview`. Feed them through the bus
+  (`logMessage`, `logOutput`, `progress.begin/finish`) — never straight to the panel — and
+  never let a hook throw or block: every bus call is exception-safe by construction. The
+  registry only cancels what supplied a `cancel` handler, and a progress item's
+  finish must be reached on every path (`finally`), or a row runs forever. Nothing is
+  persisted or transmitted; credential-shaped tokens are scrubbed on entry. The
+  assistant's view is the read-class `app__messages_tail`. Settings `output.showMemory`
+  and `output.autoReveal` live in the Terminal category. Screenshots (`output-*.png`) come
+  from `tools/e2e/output-panel.mjs` via `npm run docs:screenshots -- --output-only`.
 - **Docker web deployment streams the unmodified desktop app.** `docker/`
   (Dockerfile + `entrypoint.sh`) + root `docker-compose.yml` (build) /
   `docker-compose.ghcr.yml` (pull) run the app headless (Xvfb + openbox +
@@ -1651,6 +1673,12 @@ release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
 discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 42 app-owned
 workflow tools; 317 policy rows with the PDF reader server's twelve).
+
+**The cad 3.36.0 → 3.37.0 + mesh 5.31.0 → 5.32.0 jump (meshio++ 18.1.0 → 18.3.0, navigation presets, history suppress/rename, `diagnostics_report`, cut cells, ALE panel, mirror/revolve/sector views; KKSS 2.30.0) needed one setting, two policy rows and prompt text — no host port.**
+
+- **Setting:** `cadPreview.navigationPreset` (`default|fusion`, `nextOpen`) is a registry row plus a `CAD_DEFAULT_KEYS` entry sent by `sendViewerDefaults()`; the rest of the CAD changes are webview-side. `rebindPartsOnChange` already compares JSON, so a suppressed/renamed op rebinds correctly through the existing `editsChanged` path.
+- **Policy: 95 CAD + 61 mesh + 4 mcp + 42 app + 110 kratos + 12 pdf = 324 (325 with the later `app__messages_tail`, see the bottom-panel bullet).** `cad__diagnostics_report` is `read`; `cad__set_edit_op_state` is `write`, scoped to `path`. Mesh adds no tool names (new parameters only). `cad-preview.reportIssue` is a VS Code command and stays unported (Help ▸ Export Diagnostics covers the GUI path).
+- **Runtime:** `npm ci` in both submodules then `npm run package --prefix mesh` is what moves `out/meshio/` to 18.3.0 (the stale `node_modules` copy was 18.1.0). No new worker; the ALE panel reuses `seriesScanWorker`.
 
 **The cad 3.34.0 → 3.36.0 + mesh 5.30.0 → 5.31.0 jump (meshio++ 18.1.0, ribbon + command search, Configurations, Parameters table, eleven Mesh Ops/`transform_mesh` operations, seven mesh forms, `mesh_graph`; KKSS 2.29.0) needed one data-integrity port, one export handler, one setting, six policy rows, six theme variables and tests.**
 

@@ -86,6 +86,14 @@ Post-Processing uses the same layout as [Pre-Processing](/guide/cad-mode#reading
 - **Mesh Preview 5.29 (meshio++ 18.0.0).** Mesh Modification gains **Select region** (box, plane, sphere, k-th connected component or a patch grown from a seed across a dihedral-angle limit → a new SubModelPart with its node closure; also `selectRegion` in the command line and `mesh_transform`) and **Wall thickness** (`thickness`: per-facet inward thickness or outward clearance by ray casting, written as a field — a ray that reaches nothing leaves a gap, never a zero). The Mesh-analysis panel and the assistant's read-only **`mesh_intersections`** report where a surface meets itself or a second surface (exact triangle–triangle tests; the facets become a selection set and the curve an overlay), and `mesh_derive` kind `findIntersections` writes the curve as a line mesh. `mesh_derive`/Advanced ▸ Sweep, mirror and layers… gain `adapt`, `discretizeLevelset`, `meshDomain` (the kernel's own MMG, full artifact only), `metricFromHessian` and `tetToPoly`; `tetrahedralize` keeps the surface triangles when the full artifact (Netgen) is installed, and `optimizeVolume` takes `objective` and `maxRingSize` (default `energy`, byte-identical to before).
 - meshio++ 17.23.0 adds nine kernel functions, 21 procedural generators and new CAD-surface controls; `medit_sol` (values only, no geometry) stays unrouted.
 
+### Mesh Preview 5.32 additions (meshio++ 18.3.0)
+
+- **Cut cells.** `mesh_derive` gains `cutLevelSet` (keep the part a level-set field selects, cutting cells exactly) and `cutQuadrature` (quadrature points with weights on that part); both need the full meshio++ artifact. The Clip cut now covers only the SubModelParts that are shown.
+- **STEP/IGES read controls.** `mesh_info` and `mesh_convert` take `cadRead` (`deflection`, `angularDeflection`, `heal`, `sewTolerance`).
+- **Views.** **Mirror**, **Revolve** and **Sector** are view-only modes (persisted in the `view` sidecar), and the **ALE mesh quality…** panel plots per-frame element measure and shape quality of the deformed fluid mesh, with the worst frame and the inverted elements. **Field integrals** can be revolved about an axis you choose.
+- **Problemtypes.** Numeric fields accept units and expressions (`10[mm]`, `L/2`) over a new Parameters table; vector components too, and preflight reports `unit-mismatch`. `problemtype_describe` reports `fieldUnits`.
+- **Analysis.** `case_run_quantity` takes `plotParameter`, `case_compare` takes `quantity`, `mesh_recover_flux` handles 8/9-node quads, and quadratic isosurfaces and pyramid13 cells are supported.
+
 ### Mesh Preview 5.21–5.22 additions
 
 - The Advanced menu gained **Octree mesh**, **CAD surface** and **Generate mesh** (primitive shapes) exports, plus `segment` and `refinePatches` operations for surface patches; the assistant reaches them through `mesh_derive` (`generate`, `octreeMesh`, `octree`, `cadSurface`) and `mesh_transform`.

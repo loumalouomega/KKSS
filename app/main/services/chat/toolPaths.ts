@@ -81,6 +81,7 @@ export const SCOPED_TOOL_PATH_ARGS: Readonly<Record<string, readonly string[]>> 
   cad__save_preprocess: ["path", "outputPath"],
   cad__save_sheet_template: ["libraryPath"],
   cad__set_configuration: ["path"],
+  cad__set_edit_op_state: ["path"],
   cad__set_layer: ["path"],
   cad__set_mesh_options: ["path"],
   cad__set_part: ["path"],

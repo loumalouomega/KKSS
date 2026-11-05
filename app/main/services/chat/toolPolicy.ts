@@ -134,6 +134,8 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // selecting, navigating, creating, and duplicating alter user-visible state.
   app__check_simulation_environment: "read",
   app__skill_load: "read",
+  // The Output panel's Messages/Log/Progress tabs, read-only (outputTools.ts).
+  app__messages_tail: "read",
   app__study_list: "read",
   app__study_open: "write",
   app__study_attach_mesh: "write",
@@ -238,6 +240,10 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // outputPath is given, which is what makes them `write`.
   cad__set_configuration: "write",
   cad__analyze_surface_geometry: "read",
+  // cad 3.37.0: a redacted issue draft as text (nothing written or opened);
+  // set_edit_op_state suppresses/renames one op by rewriting the edits sidecar.
+  cad__diagnostics_report: "read",
+  cad__set_edit_op_state: "write",
   cad__mesh_adjacency: "write",
   cad__register_meshes: "write",
   cad__iga_sample: "read",

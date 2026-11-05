@@ -1,5 +1,6 @@
 // Process-wide glue for eventLogCore: one EventLog plus a console tap.
-import { EventLog } from "./eventLogCore";
+import { EventLog, formatArg } from "./eventLogCore";
+import { logOutput } from "./outputBus";
 
 export const eventLog = new EventLog();
 
@@ -13,6 +14,8 @@ export function installConsoleCapture(): void {
     const original = console[level].bind(console);
     console[level] = (...args: unknown[]) => {
       eventLog.log(level, args);
+      // The Output panel's Log tab shows the same lines live.
+      logOutput(level, "main", args.map(formatArg).join(" "));
       original(...args);
     };
   }

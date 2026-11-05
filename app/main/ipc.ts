@@ -64,15 +64,85 @@ export type EditorToWebview =
 /** Messages posted by the terminal-panel renderer. */
 export type TermToHost =
   | { type: "termReady"; cols: number; rows: number }
-  | { type: "input"; data: string }
-  | { type: "resize"; cols: number; rows: number }
-  | { type: "restart" }
+  /** A new local shell, sized to the panel (the "+" button). */
+  | { type: "create"; cols: number; rows: number }
+  | { type: "input"; id: number; data: string }
+  | { type: "resize"; id: number; cols: number; rows: number }
+  | { type: "restart"; id: number }
+  | { type: "close"; id: number }
   | { type: "hide" };
+
+/** One terminal as the panel needs it to (re)build its tab and xterm. */
+export interface TermSessionInfo {
+  id: number;
+  title: string;
+  /** The process has ended; Enter in the terminal restarts it. */
+  exited: boolean;
+  /** Recent output, replayed into a fresh xterm after a panel reload. */
+  scrollback: string;
+}
 
 /** Messages sent to the terminal-panel renderer. */
 export type TermToWebview =
-  | { type: "data"; data: string }
-  | { type: "exit"; code: number };
+  /** The full session list, answering `termReady`. */
+  | { type: "sessions"; sessions: TermSessionInfo[] }
+  | { type: "created"; session: TermSessionInfo }
+  | { type: "data"; id: number; data: string }
+  | { type: "exit"; id: number; code: number }
+  | { type: "closed"; id: number };
+
+/** Output-panel tab ids (the Terminal tab is the terminal service's). */
+export type OutputTab = "terminal" | "messages" | "progress" | "log";
+
+/** Messages posted by the Output panel's Messages/Progress/Log/memory half. */
+export type OutToHost =
+  | { type: "outReady" }
+  | { type: "clear"; which: "messages" | "log" | "progress" }
+  | { type: "cancelProgress"; id: number }
+  | { type: "copy"; text: string };
+
+/** Messages sent to the Output panel's Messages/Progress/Log/memory half. */
+export type OutToWebview =
+  | {
+      type: "reset";
+      messages: OutputEntryWire[];
+      log: OutputEntryWire[];
+      progress: ProgressItemWire[];
+      memory: MemoryWire | null;
+      showMemory: boolean;
+    }
+  | { type: "messages"; added: OutputEntryWire[] }
+  | { type: "log"; added: OutputEntryWire[] }
+  | { type: "progress"; items: ProgressItemWire[] }
+  | { type: "memory"; memory: MemoryWire | null }
+  | { type: "cleared"; which: "messages" | "log" }
+  /** Switch the panel to this tab (an error arrived, or an action asked to show it). */
+  | { type: "tab"; tab: OutputTab };
+
+export interface OutputEntryWire {
+  id: number;
+  at: string;
+  level: "info" | "warn" | "error";
+  source: string;
+  text: string;
+}
+export interface ProgressItemWire {
+  id: number;
+  source: string;
+  label: string;
+  state: "running" | "done" | "failed" | "cancelled";
+  fraction: number | null;
+  startedAt: number;
+  endedAt?: number;
+  detail?: string;
+  cancellable: boolean;
+  cancelling?: boolean;
+}
+export interface MemoryWire {
+  appBytes: number;
+  usedBytes: number;
+  totalBytes: number;
+}
 
 /** Error classes the chat sidebar renders differently (banner + settings button).
  *  Every member must also appear in transcriptStoreCore.ts's ERROR_KINDS, or a

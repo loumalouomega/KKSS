@@ -88,6 +88,7 @@ import { entryForVscode, normalize, registry, toStored } from "./services/settin
 import { createStaticReportPanel } from "./services/staticReport";
 import { createPlotPanel } from "./services/plotPanel";
 import { currentLocale } from "../shared/i18n";
+import { logOutput } from "./services/outputBus";
 
 // ---- Hooks the app injects (avoids import cycles) ---------------------------
 
@@ -491,6 +492,8 @@ class OutputChannel {
 
   private push(value: string, newline: boolean): void {
     console.log(`[${this.name}] ${value}`);
+    // Solver output etc. is shown live in the Output panel's Log tab.
+    if (value.trim()) logOutput("info", this.name, value.replace(/\r?\n$/, ""));
     if (!newline && this.lines.length > 0) this.lines[this.lines.length - 1] += value;
     else this.lines.push(value);
     if (this.lines.length > OutputChannel.MAX_LINES) {

@@ -64,6 +64,11 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
     const intersections = await call('mesh_intersections', { path: source });
     expect(JSON.stringify(intersections)).toMatch(/clean/);
     expect(JSON.stringify(intersections)).not.toMatch(/"clean":false/);
+    // mesh 5.32.0 (meshio++ 18.3): STEP/IGES read controls, per-run quantity
+    // plots against a case parameter, and the run-comparison quantity.
+    expect(tools.find(t => t.name === 'mesh_info')?.inputSchema.properties).toHaveProperty('cadRead');
+    expect(tools.find(t => t.name === 'case_run_quantity')?.inputSchema.properties).toHaveProperty('plotParameter');
+    expect(tools.find(t => t.name === 'case_compare')?.inputSchema.properties).toHaveProperty('quantity');
     // mesh 5.31.0 (meshio++ 18.1): the connectivity graph, and a METIS file.
     expect(tools.find(t => t.name === 'mesh_graph')?.inputSchema.properties).toHaveProperty('outputPath');
     const graphFile = path.join(dir, 'square.graph');

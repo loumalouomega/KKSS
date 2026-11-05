@@ -39,6 +39,9 @@ import { configureAppearance, windowBackground } from "./services/appearance";
 import { configureSettings, refreshSettingsRows, showSettings } from "./services/settings/settingsWindow";
 import { effective, entryById, registry } from "./services/settings/registry";
 import { TerminalService } from "./services/terminal";
+import { OutputPanel } from "./services/outputPanel";
+import { outputTools } from "./services/chat/outputTools";
+import { logMessage, progress as progressRegistry } from "./services/outputBus";
 import { EditorService } from "./services/editor";
 import { ChatService } from "./services/chat/chatService";
 import { JobsService } from "./services/jobs";
@@ -197,6 +200,7 @@ let runs: RunManager | null = null;
  *  Recent, since the activity-bar view upstream reads it from is unreachable. */
 let recents: RecentMeshStore | null = null;
 let terminal: TerminalService | null = null;
+let outputPanel: OutputPanel | null = null;
 let editor: EditorService | null = null;
 /** Crash-recovery checkpoints (services/recovery.ts). Created in the ready block. */
 let recovery: RecoveryService | null = null;
@@ -238,9 +242,28 @@ function sendHome(message: HomeToWebview): void {
 /** The active study's next checklist step for the chat's (synchronous) context suffix; refreshed with every workflow push. */
 let activeNextStep: NextStepContext | undefined;
 
+/** Queue tasks that are dispatching or running show on the Output panel's Progress tab; their outcome is a message. */
+const trackedQueueTasks = new Set<string>();
+function mirrorQueueProgress(snapshot: unknown): void {
+  const project = (snapshot as { project?: { studies?: Array<{ id: string; name: string }>; queue?: { tasks?: Array<{ id: string; studyId: string; kind: string; state: string; error?: string }> } } | null })?.project;
+  for (const task of project?.queue?.tasks ?? []) {
+    const key = `queue:${task.id}`;
+    const study = project?.studies?.find((s) => s.id === task.studyId)?.name ?? task.studyId;
+    const label = `${task.kind} · ${study}`;
+    if (task.state === "dispatching" || task.state === "running") {
+      progressRegistry.begin({ source: "queue", key, label });
+      trackedQueueTasks.add(key);
+    } else if (trackedQueueTasks.delete(key)) {
+      const state = task.state === "succeeded" ? "done" : task.state === "cancelled" ? "cancelled" : "failed";
+      progressRegistry.finishKey(key, state, task.error);
+      logMessage(state === "failed" ? "error" : "info", "queue", `${label}: ${task.state}${task.error ? ` — ${task.error}` : ""}`);
+    }
+  }
+}
+
 async function pushWorkflows(): Promise<void> {
   let snapshot: unknown;
-  try { snapshot = await workflows?.snapshot(); sendHome({ type: "workflowState", value: snapshot }); }
+  try { snapshot = await workflows?.snapshot(); sendHome({ type: "workflowState", value: snapshot }); mirrorQueueProgress(snapshot); }
   catch (error) { sendHome({ type: "workflowError", message: String(error) }); }
   let checklist: Awaited<ReturnType<NonNullable<typeof workflows>["activeNextStep"]>> = null;
   try {
@@ -1264,6 +1287,7 @@ function openFile(fsPath: string, forcedMode?: Mode, external = false): Promise<
       if (previous && !openInAnyTab(previous)) cloud?.untrackPath(previous);
       // The sole user-open recents choke point; cancellation never records a file.
       recentFiles.record(resolved, mode);
+      logMessage("info", mode, t("Opened {0}", { 0: path.basename(resolved) }));
       main?.setActiveTab(mode, tabId);
       setScreen(mode);
       maybeSyncSharedLayers(resolved);
@@ -1448,6 +1472,8 @@ function toggleTerminal(): void {
   if (main.screen() === "home" && !main.terminalVisible()) setScreen(main.mode());
   const { view } = main.toggleTerminal();
   terminal.attach(view.webContents);
+  outputPanel?.attach(view.webContents);
+  outputPanel?.setVisible(main.terminalVisible());
   pushPanels();
   saveSessionSoon();
 }
@@ -1687,6 +1713,13 @@ app.whenReady().then(() => {
     }
   );
 
+  outputPanel = new OutputPanel({
+    showMemory: () => stateStore.get<boolean>("output.showMemory", true) ?? true,
+    autoReveal: () => stateStore.get<boolean>("output.autoReveal", false) ?? false,
+    reveal: () => { if (!main?.terminalVisible()) toggleTerminal(); },
+    panelVisible: () => main?.terminalVisible() === true,
+  });
+
   // One McpManager owner, shared by the chat loop and the HTTP meta server, so
   // the three MCP child servers are spawned once (whichever front-end starts first).
   workflows = new WorkflowService({
@@ -1734,7 +1767,7 @@ app.whenReady().then(() => {
     trustedProjectFiles: () => userServers?.trustedProjectFiles() ?? {},
     onProjectChange: (listener) => userServers?.onChange(listener),
   });
-  registerAppTools([...workflows.tools(), ...assistantDefs.tools()]);
+  registerAppTools([...workflows.tools(), ...assistantDefs.tools(), ...outputTools()]);
   // Lifecycle hooks: commands the user (or a trusted project folder) runs around
   // tool calls and turns. One engine shared by the sidebar and the HTTP endpoint,
   // so its children are tracked — and killed at quit — in one place.

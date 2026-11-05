@@ -10,11 +10,52 @@
   <link href="./xterm.css" rel="stylesheet" />
   <link href="../theme/kkss-ui.css" rel="stylesheet" />
   <link href="./terminal.css" rel="stylesheet" />
-  <title data-i18n="KKSS Terminal">KKSS Terminal</title>
+  <title data-i18n="KKSS Output">KKSS Output</title>
 </head>
 <body>
-  <button id="hide-btn" class="btn btn-secondary btn-sm" title="Hide terminal (Ctrl+`) — the shell keeps running" data-i18n-title="Hide terminal (Ctrl+`) — the shell keeps running"></button>
-  <div id="terminal"></div>
+  <div id="panel">
+    <div id="bar">
+      <div id="tabs" class="seg" role="tablist" aria-label="Output panel" data-i18n-aria-label="Output panel"></div>
+      <div id="actions">
+        <div class="actions" data-for="terminal">
+          <button id="term-new" class="icon-btn" type="button"></button>
+          <button id="term-kill" class="icon-btn" type="button"></button>
+        </div>
+        <div class="actions" data-for="messages" hidden>
+          <select id="level-filter" class="field" aria-label="Show"></select>
+          <button id="messages-copy" class="icon-btn" type="button"></button>
+          <button id="messages-clear" class="icon-btn" type="button"></button>
+        </div>
+        <div class="actions" data-for="progress" hidden>
+          <button id="progress-clear" class="btn btn-secondary btn-sm" type="button"></button>
+        </div>
+        <div class="actions" data-for="log" hidden>
+          <button id="log-copy" class="icon-btn" type="button"></button>
+          <button id="log-clear" class="icon-btn" type="button"></button>
+        </div>
+      </div>
+      <button id="hide-btn" class="btn btn-secondary btn-sm" title="Hide panel (Ctrl+`) — the shells keep running" data-i18n-title="Hide panel (Ctrl+`) — the shells keep running"></button>
+    </div>
+    <div id="panes">
+      <section id="pane-terminal" class="pane" role="tabpanel" aria-labelledby="tab-terminal">
+        <div id="terminal"></div>
+        <div id="term-list" role="tablist" aria-orientation="vertical" aria-label="Terminals" data-i18n-aria-label="Terminals" hidden></div>
+        <div id="term-empty" hidden>
+          <button id="term-empty-new" class="btn btn-primary" type="button"></button>
+        </div>
+      </section>
+      <section id="pane-messages" class="pane" role="tabpanel" aria-labelledby="tab-messages" hidden>
+        <div id="messages" class="out-list empty" tabindex="0" role="log" aria-live="off"></div>
+      </section>
+      <section id="pane-progress" class="pane" role="tabpanel" aria-labelledby="tab-progress" hidden>
+        <div id="progress" class="out-list empty" tabindex="0"></div>
+      </section>
+      <section id="pane-log" class="pane" role="tabpanel" aria-labelledby="tab-log" hidden>
+        <div id="log" class="out-list empty" tabindex="0" role="log" aria-live="off"></div>
+      </section>
+    </div>
+    <div id="footer"><span id="memory" hidden></span></div>
+  </div>
   <script src="./terminal.js"></script>
 </body>
 </html>

@@ -253,6 +253,7 @@ import { showOpenDialog, showSaveDialog } from "./services/dialogs";
 import { showQuickPick, showInputBox } from "./services/quickPick";
 import { FIT_TO_CAD_LEVELS } from "../../cad/src/fitToCadLevels";
 import { stateStore } from "./services/stateStore";
+import { logMessage } from "./services/outputBus";
 import { entryForVscode } from "./services/settings/registry";
 import { writeFileAtomic } from "./services/atomicWrite";
 import { CAD_SIDECAR, MACRO_LIBRARY_NAME, MESH_PRESET_LIBRARY_NAME } from "./services/sidecarSuffixes";
@@ -281,6 +282,7 @@ export const CAD_DEFAULT_KEYS = {
   showGridAndAxes: cadKey("showGridAndAxesOnOpen"),
   upAxis: cadKey("upAxis"),
   singleKeyCommands: cadKey("singleKeyCommands"),
+  navigationPreset: cadKey("navigationPreset"),
   tessellationQuality: cadKey("tessellationQuality"),
   openscadBinary: cadKey("openscadBinary"),
   openscadBackend: cadKey("openscadBackend"),
@@ -663,6 +665,9 @@ export class CadHost {
   private post = (msg: HostToWebview): void => {
     if (process.env.KKSS_E2E) console.log(`[cad] host → webview: ${msg.type}`);
     finishOpen(this.currentFile, msg.type);
+    // The viewer's status line and errors are also kept in the Output panel's Messages tab.
+    if (msg.type === "status") logMessage("info", "cad", msg.text);
+    else if (msg.type === "error" || msg.type === "meshingError") logMessage("error", "cad", msg.message);
     this.view.webContents.send("cad:toWebview", msg);
   };
 
@@ -1619,7 +1624,7 @@ export class CadHost {
 
     if (msg.type === "meshingGenerate") {
       try {
-        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId }, async () => {
+        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId, label: "Generating FE mesh" }, async () => {
         const input = await this.resolveMeshInput(msg.stl);
         if (!input) throw new Error("No mesh geometry available: missing STL data.");
         const { parts, options } = await this.resolveMeshPartsAndOptions(input, msg.options);
@@ -1627,6 +1632,7 @@ export class CadHost {
         this.lastMshText = null;
         const result = await cadCompute.generateMesh(this.runtimePath, input, options, parts);
         this.lastMshText = result.mshText;
+        logMessage("info", "cad", `Mesh generated: ${result.nodeCount} nodes, ${result.elementCount} elements (${((Date.now() - startedAt) / 1000).toFixed(1)} s)`);
         this.post({
           type: "meshingResult",
           requestId: msg.requestId,
@@ -1690,7 +1696,7 @@ export class CadHost {
           outputDir = picked[0];
         }
 
-        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId }, async () => {
+        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId, label: "Mesh sweep" }, async () => {
           const isJobCancelled = () => {
             const state = jobStatus(doc.path, msg.requestId)?.state;
             return state === "cancelling" || state === "cancelled";
@@ -1766,7 +1772,7 @@ export class CadHost {
 
     if (msg.type === "meshingExport") {
       try {
-        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId }, async () => {
+        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId, label: "Exporting FE mesh" }, async () => {
         const assertJobActive = () => {
           const state = jobStatus(doc.path, msg.requestId)?.state;
           if (state === "cancelling" || state === "cancelled") throw new Error(`CAD job ${msg.requestId} was cancelled.`);
@@ -2584,7 +2590,7 @@ export class CadHost {
           throw new Error("MMG output must be .med to preserve named regions");
         }
         await this.assertRemeshTargetsAbsent(savePath);
-        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId }, async () => {
+        await runOwnedJob({ ownerId: doc.path, requestId: msg.requestId, label: "MMG remesh" }, async () => {
           const assertJobActive = () => {
             const state = jobStatus(doc.path, msg.requestId)?.state;
             if (state === "cancelling" || state === "cancelled") {
@@ -3612,6 +3618,7 @@ export class CadHost {
         showGridAndAxes: stateStore.get(CAD_DEFAULT_KEYS.showGridAndAxes),
         upAxis: stateStore.get(CAD_DEFAULT_KEYS.upAxis),
         singleKeyCommands: stateStore.get(CAD_DEFAULT_KEYS.singleKeyCommands),
+        navigationPreset: stateStore.get(CAD_DEFAULT_KEYS.navigationPreset),
       }),
     });
   }
