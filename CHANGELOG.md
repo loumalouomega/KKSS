@@ -5,10 +5,13 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.31.0] - 2026-11-05
+
+- feat: **bottom Output panel.** The terminal panel gains **Messages**, **Progress** and **Log** tabs and a memory footer (application and system RAM), and the Terminal tab now supports **several terminals** at once, VS Code style (a session list, `+`, kill, per-terminal restart; **View ▸ New Remote Shell…** opens a new terminal). Messages timestamps and filters what the app did (files opened, meshes generated, queue and solver outcomes, every notification); Progress lists CAD jobs, installs, downloads, queue tasks, Kratos jobs and assistant turns with elapsed time and Cancel where the work can stop; Log keeps console warnings/errors and solver output. New settings **Show Memory Usage** and **Open Messages on Errors**, and a read-only `app__messages_tail` assistant tool (325 policy rows).
+
 ## [2.30.0] - 2026-11-05
 
 - feat: **CAD-Preview 3.37.0 and Mesh Preview 5.32.0** (meshio++ 18.3.0 on both sides). CAD gains navigation presets (new **Navigation Preset** setting: Default or Fusion), a 26-view orientation cube, Look at face, a pinned Apply row, and history suppress/rename with dependents-aware delete. Mesh gains exact level-set cuts (`cutLevelSet`/`cutQuadrature`), STEP/IGES `cadRead` controls, Mirror/Revolve/Sector views, an ALE mesh quality panel, revolved field integrals, expressions and a Parameters table in the Problemtype forms, and per-run quantity plots against a case parameter. Two new assistant tools, `diagnostics_report` (read) and `set_edit_op_state` (write, project-folder scoped): 324 policy rows.
-- feat: **bottom Output panel.** The terminal panel gains **Messages**, **Progress** and **Log** tabs and a memory footer (application and system RAM), and the Terminal tab now supports **several terminals** at once, VS Code style (a session list, `+`, kill, per-terminal restart; **View ▸ New Remote Shell…** opens a new terminal). Messages timestamps and filters what the app did (files opened, meshes generated, queue and solver outcomes, every notification); Progress lists CAD jobs, installs, downloads, queue tasks, Kratos jobs and assistant turns with elapsed time and Cancel where the work can stop; Log keeps console warnings/errors and solver output. New settings **Show Memory Usage** and **Open Messages on Errors**, and a read-only `app__messages_tail` assistant tool (325 policy rows).
 
 ## [2.29.0] - 2026-11-04
 
@@ -400,6 +403,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.31.0]: https://github.com/loumalouomega/KKSS/compare/v2.30.0...v2.31.0
 [2.30.0]: https://github.com/loumalouomega/KKSS/compare/v2.29.0...v2.30.0
 [2.29.0]: https://github.com/loumalouomega/KKSS/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/loumalouomega/KKSS/compare/v2.27.1...v2.28.0
