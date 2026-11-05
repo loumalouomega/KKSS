@@ -1,0 +1,65 @@
+name: Verification
+
+# Re-solves the single-physics tutorial cases on the pinned Kratos build and fails when a measured error leaves its limit
+# (roadmap item 12). Opt-in: a manual run, or weekly. Ordinary CI never solves anything.
+#
+# The runtime is installed from docker/kratos/requirements.lock — the same hash-locked pins the `-kratos` image installs,
+# on the one platform that lock covers (linux/amd64, CPython 3.12) — so no image has to be published first.
+on:
+  workflow_dispatch:
+    inputs:
+      cases:
+        description: 'Space-separated case ids (default: the five single-physics cases)'
+        required: false
+        default: structural fluid thermal potential-flow shallow-water
+  schedule:
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            cad/package-lock.json
+            mesh/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - name: Install submodule dependencies
+        run: npm run submodules:install
+      - name: Build (submodules + app)
+        run: npm run build
+      - name: Install the pinned Kratos runtime
+        run: |
+          python -m venv "$RUNNER_TEMP/kratos"
+          "$RUNNER_TEMP/kratos/bin/pip" install --require-hashes --only-binary :all: -r docker/kratos/requirements.lock
+          "$RUNNER_TEMP/kratos/bin/python" -c "import KratosMultiphysics, KratosMultiphysics.StructuralMechanicsApplication, KratosMultiphysics.FluidDynamicsApplication, KratosMultiphysics.ConvectionDiffusionApplication, KratosMultiphysics.CompressiblePotentialFlowApplication, KratosMultiphysics.ShallowWaterApplication"
+      - name: Verifier self-test (no solver)
+        run: python tools/tutorials/verify_selftest.py
+      - name: Generate, solve and verify
+        env:
+          KKSS_TUTORIAL_PYTHON: ${{ runner.temp }}/kratos/bin/python
+          KKSS_VERIFY_CONTROLS: '1'
+          CASES: ${{ inputs.cases || 'structural fluid thermal potential-flow shallow-water' }}
+        run: node tools/tutorials/generate.mjs $CASES
+      # Kept on failure too: the case inputs, solver log, verification.json and failure.log of every case, so a failing case
+      # can be reproduced without re-running the whole job.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: tutorial-verification
+          path: node_modules/.cache/tutorials-*/
+          if-no-files-found: warn

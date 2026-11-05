@@ -3,7 +3,7 @@
 // but the reader also accepts deflate members (third-party zips) under hard size caps.
 import { createHash } from 'node:crypto';
 import { inflateSync } from 'fflate';
-import type { Project, Reference } from './contracts';
+import type { Project, Reference, Study } from './contracts';
 import { crc32, zipStore, textFile, type DiagnosticFile } from '../diagnosticsCore';
 
 export interface ArchiveManifest {
@@ -123,21 +123,36 @@ export const readStoreZip = (bytes: Uint8Array): Map<string, Uint8Array> => read
 
 export interface UnresolvedExternal {
   path: string; owner: string; studyId: string; role: string;
-  /** Source references can be repointed with app__study_relink_source; other roles are listed only. */
-  relink: 'app__study_relink_source' | null;
+  /** `source` is repointed with app__study_relink_source (a replacement is allowed, the study turns stale); every other role is a
+   *  relocation through app__study_relink_reference, accepted only when the file's bytes are the recorded revision. */
+  relink: 'app__study_relink_source' | 'app__study_relink_reference' | null;
 }
 
 /**
- * The references the import prompt can repoint: one entry per study whose source is gone.
- * Mesh, handoff and run-artifact references have no relink tool, so they are counted, never offered.
+ * What the import prompt can repoint: one `relinkable` entry per study whose source is gone (a replacement is accepted), and
+ * the `relocatable` references (mesh, base source, handoff and run artifacts) that only a byte-identical moved file can satisfy.
  */
-export function relinkPlan(unresolved: UnresolvedExternal[]): { relinkable: UnresolvedExternal[]; listedOnly: number } {
-  const seen = new Set<string>(), relinkable: UnresolvedExternal[] = [];
+export function relinkPlan(unresolved: UnresolvedExternal[]): { relinkable: UnresolvedExternal[]; relocatable: UnresolvedExternal[] } {
+  const seen = new Set<string>(), relinkable: UnresolvedExternal[] = [], relocatable: UnresolvedExternal[] = [];
   for (const u of unresolved) {
-    if (u.relink === null || seen.has(u.studyId)) continue;
-    seen.add(u.studyId); relinkable.push(u);
+    if (u.relink === 'app__study_relink_source') { if (!seen.has(u.studyId)) { seen.add(u.studyId); relinkable.push(u); } }
+    else if (u.relink === 'app__study_relink_reference') relocatable.push(u);
   }
-  return { relinkable, listedOnly: unresolved.length - relinkable.length };
+  return { relinkable, relocatable };
+}
+
+/**
+ * The references a study holds under an archive owner role: `mesh`, `baseSource`, `handoff` (every handoff artifact) or
+ * `<runId>:<artifactRole>`. `source` is deliberately not here — it has its own replacing tool. Returns live objects.
+ */
+export function referencesForRole(study: Study, role: string): Reference[] {
+  if (role === 'mesh') return study.mesh ? [study.mesh] : [];
+  if (role === 'baseSource') return study.geometry ? [study.geometry.baseSource] : [];
+  if (role === 'handoff') return study.handoff ? study.handoff.artifacts.map(a => a.reference) : [];
+  const i = role.indexOf(':');
+  if (i <= 0) return [];
+  const run = study.runs.find(r => r.id === role.slice(0, i));
+  return run ? run.artifacts.filter(a => a.role === role.slice(i + 1)).map(a => a.reference) : [];
 }
 
 /** External references not present on this machine, split into study and role. Pure; `exists` is injected. */
@@ -147,7 +162,7 @@ export function unresolvedExternal(manifest: ArchiveManifest, exists: (absPath: 
     if (typeof e?.path !== 'string' || typeof e.owner !== 'string' || exists(e.path)) continue;
     const i = e.owner.indexOf(':');
     const studyId = i < 0 ? e.owner : e.owner.slice(0, i), role = i < 0 ? '' : e.owner.slice(i + 1);
-    out.push({ path: e.path, owner: e.owner, studyId, role, relink: role === 'source' ? 'app__study_relink_source' : null });
+    out.push({ path: e.path, owner: e.owner, studyId, role, relink: role === 'source' ? 'app__study_relink_source' : role ? 'app__study_relink_reference' : null });
   }
   return out;
 }

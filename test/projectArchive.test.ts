@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deflateSync } from "fflate";
-import { relinkPlan, buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, readZip, safeRelative, unresolvedExternal } from "../app/main/services/workflows/projectArchive";
+import { referencesForRole, relinkPlan, buildArchive, collectProjectReferences, packagedProject, planUnpack, readStoreZip, readZip, safeRelative, unresolvedExternal } from "../app/main/services/workflows/projectArchive";
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const ref = (path: string, kind = "project") => ({ kind, path, revision: "r" }) as any;
@@ -84,21 +84,33 @@ describe("project archive", () => {
     const r = readZip(z);
     expect([...r.members.keys()]).toEqual(["files/ok.txt"]); expect(r.unsafeMembers).toEqual(["files/../evil", "/abs"]);
   });
-  it("offers a relink once per study and only for source references", () => {
+  it("offers a replacement once per study for sources and a relocation for every other role", () => {
     const u: any[] = [
       { path: "/gone/a.stp", owner: "s1:source", studyId: "s1", role: "source", relink: "app__study_relink_source" },
       { path: "/gone/b.stp", owner: "s1:source", studyId: "s1", role: "source", relink: "app__study_relink_source" },
-      { path: "/gone/m.mdpa", owner: "s1:mesh", studyId: "s1", role: "mesh", relink: null },
+      { path: "/gone/m.mdpa", owner: "s1:mesh", studyId: "s1", role: "mesh", relink: "app__study_relink_reference" },
       { path: "/gone/c.stp", owner: "s2:source", studyId: "s2", role: "source", relink: "app__study_relink_source" }];
     const r = relinkPlan(u);
     expect(r.relinkable.map((x) => x.studyId)).toEqual(["s1", "s2"]);
-    expect(r.listedOnly).toBe(2);
-    expect(relinkPlan([])).toEqual({ relinkable: [], listedOnly: 0 });
+    expect(r.relocatable.map((x) => x.role)).toEqual(["mesh"]);
+    expect(relinkPlan([])).toEqual({ relinkable: [], relocatable: [] });
+  });
+  it("finds the live references a role names", () => {
+    const ref = (p: string) => ({ kind: "external", path: p, revision: "a".repeat(64) });
+    const study: any = { id: "s", mesh: ref("/m"), geometry: { baseSource: ref("/b") }, handoff: { artifacts: [{ role: "mesh", reference: ref("/h1") }, { role: "x", reference: ref("/h2") }] },
+      runs: [{ id: "r1", artifacts: [{ role: "result", reference: ref("/o1") }, { role: "log", reference: ref("/l") }] }] };
+    expect(referencesForRole(study, "mesh")[0]).toBe(study.mesh);
+    expect(referencesForRole(study, "baseSource")[0]).toBe(study.geometry.baseSource);
+    expect(referencesForRole(study, "handoff").map((x) => x.path)).toEqual(["/h1", "/h2"]);
+    expect(referencesForRole(study, "r1:result")[0]).toBe(study.runs[0].artifacts[0].reference);
+    expect(referencesForRole(study, "source")).toEqual([]);
+    expect(referencesForRole(study, "r2:result")).toEqual([]);
+    expect(referencesForRole(study, "nope")).toEqual([]);
   });
   it("lists unresolved external references by study and role", () => {
     const m: any = { external: [{ owner: "s1:source", path: "/gone/a.stp" }, { owner: "s1:mesh", path: "/here/m.mdpa" }, { owner: "s2:r1:result", path: "/gone/o.vtk" }] };
     expect(unresolvedExternal(m, (p) => p === "/here/m.mdpa")).toEqual([
       { path: "/gone/a.stp", owner: "s1:source", studyId: "s1", role: "source", relink: "app__study_relink_source" },
-      { path: "/gone/o.vtk", owner: "s2:r1:result", studyId: "s2", role: "r1:result", relink: null }]);
+      { path: "/gone/o.vtk", owner: "s2:r1:result", studyId: "s2", role: "r1:result", relink: "app__study_relink_reference" }]);
   });
 });

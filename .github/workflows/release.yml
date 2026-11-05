@@ -196,6 +196,40 @@ jobs:
             echo 'MACOS_SIGNING_ENABLED is not set; retaining unsigned macOS artifacts'
           fi
 
+      # Roadmap items 16/17: the e2e suite runs from out/, so nothing else ever launches a PACKAGED app. This does, per
+      # runner: both modes open a fixture, the native menu is complete, app-owned pages have no clipped or unnamed controls
+      # at three widths, packager variables do not reach a shell, and quit is natural and clean. A failure fails the
+      # release (publish needs build). It tests the unpacked app electron-builder wraps; the installers themselves are not run.
+      - name: Self-test the packaged app
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            sudo apt-get update && sudo apt-get install -y xvfb
+            xvfb-run -a node tools/e2e/packaged.mjs
+          else
+            node tools/e2e/packaged.mjs
+          fi
+
+      # Same checks against the AppImage itself (extract-and-run, since runners have no FUSE). Not yet seen green anywhere,
+      # so it reports without gating: promote it by removing continue-on-error once it has passed on a tag.
+      - name: Self-test the AppImage
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        shell: bash
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          image="$(ls release/*.AppImage | head -n1)"
+          chmod +x "$image"
+          KKSS_PACKAGED_BIN="$PWD/$image" xvfb-run -a node tools/e2e/packaged.mjs
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: selftest-${{ matrix.os }}
+          path: test-results/
+          if-no-files-found: ignore
+
       # Channel yml files + *.blockmap are electron-updater's update feed —
       # the packaged app checks them on the GitHub Release (About ▸ Update
       # now). Names never collide across platforms, so merge-multiple is safe.

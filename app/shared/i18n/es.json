@@ -1002,12 +1002,8 @@
   "What should the archive contain?": "¿Qué debe contener el archivo?",
   "Sources and meshes only": "Solo fuentes y mallas",
   "Include run files": "Incluir archivos de ejecución",
-  "{0} study geometry file(s) are not on this machine.": "{0} archivo(s) de geometría de estudios no están en este equipo.",
-  "Use the unpacked folder as the project root and choose the replacement for each. Mesh and run references ({0}) are only listed.": "Se usará la carpeta desempaquetada como raíz del proyecto y elegirás el sustituto de cada uno. Las referencias a mallas y ejecuciones ({0}) solo se listan.",
-  "Relink geometry…": "Revincular geometría…",
   "Not now": "Ahora no",
   "Locate the geometry file for this study": "Localiza el archivo de geometría de este estudio",
-  "Relinked {0} of {1} studies.": "Se revincularon {0} de {1} estudios.",
   "Study panel reloaded.": "Panel de estudio recargado.",
   "Toggle Study Panel": "Mostrar u ocultar el panel de estudio",
   "Studies": "Estudios",
@@ -1140,5 +1136,10 @@
   "Terminals": "Terminales",
   "Opened {0}": "Abierto {0}",
   "How the mouse and trackpad navigate the 3D view. Default: left-drag orbits, middle-drag zooms, right-drag pans. Fusion: middle-drag pans, Shift+middle-drag orbits, the left button stays free for selection. Touchpad: left-drag orbits, a two-finger scroll pans, a pinch zooms (a physical mouse wheel pans too). Otherwise the wheel zooms.": "Cómo navegan el ratón y el trackpad por la vista 3D. Predeterminado: arrastrar con el izquierdo orbita, con el central hace zoom, con el derecho desplaza. Fusion: el central desplaza, Mayús+central orbita y el izquierdo queda libre para seleccionar. Touchpad: el izquierdo orbita, el desplazamiento con dos dedos desplaza y el pellizco hace zoom (la rueda de un ratón físico también desplaza). En otro caso la rueda hace zoom.",
-  "Touchpad": "Touchpad"
+  "Touchpad": "Touchpad",
+  "Relink files…": "Reenlazar archivos…",
+  "{0} study geometry file(s) and {1} other referenced file(s) are not on this machine.": "{0} archivo(s) de geometría de estudios y {1} otro(s) archivo(s) referenciado(s) no están en este equipo.",
+  "Use the unpacked folder as the project root and choose each file. A geometry file may be a replacement; any other file must be the same bytes, moved.": "Usa la carpeta descomprimida como raíz del proyecto y elige cada archivo. Un archivo de geometría puede ser un reemplazo; cualquier otro debe tener los mismos bytes, solo movido.",
+  "Locate {0} (moved file)": "Localiza {0} (archivo movido)",
+  "Relinked {0} of {1} references; {2} refused because the file differs from the recorded one.": "Reenlazadas {0} de {1} referencias; {2} rechazadas porque el archivo difiere del registrado."
 }

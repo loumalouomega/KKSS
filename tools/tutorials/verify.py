@@ -8,6 +8,10 @@ import re
 import importlib.metadata
 
 
+# Set only by negative_controls(): perturbs what vtk() returns so a check can be shown to fail on wrong data.
+_MUTATE = None
+
+
 def vtk(file):
     tokens = file.read_text().split()
     assert 'ASCII' in tokens[:12], 'Expected ASCII VTK'
@@ -35,6 +39,8 @@ def vtk(file):
         fields[name] = [list(map(float, tokens[j:j + components])) for j in range(cursor, cursor + tuples * components, components)]
         cursor += tuples * components
     assert all(math.isfinite(v) for field in fields.values() for row in field for v in row)
+    if _MUTATE is not None:
+        _MUTATE(points, cells, fields)
     return points, cells, fields
 
 
@@ -703,7 +709,7 @@ def verify_wind_tunnel(directory):
             'threads': 2, 'nodes': len(p), 'elements': len(cells), 'fields': list(fields),
             'result': str(files[-1].relative_to(directory)), 'frames': len(files),
             'end_time': parameters['problem_data']['end_time'], 'checks': checks}
-def verify(case, directory):
+def _verify(case, directory):
     # recipe.json is the generator's recipe (generate.mjs writes it): only fsi
     # uses `mok` for dispatch, and the published/generated coupled dirs always
     # carry it. Tool-only flows (the scripted AI tutorial stages a case in the
@@ -822,5 +828,127 @@ def verify(case, directory):
             'end_time': parameters['problem_data']['end_time'], 'checks': checks}
 
 
+# Why each limit is where it is. Every bounded check must have an entry (verify() fails otherwise), and the text is recorded
+# beside the measured value in verification.json, so a limit is never a bare number.
+_EXACT_INLET = 'The inlet velocity is a Dirichlet condition the solver imposes exactly; anything above round-off means it was not applied.'
+_EXACT_OUTLET = 'The outlet pressure is a Dirichlet condition (zero) the solver imposes exactly; anything above round-off means it was not applied.'
+_WAKE = 'Flow past a bluff body must leave a velocity deficit behind it; a missing deficit means the obstacle had no effect.'
+_PRESSURE = 'A flow past an obstacle needs a pressure difference to drive it; a flat field means the flow physics did not run.'
+LIMIT_REASONS = {
+    'beam_displacement_relative_error': 'Euler-Bernoulli theory ignores shear and the 3D clamped end, so a short 4 x 5 x 18 mm solid cannot match it exactly; 25 % still separates the right physics from a wrong load, support or modulus.',
+    'linear_temperature_error_K': 'Steady conduction between two fixed-temperature faces with constant conductivity is exactly linear; the solve must reproduce it to well under a millikelvin.',
+    'inlet_velocity_error_m_per_s': _EXACT_INLET,
+    'inlet_profile_error_m_per_s': _EXACT_INLET,
+    'outlet_pressure_error_Pa': _EXACT_OUTLET,
+    'flux_imbalance_m2_per_s': 'An incompressible steady flow conserves volume flux; inlet and outlet fluxes differ only by the boundary-node trapezoid sum.',
+    'obstacle_no_slip_speed_m_per_s': 'No-slip is imposed on the obstacle; the allowance covers solver tolerance and result nodes sampled within 1.5 mm of the circle.',
+    'near_wake_velocity_deficit_m_per_s': _WAKE,
+    'pressure_range_Pa': _PRESSURE,
+    'potential_gradient_error_m_per_s': 'A uniform stream has a linear potential, so every element gradient equals the freestream velocity; 1 mm/s is far below any modelling difference.',
+    'depth_error_m': 'A still basin keeps its initial depth; any change beyond 1 micrometre is a numerical artefact.',
+    'momentum_m2_per_s': 'A still basin has no momentum; the limit is solver round-off.',
+    'water_volume_error_m3': 'Water in a closed basin is conserved: depth times area must stay at the initial 4 m3.',
+    'inlet_face_mean_m_per_s': 'Interior inlet nodes carry the imposed profile; the allowance covers the two corner nodes that follow the moving wall (no-slip coupling).',
+    'ale_mass_balance_error': 'Net flux through inlet and outlet equals minus the volume change of the moving fluid domain; the trapezoid rule over a few samples of a fast transient is coarse, hence 35 %.',
+    'peak_structure_displacement_m': 'Proves the structure moved at all; a coupled run with a frozen structure would pass every flow check.',
+    'peak_structure_displacement_limit_m': 'Bounds the deflection to a physically sensible 20 mm; more signals divergence.',
+    'ale_area_balance_error': 'The 2D counterpart of the ALE balance, integrated over the whole run; 2 % bounds the trapezoid and mesh-motion error.',
+    'tip_ux_peak_m_minimum': 'Proves the wall deflected at all.',
+    'tip_ux_peak_vs_published_error_m': 'Compared with the published ~8.3 cm peak; 20 mm is the spread a different discretisation and time step earn.',
+    'tip_ux_final_vs_published_error_m': 'Compared with the published ~6.2 cm at 25 s; 15 mm is the spread a different discretisation earns.',
+    'mean_wall_y_plus': 'Wall functions need the first cell in the log layer: y+ at least 30.',
+    'mean_wall_y_plus_limit': 'Wall functions need the first cell in the log layer: y+ at most 300.',
+    'turbulent_kinetic_energy_maximum': 'Turbulence must be produced somewhere; an all-zero field means the model was inactive.',
+    'turbulent_kinetic_energy_undershoot_ratio': 'k is non-negative by definition; 10 % of the peak bounds numerical undershoot.',
+    'turbulent_viscosity_maximum': 'Eddy viscosity must be positive somewhere for the model to act.',
+    'turbulent_viscosity_minimum': 'Eddy viscosity cannot be negative; the limit is round-off.',
+    'drag_x_N_per_m': 'Drag opposes the flow, so its streamwise component is positive.',
+    'drag_coefficient_minimum': 'A band that catches orders-of-magnitude errors in the drag monitor, not a calibration against a benchmark.',
+    'drag_coefficient_maximum': 'A band that catches orders-of-magnitude errors in the drag monitor, not a calibration against a benchmark.',
+    'drag_vs_momentum_relative_error': 'The monitored drag must agree with the momentum budget of the channel to 15 %; the budget neglects wall shear.',
+    'column_area_error_at_start': 'The level set must reproduce the initial water column area (0.8 m2) to 1 %.',
+    'water_area_drift': 'Level-set advection conserves the water area to 2 % over the run.',
+    'front_advance_m': 'A dam break must advance; a stationary front means the flow never started.',
+    'peak_speed_m_per_s': 'Speeds stay bounded for a dam break at this scale; larger values signal blow-up.',
+    'wall_y_plus_ratio_limit': 'Measured over planned wall y+: a sphere boundary layer is not the flat plate the plan assumes, so only order-of-magnitude agreement is asked.',
+    'wall_y_plus_ratio_minimum': 'Measured over planned wall y+: the secant reconstruction under-reads a logarithmic profile, so 0.4 is the floor of order-of-magnitude agreement.',
+    'flux_imbalance_relative': 'Mass balance of the 3D tunnel: tetrahedral inlet and outlet faces earn a few percent, so 5 % catches a missing boundary, not discretisation error.',
+    'drag_x_N': 'Drag opposes the flow, so its streamwise component is positive.',
+    'first_lateral_frequency_relative_error': 'The 18 x 4 x 5 mm solid has a 6:1 length aspect, so shear and rotary inertia move it off Euler-Bernoulli by several percent; 10 % is the documented tolerance.',
+    'second_vertical_frequency_relative_error': 'The 18 x 4 x 5 mm solid has a 6:1 length aspect, so shear and rotary inertia move it off Euler-Bernoulli by several percent; 10 % is the documented tolerance.',
+}
+
+
+def verify(case, directory):
+    """Run the case's checks and attach the reason for every limit (no bounded check may lack one)."""
+    report = _verify(case, directory)
+    missing = []
+    for name, row in report['checks'].items():
+        if isinstance(row, dict) and ('maximum' in row or 'minimum' in row):
+            if name in LIMIT_REASONS:
+                row['reason'] = LIMIT_REASONS[name]
+            else:
+                missing.append(name)
+    assert not missing, f'limits without a stated reason: {", ".join(missing)} (add them to LIMIT_REASONS)'
+    return report
+
+
+def _scale_displacement(points, cells, fields):
+    fields['DISPLACEMENT'] = [[3 * c for c in row] for row in fields['DISPLACEMENT']]
+
+
+def _warm_one_node(points, cells, fields):
+    fields['TEMPERATURE'][0][0] += 0.01
+
+
+def _tilt_potential(points, cells, fields):
+    for xyz, row in zip(points, fields['VELOCITY_POTENTIAL']):
+        row[0] += 0.5 * xyz[0]
+
+
+def _raise_depth(points, cells, fields):
+    for row in fields['HEIGHT']:
+        row[0] += 0.01
+
+
+def _lift_outlet_pressure(points, cells, fields):
+    xmax = max(xyz[0] for xyz in points)
+    for xyz, row in zip(points, fields['PRESSURE']):
+        if abs(xyz[0] - xmax) < 1e-8:
+            row[0] += 1.0
+
+
+# case -> (what is wrong with the data, the check that must catch it, perturbation). Post-processing controls: each one
+# proves the named check fails on wrong data. Solver-side controls (coarse mesh, dropped condition, one iteration) need a re-solve
+# and are not run here; coupled, RANS, eigen, two-fluid and wind-tunnel cases have none yet.
+NEGATIVE_CONTROLS = {
+    'structural': ('displacement three times too large', 'beam_displacement_relative_error', _scale_displacement),
+    'thermal': ('one node 10 mK off the linear profile', 'linear_temperature_error_K', _warm_one_node),
+    'potential-flow': ('potential tilted by 0.5 m/s', 'potential_gradient_error_m_per_s', _tilt_potential),
+    'shallow-water': ('basin 1 cm too deep', 'depth_error_m', _raise_depth),
+    'fluid': ('outlet pressure lifted by 1 Pa (condition dropped)', 'outlet_pressure_error_Pa', _lift_outlet_pressure),
+}
+
+
+def negative_controls(case, directory):
+    """Each control must make exactly its named check fail; anything else (passing, or failing elsewhere) is an error."""
+    global _MUTATE
+    assert case in NEGATIVE_CONTROLS, f'no negative control for case {case}'
+    what, expected, mutate = NEGATIVE_CONTROLS[case]
+    _MUTATE = mutate
+    try:
+        verify(case, directory)
+    except AssertionError as err:
+        message = str(err)
+        assert message.startswith(expected), f'control "{what}" failed the wrong check: {message}'
+        return {'case': case, 'control': what, 'expected': expected, 'detected': True, 'message': message}
+    finally:
+        _MUTATE = None
+    raise AssertionError(f'control "{what}" was NOT detected: {expected} still passed')
+
+
 if __name__ == '__main__':
-    print(json.dumps(verify(sys.argv[1], sys.argv[2]), indent=2))
+    if sys.argv[1] == '--controls':
+        print(json.dumps(negative_controls(sys.argv[2], sys.argv[3]), indent=2))
+    else:
+        print(json.dumps(verify(sys.argv[1], sys.argv[2]), indent=2))

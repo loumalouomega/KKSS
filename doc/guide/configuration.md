@@ -415,14 +415,14 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 | Server | Tools | Read | Write | Path-scoped |
 | --- | --- | --- | --- | --- |
-| `app` | 43 | 18 | 25 | 0 |
+| `app` | 44 | 18 | 26 | 0 |
 | `cad` | 95 | 48 | 47 | 43 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
 | `mesh` | 61 | 22 | 39 | 32 |
 | `pdf` | 12 | 12 | 0 | 0 |
 
-<details><summary><code>app</code> (43)</summary>
+<details><summary><code>app</code> (44)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
@@ -462,6 +462,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `app__study_open` | write | — |
 | `app__study_region_references` | read | — |
 | `app__study_region_rename` | write | — |
+| `app__study_relink_reference` | write | — |
 | `app__study_relink_source` | write | — |
 | `app__study_select` | write | — |
 | `app__study_set_settings` | write | — |
