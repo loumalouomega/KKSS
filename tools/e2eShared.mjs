@@ -232,7 +232,12 @@ export async function selectFile(app, file, save = false) {
   }, { file, save });
 }
 
-export const softwareGL = ["--use-gl=angle", "--use-angle=swiftshader", "--disable-gpu-compositing", "--disable-dev-shm-usage"];
+// macOS runners have no GPU, and the out-of-process GPU host fails there ("BindToCurrentSequence failed", so neither viewer
+// gets a WebGL context). Running the SwiftShader GPU in-process is the known workaround; other platforms are unchanged.
+export const softwareGL = [
+  "--use-gl=angle", "--use-angle=swiftshader", "--disable-gpu-compositing", "--disable-dev-shm-usage",
+  ...(process.platform === "darwin" ? ["--in-process-gpu", "--ignore-gpu-blocklist"] : []),
+];
 
 /** Best-effort artifacts must never hide the original assertion. */
 export async function diagnostics(app, output, name) {
