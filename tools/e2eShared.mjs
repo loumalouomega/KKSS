@@ -232,12 +232,10 @@ export async function selectFile(app, file, save = false) {
   }, { file, save });
 }
 
-// macOS runners have no GPU, and the out-of-process GPU host fails there ("BindToCurrentSequence failed", so neither viewer
-// gets a WebGL context). Running the SwiftShader GPU in-process is the known workaround; other platforms are unchanged.
-export const softwareGL = [
-  "--use-gl=angle", "--use-angle=swiftshader", "--disable-gpu-compositing", "--disable-dev-shm-usage",
-  ...(process.platform === "darwin" ? ["--in-process-gpu", "--ignore-gpu-blocklist"] : []),
-];
+// Software GL for GPU-less runners. Do NOT add --in-process-gpu on macOS: with SwANGLE the in-process GPU's Vulkan init
+// failure is fatal (the packaged app dies with SIGTRAP at launch); the out-of-process GPU host just lacks WebGL, which the
+// host<->webview message markers these scenarios wait on do not need.
+export const softwareGL = ["--use-gl=angle", "--use-angle=swiftshader", "--disable-gpu-compositing", "--disable-dev-shm-usage"];
 
 /** Best-effort artifacts must never hide the original assertion. */
 export async function diagnostics(app, output, name) {
