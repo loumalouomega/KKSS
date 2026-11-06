@@ -86,6 +86,7 @@ These seed newly opened models; per-model choices saved beside the model (see [P
 | Background | Default 3D view background. The viewer's Appearance swatch still overrides it per session. | `#1e1e1e` |
 | Up Axis | `Y up` or `Z up` for newly opened models. | Y up |
 | Show Grid & Axes on Open | Show the ground grid and the axes helper when a model opens. | On |
+| Ribbon (Pre-Processing) | Show the ribbon (the tabbed command strip under the toolbar) when a model opens; hiding or showing it in a model is remembered with that model and wins. | On |
 | Default Mesh Size | `Coarse` / `Medium` / `Fine` element-size preset for models with no saved `.mesh.json`. | Medium |
 | Tessellation Quality | `Draft (fastest)` / `Standard` / `Fine (most detail)` for STEP/IGES/BREP display. Re-read on every edit or reopen; it does not affect FE meshing. | Standard |
 | OpenSCAD Binary | Fallback `openscad` executable, used only when the bundled OpenSCAD declines a model (`import()`/`surface()`, a missing include, over the staging caps). | `openscad` |
@@ -100,6 +101,7 @@ These seed newly opened models; per-model choices saved beside the model (see [P
 | Large-Mesh Summary Threshold (MB) | Meshes above this size open as a header summary with an **Open full mesh anyway** button; `0` always opens in full. | 250 |
 | Timeline Frame Cache (MB) | Memory budget for keeping recently viewed time-series frames parsed, so stepping back and forth does not reread files. Takes effect live. | 256 |
 | 3D Renderer | `vtk.js` or the experimental `VTK-wasm` — see [Mesh 3D renderer](#mesh-3d-renderer). | vtk.js |
+| Ribbon (Post-Processing) | Show the ribbon of common view, result, inspection and mesh actions under the menu bar. A choice made inside a document is remembered with it. Applies to previews opened afterwards. | On |
 | Plot Extraction Cache | Keep a bounded on-disk cache of disk-backed plot extractions under the app's mesh storage, so reopening a plot after a restart does not re-extract. Off keeps extractions in memory only. | Off |
 | Mesh Export Provenance | `Automatic`, `Write a full sidecar report` (a `.kratosexport.json` per export series) or `Do not record provenance` — see [Mesh exports](#mesh-exports-and-material-libraries). | Automatic |
 | Flowgraph Split | Where the Flowgraph problemtype's node editor opens: `Below the 3D view` or `Beside the 3D view`. | Below |
@@ -275,6 +277,7 @@ Generated from `app/main/services/settings/registry.ts`; do not edit between the
 | Show Grid & Axes on Open | `cadPreview.showGridAndAxesOnOpen` | boolean | `true` | nextOpen | `cadShowGridAndAxesOnOpen` |
 | Default Mesh Size | `cadPreview.defaultMeshSizePreset` | one of `coarse`, `medium`, `fine` | `medium` | nextOpen | `cadDefaultMeshSizePreset` |
 | Navigation Preset | `cadPreview.navigationPreset` | one of `default`, `fusion`, `touchpad` | `default` | nextOpen | `cadNavigationPreset` |
+| Ribbon (Pre-Processing) | `cadPreview.ribbon` | boolean | `true` | nextOpen | `cadRibbon` |
 | Single-Key Commands | `cadPreview.singleKeyCommands` | boolean | `false` | nextOpen | `cadSingleKeyCommands` |
 | Tessellation Quality | `cadPreview.tessellationQuality` | one of `draft`, `standard`, `fine` | `standard` | nextRun | `cadTessellationQuality` |
 | OpenSCAD Binary | `cadPreview.openscadBinary` | path | `openscad` | nextOpen | `cadOpenscadBinary` |
@@ -289,6 +292,7 @@ Generated from `app/main/services/settings/registry.ts`; do not edit between the
 | Large-Mesh Summary Threshold (MB) | `kratos.preview.summaryThresholdMb` | number | `250` | nextOpen | `meshSummaryThresholdMb` |
 | Timeline Frame Cache (MB) | `kratos.preview.frameCacheMb` | number | `256` | live | `meshFrameCacheMb` |
 | 3D Renderer | `kratos.preview.renderer` | one of `vtkjs`, `vtkwasm` | `vtkjs` | nextOpen | `kratos.preview.renderer` |
+| Ribbon (Post-Processing) | `meshViewer.ribbon` | boolean | `true` | nextOpen | `meshRibbon` |
 | Plot Extraction Cache | `kratos.plots.persistentCache` | boolean | `false` | live | `kratos.plots.persistentCache` |
 | Mesh Export Provenance | `kratos.export.provenance` | one of `auto`, `sidecar`, `none` | `auto` | live | `kratos.export.provenance` |
 | Flowgraph Split | `kratos.flowgraph.splitOrientation` | one of `horizontal`, `vertical` | `horizontal` | nextOpen | `kratos.flowgraph.splitOrientation` |

@@ -5,6 +5,11 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.35.0] - 2026-11-06
+
+- chore: update **CAD-Preview to 3.40.0** and **mesh to 5.37.0**. Both add the optional ribbon settings described below; no other upstream changes.
+- feat: **ribbon in Post-Processing (mesh) mode**, on by default, plus a matching **Ribbon** setting for Pre-Processing. Settings ▸ Mesh Viewer ▸ *Ribbon (Post-Processing)* (`meshRibbon`) and CAD Viewer ▸ *Ribbon (Pre-Processing)* (`cadRibbon`, mapped to `cadPreview.ribbon`); both apply to documents opened afterwards. The mesh extension's own `kratos.preview.ribbon` is off by default in VS Code, so KKSS owns its default (listed in `NOT_APPLICABLE`) and injects `data-ribbon="1"` into the page.
+
 ## [2.34.0] - 2026-11-06
 
 - chore: update **CAD-Preview to 3.39.0** and **mesh to 5.36.0** (meshio++ stays 18.3.0). CAD: edit history folders, drag (or Alt+↑/↓) reorder of unsaved ops, a Ribbon hide button and a dockable operation form. Mesh: **Advanced ▸ Recovered flux…** (a derived, never-saved traction field), **Quantity Across Runs…** (Kratos Runs tree, not available in KKSS), parent SubModelParts now include their descendants' entities, vtk.js 38. The assistant gains `move_edit_op` and the `folder`/`toIndex` options of `set_edit_op_state` (327 policy rows).
@@ -418,6 +423,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.35.0]: https://github.com/loumalouomega/KKSS/compare/v2.34.0...v2.35.0
 [2.34.0]: https://github.com/loumalouomega/KKSS/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/loumalouomega/KKSS/compare/v2.32.0...v2.33.0
 [2.32.0]: https://github.com/loumalouomega/KKSS/compare/v2.31.0...v2.32.0

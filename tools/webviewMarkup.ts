@@ -23,6 +23,7 @@ import {
   FLOWGRAPH_PANE_HTML,
   LOADING_HTML,
   MENUBAR_HTML,
+  RIBBON_HTML,
   SIDEBAR_HTML,
   STATUSBAR_HTML,
   TOOLBAR_HTML,
@@ -151,6 +152,7 @@ function meshBody(): string {
   return `  ${LOADING_HTML}
   <div id="app" style="display:none">
     ${MENUBAR_HTML}
+    ${RIBBON_HTML}
     <div id="main">
     ${SIDEBAR_HTML}
     <div id="sidebar-resizer" role="separator" aria-orientation="vertical" tabindex="0" title="Drag or press ArrowLeft/ArrowRight to resize the sidebar"></div>

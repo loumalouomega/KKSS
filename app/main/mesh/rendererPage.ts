@@ -12,7 +12,7 @@ import {
 import type { RendererKind } from "../../../mesh/src/parser/render/types";
 import { localizeHtml, pickCatalogue } from "../../../mesh/src/parser/i18n/messages";
 import { currentLocale } from "../../shared/i18n";
-import { effective, entryForVscode } from "../services/settings/registry";
+import { effective, entryForVscode, registry } from "../services/settings/registry";
 import { stateStore } from "../services/stateStore";
 
 /**
@@ -142,7 +142,28 @@ export function meshPage(outDir: string, html: string): string {
   const stored = entry?.storeKey ? stateStore.get(entry.storeKey) : undefined;
   const decision = rendererDecision(outDir, stored);
   if (decision.fallbackReason) console.warn(`[kkss] ${fallbackMessage(decision.fallbackReason)}`);
-  return applyLocale(applyRenderer(html, decision), currentLocale());
+  return applyLocale(applyRibbon(applyRenderer(html, decision), ribbonEnabled()), currentLocale());
+}
+
+/** The Post-Processing ribbon is on unless the user turned it off (KKSS default: on). */
+export function ribbonEnabled(stored?: unknown): boolean {
+  const entry = registry().find((e) => e.storeKey === "meshRibbon");
+  const value = stored !== undefined ? stored : entry?.storeKey ? stateStore.get(entry.storeKey) : undefined;
+  return (entry ? effective(entry, value) : value) !== false;
+}
+
+/**
+ * Carries the ribbon choice into the generated page as mesh's
+ * `<body data-ribbon="1">` (what `buildPreviewHtml` emits for
+ * `kratos.preview.ribbon`). Off adds nothing. Fails loudly like `applyRenderer`
+ * when the `<body>` anchor is gone.
+ */
+export function applyRibbon(html: string, on: boolean): string {
+  if (!on) return html;
+  const bodyAt = html.indexOf("<body");
+  const headEnd = bodyAt < 0 ? -1 : html.indexOf(">", bodyAt);
+  if (bodyAt < 0 || headEnd < 0) throw new Error("mesh page: no <body> tag to carry the ribbon attribute");
+  return `${html.slice(0, headEnd)} data-ribbon="1"${html.slice(headEnd)}`;
 }
 
 /**

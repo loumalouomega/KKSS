@@ -1978,6 +1978,9 @@ app.whenReady().then(() => {
     // same note). Announced here rather than from the menu's click, so the
     // Settings page and the View ▸ 3D Renderer radio cannot disagree about
     // whether the user was told.
+    if (key === "meshRibbon" || key === "cadRibbon") {
+      toast("info", t("The ribbon setting applies to previews and models opened from now on."));
+    }
     if (key === "kratos.preview.renderer") {
       toast("info", t("The 3D renderer applies to mesh previews opened from now on; reopen a preview to switch it."));
     }
