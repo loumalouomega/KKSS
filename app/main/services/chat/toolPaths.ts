@@ -68,6 +68,7 @@ export const SCOPED_TOOL_PATH_ARGS: Readonly<Record<string, readonly string[]>> 
   cad__import_svg: ["path", "svgPath"],
   cad__load_preprocess: ["zipPath", "outputPath"],
   cad__measure_mesh_deviation: ["path", "deviationMeshPath"],
+  cad__move_edit_op: ["path"],
   cad__pin_annotation: ["path"],
   cad__promote_mesh_to_brep: ["path", "outputPath"],
   cad__mesh_adjacency: ["path", "outputPath"],

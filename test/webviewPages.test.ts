@@ -98,7 +98,7 @@ describe.skipIf(!built)("generated webview pages", () => {
     // fragment; webview/meshMod.ts binds each by id.
     // mesh 5.32.0's ALE quality panel and mirror/revolve/sector view modes are
     // menu buttons with no native-menu fallback.
-    for (const action of ["aleQuality", "mirror", "revolve", "sector"]) {
+    for (const action of ["aleQuality", "mirror", "revolve", "sector", "recoverFlux"]) {
       expect(html).toContain(`data-action="${action}"`);
     }
     // mesh 5.31.0's seven meshio++ 18.1 forms ride the same fragment.

@@ -10,6 +10,7 @@
  * (`host:/abs/path`, see `providerCore/sshCore.ts`) and in `CloudRef.accountId`.
  */
 import { spawn } from "node:child_process";
+import { externalProcessEnv } from "../../childEnv";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { CloudError, type CloudAccount, type CloudFile } from "../cloudCore";
@@ -58,7 +59,7 @@ export function classifySshFailure(stderr: string): CloudError["kind"] {
 
 export const spawnSsh: SshRunner = (host, command, options = {}) =>
   new Promise<SshResult>((resolve, reject) => {
-    const child = spawn("ssh", sshArgs(host, command), { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn("ssh", sshArgs(host, command), { stdio: ["pipe", "pipe", "pipe"], env: externalProcessEnv(process.env) });
     const tmp = options.stdoutFile ? `${options.stdoutFile}.download` : undefined;
     const sink = tmp ? fs.createWriteStream(tmp) : undefined;
     let stdout = "";

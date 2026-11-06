@@ -416,7 +416,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | Server | Tools | Read | Write | Path-scoped |
 | --- | --- | --- | --- | --- |
 | `app` | 44 | 18 | 26 | 0 |
-| `cad` | 95 | 48 | 47 | 43 |
+| `cad` | 96 | 48 | 48 | 44 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
 | `mesh` | 61 | 22 | 39 | 32 |
@@ -473,7 +473,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>cad</code> (95)</summary>
+<details><summary><code>cad</code> (96)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
@@ -541,6 +541,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__measure_mesh_thickness` | read | — |
 | `cad__mesh_adjacency` | write | paths: `path`, `outputPath` |
 | `cad__mesh_cad_surface` | write | paths: `path`, `outputPath` |
+| `cad__move_edit_op` | write | paths: `path` |
 | `cad__pin_annotation` | write | paths: `path` |
 | `cad__project_to_cad` | write | paths: `path`, `cadPath`, `outputPath` |
 | `cad__promote_mesh_to_brep` | write | paths: `path`, `outputPath` |

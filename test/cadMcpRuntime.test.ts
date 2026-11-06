@@ -95,6 +95,9 @@ describe.skipIf(!fs.existsSync(server))("bundled CAD MCP runtime", () => {
       // the iga_* tools take the STEP/IGES `cadRead` controls.
       const listed = (await client.listTools()).tools;
       expect(listed.find((t) => t.name === "set_edit_op_state")?.inputSchema.properties).toHaveProperty("suppressed");
+      // cad 3.39.0: history folders and drag reorder.
+      expect(listed.find((t) => t.name === "set_edit_op_state")?.inputSchema.properties).toHaveProperty("folder");
+      expect(listed.find((t) => t.name === "move_edit_op")?.inputSchema.properties).toHaveProperty("from");
       expect(listed.find((t) => t.name === "diagnostics_report")?.inputSchema.properties).toHaveProperty("opIndex");
       expect(listed.find((t) => t.name === "iga_refine")?.inputSchema.properties).toHaveProperty("cadRead");
 
