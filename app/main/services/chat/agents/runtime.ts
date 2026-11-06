@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { externalProcessEnv } from '../../childEnv';
 import { accessSync, constants } from 'node:fs';
 import { homedir } from 'node:os';
 import * as path from 'node:path';
@@ -16,7 +17,8 @@ export function subscriptionEnv(source: NodeJS.ProcessEnv = process.env): NodeJS
     if (/^(ANTHROPIC_|OPENAI_|AZURE_OPENAI_|CLAUDE_CODE_USE_|CLAUDE_CODE_OAUTH_TOKEN|CLAUDE_CODE_API_KEY|CLAUDE_AGENT_SDK_|CODEX_API_KEY|CODEX_INTERNAL_|ELECTRON_RUN_AS_NODE)/.test(key)) delete env[key];
   }
   delete env.CLAUDECODE;
-  return env;
+  // The vendor CLIs are user programs: no packager loader paths either (childEnv.ts).
+  return externalProcessEnv(env);
 }
 export function resolveExecutable(provider: SubscriptionProvider, configured?: string): string {
   const name = provider === 'codex' ? 'codex' : 'claude';

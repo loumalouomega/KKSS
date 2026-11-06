@@ -6,6 +6,7 @@
  * records `uncertain` and never retries. Single-node: rank liveness is checked by pid.
  */
 import { spawn } from 'node:child_process';
+import { externalProcessEnv } from '../childEnv';
 import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import * as os from 'node:os';
@@ -25,7 +26,7 @@ const TERMINAL = ['succeeded', 'failed', 'cancelled'];
 /** `sh -c` on this machine with the `SshRunner` contract (stdin/stdout file piping). */
 export const runLocalSh: SshRunner = (_host: string, command: string, options: SshRunOptions = {}) =>
   new Promise<SshResult>((resolve) => {
-    const child = spawn('sh', ['-c', command], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn('sh', ['-c', command], { stdio: ['pipe', 'pipe', 'pipe'], env: externalProcessEnv(process.env) });
     let stdout = '', stderr = '';
     const sink = options.stdoutFile ? fs.createWriteStream(options.stdoutFile) : undefined;
     if (sink) child.stdout.pipe(sink); else child.stdout.on('data', d => (stdout += d));

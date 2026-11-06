@@ -8,6 +8,7 @@ full auto-generated compare links.
 ## [2.34.0] - 2026-11-06
 
 - chore: update **CAD-Preview to 3.39.0** and **mesh to 5.36.0** (meshio++ stays 18.3.0). CAD: edit history folders, drag (or Alt+↑/↓) reorder of unsaved ops, a Ribbon hide button and a dockable operation form. Mesh: **Advanced ▸ Recovered flux…** (a derived, never-saved traction field), **Quantity Across Runs…** (Kratos Runs tree, not available in KKSS), parent SubModelParts now include their descendants' entities, vtk.js 38. The assistant gains `move_edit_op` and the `folder`/`toIndex` options of `set_edit_op_state` (327 policy rows).
+- fix: the local solve shell, the ssh client, the uv installer and the Claude Code/Codex launchers now start without the AppImage's loader and packager variables, as the terminal and Kratos children already did.
 
 ## [2.33.0] - 2026-11-05
 

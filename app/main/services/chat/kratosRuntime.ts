@@ -149,7 +149,7 @@ export class KratosRuntime {
         ? ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script]
         : [script], {
         signal, timeout: 5 * 60_000,
-        env: { ...process.env, UV_UNMANAGED_INSTALL: destination, UV_NO_MODIFY_PATH: "1" },
+        env: { ...externalProcessEnv(process.env), UV_UNMANAGED_INSTALL: destination, UV_NO_MODIFY_PATH: "1" },
       });
       await this.probe(path.join(destination, windows ? "uv.exe" : "uv"), signal);
       signal.throwIfAborted();
