@@ -7,7 +7,9 @@
  * node_modules/node-pty in the package (see electron-builder.yml).
  */
 import { app, ipcMain, WebContents } from "electron";
+import * as fs from "node:fs";
 import * as os from "node:os";
+import * as path from "node:path";
 import * as pty from "node-pty";
 import type { TermSessionInfo, TermToHost, TermToWebview } from "../ipc";
 import { stateStore } from "./stateStore";
@@ -37,6 +39,18 @@ interface Session {
   scrollback: string;
   /** The panel's last report for a restart of an exited shell. */
   exitedCode: number | null;
+}
+
+/** node-pty's macOS `spawn-helper` must be executable; a packaging copy can drop the bit ("posix_spawnp failed"). */
+function ensureSpawnHelperExecutable(): void {
+  if (process.platform !== "darwin") return;
+  try {
+    const dir = path.dirname(require.resolve("node-pty/package.json"));
+    for (const sub of ["prebuilds/darwin-arm64", "prebuilds/darwin-x64", "build/Release"]) {
+      const f = path.join(dir, sub, "spawn-helper");
+      if (fs.existsSync(f) && (fs.statSync(f).mode & 0o111) === 0) fs.chmodSync(f, 0o755);
+    }
+  } catch { /* best effort */ }
 }
 
 export class TerminalService {
@@ -135,13 +149,26 @@ export class TerminalService {
     const shell = remote ? "ssh" : configuredShell();
     session.title = remote ? `ssh ${remote}` : shellName(shell);
     session.exitedCode = null;
-    const proc = pty.spawn(shell, remote ? ["-t", remote] : [], {
-      name: "xterm-256color",
-      cols: this.lastCols,
-      rows: this.lastRows,
-      cwd: (remote ? undefined : this.cwdProvider()) ?? os.homedir(),
-      env: externalProcessEnv(process.env) as Record<string, string>,
-    });
+    let proc: pty.IPty;
+    try {
+      ensureSpawnHelperExecutable();
+      proc = pty.spawn(shell, remote ? ["-t", remote] : [], {
+        name: "xterm-256color",
+        cols: this.lastCols,
+        rows: this.lastRows,
+        cwd: (remote ? undefined : this.cwdProvider()) ?? os.homedir(),
+        env: externalProcessEnv(process.env) as Record<string, string>,
+      });
+    } catch (error) {
+      // A throw here used to escape the IPC handler before the panel was sent its session list, leaving it
+      // with no terminal at all. Keep the session so the panel shows it as exited and offers a restart.
+      console.error("Terminal shell failed to start", error);
+      session.proc = null;
+      session.exited = Promise.resolve();
+      session.exitedCode = 1;
+      queueMicrotask(() => this.send({ type: "exit", id: session.id, code: 1 }));
+      return;
+    }
     session.proc = proc;
     let markExited = (): void => undefined;
     session.exited = new Promise<void>((resolve) => {
