@@ -1674,6 +1674,8 @@ release maintenance**; repeat it for every bump, including live MCP tool
 discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 42 app-owned
 workflow tools; 317 policy rows with the PDF reader server's twelve).
 
+**Ribbon settings (cad `cadPreview.ribbon`, mesh `kratos.preview.ribbon`).** cad's is a normal mapped registry row (default on both sides) plus `CAD_DEFAULT_KEYS.ribbon` and the `sendViewerDefaults` field. mesh's VS Code default is OFF but KKSS wants it ON, and `settingsRegistry.test.ts` requires mapped defaults to agree, so `kratos.preview.ribbon` is in `NOT_APPLICABLE` and KKSS has its own unmapped row (`meshViewer.ribbon`, store key `meshRibbon`, default true); `rendererPage.ts`'s `applyRibbon` writes `data-ribbon="1"` into the generated page per load, and `tools/webviewMarkup.ts` `meshBody()` mirrors `RIBBON_HTML` (between the menubar and `#main`). Both need the submodule bumps (the registry test fails on a missing contributed property until the gitlinks move).
+
 **The cad 3.38.0 → 3.39.0 + mesh 5.33.0 → 5.36.0 jump (history folders, drag reorder/`move_edit_op`, ribbon hide, docked form; parent SubModelParts include descendants, vtk.js 38, Recovered flux, Quantity Across Runs; KKSS 2.34.0) needed one policy row and prompt text — no host code.**
 
 - **Policy: 96 CAD + 61 mesh + 4 mcp + 43 app + 110 kratos + 12 pdf = 327.** `cad__move_edit_op` is `write`, scoped to `path`. `set_edit_op_state` gains `folder`/`toIndex`. Folder and drag state ride the op/`view.json` sidecars the host already round-trips; `rebindPartsOnChange` compares JSON so a reorder rebinds through the existing path.

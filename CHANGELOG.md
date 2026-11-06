@@ -5,6 +5,10 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [Unreleased]
+
+- feat: **ribbon in Post-Processing (mesh) mode**, on by default, plus a matching **Ribbon** setting for Pre-Processing. Settings ▸ Mesh Viewer ▸ *Ribbon (Post-Processing)* (`meshRibbon`) and CAD Viewer ▸ *Ribbon (Pre-Processing)* (`cadRibbon`, mapped to `cadPreview.ribbon`); both apply to documents opened afterwards. The mesh extension's own `kratos.preview.ribbon` is off by default in VS Code, so KKSS owns its default (listed in `NOT_APPLICABLE`) and injects `data-ribbon="1"` into the page. Requires the CAD and mesh submodule bumps that add those settings.
+
 ## [2.34.0] - 2026-11-06
 
 - chore: update **CAD-Preview to 3.39.0** and **mesh to 5.36.0** (meshio++ stays 18.3.0). CAD: edit history folders, drag (or Alt+↑/↓) reorder of unsaved ops, a Ribbon hide button and a dockable operation form. Mesh: **Advanced ▸ Recovered flux…** (a derived, never-saved traction field), **Quantity Across Runs…** (Kratos Runs tree, not available in KKSS), parent SubModelParts now include their descendants' entities, vtk.js 38. The assistant gains `move_edit_op` and the `folder`/`toIndex` options of `set_edit_op_state` (327 policy rows).

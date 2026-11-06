@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { applyLocale, applyRenderer, rendererAssetsPresent, rendererDecision } from "../app/main/mesh/rendererPage";
+import { applyLocale, applyRenderer, applyRibbon, rendererAssetsPresent, rendererDecision } from "../app/main/mesh/rendererPage";
 
 /** A stand-in for the generated page: the anchors the rewrite relies on. The
  *  body is emitted BARE by `tools/webviewMarkup.ts`, which is the case that has
@@ -60,6 +60,17 @@ describe("applyLocale", () => {
 
   it("fails loudly on a page it cannot rewrite", () => {
     expect(() => applyLocale("<body></body>", "es")).toThrow(/cannot apply the locale/);
+  });
+});
+
+describe("applyRibbon", () => {
+  it("adds data-ribbon to <body> only when on", () => {
+    expect(applyRibbon("<html><body class=\"x\"></body></html>", true)).toContain('<body class="x" data-ribbon="1">');
+    const page = "<html><body></body></html>";
+    expect(applyRibbon(page, false)).toBe(page);
+  });
+  it("fails loudly without a <body>", () => {
+    expect(() => applyRibbon("<html></html>", true)).toThrow(/no <body>/);
   });
 });
 

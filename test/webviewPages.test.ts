@@ -113,7 +113,7 @@ describe.skipIf(!built)("generated webview pages", () => {
     // mesh 4.x's document chip and status bar: the providers post `documentInfo`
     // and `engineStatus` and statusBar.ts looks these up by id, so a stale
     // meshBody() would silently drop both in KKSS only.
-    for (const anchor of ['id="statusbar"', 'id="doc-chip"', 'id="engine-status"', 'id="sb-cursor"']) {
+    for (const anchor of ['id="statusbar"', 'id="doc-chip"', 'id="engine-status"', 'id="sb-cursor"', 'id="ribbon"', 'id="ribbon-tabs"', 'id="ribbon-body"']) {
       expect(html).toContain(anchor);
     }
     // The status bar is the LAST child of #app, after #main.

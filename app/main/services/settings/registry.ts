@@ -106,6 +106,8 @@ export const NOT_APPLICABLE: Readonly<Record<string, string>> = {
     "Read only by mesh's activate(), which KKSS never calls; KKSS's own What's New toggle is general.showWhatsNew.",
   "kratos.preview.autoSave":
     "Only relevant with VS Code's files.autoSave on; KKSS has no auto-save loop, so no automatic save is ever attempted.",
+  "kratos.preview.ribbon":
+    "VS Code's default is off; KKSS owns the default (on) through its own `meshRibbon` row, injected into the page as data-ribbon by app/main/mesh/rendererPage.ts.",
   "kratos.run.launchMode":
     "The `terminal` mode needs window.createTerminal, which the shim deliberately refuses; runs always use the tracked child process.",
 };
@@ -311,6 +313,17 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       description: t("How the mouse and trackpad navigate the 3D view. Default: left-drag orbits, middle-drag zooms, right-drag pans. Fusion: middle-drag pans, Shift+middle-drag orbits, the left button stays free for selection. Touchpad: left-drag orbits, a two-finger scroll pans, a pinch zooms (a physical mouse wheel pans too). Otherwise the wheel zooms."),
     },
     {
+      id: "cadPreview.ribbon",
+      label: t("Ribbon (Pre-Processing)"),
+      category: "CAD Viewer",
+      type: "boolean",
+      storeKey: "cadRibbon",
+      default: true,
+      applies: "nextOpen",
+      vscode: { section: "cadPreview", key: "ribbon" },
+      description: t("Show the ribbon (the tabbed command strip under the toolbar) when a model opens. Hiding or showing it in a model is remembered with that model and wins over this setting."),
+    },
+    {
       id: "cadPreview.singleKeyCommands",
       label: t("Single-Key Commands"),
       category: "CAD Viewer",
@@ -425,6 +438,18 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       description: t(
         "Rendering backend for mesh previews. VTK-wasm is experimental and opt-in: it falls back to vtk.js with a note when its runtime is missing or cannot start. Applies to previews opened after the change."
       ),
+    },
+    {
+      // No `vscode` mapping on purpose: the extension's own default is off,
+      // KKSS's is on, and the registry test requires mapped defaults to agree.
+      id: "meshViewer.ribbon",
+      label: t("Ribbon (Post-Processing)"),
+      category: "Mesh Viewer",
+      type: "boolean",
+      storeKey: "meshRibbon",
+      default: true,
+      applies: "nextOpen",
+      description: t("Show the ribbon of common view, result, inspection and mesh actions under the Post-Processing menu bar. A choice made inside a document is remembered with it. Applies to previews opened after the change."),
     },
     {
       id: "kratos.plots.persistentCache",
