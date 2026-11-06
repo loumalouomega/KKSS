@@ -135,7 +135,7 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  */
 function killTree(pid) {
   try {
-    const out = execSync("ps -eo pid,ppid --no-headers", { encoding: "utf8" });
+    const out = execSync("ps -eo pid=,ppid=", { encoding: "utf8" });
     const childrenOf = new Map();
     for (const line of out.trim().split("\n")) {
       const [p, ppid] = line.trim().split(/\s+/).map(Number);
