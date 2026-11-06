@@ -245,6 +245,8 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   // set_edit_op_state suppresses/renames one op by rewriting the edits sidecar.
   cad__diagnostics_report: "read",
   cad__set_edit_op_state: "write",
+  // cad 3.39.0: reorders one op in the stack (history drag); rewrites the edits sidecar.
+  cad__move_edit_op: "write",
   cad__mesh_adjacency: "write",
   cad__register_meshes: "write",
   cad__iga_sample: "read",

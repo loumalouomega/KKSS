@@ -1674,6 +1674,11 @@ release maintenance**; repeat it for every bump, including live MCP tool
 discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 42 app-owned
 workflow tools; 317 policy rows with the PDF reader server's twelve).
 
+**The cad 3.38.0 → 3.39.0 + mesh 5.33.0 → 5.36.0 jump (history folders, drag reorder/`move_edit_op`, ribbon hide, docked form; parent SubModelParts include descendants, vtk.js 38, Recovered flux, Quantity Across Runs; KKSS 2.34.0) needed one policy row and prompt text — no host code.**
+
+- **Policy: 96 CAD + 61 mesh + 4 mcp + 43 app + 110 kratos + 12 pdf = 327.** `cad__move_edit_op` is `write`, scoped to `path`. `set_edit_op_state` gains `folder`/`toIndex`. Folder and drag state ride the op/`view.json` sidecars the host already round-trips; `rebindPartsOnChange` compares JSON so a reorder rebinds through the existing path.
+- **mesh: Recovered flux reuses the staged `analysisWorker.js`;** the menu item arrives with `ADVANCED_MENU_HTML` (anchor in `webviewPages.test.ts`). **Quantity Across Runs… is deliberately unported** (TreeView-bound `runTreeView.ts`); `mesh__case_run_quantity` and `app__run_quantity_reevaluate` cover it for the assistant.
+
 **The cad 3.37.0 → 3.38.0 + mesh 5.32.0 → 5.33.0 jump (configuration op suppression, Report Issue, touchpad preset, mirror plane picker, Nodal revolved integrals, wavelength advice; KKSS 2.32.0) needed one correctness port, one handler, one setting value and prompt text — no new tool names (325 policy rows).**
 
 - **cad: suppression is an overlay, threaded through every replay like `bakedThrough`.** `CadHost.effectiveEdits()` = `applySuppression(currentEdits, activeConfiguration)`; every `replayTail(...)` consumer uses it, while the sidecar write, the `edits` post and the rebind diff keep `currentEdits` (the user's ● toggle stays independent). `runSave` refuses via `configSuppressionSaveRefusal()` before any bake — baking would drop the op from every configuration. A missed replay site silently shows unsuppressed geometry.
