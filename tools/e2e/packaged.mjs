@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { scenario, assert, until, quitApp, root, waitForMarkers } from './context.mjs';
+import { softwareGL } from '../e2eShared.mjs';
 import { auditPages } from './layoutAudit.mjs';
 
 /** Where electron-builder leaves each platform's unpacked app (productName KKSS; Linux uses the lowercase package name). */
@@ -38,7 +39,10 @@ function tail(app) {
 
 await scenario(`packaged-${process.platform}-${process.arch}`, async (c) => {
   c.seed({ uiTheme: 'dark' });
-  const launch = (file, env = {}) => c.launch(file, { executablePath: binary, timeout: 150_000, env });
+  // The shared software-GL flags force SwiftShader (Vulkan), whose ANGLE init fails on the macOS arm64 runners
+  // ("Internal Vulkan error"), leaving both viewers without WebGL. macOS uses its native Metal backend instead.
+  const extraArgs = process.platform === 'darwin' ? ['--use-angle=metal'] : softwareGL;
+  const launch = (file, env = {}) => c.launch(file, { executablePath: binary, timeout: 150_000, env, extraArgs });
 
   // --- A packaged app, in each mode -----------------------------------------------------------------------------
   const cad = await launch(c.copy('cad/examples/STP/block.stp'));

@@ -5,6 +5,10 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.36.0] - 2026-11-06
+
+- fix: the release self-test (`tools/e2e/packaged.mjs`) launches with the native Metal ANGLE backend on macOS instead of SwiftShader, whose Vulkan initialisation fails on the macOS arm64 runner and left both viewers without WebGL. No functional change to the app.
+
 ## [2.35.0] - 2026-11-06
 
 - chore: update **CAD-Preview to 3.40.0** and **mesh to 5.37.0**. Both add the optional ribbon settings described below; no other upstream changes.
@@ -423,6 +427,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.36.0]: https://github.com/loumalouomega/KKSS/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/loumalouomega/KKSS/compare/v2.34.0...v2.35.0
 [2.34.0]: https://github.com/loumalouomega/KKSS/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/loumalouomega/KKSS/compare/v2.32.0...v2.33.0
