@@ -1105,6 +1105,13 @@ resubmitted automatically.
   page, see the invariant below), persisted via
   `stateStore` (`sceneTheme` is shared with the mesh viewer's own theme
   toggle; it reaches views through `initialState` on their next file load).
+  The one deliberate exception is **Edit** (`services/editMenu.ts`, pure template
+  builders, tested in `test/editMenu.test.ts`): clipboard roles plus Undo/Redo
+  routed by focus (`historyRoute`: a focused text field or the editor screen gets
+  the native command, a Post-Processing tab the mesh history, a CAD tab nothing,
+  so those items are disabled with the `noCadUndo` reason until CAD exposes an
+  embedder undo). The Window menu and, on macOS only, the application menu
+  live there too. Without roles, macOS Cmd+C/V/X/A/Z reach no text field.
 - **Chat sidebar: main process owns network + processes; MCP servers ship
   as-built.** `app/main/services/chat/` runs the LLM agent loop and spawns
   the four stdio MCP servers (cad, mesh, kratos, pdf); the chat renderer keeps the strict CSP and

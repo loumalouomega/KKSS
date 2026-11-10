@@ -1146,5 +1146,22 @@
   "{0} study geometry file(s) and {1} other referenced file(s) are not on this machine.": "{0} archivo(s) de geometría de estudios y {1} otro(s) archivo(s) referenciado(s) no están en este equipo.",
   "Use the unpacked folder as the project root and choose each file. A geometry file may be a replacement; any other file must be the same bytes, moved.": "Usa la carpeta descomprimida como raíz del proyecto y elige cada archivo. Un archivo de geometría puede ser un reemplazo; cualquier otro debe tener los mismos bytes, solo movido.",
   "Locate {0} (moved file)": "Localiza {0} (archivo movido)",
-  "Relinked {0} of {1} references; {2} refused because the file differs from the recorded one.": "Reenlazadas {0} de {1} referencias; {2} rechazadas porque el archivo difiere del registrado."
+  "Relinked {0} of {1} references; {2} refused because the file differs from the recorded one.": "Reenlazadas {0} de {1} referencias; {2} rechazadas porque el archivo difiere del registrado.",
+  "&Edit": "&Edición",
+  "Undo": "Deshacer",
+  "Redo": "Rehacer",
+  "Cut": "Cortar",
+  "Copy": "Copiar",
+  "Paste": "Pegar",
+  "Select All": "Seleccionar todo",
+  "&Window": "&Ventana",
+  "Minimize": "Minimizar",
+  "Zoom": "Ampliar",
+  "Close Window": "Cerrar ventana",
+  "Bring All to Front": "Traer todo al frente",
+  "Services": "Servicios",
+  "Hide {0}": "Ocultar {0}",
+  "Hide Others": "Ocultar otros",
+  "Show All": "Mostrar todo",
+  " (not available for CAD documents yet)": " (aún no disponible para documentos CAD)"
 }

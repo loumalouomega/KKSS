@@ -8,7 +8,8 @@ export type UnavailableKey =
   | "noRemoteHosts"
   | "needsClientId"
   | "notConnected"
-  | "noProjectRoot";
+  | "noProjectRoot"
+  | "noCadUndo";
 
 export interface AvailabilityContext { mode: "cad" | "mesh"; screen: string; hasMeshFile: boolean }
 
@@ -55,6 +56,7 @@ export const UNAVAILABLE_SUFFIX = {
   needsClientId: " (set the Client ID first)",
   notConnected: " (not connected)",
   noProjectRoot: " (no project folder set)",
+  noCadUndo: " (not available for CAD documents yet)",
 } as const satisfies Record<UnavailableKey, string>;
 
 /** Labels that already explain themselves without going through a reason key. */

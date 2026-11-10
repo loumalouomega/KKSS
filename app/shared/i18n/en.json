@@ -1146,5 +1146,22 @@
   "{0} study geometry file(s) and {1} other referenced file(s) are not on this machine.": "{0} study geometry file(s) and {1} other referenced file(s) are not on this machine.",
   "Use the unpacked folder as the project root and choose each file. A geometry file may be a replacement; any other file must be the same bytes, moved.": "Use the unpacked folder as the project root and choose each file. A geometry file may be a replacement; any other file must be the same bytes, moved.",
   "Locate {0} (moved file)": "Locate {0} (moved file)",
-  "Relinked {0} of {1} references; {2} refused because the file differs from the recorded one.": "Relinked {0} of {1} references; {2} refused because the file differs from the recorded one."
+  "Relinked {0} of {1} references; {2} refused because the file differs from the recorded one.": "Relinked {0} of {1} references; {2} refused because the file differs from the recorded one.",
+  "&Edit": "&Edit",
+  "Undo": "Undo",
+  "Redo": "Redo",
+  "Cut": "Cut",
+  "Copy": "Copy",
+  "Paste": "Paste",
+  "Select All": "Select All",
+  "&Window": "&Window",
+  "Minimize": "Minimize",
+  "Zoom": "Zoom",
+  "Close Window": "Close Window",
+  "Bring All to Front": "Bring All to Front",
+  "Services": "Services",
+  "Hide {0}": "Hide {0}",
+  "Hide Others": "Hide Others",
+  "Show All": "Show All",
+  " (not available for CAD documents yet)": " (not available for CAD documents yet)"
 }
