@@ -1,4 +1,4 @@
-// Why a menu item is disabled (roadmap item 11). One function per condition so
+// Why a menu item is disabled. One function per condition so
 // the label suffix cannot drift from the `enabled` flag. Pure; the caller
 // translates the returned key.
 export type UnavailableKey =

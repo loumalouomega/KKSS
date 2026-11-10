@@ -1,5 +1,5 @@
 /**
- * Layout audit for app-owned pages (roadmap item 16): at a given window width, no visible control may be clipped off the
+ * Layout audit for app-owned pages: at a given window width, no visible control may be clipped off the
  * page edge or lack an accessible name. Reports problems as plain strings; callers assert the list is empty. This is
  * deliberately structural — it measures the DOM, it does not judge the design — so it can run against a packaged build.
  */

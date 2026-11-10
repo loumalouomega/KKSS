@@ -131,7 +131,7 @@ async function attempt(c) {
           throw new Error(`3D Renderer default is "${options[0].label}" (checked ${options[0].checked})`);
         }
       };
-      // Acceptance sweep (roadmap item 10): every DISABLED item must say why —
+      // Acceptance sweep: every DISABLED item must say why —
       // a trailing "(reason)" / "— reason" annotation, or an `info:` status row.
       // Static, no clicking. Mirrors unexplainedDisabledItems() in
       // app/main/services/menuAvailability.ts (unit-tested there).

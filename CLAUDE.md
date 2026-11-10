@@ -54,6 +54,11 @@ of the change, not a follow-up. Concretely:
 If a change is purely internal refactoring with no observable behavior or API
 difference, docs don't need to move — use judgment, but default to checking.
 
+**Cite a `doc/roadmap.md` item by its name, never by its number**, in code comments,
+tests, workflows and other docs: that file renumbers whenever an item closes, so a
+number is only meaningful inside it. Mesh roadmap numbers are stable (that file never
+renumbers) and may be cited as "mesh item N"; CAD roadmap items are cited by title.
+
 ## Keep CHANGELOG.md in sync
 
 **Every version bump (`chore: bump version to X.Y.Z` in `package.json` /
@@ -108,7 +113,7 @@ Do not claim solver convergence from process exit alone.
 
 Region references are matched **by name only** (`workflows/regionReferences.ts`):
 a lost region may be a rename or a delete plus an add, and nothing here can tell
-which until CAD emits Part rename/delete events (upstream work, roadmap item 4).
+which until CAD emits Part rename/delete events (upstream work, the roadmap item *Region references survive geometry and mesh changes — CAD half*).
 The carry-over report is advisory — attach is unchanged — and a rename is only
 ever an explicit, previewed, `expectedSettingsRevision`-bound edit of the study's
 recorded case settings; never infer or auto-apply one. Non-MDPA meshes report
@@ -971,7 +976,7 @@ resubmitted automatically.
   (`workflows.test.ts`); that test caught a real defect — `run.sh` `cd`s into `input/`, so a *relative* run directory
   sent the log and terminal receipt to the wrong place and the run stayed `running` forever — fixed by resolving
   `d` to an absolute path first (`remoteRunScript`; regression in `remoteRunner.test.ts`). The system prompt now
-  describes `solvesRunOn`. Verified against a real loopback sshd from a Linux client (`test/sshdLive.test.ts`, opt-in via `KKSS_SSHD_HOST`: open/write-back/conflict copy, `ssh -tt` shell, detached solve with checksum-verified downloads, group cancel); not done: Windows/macOS clients and a non-loopback host (roadmap item 6).
+  describes `solvesRunOn`. Verified against a real loopback sshd from a Linux client (`test/sshdLive.test.ts`, opt-in via `KKSS_SSHD_HOST`: open/write-back/conflict copy, `ssh -tt` shell, detached solve with checksum-verified downloads, group cancel); not done: Windows/macOS clients and a non-loopback host (the roadmap item *Verify remote guided workflows on a real sshd and on Windows/macOS clients*).
 - **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
   which owns both zoom re-assertion on `did-finish-load` and renderer-crash
   reporting — adding a view without it silently opts that view out of both.
@@ -1658,7 +1663,7 @@ resubmitted automatically.
 ### Study panel, managed solver runtime and headless runs
 
 - **The study panel is navigation, never a document.** `services/studyPanelCore.ts` (pure) derives the chain from the workflow snapshot; `services/studyPanel.ts` only forwards validated `select`/`open` messages to `app__study_select`/`app__study_open`, so the readiness, ownership and approval rules live in one place. It is the third lazy right-hand `WebContentsView` (`kind: "study"`), mutually exclusive with Chat and Jobs and in the F6 order; `pushWorkflows()` keeps it current while hidden, and the shell learns its pressed state from the `panels` message, never from its own click. Chat parity: none (the same data is the `app__study_*` tools).
-- **The managed Kratos runtime follows the uv bootstrap's rules.** `services/workflows/solverRuntime.ts`: user-initiated and confirmed, no PATH/profile change, no administrator rights, no automatic upgrade; a failed or cancelled install deletes what it made and touches no setting; a verified runtime is reused; `kratos.pythonPath` is set only after the import check and, if it already holds another value, only on the user's answer. It installs from the `requirements.in`/`.lock` esbuild stages into `out/kratos/` — the image's own files, never a second list. **The lock is x86-64 glibc Linux, CPython 3.12 only:** that is the one platform that installs with `--require-hashes`; others install the pinned versions unhashed and the result names the weaker guarantee. Verified live on Linux (`test/solverRuntimeLive.test.ts`, opt-in); Windows/macOS are mocked (roadmap item 12). The system prompt says the action exists and that the assistant cannot start it.
+- **The managed Kratos runtime follows the uv bootstrap's rules.** `services/workflows/solverRuntime.ts`: user-initiated and confirmed, no PATH/profile change, no administrator rights, no automatic upgrade; a failed or cancelled install deletes what it made and touches no setting; a verified runtime is reused; `kratos.pythonPath` is set only after the import check and, if it already holds another value, only on the user's answer. It installs from the `requirements.in`/`.lock` esbuild stages into `out/kratos/` — the image's own files, never a second list. **The lock is x86-64 glibc Linux, CPython 3.12 only:** that is the one platform that installs with `--require-hashes`; others install the pinned versions unhashed and the result names the weaker guarantee. Verified live on Linux (`test/solverRuntimeLive.test.ts`, opt-in); Windows/macOS are mocked (the roadmap item *Verify the Kratos runtime installers on real Windows and macOS*). The system prompt says the action exists and that the assistant cannot start it.
 - **`kkss --headless study run` never creates work.** It resumes the exact plan revision persisted in `.kkss/project.json` (an explicit `--plan` must equal it) and never previews, enqueues or edits; exit code 0 means every task *succeeded*, not that the solver converged — each run's review `convergence` is in the report and `--require-converged` makes "not established" fail. `index.ts` runs it as a command: no single-instance lock, no window, a throwaway Electron profile unless `--user-data-dir`, and the Kratos runtime settings come from `--settings <state.json>` read-only, so it can never rewrite a live `state.json`. A plan frozen with a different runtime is refused by the queue's own runtime-fingerprint check. Only the cad and mesh servers start; ssh-host solves are not supported. A task `held` after a resume was refused by validation. Chat parity: none (CI/batch).
 - **Review findings carry a `target`, and Home offers Show.** `workflows/review.ts` stamps `mesh`/`case`/`results` on the findings that point at something to open; `renderer/home/findings.ts` (pure) re-validates it (the value crosses IPC) and `showArgs` builds the `study_open` call. A Show click leaves the review on screen. **Import Project Archive…** now asks, per study whose geometry is gone, for the replacement through `WorkflowService.relinkSource` — the one code path behind `app__study_relink_source`; mesh/handoff/run references are only listed.
 
@@ -2693,7 +2698,7 @@ pruning and launch precedence. The lock test launches a real second process.
 
 `tools/e2e/packaged.mjs` is the release gate for a built package, deliberately outside `npm run e2e` (it needs `release/`): `launchApp({ executablePath })` runs a packaged binary (no `.` argument, cwd = its folder), it asserts `app.isPackaged` first, and `release.yml` runs it per runner before `publish`. Its environment check injects the packager variables of a real AppImage (`APPDIR`, `LD_LIBRARY_PATH`, …), proves the main process still sees them, and requires that a terminal shell does not — names only are recorded, never values; Windows skips the child-env half. The AppImage run is `continue-on-error` until it has passed on a tag. `layoutAudit.mjs` (clipped/unnamed controls at 720/1280/1920 px) carries its own negative control.
 
-`tools/tutorials/verify.py` attaches a `reason` to every bounded check (`LIMIT_REASONS`; a missing one fails the run) and `--controls` runs `NEGATIVE_CONTROLS` — for the five single-physics cases, a post-processing perturbation that must trip exactly the named check. `.github/workflows/verification.yml` (manual/weekly, hash-locked runtime, `KKSS_VERIFY_CONTROLS=1`) re-solves them and keeps the artifacts on failure; `verify_selftest.py` covers the verifier without Kratos. Solver-side controls and mesh-convergence evidence remain open (`doc/roadmap.md` item 9).
+`tools/tutorials/verify.py` attaches a `reason` to every bounded check (`LIMIT_REASONS`; a missing one fails the run) and `--controls` runs `NEGATIVE_CONTROLS` — for the five single-physics cases, a post-processing perturbation that must trip exactly the named check. `.github/workflows/verification.yml` (manual/weekly, hash-locked runtime, `KKSS_VERIFY_CONTROLS=1`) re-solves them and keeps the artifacts on failure; `verify_selftest.py` covers the verifier without Kratos. Solver-side controls and mesh-convergence evidence remain open (`doc/roadmap.md`, *Verification — solver-side controls, convergence evidence, a green run*).
 
 Quick-pick selections close their own BrowserWindow before Playwright may
 acknowledge the click. Use `tools/e2e/picker.mjs`'s `clickPickerOption`, then

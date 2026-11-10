@@ -1,4 +1,4 @@
-// Single-file project archive (roadmap item 7). Pure: bytes in, bytes/plans out.
+// Single-file project archive. Pure: bytes in, bytes/plans out.
 // Layout: manifest.json + files/<project-relative path>. The zip is store-only,
 // but the reader also accepts deflate members (third-party zips) under hard size caps.
 import { createHash } from 'node:crypto';

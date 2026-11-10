@@ -1,4 +1,4 @@
-// Goal-seek (roadmap item 8), pure half: the next parameter value from the
+// Goal-seek, pure half: the next parameter value from the
 // terminal, succeeded iterates only. An uncertain or failed iterate stops the
 // loop; a value is never interpolated between runs and reported as solved.
 export interface Iterate { x: number; y: number | null; state: 'succeeded' | 'failed' | 'uncertain' | 'cancelled' }

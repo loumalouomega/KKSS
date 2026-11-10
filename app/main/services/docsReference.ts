@@ -1,6 +1,6 @@
 // Generated reference tables for doc/guide/configuration.md. Pure: takes the
 // registry rows and the policy tables as arguments so a test can render the
-// same islands the page holds and fail when they drift (roadmap item 16).
+// same islands the page holds and fail when they drift.
 import type { SettingEntry } from "./settings/registry";
 
 export const REFERENCE_ISLANDS = ["settings-reference", "tool-reference"] as const;

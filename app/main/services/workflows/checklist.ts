@@ -1,4 +1,4 @@
-// Study checklist (roadmap item 10, sequencing half): turns the readiness
+// Study checklist (sequencing half): turns the readiness
 // states `readiness()` already derives into ordered steps and the single next
 // action. Pure; nothing here computes or runs anything.
 export type StepState = 'ready' | 'stale' | 'missing' | string;

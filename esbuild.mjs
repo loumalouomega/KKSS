@@ -536,7 +536,7 @@ async function copyArtifacts() {
   fs.cpSync(path.join(__dirname, "cad/dist/manifold"), out("cad-runtime/dist/manifold"), { recursive: true });
   fs.cpSync(path.join(__dirname, "cad/dist/manifold"), out("manifold"), { recursive: true });
   fs.cpSync(path.join(__dirname, "cad/dist/manifold"), out("renderer/dist/manifold"), { recursive: true });
-  // mesh 4.8.0's experimental VTK-wasm renderer runtime (roadmap item 18):
+  // mesh 4.8.0's experimental VTK-wasm renderer runtime:
   // the hash-verified, eval-free patched glue, its .wasm and both licence
   // notices, staged by mesh's production build. Served from beside the mesh
   // page, which imports vtkWebAssembly.mjs from this directory and points

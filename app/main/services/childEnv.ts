@@ -1,6 +1,6 @@
 // The environment handed to external user programs (Python, Kratos, MPI, uv,
 // the login shell). A packaged build can carry variables the packager set for
-// itself; they must not reach the user's tools (roadmap item 25). Pure.
+// itself; they must not reach the user's tools. Pure.
 
 /** Set by an AppImage's AppRun for itself; never meaningful to a child. */
 export const PACKAGER_VARS = ["APPDIR", "APPIMAGE", "ARGV0", "OWD", "APPIMAGE_SILENT_INSTALL"] as const;
@@ -41,7 +41,7 @@ export function externalProcessEnv(base: NodeJS.ProcessEnv, opts: { packaged?: b
   return env;
 }
 
-/** Names removed from `base`, for the release self-test's record (item 21). */
+/** Names removed from `base`, for the release self-test's record. */
 export function strippedNames(base: NodeJS.ProcessEnv, packaged: boolean): string[] {
   const out = externalProcessEnv(base, { packaged });
   return Object.keys(base).filter((k) => !(k in out)).sort();

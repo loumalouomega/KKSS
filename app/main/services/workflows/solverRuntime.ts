@@ -1,5 +1,5 @@
 /**
- * App-managed Kratos solver runtime (roadmap item 18). A user-initiated install
+ * App-managed Kratos solver runtime. A user-initiated install
  * creates `<userData>/runtimes/kratos-<version>`, a uv virtual environment built
  * from the same pinned requirements the `-kratos` Docker image uses, verifies the
  * applications the environment probe checks, and only then lets the caller point

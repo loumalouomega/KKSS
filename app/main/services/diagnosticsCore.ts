@@ -1,4 +1,4 @@
-// Help ▸ Export Diagnostics… — the pure half (roadmap item 23). Builds the
+// Help ▸ Export Diagnostics… — the pure half. Builds the
 // file list, redacts paths and secrets, and writes a store-only zip. Nothing
 // here transmits anything; the manifest lists every file the bundle holds.
 import type { SettingEntry } from "./settings/registry";
