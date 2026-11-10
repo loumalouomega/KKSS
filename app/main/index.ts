@@ -14,6 +14,7 @@ import { registerSchemes, installProtocolHandlers } from "./protocol";
 import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash, ViewRef } from "./windows";
 import { eventLog, installConsoleCapture } from "./services/eventLog";
 import { installWebGuard } from "./services/webGuard";
+import { startLocalCrashDumps } from "./services/crashDumps";
 import { UnresponsiveGuard, type UnresponsiveAnswer } from "./unresponsiveGuard";
 import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
@@ -131,6 +132,7 @@ const gotInstanceLock = headlessCli
   ? true
   : process.env.KKSS_ALLOW_MULTIPLE_INSTANCES === "1" || app.requestSingleInstanceLock();
 installConsoleCapture();
+startLocalCrashDumps(); // after the (possibly throwaway) profile path is final; never uploads
 configureChildEnv(app.isPackaged);
 if (!gotInstanceLock) {
   // Lands in the e2e harness's captured output, so this failure diagnoses itself.
