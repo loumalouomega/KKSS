@@ -14,6 +14,7 @@ What KKSS does not do, or does only partly. Each entry names the reason and, whe
 ## Formats
 
 - **`.3mf`, `.dae`, `.amf`, USD, VRML and FBX are display-only.** Meshing, measuring, region fit and Mesh Health refuse them by name.
+- **Python problemtypes (`.py`) are not available.** The Pyodide runtime is not shipped, so they appear as an error row beside the Problemtype list; use the `.js` format.
 - **SpaceMouse input and the Models activity-bar view are not ported** (a second native module, and no workspace tree).
 
 ## Remote sessions and platforms
