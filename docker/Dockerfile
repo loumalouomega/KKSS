@@ -21,7 +21,7 @@ RUN apt-get update \
 RUN git clone --depth 1 --branch "v${CADDY_VERSION}" https://github.com/caddyserver/caddy.git . \
  && go mod edit \
       -require=golang.org/x/crypto@v0.57.0 \
-      -require=golang.org/x/net@v0.60.0 \
+      -require=golang.org/x/net@v0.62.0 \
       -require=golang.org/x/text@v0.42.0 \
       -require=google.golang.org/grpc@v1.83.2 \
       -require=github.com/klauspost/compress@v1.18.7 \
