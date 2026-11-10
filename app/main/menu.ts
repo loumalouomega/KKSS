@@ -699,6 +699,42 @@ export function installMenu(deps: MenuDeps): void {
         },
         { type: "separator" },
         {
+          // BaseWindow has no role-driven fullscreen, so toggle it directly.
+          label: t("Full Screen"),
+          type: "checkbox",
+          checked: deps.main.win.isFullScreen(),
+          accelerator: process.platform === "darwin" ? "Ctrl+Cmd+F" : "F11",
+          click: () => {
+            deps.main.win.setFullScreen(!deps.main.win.isFullScreen());
+            installMenu(deps);
+          },
+        },
+        {
+          // Hides the shell bar, tab strip and every panel; they keep their state.
+          label: t("Presentation Mode"),
+          type: "checkbox",
+          checked: deps.main.presentation(),
+          accelerator: "CmdOrCtrl+Alt+P",
+          click: () => {
+            deps.main.setPresentation(!deps.main.presentation());
+            installMenu(deps);
+          },
+        },
+        // Escape leaves presentation, but only while it is on: a permanent Esc
+        // accelerator would compete with every dialog and form for the key.
+        ...(deps.main.presentation()
+          ? [{
+              label: t("Leave Presentation Mode"),
+              accelerator: "Escape",
+              visible: false,
+              click: () => {
+                deps.main.setPresentation(false);
+                installMenu(deps);
+              },
+            }]
+          : []),
+        { type: "separator" },
+        {
           label: t("Toggle Terminal"),
           accelerator: "CmdOrCtrl+`",
           click: () => deps.toggleTerminal(),

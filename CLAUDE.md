@@ -1610,6 +1610,7 @@ resubmitted automatically.
   that). Opening a file (CLI arg included) jumps straight to the owning
   mode. The editor's fs work stays in `app/main/services/editor.ts` — its
   renderer never touches the filesystem.
+- **Window bounds arithmetic lives in `app/main/layoutMetrics.ts` (pure, `test/layoutMetrics.test.ts`); `layout()` only applies it.** Presentation mode (`MainWindow.setPresentation`, **View ▸ Presentation Mode**) is a flag that zeroes the shell bar, tab strip, terminal and sidebar there, hides those views with `setVisible(false)` and reduces `regions()` (the F6 cycle) to the content view. Panels keep their state; every `toggle*` ends the presentation first; it is never persisted. Esc leaves it through a menu item that exists only while it is on, because a permanent Esc accelerator would compete with every dialog.
 - **Interface scale is one global zoom factor, chrome included.**
   `MainWindow.setZoom()` (`app/main/windows.ts`) calls `setZoomFactor` on
   *every* view (shell, home, editor, both modes, terminal, chat), and because

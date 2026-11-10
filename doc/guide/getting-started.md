@@ -433,6 +433,8 @@ Opening a very large mesh can freeze a viewer for a while — that is normal, an
 | `Ctrl+Shift+L` | Toggle the AI chat sidebar |
 | `Ctrl+,` | Open the Settings page |
 | `Ctrl +` / `Ctrl -` / `Ctrl+Shift+0` | Interface scale: step up, step down, reset to 100 % (**View ▸ Zoom In / Zoom Out / Reset Zoom**) |
+| `F11` (`Ctrl+Cmd+F` on macOS) | **View ▸ Full Screen** |
+| `Ctrl+Alt+P`, `Esc` | **View ▸ Presentation Mode**: hide the toolbar, tab strip and every panel so the focused viewer fills the window (`Esc` leaves; opening a panel also leaves). Panels keep their state, and the mode is not remembered across launches |
 | `F6` / `Shift+F6` | Move focus forward / backward through the visible regions |
 | `Ctrl+Shift+I` | Toggle the developer tools of the current view (**View ▸ Toggle Developer Tools**) |
 

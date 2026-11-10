@@ -1937,6 +1937,9 @@ app.whenReady().then(() => {
   };
   refreshMenu = () => installMenu(menuDeps);
   refreshMenu();
+  // The OS can toggle full screen itself (title-bar button, F11 on some desktops).
+  main.win.on("enter-full-screen", () => refreshMenu());
+  main.win.on("leave-full-screen", () => refreshMenu());
   configureSettings(__dirname, {
     setZoom: (factor) => setUiZoom(factor),
     checkSimulationEnvironment: () => { void checkSimulationEnvironment(); },
