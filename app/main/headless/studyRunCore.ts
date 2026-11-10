@@ -1,5 +1,5 @@
 /**
- * `kkss --headless study run <project>` (roadmap item 19): run a study's
+ * `kkss --headless study run <project>`: run a study's
  * already-persisted queue plan without a window and report JSON. Electron-free
  * so the whole flow is tested against a fake workflow; `studyRunCli.ts` wires
  * the real `WorkflowService`.

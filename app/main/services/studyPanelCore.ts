@@ -1,5 +1,5 @@
 /**
- * Pure model for the study panel (roadmap item 9): turns the workflow snapshot
+ * Pure model for the study panel: turns the workflow snapshot
  * into the geometry → mesh → case → run → results chain the panel draws. It
  * reads what `WorkflowService.snapshot()` already derived and computes nothing
  * of its own — readiness, run states and result artifacts come from the

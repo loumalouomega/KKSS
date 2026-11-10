@@ -1,7 +1,7 @@
 name: Verification
 
 # Re-solves the single-physics tutorial cases on the pinned Kratos build and fails when a measured error leaves its limit
-# (roadmap item 12). Opt-in: a manual run, or weekly. Ordinary CI never solves anything.
+# (the roadmap's verification item). Opt-in: a manual run, or weekly. Ordinary CI never solves anything.
 #
 # The runtime is installed from docker/kratos/requirements.lock — the same hash-locked pins the `-kratos` image installs,
 # on the one platform that lock covers (linux/amd64, CPython 3.12) — so no image has to be published first.

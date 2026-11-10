@@ -1,4 +1,4 @@
-// Bounded in-memory diagnostics history (roadmap item 22) — the pure half.
+// Bounded in-memory diagnostics history — the pure half.
 // Holds recent view crash / unresponsive events and a tail of main-process
 // warn/error output so Help ▸ Export Diagnostics… has something to report.
 // Nothing here touches disk or the network, and nothing here may throw.

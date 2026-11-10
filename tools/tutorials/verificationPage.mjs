@@ -1,4 +1,4 @@
-// One table of every tutorial's recorded verification (roadmap item 17). Pure:
+// One table of every tutorial's recorded verification. Pure:
 // reads the published verification.json records, never runs a solver.
 import * as fs from 'node:fs';
 import * as path from 'node:path';

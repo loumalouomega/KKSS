@@ -1,5 +1,5 @@
 /**
- * Live acceptance for the app-managed solver runtime (roadmap item 18). Opt-in:
+ * Live acceptance for the app-managed solver runtime. Opt-in:
  * it downloads Kratos from PyPI. `KKSS_LIVE_SOLVER=1 npx vitest run test/solverRuntimeLive.test.ts`
  * (set `KKSS_LIVE_UV` to a uv executable, else `uv` on PATH). The install goes into a
  * temporary directory, never the user's profile.

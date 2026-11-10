@@ -1,5 +1,5 @@
 /**
- * The study panel's main-process half (roadmap item 9): a lazy right-hand view
+ * The study panel's main-process half: a lazy right-hand view
  * that mirrors the selected project's studies as geometry → mesh → case → run →
  * results chains and opens any link in its viewer. It is a navigation surface
  * over `.kkss/project.json` — no document of its own, no state beyond the last

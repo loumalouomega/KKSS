@@ -1,4 +1,4 @@
-// Why a Home button is disabled (roadmap item 10). Pure: state in, one decision
+// Why a Home button is disabled. Pure: state in, one decision
 // per button out, so the `disabled` flag and the explanation come from the same
 // call and cannot drift. home.ts translates the reason code through `t()` via
 // REASON_TEXT and applies `title` + `aria-description`.

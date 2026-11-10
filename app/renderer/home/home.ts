@@ -474,7 +474,7 @@ for (const [id, tool] of [["study-compare-variants", "variants_compare"], ["stud
   });
 }
 
-// ---- New Simulation wizard (roadmap item 9) ---------------------------------
+// ---- New Simulation wizard ---------------------------------
 // Step 1 picks a physics family, step 2 an example of it (or the user's own
 // geometry); main extracts/picks, creates the study and answers `wizardDone`.
 // The checklist below is rendered from the `nextStep` push main sends with every

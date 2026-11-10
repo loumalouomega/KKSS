@@ -1,4 +1,4 @@
-// F1 context help (roadmap item 12): which manual page and section explains the
+// F1 context help: which manual page and section explains the
 // focused screen. Pure; test/helpMap.test.ts checks every target against the
 // guide's own headings so a renamed section fails CI instead of 404-ing in-app.
 import type { SettingCategory } from "./settings/registry";

@@ -1,5 +1,5 @@
 /**
- * Release-artifact self-test (roadmap items 16 and 17): launches the PACKAGED app — not out/ — headless, opens a fixture in
+ * Release-artifact self-test: launches the PACKAGED app — not out/ — headless, opens a fixture in
  * each mode, checks the native menu, audits app-owned pages for clipped or unnamed controls at three window widths, records the
  * environment a shell hands to user programs, and requires a natural graceful quit.
  *

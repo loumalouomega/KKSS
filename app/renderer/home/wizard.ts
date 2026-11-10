@@ -1,4 +1,4 @@
-// New Simulation wizard (roadmap item 9) — the pure half. Pure: no DOM, no
+// New Simulation wizard — the pure half. Pure: no DOM, no
 // electron, no import from app/main (the renderer must not pull main code in),
 // so the example catalogue is MIRRORED here and test/wizard.test.ts fails when
 // it drifts from `EXAMPLES` in app/main/services/examplesCore.ts.

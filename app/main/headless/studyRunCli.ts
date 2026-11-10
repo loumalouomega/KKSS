@@ -1,5 +1,5 @@
 /**
- * Electron glue for `kkss --headless study run` (roadmap item 19). It builds the
+ * Electron glue for `kkss --headless study run`. It builds the
  * one real `WorkflowService` over a lean dependency set — no window, no chat, no
  * stored settings of its own — and hands `runStudy` a view of it. It reads the
  * Kratos runtime settings from a saved state file and never writes any state, so
