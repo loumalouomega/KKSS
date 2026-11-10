@@ -9,6 +9,7 @@ import { ensureSolverAlias } from './runtimeAlias.mjs';
 
 const exec = promisify(execFile);
 const selected = process.argv.slice(2);
+await fs.mkdir(path.join(root, 'node_modules/.cache'), { recursive: true });
 const output = await fs.mkdtemp(path.join(root, 'node_modules/.cache/tutorials-'));
 console.log(`Working directory: ${output}`);
 const mcp = await servers();
