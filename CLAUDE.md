@@ -977,6 +977,7 @@ resubmitted automatically.
   sent the log and terminal receipt to the wrong place and the run stayed `running` forever — fixed by resolving
   `d` to an absolute path first (`remoteRunScript`; regression in `remoteRunner.test.ts`). The system prompt now
   describes `solvesRunOn`. Verified against a real loopback sshd from a Linux client (`test/sshdLive.test.ts`, opt-in via `KKSS_SSHD_HOST`: open/write-back/conflict copy, `ssh -tt` shell, detached solve with checksum-verified downloads, group cancel); not done: Windows/macOS clients and a non-loopback host (the roadmap item *Verify remote guided workflows on a real sshd and on Windows/macOS clients*).
+- **`services/webGuard.ts` is the floor under every web contents** (navigation limited to the app's schemes, `window.open` only to the OS browser for web/mail links, deny-by-default permissions with a reviewed allow-list in `webGuardCore.ts`). It is installed from `web-contents-created`, so a new view or dialog needs nothing; a service wanting narrower rules sets its own handler afterwards. Adding a permission is a reviewed change to `ALLOWED_PERMISSIONS` (the WebHID 3D-mouse item is the planned exception).
 - **Every `WebContentsView` is created through `wireView()`** (`windows.ts`),
   which owns both zoom re-assertion on `did-finish-load` and renderer-crash
   reporting — adding a view without it silently opts that view out of both.

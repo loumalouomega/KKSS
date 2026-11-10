@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
 import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash, ViewRef } from "./windows";
 import { eventLog, installConsoleCapture } from "./services/eventLog";
+import { installWebGuard } from "./services/webGuard";
 import { UnresponsiveGuard, type UnresponsiveAnswer } from "./unresponsiveGuard";
 import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
@@ -169,6 +170,7 @@ app.on("second-instance", (_event, argv, workingDirectory) => {
 });
 
 app.whenReady().then(() => {
+  installWebGuard();
   // electron-builder registers this in installed desktop files. Development
   // launches use explicit CLI arguments and must not alter the host desktop's
   // default application during tests.
