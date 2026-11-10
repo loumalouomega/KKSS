@@ -13,6 +13,8 @@ import { randomUUID } from "node:crypto";
 import { registerSchemes, installProtocolHandlers } from "./protocol";
 import { createMainWindow, MainWindow, DEFAULT_WINDOW_TITLE, DEFAULT_ZOOM, ZOOM_PRESETS, ViewCrash, ViewRef } from "./windows";
 import { eventLog, installConsoleCapture } from "./services/eventLog";
+import { installWebGuard } from "./services/webGuard";
+import { startLocalCrashDumps } from "./services/crashDumps";
 import { UnresponsiveGuard, type UnresponsiveAnswer } from "./unresponsiveGuard";
 import { CadHost } from "./cadHost";
 import { MeshHost, createMeshExtensionContext } from "./mesh/meshHost";
@@ -130,6 +132,7 @@ const gotInstanceLock = headlessCli
   ? true
   : process.env.KKSS_ALLOW_MULTIPLE_INSTANCES === "1" || app.requestSingleInstanceLock();
 installConsoleCapture();
+startLocalCrashDumps(); // after the (possibly throwaway) profile path is final; never uploads
 configureChildEnv(app.isPackaged);
 if (!gotInstanceLock) {
   // Lands in the e2e harness's captured output, so this failure diagnoses itself.
@@ -169,6 +172,7 @@ app.on("second-instance", (_event, argv, workingDirectory) => {
 });
 
 app.whenReady().then(() => {
+  installWebGuard();
   // electron-builder registers this in installed desktop files. Development
   // launches use explicit CLI arguments and must not alter the host desktop's
   // default application during tests.
@@ -1935,6 +1939,9 @@ app.whenReady().then(() => {
   };
   refreshMenu = () => installMenu(menuDeps);
   refreshMenu();
+  // The OS can toggle full screen itself (title-bar button, F11 on some desktops).
+  main.win.on("enter-full-screen", () => refreshMenu());
+  main.win.on("leave-full-screen", () => refreshMenu());
   configureSettings(__dirname, {
     setZoom: (factor) => setUiZoom(factor),
     checkSimulationEnvironment: () => { void checkSimulationEnvironment(); },

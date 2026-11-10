@@ -20,6 +20,7 @@ import { nextRegion } from "../shared/focus";
 import { BaseWindow, WebContentsView } from "electron";
 import * as path from "path";
 import type { Mode, Screen } from "./ipc";
+import { layoutMetrics } from "./layoutMetrics";
 
 export const SHELL_HEIGHT = 40;
 export const TAB_STRIP_HEIGHT = 34;
@@ -103,6 +104,9 @@ export interface MainWindow {
   zoom: () => number;
   /** Scales every view's content and the chrome constants; clamped to presets. */
   setZoom: (factor: number) => number;
+  /** Presentation mode: only the focused viewer is shown. */
+  presentation: () => boolean;
+  setPresentation: (on: boolean) => boolean;
 }
 
 export function createMainWindow(
@@ -180,6 +184,9 @@ export function createMainWindow(
   let jobsShown = false;
   let study: WebContentsView | null = null;
   let studyShown = false;
+  // Presentation mode hides the shell bar, tab strip and every panel (they keep
+  // their state — only visibility and bounds change). Never persisted.
+  let presentation = false;
   // setZoomFactor scales each view's *content* but not its bounds, so the fixed
   // chrome (shell bar, tab strip, terminal, chat) must scale in lockstep or it
   // would clip.
@@ -187,30 +194,30 @@ export function createMainWindow(
 
   const layout = () => {
     const { width, height } = win.getContentBounds();
-    const shellH = Math.round(SHELL_HEIGHT * currentZoom);
     // The tab strip is DOM painted inside `shell`'s own page, so its height is
     // reserved by growing `shell`'s bounds, not by a view of its own — only
     // while a mode screen (which actually has tabs) is active.
-    const tabsH =
-      currentScreen === "cad" || currentScreen === "mesh" ? Math.round(TAB_STRIP_HEIGHT * currentZoom) : 0;
-    const chromeH = shellH + tabsH;
-    shell.setBounds({ x: 0, y: 0, width, height: chromeH });
-    const sidebar = chatShown || jobsShown || studyShown ? Math.min(Math.round(CHAT_WIDTH * currentZoom), Math.floor(width / 2)) : 0;
-    const bodyWidth = Math.max(0, width - sidebar);
-    const panel = terminalShown ? Math.round(TERMINAL_HEIGHT * currentZoom) : 0;
-    const body = { x: 0, y: chromeH, width: bodyWidth, height: Math.max(0, height - chromeH - panel) };
+    const m = layoutMetrics({
+      width, height, zoom: currentZoom,
+      shellHeight: SHELL_HEIGHT, tabStripHeight: TAB_STRIP_HEIGHT,
+      terminalHeight: TERMINAL_HEIGHT, sidebarWidth: CHAT_WIDTH,
+      hasTabs: currentScreen === "cad" || currentScreen === "mesh",
+      terminalShown, sidebarShown: chatShown || jobsShown || studyShown,
+      presentation,
+    });
+    shell.setBounds(m.shell);
     // Only the focused tab of each mode ever needs real bounds — every other
     // tab (same mode or the other one) is hidden via setVisible(false).
     const activeCad = activeTab.cad ? findTab("cad", activeTab.cad) : undefined;
     const activeMesh = activeTab.mesh ? findTab("mesh", activeTab.mesh) : undefined;
-    activeCad?.view.setBounds(body);
-    activeMesh?.view.setBounds(body);
-    editor.setBounds(body);
-    terminal?.setBounds({ x: 0, y: Math.max(chromeH, height - panel), width: bodyWidth, height: panel });
-    chat?.setBounds({ x: bodyWidth, y: chromeH, width: sidebar, height: Math.max(0, height - chromeH) });
-    jobs?.setBounds({ x: bodyWidth, y: chromeH, width: sidebar, height: Math.max(0, height - chromeH) });
-    study?.setBounds({ x: bodyWidth, y: chromeH, width: sidebar, height: Math.max(0, height - chromeH) });
-    home.setBounds({ x: 0, y: 0, width: bodyWidth, height });
+    activeCad?.view.setBounds(m.body);
+    activeMesh?.view.setBounds(m.body);
+    editor.setBounds(m.body);
+    terminal?.setBounds(m.terminal);
+    chat?.setBounds(m.sidebarRect);
+    jobs?.setBounds(m.sidebarRect);
+    study?.setBounds(m.sidebarRect);
+    home.setBounds(m.home);
   };
   win.on("resize", layout);
 
@@ -237,6 +244,7 @@ export function createMainWindow(
   const regions = (): WebContentsView[] => {
     if (currentScreen === "home") return [home];
     const content = currentScreen === "editor" ? editor : tabs[currentMode].find(t => t.id === activeTab[currentMode])?.view;
+    if (presentation) return [content].filter((v): v is WebContentsView => !!v && !v.webContents.isDestroyed());
     return [shell, content, terminalShown ? terminal : null, chatShown ? chat : jobsShown ? jobs : studyShown ? study : null]
       .filter((v): v is WebContentsView => !!v && !v.webContents.isDestroyed());
   };
@@ -353,7 +361,23 @@ export function createMainWindow(
   // two owners mid-construction.
   layout();
 
+  /** Presentation mode keeps every panel's state; only visibility and bounds
+   *  change, so leaving puts back exactly what was open. */
+  const setPresentation = (on: boolean): boolean => {
+    if (presentation === on) return presentation;
+    presentation = on;
+    shell.setVisible(!on);
+    terminal?.setVisible(terminalShown && !on);
+    chat?.setVisible(chatShown && !on);
+    jobs?.setVisible(jobsShown && !on);
+    study?.setVisible(studyShown && !on);
+    layout();
+    focus(currentScreen === "home" ? home : currentScreen === "editor" ? editor : findTab(currentMode, activeTab[currentMode] ?? "")?.view ?? shell);
+    return presentation;
+  };
+
   const toggleTerminal = () => {
+    setPresentation(false); // opening a panel while presenting ends the presentation
     const origin = focused();
     if (!terminal) {
       terminal = new WebContentsView({
@@ -377,6 +401,7 @@ export function createMainWindow(
   };
 
   const toggleChat = () => {
+    setPresentation(false); // opening a panel while presenting ends the presentation
     const origin = focused();
     if (!chat) {
       chat = new WebContentsView({
@@ -401,6 +426,7 @@ export function createMainWindow(
   };
 
   const toggleJobs = () => {
+    setPresentation(false); // opening a panel while presenting ends the presentation
     const origin = focused();
     if (!jobs) {
       jobs = new WebContentsView({ webPreferences: {
@@ -420,6 +446,7 @@ export function createMainWindow(
   };
 
   const toggleStudy = () => {
+    setPresentation(false); // opening a panel while presenting ends the presentation
     const origin = focused();
     if (!study) {
       study = new WebContentsView({ webPreferences: {
@@ -509,5 +536,7 @@ export function createMainWindow(
     reloadView,
     zoom: () => currentZoom,
     setZoom,
+    presentation: () => presentation,
+    setPresentation,
   };
 }
