@@ -92,6 +92,8 @@
     "proxy-addr": "^2.0.8",
     "source-map-js": "^1.2.2",
     "undici": "^7.29.1",
+    "minimatch@^9.0.3": "^11.0.6",
+    "minimatch@^10.2.5": "^11.0.6",
     "node-gyp": {
       "undici": "^6.28.1"
     }
