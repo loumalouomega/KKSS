@@ -7,7 +7,7 @@ import { setUpdateChannel, updateChannel } from "./services/updates";
  *         toggleNodeIds/computeQuality/fieldVisualization/findEntity
  * File actions dispatch to whichever mode is active at click time.
  */
-import { app, dialog, Menu, shell } from "electron";
+import { app, dialog, Menu, shell, webContents } from "electron";
 import type { MainWindow } from "./windows";
 import type { CadHost } from "./cadHost";
 import { effective, entryById } from "./services/settings/registry";
@@ -15,6 +15,7 @@ import type { MeshHost } from "./mesh/meshHost";
 import type { Mode, Screen } from "./ipc";
 import { showQuickPick, showInputBox } from "./services/quickPick";
 import { showAbout } from "./services/about";
+import { appMenu, editMenu, historyRoute, windowMenu } from "./services/editMenu";
 import { showLicense } from "./services/license";
 import { showManual } from "./services/manual";
 import { clearProjectRoot, INFO_ID_PREFIX, managedSetting, needsClientId, needsConnection, needsMeshDocument, needsRemoteHost, postProcessingOnly, UNAVAILABLE_SUFFIX, type AvailabilityContext, type UnavailableKey } from "./services/menuAvailability";
@@ -341,6 +342,34 @@ export function installMenu(deps: MenuDeps): void {
     return id ? main.tabs(mode).find((t) => t.id === id)?.view : undefined;
   };
 
+  /**
+   * Edit ▸ Undo/Redo. A focused text field (or the editor) gets the native
+   * command, a Post-Processing tab drives the mesh operation history, and a
+   * CAD tab has no route yet (the item is disabled with its reason). On
+   * Windows/Linux a menu accelerator only fires when the page did not consume
+   * the key, so typing history is handled by the page itself; on macOS the
+   * menu sees the key first, which is why this routes at all.
+   */
+  const routeHistory = async (kind: "undo" | "redo"): Promise<void> => {
+    const focused = webContents.getFocusedWebContents();
+    let editableFocused = false;
+    if (focused && !focused.isDestroyed()) {
+      try {
+        editableFocused = !!(await focused.executeJavaScript(
+          "(() => { const a = document.activeElement; return !!a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); })()"
+        ));
+      } catch {
+        editableFocused = false;
+      }
+    }
+    const route = historyRoute({ screen: main.screen(), editableFocused });
+    if (route === "native") {
+      if (focused && !focused.isDestroyed()) kind === "undo" ? focused.undo() : focused.redo();
+    } else if (route === "mesh") {
+      activeMeshHost()?.dispatchHistory(kind);
+    }
+  };
+
   /** kratos.mesh.export — quick-pick a format, then dispatch (extension.ts:109). */
   const meshExportPick = async (): Promise<void> => {
     const pick = await showQuickPick(
@@ -379,7 +408,9 @@ export function installMenu(deps: MenuDeps): void {
     ];
   };
 
+  const macApp = appMenu(process.platform, app.name, () => showAbout());
   const menu = Menu.buildFromTemplate([
+    ...(macApp ? [macApp as Electron.MenuItemConstructorOptions] : []),
     {
       label: t("&File"),
       submenu: [
@@ -618,6 +649,7 @@ export function installMenu(deps: MenuDeps): void {
         { role: "quit", label: t("Quit") },
       ],
     },
+    editMenu({ screen: () => main.screen(), history: (kind) => void routeHistory(kind) }) as Electron.MenuItemConstructorOptions,
     {
       label: t("&View"),
       submenu: [
@@ -890,6 +922,7 @@ export function installMenu(deps: MenuDeps): void {
         },
       ],
     },
+    windowMenu(process.platform) as Electron.MenuItemConstructorOptions,
     {
       label: t("&Help"),
       submenu: [
