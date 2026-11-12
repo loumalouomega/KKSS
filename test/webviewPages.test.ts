@@ -57,6 +57,8 @@ describe.skipIf(!built)("generated webview pages", () => {
     // cad 3.24.0's Mesh Health ▸ Merge facets checkbox: promote posts
     // mergeFacets, so a stale page would silently drop the flag.
     expect(html).toContain('id="mesh-health-merge"');
+    // cad 3.41/3.42: the sidebar Browser and the Zebra display mode.
+    for (const anchor of ['id="browser-panel"', 'id="vc-zebra-group"']) expect(html).toContain(anchor);
     // cad 3.35.0's ribbon command strip and the collapsible op grid toggle: the
     // ribbon script builds into these containers by id.
     for (const anchor of ['id="ribbon"', 'id="ribbon-tabs"', 'id="ribbon-groups"', 'id="ribbon-more"', 'id="edits-grid-toggle"']) {
@@ -204,6 +206,8 @@ describe.skipIf(!built)("generated webview pages", () => {
     // The injection point the rewrite depends on — emitted bare, and the
     // attributes go in front of its `>`.
     expect(html).toMatch(/<body>/);
+    // mesh 5.38/5.39: element/condition labels (find-bar Label button + label-bar).
+    for (const anchor of ['id="find-label"', 'id="label-bar"', 'id="label-source"']) expect(html).toContain(anchor);
   });
 
   it("allows kkss-file fetches in the cad CSP (loadUrl pipeline)", () => {

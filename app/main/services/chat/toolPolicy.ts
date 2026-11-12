@@ -247,6 +247,26 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   cad__set_edit_op_state: "write",
   // cad 3.39.0: reorders one op in the stack (history drag); rewrites the edits sidecar.
   cad__move_edit_op: "write",
+  // cad 3.41/3.42 (meshio++ 19/20): scan, metrology and surface-editing tools.
+  // Read: facts only. Write: each takes an optional outputPath (or writes a
+  // STEP/mesh) and is scoped to path/outputPath in toolPaths.ts.
+  cad__check_tetrahedra: "read",
+  cad__find_symmetry_plane: "read",
+  cad__analyze_deviation: "write",
+  cad__auto_align_scan: "write",
+  cad__clip_mesh: "write",
+  cad__constrain_primitives: "write",
+  cad__fit_cad_iterate: "write",
+  cad__fit_mesh_curves: "write",
+  cad__measure_mesh: "write",
+  cad__mesh_sections: "write",
+  cad__mesh_silhouette: "write",
+  cad__register_landmarks: "write",
+  cad__flip_mesh_normals: "write",
+  cad__offset_mesh_surface: "write",
+  cad__profile_to_solid: "write",
+  cad__remove_mesh_islands: "write",
+  cad__write_step_elements: "write",
   cad__mesh_adjacency: "write",
   cad__register_meshes: "write",
   cad__iga_sample: "read",
@@ -350,6 +370,13 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__mesh_intersections: "read",
   // mesh 5.31.0: the connectivity graph; optional METIS/Scotch file => write.
   mesh__mesh_graph: "write",
+  // mesh 5.38/5.39 (meshio++ 19/20): tetrahedron check, metrology and symmetry
+  // are facts only; the iterative CAD fit writes a solid at outputPath (options
+  // can carry a stepPath, so it stays unscoped).
+  mesh__mesh_check_tetrahedra: "read",
+  mesh__mesh_measure: "read",
+  mesh__mesh_symmetry_plane: "read",
+  mesh__mesh_fit_cad_iterate: "write",
   mesh__mesh_compare: "write",
   mesh__mesh_derive: "write",
   mesh__mesh_size: "read",

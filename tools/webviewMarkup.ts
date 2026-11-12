@@ -173,8 +173,17 @@ function meshBody(): string {
         </select>
         <input id="find-id" type="number" min="1" placeholder="ID" />
         <button id="find-go">Go</button>
+        <button id="find-label" title="Locate it and label it">Label</button>
         <button id="find-close" title="Close">${icon("close")}</button>
         <span id="find-status"></span>
+      </div>
+      <div id="label-bar"><span>Label by</span>
+        <select id="label-source">
+          <option value="id">Id</option>
+          <option value="propertyId">Properties id</option>
+          <option value="smp">SubModelPart</option>
+          <option value="field">Active field</option>
+        </select>
       </div>
       <div id="render-root"></div>
       </div>

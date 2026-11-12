@@ -5,6 +5,14 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.38.0] - 2026-11-12
+
+- chore: update **CAD-Preview to 3.42.0** and **mesh to 5.39.0**, and **meshio++ to 20.0.0** on both sides. CAD: sidebar Browser tree, Zebra display mode, mesh refinement regions, SVG/DXF import fixes, shortcuts sheet. Mesh: element/condition ID labels with a source selector, exploded view by SubModelPart, solver-oriented quality metrics, restart and MPI case options, `.sol` fields, tetrahedron check, and meshio++ 20 scan metrology and surface editing (sections, silhouette, clip, thicken/hollow, deviation, alignment, landmark registration).
+- feat: **DXF** is now a readable and writable mesh format (65 readable / 54 writable extended formats) with a native file association.
+- feat: the assistant gains 21 tools (`cad__check_tetrahedra`, `measure_mesh`, `analyze_deviation`, `mesh_sections`, `fit_cad_iterate`, `mesh__mesh_measure`, …; 348 policy rows). Tools that can write a file do so only to an `outputPath` and ask first.
+- fix: the Post-Processing ribbon rendered unstyled with mesh 5.39.0 (its stylesheet misses one closing brace); the build now repairs it until upstream is fixed.
+- docs: regenerated screenshots for the new viewer chrome.
+
 ## [2.37.0] - 2026-11-06
 
 - fix: the embedded terminal no longer comes up empty when its shell fails to start. A throw from `pty.spawn` used to escape before the panel was sent its session list, so no terminal appeared (the macOS release self-test timed out waiting for it). The session is now shown as exited with the usual restart prompt, the error is logged, and node-pty's macOS `spawn-helper` is made executable if packaging dropped the bit.
@@ -432,6 +440,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.38.0]: https://github.com/loumalouomega/KKSS/compare/v2.37.0...v2.38.0
 [2.37.0]: https://github.com/loumalouomega/KKSS/compare/v2.36.0...v2.37.0
 [2.36.0]: https://github.com/loumalouomega/KKSS/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/loumalouomega/KKSS/compare/v2.34.0...v2.35.0
