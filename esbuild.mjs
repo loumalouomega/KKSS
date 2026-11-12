@@ -6,6 +6,7 @@ import * as esbuild from "esbuild";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { repairUnbalancedCss } from "./tools/lib/cssRepair.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const watch = process.argv.includes("--watch");
@@ -457,6 +458,15 @@ async function copyArtifacts() {
   for (const [srcRel, dst] of copies) {
     const src = path.join(__dirname, srcRel);
     fs.mkdirSync(path.dirname(dst), { recursive: true });
+    if (srcRel === "mesh/media/style.css") {
+      // mesh 5.39.0 ships `.pt-flash {` without its closing brace, which nests the
+      // whole ribbon block inside it (unstyled ribbon). We cannot edit the
+      // submodule, so close it here; a no-op once upstream is fixed.
+      const { css, repaired } = repairUnbalancedCss(fs.readFileSync(src, "utf8"));
+      for (const r of repaired) console.warn(`esbuild: mesh style.css line ${r.line}: closed unterminated rule "${r.selector}" (upstream defect; drop tools/lib/cssRepair.mjs once fixed)`);
+      fs.writeFileSync(dst, css);
+      continue;
+    }
     fs.copyFileSync(src, dst);
   }
   // Flowgraph's served assets (public/views/LICENSE/vscode-bridge.js) are a

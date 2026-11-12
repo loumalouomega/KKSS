@@ -10,6 +10,7 @@ full auto-generated compare links.
 - chore: update **CAD-Preview to 3.42.0** and **mesh to 5.39.0**, and **meshio++ to 20.0.0** on both sides. CAD: sidebar Browser tree, Zebra display mode, mesh refinement regions, SVG/DXF import fixes, shortcuts sheet. Mesh: element/condition ID labels with a source selector, exploded view by SubModelPart, solver-oriented quality metrics, restart and MPI case options, `.sol` fields, tetrahedron check, and meshio++ 20 scan metrology and surface editing (sections, silhouette, clip, thicken/hollow, deviation, alignment, landmark registration).
 - feat: **DXF** is now a readable and writable mesh format (65 readable / 54 writable extended formats) with a native file association.
 - feat: the assistant gains 21 tools (`cad__check_tetrahedra`, `measure_mesh`, `analyze_deviation`, `mesh_sections`, `fit_cad_iterate`, `mesh__mesh_measure`, …; 348 policy rows). Tools that can write a file do so only to an `outputPath` and ask first.
+- fix: the Post-Processing ribbon rendered unstyled with mesh 5.39.0 (its stylesheet misses one closing brace); the build now repairs it until upstream is fixed.
 - docs: regenerated screenshots for the new viewer chrome.
 
 ## [2.37.0] - 2026-11-06
