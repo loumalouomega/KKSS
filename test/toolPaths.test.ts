@@ -111,6 +111,8 @@ describe("scope table", () => {
       "mesh__case_run",
       "mesh__case_run_quantity",
       "mesh__case_stop",
+      // mesh 5.39.0: its `options` can carry a stepPath, so no row accounts for every path.
+      "mesh__mesh_fit_cad_iterate",
       "mesh__plot_dataset",
       // mesh 5.10.0: its `params` is opaque (a tableRelationship preset carries
       // a table path inside it), so no row can account for every path.

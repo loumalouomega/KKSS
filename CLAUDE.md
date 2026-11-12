@@ -330,8 +330,8 @@ resubmitted automatically.
   The mesh submodule reads and writes extended formats
   (Gmsh, Abaqus, Nastran, UNV, Medit, Netgen, SU2, XDMF, tetgen, EnSight Gold,
   Triangle, Exodus II, CGNS, MOAB, Salome MED, …) through the ESM-only
-  `@meshioplusplus/wasm` package (**18.3.0**, the version both submodules lock
-  and the one KKSS stages; cad 3.37.0 and mesh 5.32.0 declare `18.3.0`/`^18.3.0`,
+  `@meshioplusplus/wasm` package (**20.0.0**, the version both submodules lock
+  and the one KKSS stages; cad 3.42.0 and mesh 5.39.0 declare `20.0.0`/`^20.0.0`,
   so the pairing is verified by `test/cadMcpRuntime.test.ts` + `test/meshMcpRuntime.test.ts`
   rather than by the pins agreeing — re-run both after either bump, and prefer
   re-aligning CAD over letting the skew grow;
@@ -1240,7 +1240,7 @@ resubmitted automatically.
   what prevents re-promotion); fresh installs start read-only. Every
   submodule or `KRATOS_MCP_VERSION` bump must re-check the table:
   `unclassifiedTools()` logs the names a bump added, and
-  `test/chatToolPolicy.test.ts` pins the exact 317-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
+  `test/chatToolPolicy.test.ts` pins the exact 348-name key set, including the 110 `kratos__*` rows reviewed against `KRATOS_MCP_VERSION` (`KRATOS_TOOLS_REVIEWED_VERSION` must be moved with the pin — the test fails otherwise) and the 12 `pdf__*` rows reviewed against `PDF_MCP_VERSION` (`PDF_TOOLS_REVIEWED_VERSION`, all `read`).
 - **A dry run is a check for the human, and is the one chat message that
   deliberately does NOT settle the gate.** `dryRunTool` re-issues the blocked
   call with `toolPolicy.ts`'s `DRY_RUN_PARAM` key forced true (`dryRunArgs()` is
@@ -1685,10 +1685,16 @@ CAD v3.0.0 (`2efd1eb`) and mesh v4.0.7 plus its UI redesign through `kkss.dev`
 workflow changes on the designated branches are recorded below. The recurring
 release-bump checklist lives in `doc/guide/development.md` under **Submodule
 release maintenance**; repeat it for every bump, including live MCP tool
-discovery (current sets: 89 CAD + 60 mesh + 4 aggregation + 42 app-owned
-workflow tools; 317 policy rows with the PDF reader server's twelve).
+discovery (current sets: 113 CAD + 65 mesh + 4 aggregation + 44 app-owned
+workflow tools; 348 policy rows with the PDF reader server's twelve).
 
 **Ribbon settings (cad `cadPreview.ribbon`, mesh `kratos.preview.ribbon`).** cad's is a normal mapped registry row (default on both sides) plus `CAD_DEFAULT_KEYS.ribbon` and the `sendViewerDefaults` field. mesh's VS Code default is OFF but KKSS wants it ON, and `settingsRegistry.test.ts` requires mapped defaults to agree, so `kratos.preview.ribbon` is in `NOT_APPLICABLE` and KKSS has its own unmapped row (`meshViewer.ribbon`, store key `meshRibbon`, default true); `rendererPage.ts`'s `applyRibbon` writes `data-ribbon="1"` into the generated page per load, and `tools/webviewMarkup.ts` `meshBody()` mirrors `RIBBON_HTML` (between the menubar and `#main`). Both need the submodule bumps (the registry test fails on a missing contributed property until the gitlinks move).
+
+**The cad 3.40.0 → 3.42.0 + mesh 5.37.0 → 5.39.0 jump (meshio++ 18.3.0 → 20.0.0, sidebar Browser, Zebra, refinement regions, element/condition labels, exploded view, scan metrology and surface editing, DXF; KKSS 2.38.0) needed policy rows, one markup mirror, one packaging row and prompt text — no host code, no new vscode API, no new setting.**
+
+- **Policy: 113 CAD + 65 mesh + 4 mcp + 44 app + 110 kratos + 12 pdf = 348.** Reads: `cad__check_tetrahedra`, `cad__find_symmetry_plane`, `mesh__mesh_check_tetrahedra`, `mesh__mesh_measure`, `mesh__mesh_symmetry_plane`. Every other new tool takes an optional `outputPath` (or writes STEP) and is `write`; the CAD ones are scoped to `path`/`outputPath` (`analyze_deviation` also `referencePath`). `mesh__mesh_fit_cad_iterate` is deliberately unscoped (its `options` can carry a `stepPath`), pinned in `test/toolPaths.test.ts`.
+- **mesh page:** `meshBody()` mirrors the find-bar `#find-label` button and the `#label-bar` (`#label-source`); the Browser panel, Zebra group, thickness/hole-fill fields and Explode/ID menu items arrive through the imported fragments (anchors in `webviewPages.test.ts`).
+- **Formats:** `dxf` joins meshio++'s reader and writer keys (65 readable / 54 writable, 89/63 suffixes, 115 routed associations); `.dxf` routes to mesh mode and `electron-builder.yml` gained the association. Re-run `npm run package --prefix mesh` after the bump so `out/meshio/` is 20.0.0.
 
 **The cad 3.38.0 → 3.39.0 + mesh 5.33.0 → 5.36.0 jump (history folders, drag reorder/`move_edit_op`, ribbon hide, docked form; parent SubModelParts include descendants, vtk.js 38, Recovered flux, Quantity Across Runs; KKSS 2.34.0) needed one policy row and prompt text — no host code.**
 

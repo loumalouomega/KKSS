@@ -28,6 +28,8 @@ describe("modeForFile", () => {
       expect(modeForFile(f, "cad")).toBe("cad");
       expect(modeForFile(f, "mesh")).toBe("mesh");
     }
+    // meshio++ 20.0.0's DXF reader/writer: mesh claims it, cad only exports it.
+    expect(modeForFile("a.dxf", "mesh")).toBe("mesh");
   });
 
   it("routes mesh-only formats to mesh regardless of active mode", () => {

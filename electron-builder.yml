@@ -149,6 +149,8 @@ fileAssociations:
     name: KKSS LS-DYNA result document
   - ext: dex
     name: KKSS field document
+  - ext: dxf
+    name: KKSS AutoCAD DXF document
   - ext: ele
     name: KKSS TetGen document
   - ext: ex2

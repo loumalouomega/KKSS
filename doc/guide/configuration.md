@@ -420,10 +420,10 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | Server | Tools | Read | Write | Path-scoped |
 | --- | --- | --- | --- | --- |
 | `app` | 44 | 18 | 26 | 0 |
-| `cad` | 96 | 48 | 48 | 44 |
+| `cad` | 113 | 50 | 63 | 59 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
-| `mesh` | 61 | 22 | 39 | 32 |
+| `mesh` | 65 | 25 | 40 | 32 |
 | `pdf` | 12 | 12 | 0 | 0 |
 
 <details><summary><code>app</code> (44)</summary>
@@ -477,15 +477,17 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>cad</code> (96)</summary>
+<details><summary><code>cad</code> (113)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
+| `cad__analyze_deviation` | write | paths: `path`, `referencePath`, `outputPath` |
 | `cad__analyze_passages` | read | — |
 | `cad__analyze_surface_geometry` | read | — |
 | `cad__apply_edit_ops` | write | paths: `path` |
 | `cad__apply_mesh_preset` | write | paths: `path`, `libraryPath` |
 | `cad__assign_layer` | write | paths: `path` |
+| `cad__auto_align_scan` | write | paths: `path`, `outputPath` |
 | `cad__batch_export` | write | — |
 | `cad__check_brep_health` | read | — |
 | `cad__check_draft` | read | — |
@@ -496,9 +498,12 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__check_mesh_health` | read | — |
 | `cad__check_mesh_quality` | read | — |
 | `cad__check_printability` | read | — |
+| `cad__check_tetrahedra` | read | — |
 | `cad__check_tolerance` | read | — |
+| `cad__clip_mesh` | write | paths: `path`, `outputPath` |
 | `cad__compare_mesh_refinement` | write | paths: `path`, `outputDir` |
 | `cad__compare_models` | read | — |
+| `cad__constrain_primitives` | write | paths: `path`, `outputPath` |
 | `cad__convert_scad` | write | paths: `path`, `outputPath`, `libraryPaths` |
 | `cad__decompose_to_primitives` | write | paths: `path`, `outputPath`, `saveScript.libraryPath` |
 | `cad__describe_capabilities` | read | — |
@@ -512,8 +517,12 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__export_technical_drawing` | write | paths: `path`, `outputPath` |
 | `cad__export_tessellated_stl` | write | paths: `path`, `outputPath`, `libraryPath` |
 | `cad__find_mesh_intersections` | read | — |
+| `cad__find_symmetry_plane` | read | — |
+| `cad__fit_cad_iterate` | write | paths: `path`, `outputPath` |
+| `cad__fit_mesh_curves` | write | paths: `path`, `outputPath` |
 | `cad__fit_mesh_region` | write | paths: `path` |
 | `cad__fit_mesh_to_cad` | write | paths: `path`, `outputPath`, `cadJsonPath` |
+| `cad__flip_mesh_normals` | write | paths: `path`, `outputPath` |
 | `cad__generate_bom` | read | — |
 | `cad__generate_hole_table` | read | — |
 | `cad__generate_mesh` | read | — |
@@ -541,18 +550,25 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__load_preprocess` | write | paths: `zipPath`, `outputPath` |
 | `cad__measure` | read | — |
 | `cad__measure_exact` | read | — |
+| `cad__measure_mesh` | write | paths: `path`, `outputPath` |
 | `cad__measure_mesh_deviation` | write | paths: `path`, `deviationMeshPath` |
 | `cad__measure_mesh_thickness` | read | — |
 | `cad__mesh_adjacency` | write | paths: `path`, `outputPath` |
 | `cad__mesh_cad_surface` | write | paths: `path`, `outputPath` |
+| `cad__mesh_sections` | write | paths: `path`, `outputPath` |
+| `cad__mesh_silhouette` | write | paths: `path`, `outputPath` |
 | `cad__move_edit_op` | write | paths: `path` |
+| `cad__offset_mesh_surface` | write | paths: `path`, `outputPath` |
 | `cad__pin_annotation` | write | paths: `path` |
+| `cad__profile_to_solid` | write | paths: `path`, `outputPath` |
 | `cad__project_to_cad` | write | paths: `path`, `cadPath`, `outputPath` |
 | `cad__promote_mesh_to_brep` | write | paths: `path`, `outputPath` |
 | `cad__recognize_primitives` | read | — |
+| `cad__register_landmarks` | write | paths: `path`, `outputPath` |
 | `cad__register_meshes` | write | paths: `path`, `targetPath`, `outputPath` |
 | `cad__remesh_mesh` | write | paths: `path`, `outputPath` |
 | `cad__remove_edit_op` | write | paths: `path` |
+| `cad__remove_mesh_islands` | write | paths: `path`, `outputPath` |
 | `cad__render_ops_prefix` | read | — |
 | `cad__render_snapshot` | read | — |
 | `cad__repair_mesh` | write | paths: `path`, `outputPath` |
@@ -577,6 +593,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad__set_variables` | write | paths: `path` |
 | `cad__synthesize_selector` | read | — |
 | `cad__transform_mesh` | write | paths: `path`, `outputPath` |
+| `cad__write_step_elements` | write | paths: `path`, `outputPath` |
 
 </details>
 
@@ -708,7 +725,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>mesh</code> (61)</summary>
+<details><summary><code>mesh</code> (65)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
@@ -734,6 +751,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `mesh__mesh_ale_quality` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_batch_transform` | write | paths: `paths`, `recipePath`, `outputDir` |
 | `mesh__mesh_capabilities` | read | — |
+| `mesh__mesh_check_tetrahedra` | read | — |
 | `mesh__mesh_compare` | write | paths: `pathA`, `pathB`, `outputPath` |
 | `mesh__mesh_convert` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_curvature` | read | — |
@@ -744,11 +762,13 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `mesh__mesh_field_integrate` | read | — |
 | `mesh__mesh_field_series` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_find_entity` | read | — |
+| `mesh__mesh_fit_cad_iterate` | write | — |
 | `mesh__mesh_fit_primitives` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_flow_balance` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_graph` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_info` | read | — |
 | `mesh__mesh_intersections` | read | — |
+| `mesh__mesh_measure` | read | — |
 | `mesh__mesh_pack_series` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_periodic` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_probe` | write | paths: `path`, `outputPath` |
@@ -758,6 +778,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `mesh__mesh_select` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_size` | read | — |
 | `mesh__mesh_split` | write | paths: `path`, `outputDir` |
+| `mesh__mesh_symmetry_plane` | read | — |
 | `mesh__mesh_transform` | write | paths: `path`, `recipePath`, `outputPath` |
 | `mesh__plot_dataset` | write | — |
 | `mesh__plot_preset` | write | — |

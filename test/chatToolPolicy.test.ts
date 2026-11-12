@@ -227,12 +227,12 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 96 cad + 61 mesh tools + 4 in-process mcp__ tools + 43 app__ tools
+    // 113 cad + 65 mesh tools + 4 in-process mcp__ tools + 43 app__ tools
     // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(327);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(348);
     expect(TOOL_ACCESS.cad__diagnostics_report).toBe("read");
     expect(TOOL_ACCESS.cad__set_edit_op_state).toBe("write");
     expect(TOOL_ACCESS.app__messages_tail).toBe("read");
@@ -240,16 +240,24 @@ describe("the table itself", () => {
     const mesh = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mesh__"));
     const meta = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("mcp__"));
     const app = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("app__"));
-    expect(cad).toHaveLength(96)
+    expect(cad).toHaveLength(113)
     expect(TOOL_ACCESS.cad__move_edit_op).toBe("write");
     expect(TOOL_ACCESS.cad__mesh_cad_surface).toBe("write");
     // cad 3.34.0 / mesh 5.29.0 surface analyses are facts-only reads.
     for (const n of ["cad__find_mesh_intersections", "cad__measure_mesh_thickness", "cad__select_mesh_region", "mesh__mesh_intersections"]) {
       expect(TOOL_ACCESS[n as keyof typeof TOOL_ACCESS]).toBe("read");
     }
-    expect(mesh).toHaveLength(61);
+    expect(mesh).toHaveLength(65);
     expect(TOOL_ACCESS.cad__analyze_surface_geometry).toBe("read");
     for (const n of ["cad__set_configuration", "cad__mesh_adjacency", "cad__register_meshes", "mesh__mesh_graph"]) {
+      expect(TOOL_ACCESS[n as keyof typeof TOOL_ACCESS]).toBe("write");
+    }
+    // cad 3.41/3.42 + mesh 5.38/5.39 (meshio++ 19/20): facts-only reads vs.
+    // tools that write a file when given an outputPath.
+    for (const n of ["cad__check_tetrahedra", "cad__find_symmetry_plane", "mesh__mesh_check_tetrahedra", "mesh__mesh_measure", "mesh__mesh_symmetry_plane"]) {
+      expect(TOOL_ACCESS[n as keyof typeof TOOL_ACCESS]).toBe("read");
+    }
+    for (const n of ["cad__analyze_deviation", "cad__measure_mesh", "cad__write_step_elements", "cad__fit_cad_iterate", "mesh__mesh_fit_cad_iterate"]) {
       expect(TOOL_ACCESS[n as keyof typeof TOOL_ACCESS]).toBe("write");
     }
     expect(meta).toHaveLength(4);
@@ -441,11 +449,15 @@ describe("the table itself", () => {
       "app__study_set_settings",
       "app__variants_compare_export",
       "app__variants_create",
+      "cad__analyze_deviation",
       "cad__apply_edit_ops",
       "cad__apply_mesh_preset",
       "cad__assign_layer",
+      "cad__auto_align_scan",
       "cad__batch_export",
+      "cad__clip_mesh",
       "cad__compare_mesh_refinement",
+      "cad__constrain_primitives",
       "cad__convert_scad",
       "cad__decompose_to_primitives",
       "cad__download_standard_part",
@@ -455,24 +467,34 @@ describe("the table itself", () => {
       "cad__export_svg_silhouette",
       "cad__export_technical_drawing",
       "cad__export_tessellated_stl",
+      "cad__fit_cad_iterate",
+      "cad__fit_mesh_curves",
       "cad__fit_mesh_region",
       "cad__fit_mesh_to_cad",
+      "cad__flip_mesh_normals",
       "cad__generate_prep_report",
       "cad__grow_prism_layers",
       "cad__iga_refine",
       "cad__import_svg",
       "cad__job_cancel",
       "cad__load_preprocess",
+      "cad__measure_mesh",
       "cad__measure_mesh_deviation",
       "cad__mesh_adjacency",
       "cad__mesh_cad_surface",
+      "cad__mesh_sections",
+      "cad__mesh_silhouette",
       "cad__move_edit_op",
+      "cad__offset_mesh_surface",
       "cad__pin_annotation",
+      "cad__profile_to_solid",
       "cad__project_to_cad",
       "cad__promote_mesh_to_brep",
+      "cad__register_landmarks",
       "cad__register_meshes",
       "cad__remesh_mesh",
       "cad__remove_edit_op",
+      "cad__remove_mesh_islands",
       "cad__repair_mesh",
       "cad__run_parametric_script",
       "cad__run_saved_script",
@@ -489,6 +511,7 @@ describe("the table itself", () => {
       "cad__set_plane",
       "cad__set_variables",
       "cad__transform_mesh",
+      "cad__write_step_elements",
       "mesh__case_convergence",
       "mesh__case_export_results",
       "mesh__case_generate",
@@ -510,6 +533,7 @@ describe("the table itself", () => {
       "mesh__mesh_extract_skin",
       "mesh__mesh_extract_submodelpart",
       "mesh__mesh_field_series",
+      "mesh__mesh_fit_cad_iterate",
       "mesh__mesh_fit_primitives",
       "mesh__mesh_flow_balance",
       "mesh__mesh_graph",
