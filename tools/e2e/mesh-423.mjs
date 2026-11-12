@@ -116,7 +116,9 @@ dimensions [${dims}];
 internalField uniform ${value};
 `);
   }
-  c.seed({ 'kratos.export.provenance': 'sidecar', meshExportOverwriteWarned: true });
+  // Panel captures run at 2x device scale (half the CSS viewport); the default-on
+  // ribbon then leaves no room and the nav dock covers the Advanced button.
+  c.seed({ 'kratos.export.provenance': 'sidecar', meshExportOverwriteWarned: true, ...(screenshotDir ? { meshRibbon: false } : {}) });
   const app = await c.launch(file, screenshotDir ? { extraArgs: [...softwareGL, '--force-device-scale-factor=2'] } : {});
   // Native dialogs are outside Playwright's DOM; choose only expected actions.
   await app.evaluate(({ dialog }) => {
