@@ -110,6 +110,11 @@ describe.skipIf(!built)("generated webview pages", () => {
     for (const anchor of ['id="selreg-form"', 'id="thick-form"', 'data-op="selectRegion"', 'data-op="thickness"', 'id="ov-ring"']) {
       expect(html).toContain(anchor);
     }
+    // mesh 5.40.0's Adapt tetrahedra (size field) form rides the same fragment;
+    // webview/meshMod.ts binds av-hmin … av-iter and the adaptVolume op.
+    for (const anchor of ['id="av-form"', 'data-op="adaptVolume"', 'id="av-hmin"', 'id="av-size"', 'id="av-metric"', 'id="av-iter"']) {
+      expect(html).toContain(anchor);
+    }
     // #stats is filled by renderStats() wherever it sits — it must still exist.
     expect(html).toContain('id="stats"');
     // mesh 4.x's document chip and status bar: the providers post `documentInfo`

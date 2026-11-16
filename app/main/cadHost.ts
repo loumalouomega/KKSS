@@ -1712,6 +1712,9 @@ export class CadHost {
           // cad 3.31/3.32: the meshcad surface engine's facts, and the hanging-
           // node octree's master/slave line segments for the links toggle.
           meshcad: result.meshcad,
+          // cad 3.43.0: the meshiopp volume chain (B-rep/skin surface →
+          // octreeMesh → adaptVolume) reports its own facts for the status line.
+          meshiopp: result.meshiopp,
           constraintLinks: result.constraintLinks ? encodeBuffer(result.constraintLinks) : undefined,
           worstElements: result.worstElements && {
             indices: encodeBuffer(result.worstElements.indices),

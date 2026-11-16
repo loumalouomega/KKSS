@@ -66,9 +66,12 @@ const EXTRA_ARGS = ["--force-device-scale-factor=2"];
  * Main_0_6.vtk, so the home screen then shows exactly those three.
  */
 const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-docs-profile-"));
+// The meshio++ FE generation gets its own profile: the shared one's recents list
+// feeds the home-screen shot, and a second CAD document would displace bull.stp.
+const meshioppProfileDir = fs.mkdtempSync(path.join(os.tmpdir(), "kkss-docs-meshiopp-"));
 // The copied fixtures go in the profile's own temp tree, so one cleanup covers both.
 const cleanupDirs = () => {
-  for (const dir of [profileDir, fixtureDir]) fs.rmSync(dir, { recursive: true, force: true });
+  for (const dir of [profileDir, meshioppProfileDir, fixtureDir]) fs.rmSync(dir, { recursive: true, force: true });
 };
 
 fs.mkdirSync(OUT, { recursive: true });
@@ -217,6 +220,57 @@ async function sessionCad() {
   }
 }
 
+// ---- Session A2: CAD FE Mesh with the meshio++ volume engine ----------------
+
+async function sessionCadMeshiopp() {
+  const { app, output } = await launchApp(fixture("cad/examples/STP/block.stp"), { extraArgs: EXTRA_ARGS, userDataDir: meshioppProfileDir });
+  const deadline = Date.now() + 180_000;
+  let prepared;
+  try {
+    await waitForMarkers(output, ["[cad] host → webview: geometry", "[cad] host → webview: tree"], deadline);
+    const page = await appWindow(app, "/renderer/cad/", deadline);
+    await page.waitForSelector("#app", { state: "attached", timeout: 15_000 });
+    await sleep(2_500);
+    prepared = await prepareWindow(app, deadline);
+
+    // A real generation: block.stp is a 3×4×5 box, and 2 mm is the probe's
+    // target size (8 mm coarse at the default two levels), so the shot shows
+    // the engine's own facts rather than a staged response. Size max lives in
+    // the collapsed Advanced settings group.
+    await page.locator(".meshing-section-header", { hasText: "Advanced settings" }).click();
+    await sleep(250);
+    const sizeMax = page.locator('#meshing-panel label.meshing-field', { hasText: 'Size max' }).locator('input');
+    await sizeMax.fill('2');
+    await sizeMax.press('Tab');
+    await page.evaluate(() => {
+      for (const el of document.querySelectorAll("#meshing-panel select")) {
+        if ([...el.options].some((o) => o.value === "meshiopp")) {
+          el.value = "meshiopp";
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          return;
+        }
+      }
+      throw new Error("meshiopp engine option not found");
+    });
+    await click(page, "#meshing-generate");
+    await page.waitForFunction(
+      () => document.getElementById("meshing-status")?.textContent?.includes("Meshio++:") ?? false,
+      undefined,
+      { timeout: 150_000 },
+    );
+    // Collapse the Advanced group so the shot frames the engine choice and the
+    // engine's own readout, then relax the panel's height cap as upstream does.
+    await page.locator(".meshing-section-header", { hasText: "Advanced settings" }).click();
+    await sleep(250);
+    await click(page, "#edits-header > .panel-chevron");
+    await sleep(400);
+    await shoot(page, "cad-fe-mesh-meshiopp.png", "#meshing-panel");
+  } finally {
+    await restoreWindow(prepared);
+    await closeApp(app);
+  }
+}
+
 // ---- Session B: mesh mode on an MDPA model ----------------------------------
 
 async function sessionMdpa() {
@@ -245,6 +299,22 @@ async function sessionMdpa() {
     await click(page, '[data-action="selection"]');
     await shoot(page, "mesh-selection.png", "#selection-panel");
     await click(page, '[data-action="selection"]');
+
+    // mesh 5.40.0: Adapt tetrahedra (size field) is the second form in the
+    // collapsed Remeshing subsection; open both for the element shot.
+    await click(page, '[data-subsection="remeshing"] > .sb-subsection-header');
+    await sleep(250);
+    await click(page, "#av-form > .edit-form-title");
+    await sleep(250);
+    // The default 272 px sidebar clips this form's widest rows (preserve
+    // boundary/features); widen it to the width a user would drag for a
+    // five-field row, then shoot the form itself.
+    await page.evaluate(() => {
+      document.getElementById("sidebar").style.width = "400px";
+      document.documentElement.style.setProperty("--side-width", "400px");
+    });
+    await sleep(200);
+    await shoot(page, "mesh-adapt-form.png", "#av-form");
 
   } finally {
     await restoreWindow(prepared);
@@ -601,7 +671,7 @@ const meshOnly = process.argv.includes("--mesh-only");
 // captures and the `pre_processing.png` hero have to be regenerated without
 // paying for the tutorial/solver half of the pipeline.
 if (process.argv.includes("--cad-only")) {
-  try { await sessionCad(); }
+  try { await sessionCad(); await sessionCadMeshiopp(); }
   finally { cleanupDirs(); }
   fs.copyFileSync(path.join(OUT, "cad-viewer.png"), path.join(IMAGES, "pre_processing.png"));
   console.log("hero pre_processing.png ← cad-viewer.png");
@@ -633,6 +703,7 @@ if (process.argv.includes("--fit-cad-only")) {
   process.exit(0);
 }
 if (!meshOnly) await sessionCad();
+if (!meshOnly) await sessionCadMeshiopp();
 await sessionMdpa();
 await sessionVtk();
 await sessionProperties();

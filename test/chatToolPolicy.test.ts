@@ -227,12 +227,12 @@ describe("unclassifiedTools", () => {
 
 describe("the table itself", () => {
   it("covers bundled-server, aggregation, and app-owned tools explicitly", () => {
-    // 113 cad + 65 mesh tools + 4 in-process mcp__ tools + 43 app__ tools
+    // 113 cad + 66 mesh tools + 4 in-process mcp__ tools + 43 app__ tools
     // + 110 kratos-mcp-server tools + 12 pdf-insight-mcp tools (each reviewed at its pinned version).
     // A submodule or app-owned tool addition
     // leaves it unclassified — safe, but it must be a *noticed* omission, so
     // this count is asserted rather than inferred.
-    expect(Object.keys(TOOL_ACCESS)).toHaveLength(348);
+    expect(Object.keys(TOOL_ACCESS)).toHaveLength(349);
     expect(TOOL_ACCESS.cad__diagnostics_report).toBe("read");
     expect(TOOL_ACCESS.cad__set_edit_op_state).toBe("write");
     expect(TOOL_ACCESS.app__messages_tail).toBe("read");
@@ -247,7 +247,7 @@ describe("the table itself", () => {
     for (const n of ["cad__find_mesh_intersections", "cad__measure_mesh_thickness", "cad__select_mesh_region", "mesh__mesh_intersections"]) {
       expect(TOOL_ACCESS[n as keyof typeof TOOL_ACCESS]).toBe("read");
     }
-    expect(mesh).toHaveLength(65);
+    expect(mesh).toHaveLength(66);
     expect(TOOL_ACCESS.cad__analyze_surface_geometry).toBe("read");
     for (const n of ["cad__set_configuration", "cad__mesh_adjacency", "cad__register_meshes", "mesh__mesh_graph"]) {
       expect(TOOL_ACCESS[n as keyof typeof TOOL_ACCESS]).toBe("write");
@@ -260,6 +260,9 @@ describe("the table itself", () => {
     for (const n of ["cad__analyze_deviation", "cad__measure_mesh", "cad__write_step_elements", "cad__fit_cad_iterate", "mesh__mesh_fit_cad_iterate"]) {
       expect(TOOL_ACCESS[n as keyof typeof TOOL_ACCESS]).toBe("write");
     }
+    // mesh 5.40.0 (meshio++ 20.1): the contact pairing writes only with an
+    // outputPath, but the name-keyed table cannot see arguments.
+    expect(TOOL_ACCESS.mesh__mesh_contact_pairs).toBe("write");
     expect(meta).toHaveLength(4);
     expect(app).toHaveLength(44);
     const kratos = Object.keys(TOOL_ACCESS).filter((n) => n.startsWith("kratos__"));
@@ -527,6 +530,7 @@ describe("the table itself", () => {
       "mesh__mesh_ale_quality",
       "mesh__mesh_batch_transform",
       "mesh__mesh_compare",
+      "mesh__mesh_contact_pairs",
       "mesh__mesh_convert",
       "mesh__mesh_derive",
       "mesh__mesh_export_table",

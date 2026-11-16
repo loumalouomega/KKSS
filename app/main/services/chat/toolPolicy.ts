@@ -40,8 +40,9 @@
  *   `outputPath` writes a B-rep and `saveScript.libraryPath` writes the script
  *   library.
  * - `mesh__mesh_export_table`, `mesh__mesh_field_series`, `mesh__mesh_select`,
- *   `mesh__mesh_probe` — **write**. They write only *when* `outputPath` is given, but this table is keyed by name and
- *   cannot see arguments, so the conservative class wins.
+ *   `mesh__mesh_probe`, `mesh__mesh_contact_pairs` — **write**. They write only
+ *   *when* `outputPath` is given, but this table is keyed by name and cannot
+ *   see arguments, so the conservative class wins.
  * - `mesh__problemtype_list`, `mesh__problemtype_describe` — **write**, which is
  *   the least obvious row here. Given `workspaceDirs` they load workspace
  *   problemtypes, and loading *executes* them (`node:vm` for `.js`, pyodide for
@@ -377,6 +378,9 @@ export const TOOL_ACCESS: Readonly<Record<string, ToolAccess>> = {
   mesh__mesh_measure: "read",
   mesh__mesh_symmetry_plane: "read",
   mesh__mesh_fit_cad_iterate: "write",
+  // mesh 5.40.0 (meshio++ 20.1): pairs slave nodes to master facets; the reply
+  // is read-only until outputPath writes every pair as .json/.csv.
+  mesh__mesh_contact_pairs: "write",
   mesh__mesh_compare: "write",
   mesh__mesh_derive: "write",
   mesh__mesh_size: "read",
