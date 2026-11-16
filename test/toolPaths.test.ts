@@ -23,6 +23,8 @@ describe("scopedCallPaths", () => {
 
   it("ignores enum-ish and free-text values whose names merely resemble paths", () => {
     expect(scopedCallPaths("mesh__mesh_convert", args({ path: "/p/a.mdpa", outputFormat: "vtk", inputFormat: "mdpa" }))).toEqual(["/p/a.mdpa"]);
+    // mesh 5.40.0: the pairing writes .json/.csv only at outputPath.
+    expect(scopedCallPaths("mesh__mesh_contact_pairs", args({ path: "/p/a.mdpa", slavePart: "Slave", masterPart: "Master", outputPath: "/p/pairs.csv" }))).toEqual(["/p/a.mdpa", "/p/pairs.csv"]);
     expect(scopedCallPaths("cad__save_mesh_preset", args({ libraryPath: "/p/presets.json", description: "fine mesh", name: "fine" }))).toEqual(["/p/presets.json"]);
   });
 

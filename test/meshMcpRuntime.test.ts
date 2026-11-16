@@ -61,6 +61,17 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
     // fixture's two triangles share an edge, so the exact test finds a clean
     // surface; ids and counts come back without writing anything.
     expect(tools.find(t => t.name === 'mesh_intersections')?.inputSchema.properties).toHaveProperty('otherPath');
+    // mesh 5.40.0 (meshio++ 20.1): the contact pairing tool (slave nodes to
+    // master facets), and its optional .json/.csv output.
+    const contactPairs = tools.find(t => t.name === 'mesh_contact_pairs')?.inputSchema.properties;
+    expect(contactPairs).toHaveProperty('slavePart');
+    expect(contactPairs).toHaveProperty('masterPart');
+    expect(contactPairs).toHaveProperty('requireComplete');
+    expect(contactPairs).toHaveProperty('outputPath');
+    // adaptVolume and decimateVolume are mesh_transform/mesh_derive ops, so the
+    // runtime schema carries them inside the free-form op shape rather than as
+    // named arguments; mesh_capabilities below is the stable gate for the kernel.
+    expect(tools.find(t => t.name === 'mesh_transform')?.inputSchema.properties).toHaveProperty('ops');
     const intersections = await call('mesh_intersections', { path: source });
     expect(JSON.stringify(intersections)).toMatch(/clean/);
     expect(JSON.stringify(intersections)).not.toMatch(/"clean":false/);
@@ -79,6 +90,10 @@ it.skipIf(!fs.existsSync(server))('bundled mesh MCP preserves selection, edits a
     expect(JSON.stringify(capabilities)).toContain('vtk');
     expect(capabilities.exportFidelity.version).toBe(2);
     expect(capabilities.plotting).toBeDefined();
+    // mesh 5.40.0 (meshio++ 20.1): the graded tetrahedral remesher is live in
+    // the staged tree, and the kernel list names its new companions.
+    expect(capabilities.operations.available).toEqual(expect.arrayContaining([expect.stringMatching(/^adaptVolume/)]));
+    expect(capabilities.operations.available).toEqual(expect.arrayContaining([expect.stringMatching(/^computeNormals/), expect.stringMatching(/^decimateVolume/), expect.stringMatching(/^contactPairs/)]));
     // mesh 5.18.0: the partitioners are probed on real instantiations. The lean
     // build serves the Hilbert curve; KaHIP is linked only into the full
     // artifact, which is why the backend is named.

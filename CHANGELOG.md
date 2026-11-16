@@ -5,6 +5,13 @@ match the GitHub release timestamps. See the
 [GitHub Releases](https://github.com/loumalouomega/KKSS/releases) page for
 full auto-generated compare links.
 
+## [2.39.0] - 2026-11-16
+
+- chore: update **CAD-Preview to 3.43.0** and **mesh to 5.40.0**, and **meshio++ to 20.1.0** on both sides. CAD gains the **meshio++ volume** FE engine: the exact B-rep surface (or a mesh source's own skin) is meshed, filled with octree tetrahedra and graded by meshio++'s `adaptVolume`. Mesh gains **Adapt tetrahedra (size field)** in Mesh Modification ▸ Remeshing, `adaptVolume` in the command line and `mesh_transform`, plus `computeNormals`, `decimateVolume`, the `findInterface`/`splitInterface`/`regionAdjacency` kernels and a contact-pairing tool.
+- feat: **Adapt tetrahedra** remeshes a linear-tetrahedral mesh to a graded isotropic size field — edge collapse, split, swap and smoothing under a bound on boundary motion, keeping corners, ridges, regions and boundary tags. Tetrahedra inherit block, property, SubModelPart membership and element values from the nearest original one; the report lists tets/nodes before and after, edit counts, the least dihedral angle and the largest boundary movement.
+- feat: the assistant gains **`mesh__mesh_contact_pairs`** (349 policy rows; 113 CAD + 66 mesh tools). It pairs a slave SubModelPart's nodes to a master SubModelPart's facets, names every unmatched node instead of inventing a zero gap, and writes all pairs to `.json`/`.csv` when given an `outputPath` — so it asks first.
+- docs: the CAD and mesh guides cover the new engine, remesher, interface kernels and contact pairing, with screenshots of the meshio++ FE Mesh readout and the Adapt tetrahedra form.
+
 ## [2.38.0] - 2026-11-12
 
 - chore: update **CAD-Preview to 3.42.0** and **mesh to 5.39.0**, and **meshio++ to 20.0.0** on both sides. CAD: sidebar Browser tree, Zebra display mode, mesh refinement regions, SVG/DXF import fixes, shortcuts sheet. Mesh: element/condition ID labels with a source selector, exploded view by SubModelPart, solver-oriented quality metrics, restart and MPI case options, `.sol` fields, tetrahedron check, and meshio++ 20 scan metrology and surface editing (sections, silhouette, clip, thicken/hollow, deviation, alignment, landmark registration).
@@ -440,6 +447,7 @@ full auto-generated compare links.
   roadmap, with refreshed Electron screenshots (plot captures now show the
   result field in the 3D view beside each chart).
 
+[2.39.0]: https://github.com/loumalouomega/KKSS/compare/v2.38.0...v2.39.0
 [2.38.0]: https://github.com/loumalouomega/KKSS/compare/v2.37.0...v2.38.0
 [2.37.0]: https://github.com/loumalouomega/KKSS/compare/v2.36.0...v2.37.0
 [2.36.0]: https://github.com/loumalouomega/KKSS/compare/v2.35.0...v2.36.0

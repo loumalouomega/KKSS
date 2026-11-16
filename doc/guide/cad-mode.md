@@ -46,6 +46,10 @@ Pre-Processing mode embeds the full [CAD-Preview](https://loumalouomega.github.i
 
 The toolbar is **Fit · Tree · FE Mesh** plus four dropdowns — **View ▾** (Grid, Edges, Screenshot), **Select ▾** (selection mode + Point/Vol/Surf/Line), **Measure ▾** and **Markup ▾** — with the display modes, clip, appearance and unit controls in the view-controls panel.
 
+- **CAD-Preview 3.43 addition** (meshio++ 20.1): the **`meshiopp`** FE engine meshes a 3-D B-rep's exact faces — or a mesh source's own skin — fills the inside with octree tetrahedra and grades them with `adaptVolume` between the target size and `sizeMax × 2^octreeMeshLevels`. It always emits linear tetrahedra, never preserves Parts, is 3-D only (a 2-D request falls back to Gmsh with a warning) and refuses element order 2, non-tetrahedron shapes, periodic faces, size fields and refinement regions by name. The status line reports the surface triangle count and closure, tetrahedra/nodes before and after, the achieved dihedral range, collapse/split/swap/smoothing counts and the largest boundary deviation.
+
+![FE Mesh panel after a meshio++ volume generation](/screenshots/cad-fe-mesh-meshiopp.png)
+
 - **CAD-Preview 3.33.0 additions**:
   - **Rule-defined Parts.** A Part's membership can be a rule (`plane`, `box` inside/intersects, or `surfaceType` + `radius`) that is re-evaluated after every edit, so a face the rule newly matches joins the Part and the status line reports "N faces added, M lost". In the Parts panel hover a row and choose **Rule…**; **Clear rule** returns the Part to a plain list. The handoff manifest records the rule beside the resolved ids. B-rep sources only.
   - **`addParametricCurve`** (a curve given as functions of a parameter), unit-suffixed expressions such as `2[in]`, and a dimension check for unit-carrying document variables arrive through the submodule. Mesh-option files written by an older version report which fields they predate as status lines.

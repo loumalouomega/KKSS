@@ -423,7 +423,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `cad` | 113 | 50 | 63 | 59 |
 | `kratos` | 110 | 45 | 65 | 44 |
 | `mcp` | 4 | 4 | 0 | 0 |
-| `mesh` | 65 | 25 | 40 | 32 |
+| `mesh` | 66 | 25 | 41 | 33 |
 | `pdf` | 12 | 12 | 0 | 0 |
 
 <details><summary><code>app</code> (44)</summary>
@@ -725,7 +725,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 
 </details>
 
-<details><summary><code>mesh</code> (65)</summary>
+<details><summary><code>mesh</code> (66)</summary>
 
 | Tool | Class | Project-folder grant |
 | --- | --- | --- |
@@ -753,6 +753,7 @@ Generated from `app/main/services/chat/toolPolicy.ts` and `toolPaths.ts`. *Read*
 | `mesh__mesh_capabilities` | read | — |
 | `mesh__mesh_check_tetrahedra` | read | — |
 | `mesh__mesh_compare` | write | paths: `pathA`, `pathB`, `outputPath` |
+| `mesh__mesh_contact_pairs` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_convert` | write | paths: `path`, `outputPath` |
 | `mesh__mesh_curvature` | read | — |
 | `mesh__mesh_derive` | write | paths: `path`, `outputPath` |

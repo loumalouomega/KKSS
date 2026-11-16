@@ -122,6 +122,7 @@ export const SCOPED_TOOL_PATH_ARGS: Readonly<Record<string, readonly string[]>> 
   mesh__material_preset_import: ["path"],
   mesh__mesh_batch_transform: ["paths", "recipePath", "outputDir"],
   mesh__mesh_compare: ["pathA", "pathB", "outputPath"],
+  mesh__mesh_contact_pairs: ["path", "outputPath"],
   mesh__mesh_convert: ["path", "outputPath"],
   mesh__mesh_derive: ["path", "outputPath"],
   mesh__mesh_export_table: ["path", "outputPath"],
