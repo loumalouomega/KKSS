@@ -960,6 +960,7 @@
   "{0} already exists in that folder.": "{0} ya existe en esa carpeta.",
   "Files with the same names are overwritten; other files are kept.": "Los archivos con el mismo nombre se sobrescriben; los demás se conservan.",
   "{0} extracted to {1}": "{0} extraído en {1}",
+  "Unknown example {0}. Known examples: {1}.": "Ejemplo desconocido {0}. Ejemplos disponibles: {1}.",
   "Could not open the example: {0}": "No se pudo abrir el ejemplo: {0}",
   "{0} changed since this was saved, so it was not restored. Use Show file or Discard.": "{0} cambió desde que se guardó esto, así que no se restauró. Usa Mostrar archivo o Descartar.",
   "The saved operations for this mesh are missing.": "Faltan las operaciones guardadas de esta malla.",

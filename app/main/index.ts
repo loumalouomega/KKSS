@@ -25,9 +25,11 @@ import { RecentMeshStore } from "../../mesh/src/recentMeshes";
 import { installMenu } from "./menu";
 import { modeForFile, modeForViewType, unsupportedSuffix } from "./router";
 import { DOCS_URL } from "./urls";
+import { ExampleQueue, exampleFromUrl, launchExamples } from "./exampleLaunch";
+import { EXAMPLES, isExampleId } from "./services/examplesCore";
 import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsupportedLaunchFiles } from "./launch";
 import { showOpenDialog } from "./services/dialogs";
-import { openExample, extractExample } from "./services/examples";
+import { openExample, extractExample, freshExampleRoot } from "./services/examples";
 import { nextStepContext, type NextStepContext } from "./services/workflows/checklist";
 import { exportDiagnostics } from "./services/diagnostics";
 import { exportProjectArchive, importProjectArchive } from "./services/projectArchiveUi";
@@ -142,12 +144,17 @@ if (!gotInstanceLock) {
 
 const launchQueue = new LaunchQueue();
 launchQueue.enqueue(launchFiles(process.argv, app.isPackaged, process.cwd()));
+// `--example <id>` and `kkss://open?example=<id>` take the same single-instance route as a file.
+const exampleQueue = new ExampleQueue();
+exampleQueue.enqueue(launchExamples(process.argv, app.isPackaged, process.cwd(), path.resolve));
 const startupUnsupported = unsupportedLaunchFiles(process.argv, app.isPackaged, process.cwd());
 
 app.on("open-file", (event, value) => {
   event.preventDefault();
-  const file = localLaunchFile(value, process.cwd());
-  if (file) launchQueue.enqueue([file]);
+  const example = exampleFromUrl(value);
+  const file = example ? undefined : localLaunchFile(value, process.cwd());
+  if (example) exampleQueue.enqueue([example]);
+  else if (file) launchQueue.enqueue([file]);
   else {
     console.warn("Rejected unsupported external open request");
     reportUnsupported(unsupportedLaunchFile(value, process.cwd()));
@@ -156,8 +163,10 @@ app.on("open-file", (event, value) => {
 });
 app.on("open-url", (event, value) => {
   event.preventDefault();
-  const file = localLaunchFile(value, process.cwd());
-  if (file) launchQueue.enqueue([file]);
+  const example = exampleFromUrl(value);
+  const file = example ? undefined : localLaunchFile(value, process.cwd());
+  if (example) exampleQueue.enqueue([example]);
+  else if (file) launchQueue.enqueue([file]);
   else {
     console.warn("Rejected unsupported external open request");
     reportUnsupported(unsupportedLaunchFile(value, process.cwd()));
@@ -168,6 +177,7 @@ app.on("open-url", (event, value) => {
 app.on("second-instance", (_event, argv, workingDirectory) => {
   focusMainWindow();
   launchQueue.enqueue(launchFiles(argv, app.isPackaged, workingDirectory));
+  exampleQueue.enqueue(launchExamples(argv, app.isPackaged, workingDirectory, path.resolve));
   reportUnsupported(...unsupportedLaunchFiles(argv, app.isPackaged, workingDirectory));
 });
 
@@ -2210,6 +2220,16 @@ app.whenReady().then(() => {
   void pushRecovery().then(() => {
     if (recoveryListed.size > 0) toast("warning", t("Unsaved work from an interrupted session was found."), { label: t("Review"), run: () => setScreen("home") });
   }).catch(error => console.error("Recovery scan failed", error));
+  exampleQueue.ready(request => {
+    if (!isExampleId(request.id)) {
+      const known = EXAMPLES.map(e => e.id).join(", ");
+      console.error(`Unknown example "${request.id}". Known examples: ${known}.`);
+      toast("error", t("Unknown example {0}. Known examples: {1}.", { 0: request.id, 1: known }));
+      return;
+    }
+    const into = request.into ?? (request.source === "cli" ? freshExampleRoot(app.getPath("documents"), request.id) : undefined);
+    void openExample(request.id, __dirname, p => openFile(p), into);
+  });
   launchQueue.ready(file => {
     const mode = modeForFile(file, main!.mode());
     if (!mode) return;

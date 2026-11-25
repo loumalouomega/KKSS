@@ -14,7 +14,7 @@ import { toast } from "./notifications";
  * or failed (a toast has already said why). The zips live in `out/examples/`
  * (esbuild.mjs).
  */
-export async function extractExample(id: string, outDir: string): Promise<string | undefined> {
+export async function extractExample(id: string, outDir: string, into?: string): Promise<string | undefined> {
   if (!isExampleId(id)) return undefined;
   const label = t(EXAMPLES.find((e) => e.id === id)!.label);
   try {
@@ -23,7 +23,7 @@ export async function extractExample(id: string, outDir: string): Promise<string
       toast("error", t("The example archive is missing from this build."));
       return undefined;
     }
-    const picked = await showOpenDialog({
+    const picked = into ? [into] : await showOpenDialog({
       title: t("Choose a folder for the example"),
       openLabel: t("Extract here"),
       canSelectFolders: true,
@@ -58,13 +58,26 @@ export async function extractExample(id: string, outDir: string): Promise<string
   }
 }
 
+/**
+ * `kkss --example <id>` without `--into`: a folder that does not exist yet under
+ * the user's documents, so nothing is overwritten and no dialog is needed.
+ */
+export function freshExampleRoot(documents: string, id: string): string {
+  const base = path.join(documents, "KKSS Examples");
+  for (let n = 1; ; n++) {
+    const root = n === 1 ? base : `${base} ${n}`;
+    if (!fs.existsSync(path.join(root, id))) return root;
+  }
+}
+
 /** Help ▸ Examples ▸ <case>: extract, then open the starting document. */
 export async function openExample(
   id: string,
   outDir: string,
   open: (fsPath: string) => Promise<unknown>,
+  into?: string,
 ): Promise<void> {
-  const entry = await extractExample(id, outDir);
+  const entry = await extractExample(id, outDir, into);
   if (!entry) return;
   try {
     await open(entry);

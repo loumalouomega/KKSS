@@ -2,6 +2,7 @@
 import * as path from "node:path";
 import { statSync } from "node:fs";
 import { modeForFile } from "./router";
+import { exampleArgIndexes } from "./exampleLaunch";
 
 /** The validated absolute path of an existing local file named by an external
  *  open input, whether or not KKSS can route it. */
@@ -39,13 +40,13 @@ export function unsupportedLaunchFile(value: string, cwd: string): string | unde
 
 export function launchFiles(argv: string[], packaged: boolean, cwd: string): string[] {
   return [...new Set(argv.slice(packaged ? 1 : 2)
-    .filter(value => value !== "." && !value.startsWith("-"))
+    .filter((value, i, all) => value !== "." && !value.startsWith("-") && !exampleArgIndexes(all).has(i))
     .map(value => localLaunchFile(value, cwd)).filter((value): value is string => !!value))];
 }
 
 export function unsupportedLaunchFiles(argv: string[], packaged: boolean, cwd: string): string[] {
   return [...new Set(argv.slice(packaged ? 1 : 2)
-    .filter(value => value !== "." && !value.startsWith("-"))
+    .filter((value, i, all) => value !== "." && !value.startsWith("-") && !exampleArgIndexes(all).has(i))
     .map(value => unsupportedLaunchFile(value, cwd)).filter((value): value is string => !!value))];
 }
 

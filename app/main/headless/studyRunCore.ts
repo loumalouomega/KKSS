@@ -23,7 +23,14 @@ export const EXIT = {
   refused: 4,
   timeout: 5,
   notConverged: 6,
+  cancelled: 7,
 } as const;
+
+/** The documented name of an exit code, carried in the JSON report beside the number. */
+export const EXIT_NAMES: Record<number, string> = {
+  0: "ok", 1: "failed", 2: "uncertain", 3: "options", 4: "refused", 5: "timedOut", 6: "notConverged", 7: "cancelled",
+};
+const exitName = (code: number): string => EXIT_NAMES[code] ?? "failed";
 
 export interface CliOptions {
   project: string;
@@ -38,12 +45,14 @@ export interface CliOptions {
   output?: string;
   review: boolean;
   requireConverged: boolean;
+  /** What a path that would ask the user does. `deny` is the only value: a headless run never prompts, it fails `refused` naming the question. */
+  onPrompt: "deny";
   userDataDir?: string;
 }
 
 export type ParseResult = { ok: true; options: CliOptions } | { ok: false; error: string };
 
-const VALUE_FLAGS = new Set(["--study", "--plan", "--timeout", "--settings", "--python", "--output", "--user-data-dir"]);
+const VALUE_FLAGS = new Set(["--study", "--plan", "--timeout", "--settings", "--python", "--output", "--user-data-dir", "--on-prompt"]);
 const BOOL_FLAGS = new Set(["--no-review", "--require-converged"]);
 const DEFAULT_TIMEOUT_SECONDS = 24 * 3600;
 
@@ -52,7 +61,7 @@ export function parseHeadlessCli(argv: readonly string[]): ParseResult | undefin
   const at = argv.indexOf("--headless");
   if (at < 0) return undefined;
   const rest = argv.slice(at + 1);
-  if (rest[0] !== "study" || rest[1] !== "run") return { ok: false, error: "Usage: kkss --headless study run <project> [--study <id>] [--plan <revision>] [--timeout <seconds>] [--settings <state.json>] [--python <path>] [--output <file>] [--no-review] [--require-converged] [--user-data-dir <dir>]" };
+  if (rest[0] !== "study" || rest[1] !== "run") return { ok: false, error: "Usage: kkss --headless study run <project> [--study <id>] [--plan <revision>] [--timeout <seconds>] [--settings <state.json>] [--python <path>] [--on-prompt deny] [--output <file>] [--no-review] [--require-converged] [--user-data-dir <dir>]" };
   const positional: string[] = [];
   const values = new Map<string, string>();
   const flags = new Set<string>();
@@ -71,6 +80,8 @@ export function parseHeadlessCli(argv: readonly string[]): ParseResult | undefin
     positional.push(arg);
   }
   if (positional.length !== 1) return { ok: false, error: "Give exactly one project folder." };
+  const onPrompt = values.get("--on-prompt") ?? "deny";
+  if (onPrompt !== "deny") return { ok: false, error: `--on-prompt only accepts deny, not ${onPrompt}.` };
   const timeoutText = values.get("--timeout");
   const timeout = timeoutText === undefined ? DEFAULT_TIMEOUT_SECONDS : Number(timeoutText);
   if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 30 * 24 * 3600) return { ok: false, error: "--timeout must be a positive number of seconds (at most 30 days)." };
@@ -84,6 +95,7 @@ export function parseHeadlessCli(argv: readonly string[]): ParseResult | undefin
       ...(values.has("--settings") ? { settings: values.get("--settings") } : {}),
       ...(values.has("--python") ? { python: values.get("--python") } : {}),
       ...(values.has("--output") ? { output: values.get("--output") } : {}),
+      onPrompt: "deny",
       review: !flags.has("--no-review"),
       requireConverged: flags.has("--require-converged"),
       ...(values.has("--user-data-dir") ? { userDataDir: values.get("--user-data-dir") } : {}),
@@ -120,8 +132,10 @@ export interface RunReport {
 export interface StudyRunReport {
   version: 1;
   project: string;
-  outcome: "succeeded" | "failed" | "uncertain" | "refused" | "timeout" | "not-converged" | "error";
+  outcome: "succeeded" | "cancelled" | "failed" | "uncertain" | "refused" | "timeout" | "not-converged" | "error";
   exitCode: number;
+  /** `ok`, `failed`, `uncertain`, `options`, `refused`, `timedOut`, `notConverged` or `cancelled`. */
+  exitName: string;
   /** Set once the plan was resumed; absent when nothing was started. */
   planRevision?: string;
   started: boolean;
@@ -135,7 +149,7 @@ const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v ===
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
 const report = (project: string, outcome: StudyRunReport["outcome"], exitCode: number, message: string, extra: Partial<StudyRunReport> = {}): StudyRunReport =>
-  ({ version: 1, project, outcome, exitCode, started: false, message, tasks: [], runs: [], ...extra });
+  ({ version: 1, project, outcome, exitCode, exitName: exitName(exitCode), started: false, message, tasks: [], runs: [], ...extra });
 
 function readProject(snapshot: unknown): { tasks: Task[]; studies: { id: string; runs: { id: string; state: string }[] }[] } | undefined {
   const project = record(snapshot) && record(snapshot.project) ? snapshot.project : undefined;
@@ -214,8 +228,9 @@ export async function runStudy(workflow: HeadlessWorkflow, options: CliOptions, 
   let outcome: StudyRunReport["outcome"], exitCode: number, message: string;
   if (timedOut) { outcome = "timeout"; exitCode = EXIT.timeout; message = `Timed out after ${options.timeoutSeconds} s; the queue was paused and running tasks were cancelled.`; }
   else if (states.includes("uncertain")) { outcome = "uncertain"; exitCode = EXIT.uncertain; message = "A task ended uncertain; it is never retried automatically. Inspect its receipt before running again."; }
+  else if (states.some((s) => s !== "succeeded") && states.every((s) => s === "succeeded" || s === "cancelled")) { outcome = "cancelled"; exitCode = EXIT.cancelled; message = "At least one task was cancelled before it finished."; }
   else if (states.some((s) => s !== "succeeded")) { outcome = "failed"; exitCode = EXIT.failed; message = "At least one task did not succeed."; }
   else if (options.requireConverged && runs.some((r) => r.convergence !== "converged")) { outcome = "not-converged"; exitCode = EXIT.notConverged; message = "Every task succeeded but numerical convergence was not established for every run."; }
   else { outcome = "succeeded"; exitCode = EXIT.ok; message = "Every task succeeded. This does not by itself establish numerical convergence; see each run's convergence state."; }
-  return { version: 1, project: options.project, outcome, exitCode, planRevision: revision, started, message, tasks: tasks.map(taskReport), runs };
+  return { version: 1, project: options.project, outcome, exitCode, exitName: exitName(exitCode), planRevision: revision, started, message, tasks: tasks.map(taskReport), runs };
 }
