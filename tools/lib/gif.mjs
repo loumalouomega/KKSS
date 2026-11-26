@@ -2,7 +2,7 @@
  * Dependency-free GIF89a encoder for the docs animation pipeline.
  *
  * Pure JS on purpose: a second native module (or anything with a rebuild step)
- * is ruled out by CLAUDE.md, and ~150 lines is cheaper than a devDependency.
+ * is ruled out by AGENTS.md, and ~150 lines is cheaper than a devDependency.
  * One global palette is shared by every frame (median cut over a 5-bit-per-
  * channel histogram), pixels are mapped to their nearest entry without
  * dithering, and every step is order-stable, so identical input frames always

@@ -700,7 +700,7 @@ export type ShellToHost =
   | { type: "toastButton"; id: number; button: string }
   /** "+" in the tab strip — creates an empty tab for `mode` and focuses it. */
   | { type: "newTab"; mode: Mode }
-  /** ✕ on a tab — closes it (no dirty-prompt; see CLAUDE.md's tabs invariant). */
+  /** ✕ on a tab — closes it (no dirty-prompt; see AGENTS.md's tabs invariant). */
   | { type: "closeTab"; mode: Mode; tabId: string }
   /** Clicking a tab — focuses it. */
   | { type: "selectTab"; mode: Mode; tabId: string }

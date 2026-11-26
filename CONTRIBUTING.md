@@ -46,7 +46,7 @@ doc/             VitePress documentation site (own npm package)
 cad/, mesh/      git submodules — upstream contract changes are committed on their downstream branches
 ```
 
-Doc/UI changes: follow `CLAUDE.md`'s "Keep docs in sync" section — doc drift
+Doc/UI changes: follow `AGENTS.md`'s "Keep docs in sync" section — doc drift
 is part of the change, not a follow-up, and UI changes require re-running
 `npm run docs:screenshots`.
 

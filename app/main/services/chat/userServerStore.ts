@@ -8,7 +8,7 @@
  * unit-tested against a temp directory. The decisions live in `userServers.ts`
  * and `folderTrustCore.ts`.
  *
- * Load-bearing rules (also in CLAUDE.md):
+ * Load-bearing rules (also in AGENTS.md):
  * - A project file is untrusted input until the user trusts its *hash*; the
  *   check is repeated by `preflight()` immediately before every spawn.
  * - Project definitions carry no secret values and no tool marks.
