@@ -25,9 +25,13 @@ import { RecentMeshStore } from "../../mesh/src/recentMeshes";
 import { installMenu } from "./menu";
 import { modeForFile, modeForViewType, unsupportedSuffix } from "./router";
 import { DOCS_URL } from "./urls";
+import { osNotify } from "./services/osNotify";
+import { jobNotice, planNotice } from "./services/osNotifyCore";
+import { ExampleQueue, exampleFromUrl, launchExamples } from "./exampleLaunch";
+import { EXAMPLES, isExampleId } from "./services/examplesCore";
 import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsupportedLaunchFiles } from "./launch";
 import { showOpenDialog } from "./services/dialogs";
-import { openExample, extractExample } from "./services/examples";
+import { openExample, extractExample, freshExampleRoot } from "./services/examples";
 import { nextStepContext, type NextStepContext } from "./services/workflows/checklist";
 import { exportDiagnostics } from "./services/diagnostics";
 import { exportProjectArchive, importProjectArchive } from "./services/projectArchiveUi";
@@ -142,12 +146,17 @@ if (!gotInstanceLock) {
 
 const launchQueue = new LaunchQueue();
 launchQueue.enqueue(launchFiles(process.argv, app.isPackaged, process.cwd()));
+// `--example <id>` and `kkss://open?example=<id>` take the same single-instance route as a file.
+const exampleQueue = new ExampleQueue();
+exampleQueue.enqueue(launchExamples(process.argv, app.isPackaged, process.cwd(), path.resolve));
 const startupUnsupported = unsupportedLaunchFiles(process.argv, app.isPackaged, process.cwd());
 
 app.on("open-file", (event, value) => {
   event.preventDefault();
-  const file = localLaunchFile(value, process.cwd());
-  if (file) launchQueue.enqueue([file]);
+  const example = exampleFromUrl(value);
+  const file = example ? undefined : localLaunchFile(value, process.cwd());
+  if (example) exampleQueue.enqueue([example]);
+  else if (file) launchQueue.enqueue([file]);
   else {
     console.warn("Rejected unsupported external open request");
     reportUnsupported(unsupportedLaunchFile(value, process.cwd()));
@@ -156,8 +165,10 @@ app.on("open-file", (event, value) => {
 });
 app.on("open-url", (event, value) => {
   event.preventDefault();
-  const file = localLaunchFile(value, process.cwd());
-  if (file) launchQueue.enqueue([file]);
+  const example = exampleFromUrl(value);
+  const file = example ? undefined : localLaunchFile(value, process.cwd());
+  if (example) exampleQueue.enqueue([example]);
+  else if (file) launchQueue.enqueue([file]);
   else {
     console.warn("Rejected unsupported external open request");
     reportUnsupported(unsupportedLaunchFile(value, process.cwd()));
@@ -168,6 +179,7 @@ app.on("open-url", (event, value) => {
 app.on("second-instance", (_event, argv, workingDirectory) => {
   focusMainWindow();
   launchQueue.enqueue(launchFiles(argv, app.isPackaged, workingDirectory));
+  exampleQueue.enqueue(launchExamples(argv, app.isPackaged, workingDirectory, path.resolve));
   reportUnsupported(...unsupportedLaunchFiles(argv, app.isPackaged, workingDirectory));
 });
 
@@ -248,6 +260,12 @@ let activeNextStep: NextStepContext | undefined;
 
 /** Queue tasks that are dispatching or running show on the Output panel's Progress tab; their outcome is a message. */
 const trackedQueueTasks = new Set<string>();
+let previousTaskStates = new Map<string, string>();
+const osNotifyDeps = {
+  enabled: () => stateStore.get<boolean>("osNotifications", true) ?? true,
+  focused: () => main?.win.isFocused() ?? false,
+  focus: () => focusMainWindow(),
+};
 function mirrorQueueProgress(snapshot: unknown): void {
   const project = (snapshot as { project?: { studies?: Array<{ id: string; name: string }>; queue?: { tasks?: Array<{ id: string; studyId: string; kind: string; state: string; error?: string }> } } | null })?.project;
   for (const task of project?.queue?.tasks ?? []) {
@@ -263,6 +281,10 @@ function mirrorQueueProgress(snapshot: unknown): void {
       logMessage(state === "failed" ? "error" : "info", "queue", `${label}: ${task.state}${task.error ? ` — ${task.error}` : ""}`);
     }
   }
+  const tasks = project?.queue?.tasks ?? [];
+  const notice = planNotice(previousTaskStates, tasks);
+  previousTaskStates = new Map(tasks.map(t => [t.id, t.state]));
+  if (notice) osNotify(notice, osNotifyDeps);
 }
 
 async function pushWorkflows(): Promise<void> {
@@ -1805,7 +1827,11 @@ app.whenReady().then(() => {
       if (main && !main.shell.webContents.isDestroyed())
         main.shell.webContents.send("shell:toWebview", { type: "jobs", active, visible, stale });
     },
-    notify: (job) => shellToast(job.state === "failed" ? "error" : "info", `Kratos: ${path.basename(job.case_dir)} ${job.state}.`),
+    notify: (job) => {
+      shellToast(job.state === "failed" ? "error" : "info", `Kratos: ${path.basename(job.case_dir)} ${job.state}.`);
+      const notice = jobNotice(job, path.basename(job.case_dir));
+      if (notice) osNotify(notice, osNotifyDeps);
+    },
   });
 
   // Upgrade decision, taken once: a server that was already set up keeps
@@ -2210,6 +2236,16 @@ app.whenReady().then(() => {
   void pushRecovery().then(() => {
     if (recoveryListed.size > 0) toast("warning", t("Unsaved work from an interrupted session was found."), { label: t("Review"), run: () => setScreen("home") });
   }).catch(error => console.error("Recovery scan failed", error));
+  exampleQueue.ready(request => {
+    if (!isExampleId(request.id)) {
+      const known = EXAMPLES.map(e => e.id).join(", ");
+      console.error(`Unknown example "${request.id}". Known examples: ${known}.`);
+      toast("error", t("Unknown example {0}. Known examples: {1}.", { 0: request.id, 1: known }));
+      return;
+    }
+    const into = request.into ?? (request.source === "cli" ? freshExampleRoot(app.getPath("documents"), request.id) : undefined);
+    void openExample(request.id, __dirname, p => openFile(p), into);
+  });
   launchQueue.ready(file => {
     const mode = modeForFile(file, main!.mode());
     if (!mode) return;

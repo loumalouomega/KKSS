@@ -47,7 +47,7 @@ function fake(tasks: T[], behavior: { onResume?: (tasks: T[]) => void; review?: 
   };
   return { wf, calls, state };
 }
-const options = (over: Partial<CliOptions> = {}): CliOptions => ({ project: "/p", timeoutSeconds: 60, review: true, requireConverged: false, ...over });
+const options = (over: Partial<CliOptions> = {}): CliOptions => ({ project: "/p", timeoutSeconds: 60, review: true, requireConverged: false, onPrompt: "deny", ...over });
 let now = 0;
 const clock = { now: () => now, sleep: async (ms: number) => { now += ms; } };
 
@@ -85,6 +85,16 @@ describe("runStudy", () => {
     expect(await runStudy(failed.wf, options(), clock)).toMatchObject({ outcome: "failed", exitCode: EXIT.failed });
     const uncertain = fake([task("t1", "waiting"), task("t2", "waiting", { id: "t2", runId: "r2" })], { onResume: (ts) => { ts[0].state = "uncertain"; ts[1].state = "failed"; } });
     expect(await runStudy(uncertain.wf, options(), clock)).toMatchObject({ outcome: "uncertain", exitCode: EXIT.uncertain });
+  });
+  it("exits 7 when only cancelled tasks kept the run from succeeding, and names every code", async () => {
+    const { wf } = fake([task("t1", "waiting")], { onResume: (ts) => { ts[0].state = "cancelled"; } });
+    expect(await runStudy(wf, options(), clock)).toMatchObject({ outcome: "cancelled", exitCode: EXIT.cancelled, exitName: "cancelled" });
+    expect(await runStudy(fake([task("t1", "waiting")], { onResume: (ts) => { ts[0].state = "failed"; } }).wf, options(), clock)).toMatchObject({ exitName: "failed" });
+  });
+  it("accepts only --on-prompt deny", () => {
+    const base = ["--headless", "study", "run", "/p"];
+    expect(parseHeadlessCli([...base, "--on-prompt", "deny"])).toMatchObject({ ok: true, options: { onPrompt: "deny" } });
+    expect(parseHeadlessCli([...base, "--on-prompt=ask"])).toMatchObject({ ok: false });
   });
   it("treats a task held after resume as refused by validation", async () => {
     const { wf } = fake([task("t1", "held", { error: "Geometry source is missing; relink it before dispatch." })], { onResume: (ts) => { ts[0].state = "held"; } });

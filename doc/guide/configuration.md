@@ -227,6 +227,7 @@ Note that the user-data dir is **not** inside your project folder, so syncing a 
 | `--python <path>` | Override the interpreter |
 | `--output <file>` | Also write the report here |
 | `--no-review` | Skip the run reviews |
+| `--on-prompt deny` | The only policy: a path that would ask the user fails `refused` instead of hanging (the default) |
 | `--require-converged` | Fail unless every run's review establishes convergence |
 | `--user-data-dir <dir>` | The Electron profile; without it a throwaway one is used |
 
@@ -234,13 +235,16 @@ It takes no single-instance lock and writes no `state.json`, so it can run besid
 
 | Exit code | Meaning |
 | --- | --- |
-| `0` | Every task `succeeded` — this is not numerical convergence; read each run's `convergence` |
-| `1` | A task failed, was cancelled, blocked or refused by validation |
-| `2` | A task ended `uncertain` (never retried automatically) |
-| `3` | Bad usage, or the folder holds no KKSS project |
-| `4` | No persisted plan, a `--plan` mismatch, or the queue refused the plan |
-| `5` | Timed out |
-| `6` | Succeeded, but `--require-converged` was not met |
+| `0` | `ok`: every task `succeeded` — this is not numerical convergence; read each run's `convergence` |
+| `1` | `failed`: a task failed, was blocked or refused by validation |
+| `2` | `uncertain`: a task ended `uncertain` (never retried automatically) |
+| `3` | `options`: bad usage, or the folder holds no KKSS project |
+| `4` | `refused`: no persisted plan, a `--plan` mismatch, or the queue refused the plan |
+| `5` | `timedOut` |
+| `6` | `notConverged`: succeeded, but `--require-converged` was not met |
+| `7` | `cancelled`: the only tasks that did not succeed were cancelled |
+
+The JSON report carries `exitCode` and its `exitName`.
 
 ## Settings reference
 
@@ -265,6 +269,7 @@ Generated from `app/main/services/settings/registry.ts`; do not edit between the
 | Language | `general.language` | one of `en`, `es` | `en` | nextStart | `uiLanguage` |
 | Project Folder | `general.projectRoot` | action | — | — | `projectRoot` |
 | Restore Last Session | `general.restoreSession` | boolean | `true` | nextStart | `restoreSession` |
+| Desktop Notifications | `general.osNotifications` | boolean | `true` | live | `osNotifications` |
 | Show What's New After Updates | `general.showWhatsNew` | boolean | `true` | nextStart | `showWhatsNew` |
 | Update Channel | `general.updateChannel` | one of `stable`, `prerelease` | `stable` | live | `updateChannel` |
 
