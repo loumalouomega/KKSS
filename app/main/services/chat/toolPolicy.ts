@@ -46,7 +46,7 @@
  * - `mesh__problemtype_list`, `mesh__problemtype_describe` — **write**, which is
  *   the least obvious row here. Given `workspaceDirs` they load workspace
  *   problemtypes, and loading *executes* them (`node:vm` for `.js`, pyodide for
- *   `.py`). CLAUDE.md's `workspaceFolders` invariant already treats exactly
+ *   `.py`). AGENTS.md's `workspaceFolders` invariant already treats exactly
  *   that as a safety decision rather than a read.
  * - `mesh__case_stop` — **write**. Not a file write; it signals a process.
  * - `mesh__mesh_pack_series` (mesh 3.21.0) — **write**, and not a conservative

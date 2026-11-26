@@ -28,7 +28,7 @@ import { finishOpen } from "./services/performance";
  * Deliberately NOT ported from cad 1.12.0:
  *   - SpaceMouse (the provider's spaceMouseConnect/Disconnect commands and the
  *     `spacemouse` relay). It needs `node-hid`, a second native N-API module,
- *     and node-pty is KKSS's only one — see CLAUDE.md. cad `require()`s it
+ *     and node-pty is KKSS's only one — see AGENTS.md. cad `require()`s it
  *     lazily and fails soft, so nothing else in the submodule is affected.
  *   - The Models activity-bar view (cad/src/modelsView.ts): a VS Code TreeView
  *     over the workspace folders, which KKSS has no analogue of and whose job
@@ -872,7 +872,7 @@ export class CadHost {
    * cad 3.16.0's Copy-reference path — what a copied entity reference quotes
    * (`examples/STP/bull.stp#face-12`). The provider gets it from
    * `vscode.workspace.asRelativePath`; KKSS has no workspace folders, so this is
-   * the *explicit* project root only (the one value CLAUDE.md's project-folder
+   * the *explicit* project root only (the one value AGENTS.md's project-folder
    * invariant allows to be displayed or handed to a submodule), and only while
    * the document really sits inside it. Undefined otherwise, which the field is
    * explicitly optional for — a quote then carries the absolute path, never a

@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 Project memory for KKSS (Keep Kratos Simple Stupid) — an Electron desktop app
 for pre- and post-processing Kratos Multiphysics simulations, built on two

@@ -72,7 +72,7 @@ describe("classifyTool", () => {
     expect(gate("mesh__mesh_select", "askAlways")).toBe("ask");
     expect(gate("mesh__mesh_select", "never")).toBe("auto");
     // Read-shaped, but loading a workspace problemtype EXECUTES it (node:vm /
-    // pyodide) — the same reasoning as CLAUDE.md's workspaceFolders invariant.
+    // pyodide) — the same reasoning as AGENTS.md's workspaceFolders invariant.
     expect(classifyTool("mesh__problemtype_list")).toBe("write");
     expect(classifyTool("mesh__problemtype_describe")).toBe("write");
     // Signals a process rather than writing a file, but still state change
