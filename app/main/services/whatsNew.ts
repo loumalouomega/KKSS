@@ -57,7 +57,7 @@ function showWhatsNew(entries: ChangelogEntry[]): void {
       preload: path.join(whatsNewOutDir, "preload", "whatsNewPreload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
   whatsNewWin = win;

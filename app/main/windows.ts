@@ -130,7 +130,7 @@ export function createMainWindow(
       preload: path.join(outDir, "preload", "shellPreload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -141,7 +141,7 @@ export function createMainWindow(
         additionalArguments: [`--kkss-channel=${mode}`],
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         webSecurity: true,
       },
     });
@@ -157,7 +157,7 @@ export function createMainWindow(
       preload: path.join(outDir, "preload", "homePreload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -166,7 +166,7 @@ export function createMainWindow(
       preload: path.join(outDir, "preload", "editorPreload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
@@ -385,7 +385,7 @@ export function createMainWindow(
           preload: path.join(outDir, "preload", "terminalPreload.js"),
           contextIsolation: true,
           nodeIntegration: false,
-          sandbox: false,
+          sandbox: true,
         },
       });
       win.contentView.addChildView(terminal);
@@ -409,7 +409,7 @@ export function createMainWindow(
           preload: path.join(outDir, "preload", "chatPreload.js"),
           contextIsolation: true,
           nodeIntegration: false,
-          sandbox: false,
+          sandbox: true,
         },
       });
       win.contentView.addChildView(chat);
@@ -431,7 +431,7 @@ export function createMainWindow(
     if (!jobs) {
       jobs = new WebContentsView({ webPreferences: {
         preload: path.join(outDir, "preload", "jobsPreload.js"),
-        contextIsolation: true, nodeIntegration: false, sandbox: false,
+        contextIsolation: true, nodeIntegration: false, sandbox: true,
       } });
       win.contentView.addChildView(jobs);
       wireView(jobs, { kind: "jobs" });
@@ -451,7 +451,7 @@ export function createMainWindow(
     if (!study) {
       study = new WebContentsView({ webPreferences: {
         preload: path.join(outDir, "preload", "studyPreload.js"),
-        contextIsolation: true, nodeIntegration: false, sandbox: false,
+        contextIsolation: true, nodeIntegration: false, sandbox: true,
       } });
       win.contentView.addChildView(study);
       win.contentView.addChildView(home); // keep the home screen topmost

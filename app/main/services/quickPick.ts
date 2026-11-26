@@ -36,7 +36,7 @@ function openPicker(init: PickerInit, outDir: string): Promise<PickerReply | und
         preload: path.join(outDir, "preload", "pickerPreload.js"),
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
       },
     });
 
