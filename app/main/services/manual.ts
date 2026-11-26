@@ -14,6 +14,7 @@
 import { BrowserWindow, nativeTheme, shell } from "electron";
 import { t } from "../../shared/i18n";
 import { SITE_BASE } from "./docsServe";
+import { externalOpen } from "./webGuardCore";
 
 let manualWin: BrowserWindow | null = null;
 
@@ -47,7 +48,7 @@ export function showManual(path?: string): void {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
   manualWin = win;
@@ -58,7 +59,7 @@ export function showManual(path?: string): void {
   win.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith("kkss://docs")) return;
     event.preventDefault();
-    void shell.openExternal(url);
+    if (externalOpen(url)) void shell.openExternal(url);
   });
 
   win.on("closed", () => {

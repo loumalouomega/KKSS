@@ -41,7 +41,7 @@ export function showLicense(): void {
       preload: path.join(licenseOutDir, "preload", "licensePreload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
   licenseWin = win;

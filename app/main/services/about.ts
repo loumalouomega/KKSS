@@ -61,7 +61,7 @@ export function showAbout(): void {
       preload: path.join(aboutOutDir, "preload", "aboutPreload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
   aboutWin = win;

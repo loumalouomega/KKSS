@@ -261,7 +261,7 @@ export function showSettings(): void {
       preload: path.join(outDir, "preload", "settingsPreload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
   win.setMenuBarVisibility(false);

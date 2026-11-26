@@ -1,5 +1,4 @@
 import { app, session, shell } from "electron";
-import { eventLog } from "./eventLog";
 import { allowNavigation, externalOpen, permissionAllowed } from "./webGuardCore";
 
 let installed = false;
@@ -21,13 +20,13 @@ export function installWebGuard(): void {
     contents.on("will-navigate", (event, url) => {
       if (allowNavigation(url, { docsView: manual() })) return;
       event.preventDefault();
-      eventLog.log("warn", [`Blocked navigation to ${scrub(url)}`]);
+      console.warn(`Blocked navigation to ${scrub(url)}`);
     });
     // Services that need something narrower (plots, static report) call
     // setWindowOpenHandler themselves after creation, which replaces this one.
     contents.setWindowOpenHandler(({ url }) => {
       if (externalOpen(url)) void shell.openExternal(url);
-      else eventLog.log("warn", [`Blocked window.open to ${scrub(url)}`]);
+      else console.warn(`Blocked window.open to ${scrub(url)}`);
       return { action: "deny" };
     });
   });
@@ -35,7 +34,7 @@ export function installWebGuard(): void {
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((_wc, permission, callback) => {
     const ok = permissionAllowed(permission);
-    if (!ok) eventLog.log("warn", [`Denied permission request: ${permission}`]);
+    if (!ok) console.warn(`Denied permission request: ${permission}`);
     callback(ok);
   });
   ses.setPermissionCheckHandler((_wc, permission) => permissionAllowed(permission));
