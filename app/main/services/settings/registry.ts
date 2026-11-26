@@ -228,6 +228,16 @@ export function buildRegistry(platform: string = process.platform): SettingEntry
       description: t("Reopen the previous run's documents, screen and panels at launch."),
     },
     {
+      id: "general.osNotifications",
+      label: t("Desktop Notifications"),
+      category: "General",
+      type: "boolean",
+      storeKey: "osNotifications",
+      default: true,
+      applies: "live",
+      description: t("Show an operating-system notification when a queue plan or a Kratos job finishes while the window is not focused. Nothing is transmitted."),
+    },
+    {
       id: "general.showWhatsNew",
       label: t("Show What's New After Updates"),
       category: "General",

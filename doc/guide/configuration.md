@@ -269,6 +269,7 @@ Generated from `app/main/services/settings/registry.ts`; do not edit between the
 | Language | `general.language` | one of `en`, `es` | `en` | nextStart | `uiLanguage` |
 | Project Folder | `general.projectRoot` | action | — | — | `projectRoot` |
 | Restore Last Session | `general.restoreSession` | boolean | `true` | nextStart | `restoreSession` |
+| Desktop Notifications | `general.osNotifications` | boolean | `true` | live | `osNotifications` |
 | Show What's New After Updates | `general.showWhatsNew` | boolean | `true` | nextStart | `showWhatsNew` |
 | Update Channel | `general.updateChannel` | one of `stable`, `prerelease` | `stable` | live | `updateChannel` |
 

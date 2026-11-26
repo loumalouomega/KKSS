@@ -25,6 +25,8 @@ import { RecentMeshStore } from "../../mesh/src/recentMeshes";
 import { installMenu } from "./menu";
 import { modeForFile, modeForViewType, unsupportedSuffix } from "./router";
 import { DOCS_URL } from "./urls";
+import { osNotify } from "./services/osNotify";
+import { jobNotice, planNotice } from "./services/osNotifyCore";
 import { ExampleQueue, exampleFromUrl, launchExamples } from "./exampleLaunch";
 import { EXAMPLES, isExampleId } from "./services/examplesCore";
 import { LaunchQueue, launchFiles, localLaunchFile, unsupportedLaunchFile, unsupportedLaunchFiles } from "./launch";
@@ -258,6 +260,12 @@ let activeNextStep: NextStepContext | undefined;
 
 /** Queue tasks that are dispatching or running show on the Output panel's Progress tab; their outcome is a message. */
 const trackedQueueTasks = new Set<string>();
+let previousTaskStates = new Map<string, string>();
+const osNotifyDeps = {
+  enabled: () => stateStore.get<boolean>("osNotifications", true) ?? true,
+  focused: () => main?.win.isFocused() ?? false,
+  focus: () => focusMainWindow(),
+};
 function mirrorQueueProgress(snapshot: unknown): void {
   const project = (snapshot as { project?: { studies?: Array<{ id: string; name: string }>; queue?: { tasks?: Array<{ id: string; studyId: string; kind: string; state: string; error?: string }> } } | null })?.project;
   for (const task of project?.queue?.tasks ?? []) {
@@ -273,6 +281,10 @@ function mirrorQueueProgress(snapshot: unknown): void {
       logMessage(state === "failed" ? "error" : "info", "queue", `${label}: ${task.state}${task.error ? ` — ${task.error}` : ""}`);
     }
   }
+  const tasks = project?.queue?.tasks ?? [];
+  const notice = planNotice(previousTaskStates, tasks);
+  previousTaskStates = new Map(tasks.map(t => [t.id, t.state]));
+  if (notice) osNotify(notice, osNotifyDeps);
 }
 
 async function pushWorkflows(): Promise<void> {
@@ -1815,7 +1827,11 @@ app.whenReady().then(() => {
       if (main && !main.shell.webContents.isDestroyed())
         main.shell.webContents.send("shell:toWebview", { type: "jobs", active, visible, stale });
     },
-    notify: (job) => shellToast(job.state === "failed" ? "error" : "info", `Kratos: ${path.basename(job.case_dir)} ${job.state}.`),
+    notify: (job) => {
+      shellToast(job.state === "failed" ? "error" : "info", `Kratos: ${path.basename(job.case_dir)} ${job.state}.`);
+      const notice = jobNotice(job, path.basename(job.case_dir));
+      if (notice) osNotify(notice, osNotifyDeps);
+    },
   });
 
   // Upgrade decision, taken once: a server that was already set up keeps
